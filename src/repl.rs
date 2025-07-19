@@ -105,7 +105,7 @@ pub struct VimRepl {
     last_response_status: Option<String>,
     request_start_time: Option<Instant>,
     last_request_duration: Option<u64>, // in milliseconds
-    pane_split_ratio: f64, // 0.0 to 1.0, represents input pane height ratio
+    request_pane_height: usize, // Height of request pane in lines
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -847,6 +847,11 @@ impl VimRepl {
     pub fn new(profile: IniProfile, verbose: bool) -> Result<Self> {
         let client = HttpClient::new(&profile)?;
         let terminal_size = terminal::size()?;
+        
+        // Calculate initial 50/50 split in lines
+        let height = terminal_size.1 as usize;
+        let total_content_height = height - 2; // Minus separator and status line
+        let initial_request_pane_height = total_content_height / 2;
 
         Ok(Self {
             mode: EditorMode::Insert,
@@ -867,7 +872,7 @@ impl VimRepl {
             last_response_status: None,
             request_start_time: None,
             last_request_duration: None,
-            pane_split_ratio: 0.5, // Start with 50/50 split
+            request_pane_height: initial_request_pane_height,
         })
     }
 
@@ -925,12 +930,12 @@ impl VimRepl {
                     let old_request_scroll = self.buffer.scroll_offset;
                     let old_response_scroll = self.response_buffer.as_ref().map(|r| r.scroll_offset);
                     
-                    // Capture pane split ratio before handling the key event
+                    // Capture pane split height before handling the key event
                     // Detect when pane boundary control commands (Ctrl+J/Ctrl+K) change layout
                     // because pane boundary changes affect both panes' dimensions and require full 
                     // redraw, but without this the rendering decision logic wouldn't detect these 
                     // layout changes.
-                    let old_pane_split_ratio = self.pane_split_ratio;
+                    let old_request_pane_height = self.request_pane_height;
                     
                     let needs_exit = self.handle_key_event(key).await?;
                     
@@ -946,10 +951,10 @@ impl VimRepl {
                         self.response_buffer.as_ref().map(|r| r.scroll_offset) != old_response_scroll;
                     
                     // Check if pane layout changed during the key event  
-                    // Pane boundary controls (Ctrl+J/Ctrl+K) modify the pane_split_ratio,
+                    // Pane boundary controls (Ctrl+J/Ctrl+K) modify the request_pane_height,
                     // changing both panes' dimensions. This requires a full redraw since both
                     // panes' content positioning and the separator location change.
-                    let pane_layout_changed = self.pane_split_ratio != old_pane_split_ratio;
+                    let pane_layout_changed = self.request_pane_height != old_request_pane_height;
                     
                     // RENDERING DECISION LOGIC
                     // ======================
@@ -995,6 +1000,19 @@ impl VimRepl {
                     }
                 }
                 Event::Resize(width, height) => {
+                    let old_height = self.terminal_size.1 as usize;
+                    let old_total_content_height = old_height - 2;
+                    let new_height = height as usize;
+                    let new_total_content_height = new_height - 2;
+                    
+                    // Adjust request pane height proportionally to maintain relative split
+                    if old_total_content_height > 0 {
+                        let proportion = self.request_pane_height as f64 / old_total_content_height as f64;
+                        self.request_pane_height = ((new_total_content_height as f64 * proportion) as usize)
+                            .max(3) // Minimum input height
+                            .min(new_total_content_height - 3); // Maximum (leave 3 for output)
+                    }
+                    
                     self.terminal_size = (width, height);
                     // Full render needed on resize - layout completely changes
                     self.render_full()?;
@@ -1858,7 +1876,10 @@ impl VimRepl {
                     // Hide output pane and switch to request pane
                     self.response_buffer = None;
                     self.current_pane = Pane::Request;
-                    self.pane_split_ratio = 1.0; // Give full space to input pane
+                    // Give full space to input pane when response is hidden
+                    let height = self.terminal_size.1 as usize;
+                    let total_content_height = height - 2; // Minus separator and status line
+                    self.request_pane_height = total_content_height;
                 } else {
                     return Ok(true);
                 }
@@ -1981,9 +2002,13 @@ impl VimRepl {
                 }
                 
                 self.response_buffer = Some(ResponseBuffer::new(response_text));
-                // Restore default split ratio when new response is generated
-                if self.pane_split_ratio >= 1.0 {
-                    self.pane_split_ratio = 0.5;
+                // Restore default 50/50 split when new response is generated if currently maximized
+                let height = self.terminal_size.1 as usize;
+                let total_content_height = height - 2; // Minus separator and status line
+                let min_output_height = 3;
+                let max_input_height = total_content_height - min_output_height;
+                if self.request_pane_height >= max_input_height {
+                    self.request_pane_height = total_content_height / 2;
                 }
             }
             Err(e) => {
@@ -1995,9 +2020,13 @@ impl VimRepl {
                 self.last_response_status = Some("Error".to_string());
                 self.status_message = format!("Request failed: {}", e);
                 self.response_buffer = Some(ResponseBuffer::new(format!("Error: {}", e)));
-                // Restore default split ratio when new response is generated
-                if self.pane_split_ratio >= 1.0 {
-                    self.pane_split_ratio = 0.5;
+                // Restore default 50/50 split when new response is generated if currently maximized
+                let height = self.terminal_size.1 as usize;
+                let total_content_height = height - 2; // Minus separator and status line
+                let min_output_height = 3;
+                let max_input_height = total_content_height - min_output_height;
+                if self.request_pane_height >= max_input_height {
+                    self.request_pane_height = total_content_height / 2;
                 }
             }
         }
@@ -2654,14 +2683,11 @@ impl VimRepl {
     fn get_response_pane_height(&self) -> usize {
         let height = self.terminal_size.1 as usize;
         let total_content_height = height - 2; // Minus separator and status line
-        let input_height = (total_content_height as f64 * self.pane_split_ratio) as usize;
-        total_content_height - input_height
+        total_content_height - self.request_pane_height
     }
 
     fn get_request_pane_height(&self) -> usize {
-        let height = self.terminal_size.1 as usize;
-        let total_content_height = height - 2; // Minus separator and status line
-        (total_content_height as f64 * self.pane_split_ratio) as usize
+        self.request_pane_height
     }
 
     fn expand_input_pane(&mut self) {
@@ -2669,53 +2695,25 @@ impl VimRepl {
         let total_content_height = height - 2; // Minus separator and status line
         let min_output_height = 3;
         let max_input_height = total_content_height - min_output_height;
-        let current_input_height = self.get_request_pane_height();
         
-        if current_input_height < max_input_height {
-            let new_input_height = (current_input_height + 1).min(max_input_height);
-            // Ensure precise ratio calculation for consistent pane boundaries to prevent
-            // floating-point precision errors that would cause inconsistent pane sizes
-            // when expanding to maximum bounds.
-            let target_ratio = new_input_height as f64 / total_content_height as f64;
-            let max_ratio = max_input_height as f64 / total_content_height as f64;
-            self.pane_split_ratio = target_ratio.min(max_ratio);
+        if self.request_pane_height < max_input_height {
+            self.request_pane_height = (self.request_pane_height + 1).min(max_input_height);
         }
     }
 
     fn expand_output_pane(&mut self) {
-        let height = self.terminal_size.1 as usize;
-        let total_content_height = height - 2; // Minus separator and status line
         let min_input_height = 3;
-        let max_output_height = total_content_height - min_input_height;
-        let current_output_height = self.get_response_pane_height();
         
-        if current_output_height < max_output_height {
-            let new_output_height = (current_output_height + 1).min(max_output_height);
-            let new_input_height = total_content_height - new_output_height;
-            // Maintain precise ratio calculation when expanding output pane to ensure
-            // consistent behavior with input pane resizing and prevent boundary precision
-            // issues that would cause the pane to not reach maximum output pane size.
-            let target_ratio = new_input_height as f64 / total_content_height as f64;
-            let min_ratio = min_input_height as f64 / total_content_height as f64;
-            self.pane_split_ratio = target_ratio.max(min_ratio);
+        if self.request_pane_height > min_input_height {
+            self.request_pane_height = (self.request_pane_height - 1).max(min_input_height);
         }
     }
 
     fn shrink_input_pane(&mut self) {
-        let height = self.terminal_size.1 as usize;
-        let total_content_height = height - 2; // Minus separator and status line
         let min_input_height = 3;
-        let current_input_height = self.get_request_pane_height();
         
-        if current_input_height > min_input_height {
-            let new_input_height = (current_input_height - 1).max(min_input_height);
-            // Ensure precise ratio calculation to avoid floating-point precision issues
-            // that would cause the pane to get stuck at values like 4 lines instead of
-            // reaching the exact minimum of 3 lines. We calculate the exact ratio and
-            // clamp it to ensure boundaries are respected.
-            let target_ratio = new_input_height as f64 / total_content_height as f64;
-            let min_ratio = min_input_height as f64 / total_content_height as f64;
-            self.pane_split_ratio = target_ratio.max(min_ratio);
+        if self.request_pane_height > min_input_height {
+            self.request_pane_height = (self.request_pane_height - 1).max(min_input_height);
         }
     }
 
@@ -2723,17 +2721,10 @@ impl VimRepl {
         let height = self.terminal_size.1 as usize;
         let total_content_height = height - 2; // Minus separator and status line
         let min_output_height = 3;
-        let current_output_height = self.get_response_pane_height();
+        let max_input_height = total_content_height - min_output_height;
         
-        if current_output_height > min_output_height {
-            let new_output_height = (current_output_height - 1).max(min_output_height);
-            let new_input_height = total_content_height - new_output_height;
-            // Ensure precise ratio calculation when shrinking output pane to prevent
-            // the output pane from getting stuck above the minimum size due to
-            // floating-point precision errors in ratio calculations.
-            let target_ratio = new_input_height as f64 / total_content_height as f64;
-            let max_ratio = (total_content_height - min_output_height) as f64 / total_content_height as f64;
-            self.pane_split_ratio = target_ratio.min(max_ratio);
+        if self.request_pane_height < max_input_height {
+            self.request_pane_height = (self.request_pane_height + 1).min(max_input_height);
         }
     }
 
@@ -2743,15 +2734,13 @@ impl VimRepl {
         let min_output_height = 3;
         let max_input_height = total_content_height - min_output_height;
         
-        self.pane_split_ratio = max_input_height as f64 / total_content_height as f64;
+        self.request_pane_height = max_input_height;
     }
 
     fn maximize_output_pane(&mut self) {
-        let height = self.terminal_size.1 as usize;
-        let total_content_height = height - 2; // Minus separator and status line
         let min_input_height = 3;
         
-        self.pane_split_ratio = min_input_height as f64 / total_content_height as f64;
+        self.request_pane_height = min_input_height;
     }
 }
 
