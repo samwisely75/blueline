@@ -36,6 +36,180 @@ async fn main() -> Result<()> {
     repl.run().await
 }
 
+/// Print connection profile details to stderr when verbose mode is enabled
+/// This function displays host, port, scheme, certificates, authentication, headers, and proxy settings
+#[tracing::instrument]
+pub fn print_profile(profile: &impl http::HttpConnectionProfile) {
+    if let Some(endpoint) = profile.server() {
+        eprintln!("> connection:");
+        eprintln!(">   host: {}", endpoint.host());
+        eprintln!(
+            ">   port: {}",
+            endpoint
+                .port()
+                .map(|p| p.to_string())
+                .unwrap_or("<none>".to_string())
+        );
+        eprintln!(">   scheme: {}", endpoint.scheme().unwrap());
+        if endpoint.scheme().unwrap() == "https" {
+            eprintln!(
+                ">   ca-cert: {}",
+                profile.ca_cert().unwrap_or(&"<none>".to_string())
+            );
+            eprintln!(
+                ">   insecure: {}",
+                profile
+                    .insecure()
+                    .map(|x| x.to_string())
+                    .unwrap_or("<none>".to_string())
+            );
+        }
+    } else {
+        eprintln!("> connection: <none>");
+    }
+    if profile.user().is_some() {
+        eprintln!(">   user: {}", profile.user().unwrap());
+        eprintln!(
+            ">   password: {}",
+            profile.password().map(|_| "<provided>").unwrap_or("<none>")
+        );
+    }
+    eprintln!(">   headers:");
+    profile.headers().iter().for_each(|(name, value)| {
+        eprintln!(">    {name}: {value}");
+    });
+    if profile.proxy().is_some() {
+        eprintln!(">   proxy: {}", profile.proxy().unwrap());
+    }
+}
+
+/// Print HTTP request details to stderr when verbose mode is enabled
+/// This function displays the HTTP method, URL path, and request body (truncated if long)
+#[tracing::instrument]
+pub fn print_request(req: &impl http::HttpRequestArgs) {
+    let url = req
+        .url_path()
+        .map(|u| u.to_string())
+        .unwrap_or("<none>".to_string());
+    eprintln!("> request:");
+    eprintln!(">   method: {}", req.method().unwrap());
+    eprintln!(">   path: {url}");
+    eprintln!(
+        ">   body: {}",
+        req.body()
+            .map(|b| if b.len() > 78 {
+                format!("{}...", &b[0..75])
+            } else {
+                b.to_string()
+            })
+            .unwrap_or("<none>".to_string())
+    );
+}
+
+/// Print HTTP response details to stderr when verbose mode is enabled
+/// This function displays the response status code and all response headers
+pub fn print_response(res: &http::HttpResponse) {
+    eprintln!("> response:");
+    eprintln!(">   status: {}", res.status());
+    eprintln!(">   headers:");
+    res.headers().iter().for_each(|(name, value)| {
+        eprintln!(">     {}: {}", name, value.to_str().unwrap());
+    });
+}
+
+/// Format connection profile details as a string for display in REPL response pane
+/// Returns a formatted string showing host, port, scheme, certificates, authentication, headers, and proxy settings
+pub fn format_profile(profile: &impl http::HttpConnectionProfile) -> String {
+    let mut output = String::new();
+    
+    if let Some(endpoint) = profile.server() {
+        output.push_str("> connection:\n");
+        output.push_str(&format!(">   host: {}\n", endpoint.host()));
+        output.push_str(&format!(
+            ">   port: {}\n",
+            endpoint
+                .port()
+                .map(|p| p.to_string())
+                .unwrap_or("<none>".to_string())
+        ));
+        output.push_str(&format!(">   scheme: {}\n", endpoint.scheme().unwrap()));
+        if endpoint.scheme().unwrap() == "https" {
+            output.push_str(&format!(
+                ">   ca-cert: {}\n",
+                profile.ca_cert().unwrap_or(&"<none>".to_string())
+            ));
+            output.push_str(&format!(
+                ">   insecure: {}\n",
+                profile
+                    .insecure()
+                    .map(|x| x.to_string())
+                    .unwrap_or("<none>".to_string())
+            ));
+        }
+    } else {
+        output.push_str("> connection: <none>\n");
+    }
+    
+    if profile.user().is_some() {
+        output.push_str(&format!(">   user: {}\n", profile.user().unwrap()));
+        output.push_str(&format!(
+            ">   password: {}\n",
+            profile.password().map(|_| "<provided>").unwrap_or("<none>")
+        ));
+    }
+    
+    output.push_str(">   headers:\n");
+    profile.headers().iter().for_each(|(name, value)| {
+        output.push_str(&format!(">    {name}: {value}\n"));
+    });
+    
+    if profile.proxy().is_some() {
+        output.push_str(&format!(">   proxy: {}\n", profile.proxy().unwrap()));
+    }
+    
+    output
+}
+
+/// Format HTTP request details as a string for display in REPL response pane
+/// Returns a formatted string showing the HTTP method, URL path, and request body (truncated if long)
+pub fn format_request(req: &impl http::HttpRequestArgs) -> String {
+    let url = req
+        .url_path()
+        .map(|u| u.to_string())
+        .unwrap_or("<none>".to_string());
+        
+    let mut output = String::new();
+    output.push_str("> request:\n");
+    output.push_str(&format!(">   method: {}\n", req.method().unwrap()));
+    output.push_str(&format!(">   path: {url}\n"));
+    output.push_str(&format!(
+        ">   body: {}\n",
+        req.body()
+            .map(|b| if b.len() > 78 {
+                format!("{}...", &b[0..75])
+            } else {
+                b.to_string()
+            })
+            .unwrap_or("<none>".to_string())
+    ));
+    
+    output
+}
+
+/// Format HTTP response details as a string for display in REPL response pane
+/// Returns a formatted string showing the response status code and all response headers
+pub fn format_response(res: &http::HttpResponse) -> String {
+    let mut output = String::new();
+    output.push_str("> response:\n");
+    output.push_str(&format!(">   status: {}\n", res.status()));
+    output.push_str(">   headers:\n");
+    res.headers().iter().for_each(|(name, value)| {
+        output.push_str(&format!(">     {}: {}\n", name, value.to_str().unwrap()));
+    });
+    
+    output
+}
+
 fn init_tracing_subscriber() {
     tracing_subscriber::fmt()
         .with_env_filter(
