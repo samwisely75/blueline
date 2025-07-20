@@ -3,7 +3,6 @@ mod decoder;
 mod http;
 mod ini;
 mod repl;
-// mod stdio;  // Suspended - piped input disabled for security reasons until further notice
 mod url;
 mod utils;
 
