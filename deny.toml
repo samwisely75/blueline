@@ -96,6 +96,7 @@ allow = [
     "CDLA-Permissive-2.0",  # Community Data License Agreement (webpki-roots)
     "MPL-2.0",  # Mozilla Public License 2.0 (option-ext)
     "CC0-1.0",  # Creative Commons Zero (tiny-keccak)
+    "BSL-1.0",  # Boost Software License 1.0 (clipboard-win, error-code, str-buf)
 ]
 # The confidence threshold for detecting a license from license text.
 # The higher the value, the more closely the license text must be to the
