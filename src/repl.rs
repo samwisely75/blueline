@@ -79,6 +79,7 @@ pub struct Buffer {
 
 #[derive(Debug, Clone)]
 pub struct ResponseBuffer {
+    #[allow(dead_code)]
     content: String,
     lines: Vec<String>,
     scroll_offset: usize,
@@ -122,6 +123,7 @@ pub struct ReplCommand {
     headers: HashMap<String, String>,
 }
 
+#[allow(dead_code)]
 impl Buffer {
     fn new() -> Self {
         Self {
@@ -509,8 +511,7 @@ impl Buffer {
 
         let line = &mut self.lines[self.cursor_line];
         if self.cursor_col < line.len() {
-            let deleted = line.split_off(self.cursor_col);
-            deleted
+            line.split_off(self.cursor_col)
         } else {
             String::new()
         }
@@ -871,6 +872,7 @@ impl ResponseBuffer {
     }
 }
 
+#[allow(dead_code)]
 impl VimRepl {
     pub fn new(profile: IniProfile, verbose: bool) -> Result<Self> {
         let client = HttpClient::new(&profile)?;
@@ -1065,10 +1067,7 @@ impl VimRepl {
 
     async fn handle_normal_mode(&mut self, key: KeyEvent) -> Result<bool> {
         // Reset pending flags for most commands
-        let reset_pending_g = match key.code {
-            KeyCode::Char('g') => false,
-            _ => true,
-        };
+        let reset_pending_g = !matches!(key.code, KeyCode::Char('g'));
 
         let reset_pending_ctrl_w = match key.code {
             KeyCode::Char('w') => {
@@ -2794,11 +2793,7 @@ impl VimRepl {
 
         // Calculate available space for padding between left and right content
         let used_space = left_content.len() + right_content.len();
-        let padding = if used_space < width {
-            width - used_space
-        } else {
-            0
-        };
+        let padding = width.saturating_sub(used_space);
 
         // Create the full status line
         let status_line = format!("{}{}{}", left_content, " ".repeat(padding), right_content);
@@ -2846,11 +2841,7 @@ impl VimRepl {
 
         // Calculate available space for padding between left and right content
         let used_space = left_content.len() + right_content.len();
-        let padding = if used_space < width {
-            width - used_space
-        } else {
-            0
-        };
+        let padding = width.saturating_sub(used_space);
 
         // Create the full status line
         let status_line = format!("{}{}{}", left_content, " ".repeat(padding), right_content);
