@@ -39,7 +39,7 @@ fn test_only_profile_and_verbose_options() {
     // Test that we can run with only --profile option
     let output = Command::new(blueline_binary())
         .args(["--profile", "test"])
-        .arg("--help")  // Use help to exit immediately
+        .arg("--help") // Use help to exit immediately
         .output()
         .expect("Failed to execute blueline");
 
@@ -52,7 +52,7 @@ fn test_repl_mode_required() {
     // This should fail due to missing endpoint configuration, but the failure
     // should be about configuration, not about missing arguments
     let output = Command::new(blueline_binary())
-        .stdin(std::process::Stdio::null())  // No input
+        .stdin(std::process::Stdio::null()) // No input
         .output()
         .expect("Failed to execute blueline");
 

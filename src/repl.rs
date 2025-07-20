@@ -48,9 +48,9 @@ use crossterm::{
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
 
-use crate::http::{HttpClient, HttpRequestArgs};
-use crate::ini::IniProfile;
-use crate::url::{Url, UrlPath};
+use bluenote::{
+    HttpClient, HttpConnectionProfile, HttpRequestArgs, HttpResponse, IniProfile, Url, UrlPath,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditorMode {
@@ -105,7 +105,7 @@ pub struct VimRepl {
     last_response_status: Option<String>,
     request_start_time: Option<Instant>,
     last_request_duration: Option<u64>, // in milliseconds
-    request_pane_height: usize, // Height of request pane in lines
+    request_pane_height: usize,         // Height of request pane in lines
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -136,7 +136,7 @@ impl Buffer {
         if self.cursor_line >= self.lines.len() {
             self.lines.push(String::new());
         }
-        
+
         let line = &mut self.lines[self.cursor_line];
         if self.cursor_col <= line.len() {
             line.insert(self.cursor_col, ch);
@@ -148,7 +148,7 @@ impl Buffer {
         if self.cursor_line >= self.lines.len() {
             return;
         }
-        
+
         let line = &mut self.lines[self.cursor_line];
         if self.cursor_col > 0 && self.cursor_col <= line.len() {
             line.remove(self.cursor_col - 1);
@@ -166,7 +166,7 @@ impl Buffer {
         if self.cursor_line >= self.lines.len() {
             return;
         }
-        
+
         let line = &mut self.lines[self.cursor_line];
         if self.cursor_col < line.len() {
             line.remove(self.cursor_col);
@@ -181,7 +181,7 @@ impl Buffer {
         if self.cursor_line >= self.lines.len() {
             self.lines.push(String::new());
         }
-        
+
         let line = &mut self.lines[self.cursor_line];
         let remainder = line.split_off(self.cursor_col);
         self.cursor_line += 1;
@@ -191,7 +191,7 @@ impl Buffer {
 
     fn new_line_with_scroll(&mut self, visible_height: usize) {
         self.new_line();
-        
+
         // Auto-scroll down if cursor goes below visible area
         if self.cursor_line >= self.scroll_offset + visible_height {
             self.scroll_offset = self.cursor_line - visible_height + 1;
@@ -211,7 +211,7 @@ impl Buffer {
             self.cursor_line -= 1;
             let line_len = self.lines.get(self.cursor_line).map_or(0, |l| l.len());
             self.cursor_col = self.cursor_col.min(line_len);
-            
+
             // Auto-scroll up if cursor goes above visible area
             if self.cursor_line < self.scroll_offset {
                 self.scroll_offset = self.cursor_line;
@@ -232,7 +232,7 @@ impl Buffer {
             self.cursor_line += 1;
             let line_len = self.lines.get(self.cursor_line).map_or(0, |l| l.len());
             self.cursor_col = self.cursor_col.min(line_len);
-            
+
             // Auto-scroll down if cursor goes below visible area
             if self.cursor_line >= self.scroll_offset + visible_height {
                 self.scroll_offset = self.cursor_line - visible_height + 1;
@@ -260,8 +260,11 @@ impl Buffer {
             // Add a space between lines if current line doesn't end with whitespace
             // and next line doesn't start with whitespace
             let current_line = &mut self.lines[self.cursor_line];
-            if !current_line.is_empty() && !current_line.ends_with(' ') && 
-               !next_line.is_empty() && !next_line.starts_with(' ') {
+            if !current_line.is_empty()
+                && !current_line.ends_with(' ')
+                && !next_line.is_empty()
+                && !next_line.starts_with(' ')
+            {
                 current_line.push(' ');
             }
             current_line.push_str(&next_line);
@@ -295,7 +298,7 @@ impl Buffer {
         if !self.lines.is_empty() {
             self.cursor_line = self.lines.len() - 1;
             self.cursor_col = self.lines[self.cursor_line].len();
-            
+
             // Adjust scroll to show the end of the buffer
             if self.lines.len() > visible_height {
                 self.scroll_offset = self.lines.len() - visible_height;
@@ -308,14 +311,14 @@ impl Buffer {
     fn scroll_half_page_up_with_cursor(&mut self, half_page_size: usize) {
         let scroll_amount = half_page_size.min(self.scroll_offset);
         self.scroll_offset -= scroll_amount;
-        
+
         // Move cursor to maintain relative position or to top of visible area
         if self.cursor_line >= scroll_amount {
             self.cursor_line -= scroll_amount;
         } else {
             self.cursor_line = self.scroll_offset;
         }
-        
+
         // Ensure cursor column is within line bounds
         let line_len = self.lines.get(self.cursor_line).map_or(0, |l| l.len());
         self.cursor_col = self.cursor_col.min(line_len);
@@ -329,7 +332,7 @@ impl Buffer {
         };
         let scroll_amount = half_page_size.min(max_scroll - self.scroll_offset);
         self.scroll_offset += scroll_amount;
-        
+
         // Move cursor to maintain relative position or to bottom of visible area
         let new_cursor_line = self.cursor_line + scroll_amount;
         if new_cursor_line < self.lines.len() {
@@ -337,7 +340,7 @@ impl Buffer {
         } else {
             self.cursor_line = self.lines.len().saturating_sub(1);
         }
-        
+
         // Ensure cursor column is within line bounds
         let line_len = self.lines.get(self.cursor_line).map_or(0, |l| l.len());
         self.cursor_col = self.cursor_col.min(line_len);
@@ -348,7 +351,7 @@ impl Buffer {
             if let Some(line) = self.lines.get(self.cursor_line) {
                 let chars: Vec<char> = line.chars().collect();
                 let mut pos = self.cursor_col;
-                
+
                 if pos >= chars.len() {
                     // At end of line, move to next line
                     if self.cursor_line < self.lines.len() - 1 {
@@ -357,7 +360,9 @@ impl Buffer {
                         // Skip leading whitespace on new line
                         if let Some(new_line) = self.lines.get(self.cursor_line) {
                             let new_chars: Vec<char> = new_line.chars().collect();
-                            while self.cursor_col < new_chars.len() && new_chars[self.cursor_col].is_whitespace() {
+                            while self.cursor_col < new_chars.len()
+                                && new_chars[self.cursor_col].is_whitespace()
+                            {
                                 self.cursor_col += 1;
                             }
                         }
@@ -366,9 +371,9 @@ impl Buffer {
                         return; // Already at end of buffer
                     }
                 }
-                
+
                 let start_char = chars[pos];
-                
+
                 if start_char.is_whitespace() {
                     // Skip whitespace
                     while pos < chars.len() && chars[pos].is_whitespace() {
@@ -381,11 +386,15 @@ impl Buffer {
                     }
                 } else {
                     // Skip punctuation/symbols (treat each as separate word)
-                    while pos < chars.len() && !chars[pos].is_alphanumeric() && !chars[pos].is_whitespace() && chars[pos] != '_' {
+                    while pos < chars.len()
+                        && !chars[pos].is_alphanumeric()
+                        && !chars[pos].is_whitespace()
+                        && chars[pos] != '_'
+                    {
                         pos += 1;
                     }
                 }
-                
+
                 if pos < chars.len() {
                     self.cursor_col = pos;
                     return;
@@ -411,7 +420,7 @@ impl Buffer {
             if let Some(line) = self.lines.get(self.cursor_line) {
                 let chars: Vec<char> = line.chars().collect();
                 let mut pos = self.cursor_col;
-                
+
                 if pos == 0 {
                     // At beginning of line, move to previous line
                     if self.cursor_line > 0 {
@@ -423,9 +432,9 @@ impl Buffer {
                     }
                     return; // Already at beginning of buffer
                 }
-                
+
                 pos -= 1;
-                
+
                 // Skip trailing whitespace if we're starting on whitespace
                 if pos < chars.len() && chars[pos].is_whitespace() {
                     while pos > 0 && chars[pos].is_whitespace() {
@@ -436,23 +445,28 @@ impl Buffer {
                         return;
                     }
                 }
-                
+
                 if pos < chars.len() {
                     let current_char = chars[pos];
-                    
+
                     if current_char.is_alphanumeric() || current_char == '_' {
                         // Move to beginning of alphanumeric word
-                        while pos > 0 && (chars[pos - 1].is_alphanumeric() || chars[pos - 1] == '_') {
+                        while pos > 0 && (chars[pos - 1].is_alphanumeric() || chars[pos - 1] == '_')
+                        {
                             pos -= 1;
                         }
                     } else if !current_char.is_whitespace() {
                         // Move to beginning of punctuation sequence
-                        while pos > 0 && !chars[pos - 1].is_alphanumeric() && !chars[pos - 1].is_whitespace() && chars[pos - 1] != '_' {
+                        while pos > 0
+                            && !chars[pos - 1].is_alphanumeric()
+                            && !chars[pos - 1].is_whitespace()
+                            && chars[pos - 1] != '_'
+                        {
                             pos -= 1;
                         }
                     }
                 }
-                
+
                 self.cursor_col = pos;
                 return;
             } else {
@@ -492,7 +506,7 @@ impl Buffer {
         if self.cursor_line >= self.lines.len() {
             return String::new();
         }
-        
+
         let line = &mut self.lines[self.cursor_line];
         if self.cursor_col < line.len() {
             let deleted = line.split_off(self.cursor_col);
@@ -507,7 +521,10 @@ impl Buffer {
     }
 
     fn yank_line(&self) -> String {
-        self.lines.get(self.cursor_line).cloned().unwrap_or_default()
+        self.lines
+            .get(self.cursor_line)
+            .cloned()
+            .unwrap_or_default()
     }
 
     fn yank_to_line_end(&self) -> String {
@@ -578,7 +595,7 @@ impl ResponseBuffer {
             self.cursor_line -= 1;
             let line_len = self.lines.get(self.cursor_line).map_or(0, |l| l.len());
             self.cursor_col = self.cursor_col.min(line_len);
-            
+
             // Auto-scroll up if cursor goes above visible area
             if self.cursor_line < self.scroll_offset {
                 self.scroll_offset = self.cursor_line;
@@ -599,7 +616,7 @@ impl ResponseBuffer {
             self.cursor_line += 1;
             let line_len = self.lines.get(self.cursor_line).map_or(0, |l| l.len());
             self.cursor_col = self.cursor_col.min(line_len);
-            
+
             // Auto-scroll down if cursor goes below visible area
             if self.cursor_line >= self.scroll_offset + visible_height {
                 self.scroll_offset = self.cursor_line - visible_height + 1;
@@ -612,7 +629,7 @@ impl ResponseBuffer {
             self.cursor_line -= 1;
             let line_len = self.lines.get(self.cursor_line).map_or(0, |l| l.len());
             self.cursor_col = self.cursor_col.min(line_len);
-            
+
             // Auto-scroll up if cursor goes above visible area
             if self.cursor_line < self.scroll_offset {
                 self.scroll_offset = self.cursor_line;
@@ -649,7 +666,7 @@ impl ResponseBuffer {
             if let Some(line) = self.lines.get(self.cursor_line) {
                 let chars: Vec<char> = line.chars().collect();
                 let mut pos = self.cursor_col;
-                
+
                 if pos >= chars.len() {
                     // At end of line, move to next line
                     if self.cursor_line < self.lines.len() - 1 {
@@ -658,7 +675,9 @@ impl ResponseBuffer {
                         // Skip leading whitespace on new line
                         if let Some(new_line) = self.lines.get(self.cursor_line) {
                             let new_chars: Vec<char> = new_line.chars().collect();
-                            while self.cursor_col < new_chars.len() && new_chars[self.cursor_col].is_whitespace() {
+                            while self.cursor_col < new_chars.len()
+                                && new_chars[self.cursor_col].is_whitespace()
+                            {
                                 self.cursor_col += 1;
                             }
                         }
@@ -667,9 +686,9 @@ impl ResponseBuffer {
                         return; // Already at end of buffer
                     }
                 }
-                
+
                 let start_char = chars[pos];
-                
+
                 if start_char.is_whitespace() {
                     // Skip whitespace
                     while pos < chars.len() && chars[pos].is_whitespace() {
@@ -682,11 +701,15 @@ impl ResponseBuffer {
                     }
                 } else {
                     // Skip punctuation/symbols (treat each as separate word)
-                    while pos < chars.len() && !chars[pos].is_alphanumeric() && !chars[pos].is_whitespace() && chars[pos] != '_' {
+                    while pos < chars.len()
+                        && !chars[pos].is_alphanumeric()
+                        && !chars[pos].is_whitespace()
+                        && chars[pos] != '_'
+                    {
                         pos += 1;
                     }
                 }
-                
+
                 if pos < chars.len() {
                     self.cursor_col = pos;
                     return;
@@ -712,7 +735,7 @@ impl ResponseBuffer {
             if let Some(line) = self.lines.get(self.cursor_line) {
                 let chars: Vec<char> = line.chars().collect();
                 let mut pos = self.cursor_col;
-                
+
                 if pos == 0 {
                     // At beginning of line, move to previous line
                     if self.cursor_line > 0 {
@@ -724,9 +747,9 @@ impl ResponseBuffer {
                     }
                     return; // Already at beginning of buffer
                 }
-                
+
                 pos -= 1;
-                
+
                 // Skip trailing whitespace if we're starting on whitespace
                 if pos < chars.len() && chars[pos].is_whitespace() {
                     while pos > 0 && chars[pos].is_whitespace() {
@@ -737,23 +760,28 @@ impl ResponseBuffer {
                         return;
                     }
                 }
-                
+
                 if pos < chars.len() {
                     let current_char = chars[pos];
-                    
+
                     if current_char.is_alphanumeric() || current_char == '_' {
                         // Move to beginning of alphanumeric word
-                        while pos > 0 && (chars[pos - 1].is_alphanumeric() || chars[pos - 1] == '_') {
+                        while pos > 0 && (chars[pos - 1].is_alphanumeric() || chars[pos - 1] == '_')
+                        {
                             pos -= 1;
                         }
                     } else if !current_char.is_whitespace() {
                         // Move to beginning of punctuation sequence
-                        while pos > 0 && !chars[pos - 1].is_alphanumeric() && !chars[pos - 1].is_whitespace() && chars[pos - 1] != '_' {
+                        while pos > 0
+                            && !chars[pos - 1].is_alphanumeric()
+                            && !chars[pos - 1].is_whitespace()
+                            && chars[pos - 1] != '_'
+                        {
                             pos -= 1;
                         }
                     }
                 }
-                
+
                 self.cursor_col = pos;
                 return;
             } else {
@@ -779,7 +807,7 @@ impl ResponseBuffer {
         if !self.lines.is_empty() {
             self.cursor_line = self.lines.len() - 1;
             self.cursor_col = self.lines[self.cursor_line].len();
-            
+
             // Adjust scroll to show the end of the buffer
             if self.lines.len() > visible_height {
                 self.scroll_offset = self.lines.len() - visible_height;
@@ -792,14 +820,14 @@ impl ResponseBuffer {
     fn scroll_half_page_up_with_cursor(&mut self, half_page_size: usize) {
         let scroll_amount = half_page_size.min(self.scroll_offset);
         self.scroll_offset -= scroll_amount;
-        
+
         // Move cursor to maintain relative position or to top of visible area
         if self.cursor_line >= scroll_amount {
             self.cursor_line -= scroll_amount;
         } else {
             self.cursor_line = self.scroll_offset;
         }
-        
+
         // Ensure cursor column is within line bounds
         let line_len = self.lines.get(self.cursor_line).map_or(0, |l| l.len());
         self.cursor_col = self.cursor_col.min(line_len);
@@ -813,7 +841,7 @@ impl ResponseBuffer {
         };
         let scroll_amount = half_page_size.min(max_scroll - self.scroll_offset);
         self.scroll_offset += scroll_amount;
-        
+
         // Move cursor to maintain relative position or to bottom of visible area
         let new_cursor_line = self.cursor_line + scroll_amount;
         if new_cursor_line < self.lines.len() {
@@ -821,7 +849,7 @@ impl ResponseBuffer {
         } else {
             self.cursor_line = self.lines.len().saturating_sub(1);
         }
-        
+
         // Ensure cursor column is within line bounds
         let line_len = self.lines.get(self.cursor_line).map_or(0, |l| l.len());
         self.cursor_col = self.cursor_col.min(line_len);
@@ -847,7 +875,7 @@ impl VimRepl {
     pub fn new(profile: IniProfile, verbose: bool) -> Result<Self> {
         let client = HttpClient::new(&profile)?;
         let terminal_size = terminal::size()?;
-        
+
         // Calculate initial 50/50 split in lines
         let height = terminal_size.1 as usize;
         let total_content_height = height - 2; // Minus separator and status line
@@ -880,112 +908,112 @@ impl VimRepl {
         // Enable raw mode and alternate screen for proper terminal isolation
         terminal::enable_raw_mode()?;
         execute!(io::stdout(), EnterAlternateScreen)?;
-        
+
         // Clear screen once at startup and move cursor to top
         execute!(io::stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))?;
-        
+
         // Set initial cursor style for insert mode
         execute!(io::stdout(), SetCursorStyle::BlinkingBar)?;
-        
+
         let result = self.event_loop().await;
-        
+
         // Clean up - restore default cursor and exit alternate screen
         execute!(io::stdout(), SetCursorStyle::DefaultUserShape)?;
         execute!(io::stdout(), LeaveAlternateScreen)?;
         terminal::disable_raw_mode()?;
-        
+
         result
     }
 
     /// Main event processing loop with rendering optimization.
-    /// 
+    ///
     /// Eliminate terminal flicker by using the minimal rendering strategy
     /// for each type of user interaction. Terminal flicker occurs when we redraw
     /// content unnecessarily, causing visual artifacts and poor user experience.
-    /// 
-    /// Traditional terminal applications often use a single "redraw everything" 
-    /// approach, but for a vim-style dual-pane interface, this causes severe flicker. 
+    ///
+    /// Traditional terminal applications often use a single "redraw everything"
+    /// approach, but for a vim-style dual-pane interface, this causes severe flicker.
     /// We implement a three-tier rendering system:
-    /// 
+    ///
     /// 1. Pure cursor movement (render) - Just position cursor, no screen writes
     /// 2. Content updates (render_pane_update) - Update only the changed pane
     /// 3. Full updates (render_full) - Redraw everything (used sparingly)
-    /// 
+    ///
     /// This approach eliminates flicker while maintaining responsiveness.
     async fn event_loop(&mut self) -> Result<()> {
         // Initial full render
         self.render_full()?;
-        
+
         loop {
             match event::read()? {
                 Event::Key(key) => {
                     let old_mode = self.mode.clone();
                     let old_pane = self.current_pane.clone();
-                    
+
                     // Capture scroll state before handling the key event
-                    // Detect when movement commands cause scrolling because movement commands 
-                    // (hjkl, arrow keys) can trigger scrolling when the cursor moves beyond the 
-                    // visible area. Without this detection, these would be treated as "pure cursor 
+                    // Detect when movement commands cause scrolling because movement commands
+                    // (hjkl, arrow keys) can trigger scrolling when the cursor moves beyond the
+                    // visible area. Without this detection, these would be treated as "pure cursor
                     // movement" which would cause content to not refresh properly when scrolling occurred.
                     let old_request_scroll = self.buffer.scroll_offset;
-                    let old_response_scroll = self.response_buffer.as_ref().map(|r| r.scroll_offset);
-                    
+                    let old_response_scroll =
+                        self.response_buffer.as_ref().map(|r| r.scroll_offset);
+
                     // Capture pane split height before handling the key event
                     // Detect when pane boundary control commands (Ctrl+J/Ctrl+K) change layout
-                    // because pane boundary changes affect both panes' dimensions and require full 
-                    // redraw, but without this the rendering decision logic wouldn't detect these 
+                    // because pane boundary changes affect both panes' dimensions and require full
+                    // redraw, but without this the rendering decision logic wouldn't detect these
                     // layout changes.
                     let old_request_pane_height = self.request_pane_height;
-                    
+
                     let needs_exit = self.handle_key_event(key).await?;
-                    
+
                     if needs_exit {
                         break;
                     }
-                    
+
                     // Check if scrolling occurred during the key event
                     // When movement commands (hjkl, arrows) cause the cursor to move
                     // beyond the visible area, the scroll-aware movement methods automatically
                     // adjust the scroll_offset. We detect this change to trigger proper rendering.
-                    let scroll_occurred = self.buffer.scroll_offset != old_request_scroll ||
-                        self.response_buffer.as_ref().map(|r| r.scroll_offset) != old_response_scroll;
-                    
-                    // Check if pane layout changed during the key event  
+                    let scroll_occurred = self.buffer.scroll_offset != old_request_scroll
+                        || self.response_buffer.as_ref().map(|r| r.scroll_offset)
+                            != old_response_scroll;
+
+                    // Check if pane layout changed during the key event
                     // Pane boundary controls (Ctrl+J/Ctrl+K) modify the request_pane_height,
                     // changing both panes' dimensions. This requires a full redraw since both
                     // panes' content positioning and the separator location change.
                     let pane_layout_changed = self.request_pane_height != old_request_pane_height;
-                    
+
                     // RENDERING DECISION LOGIC
                     // ======================
                     // We categorize every possible user action into one of three
                     // rendering strategies to minimize flicker and maximize performance.
-                    
+
                     // TIER 3: Full screen redraw (most expensive, used sparingly)
                     // When: UI state changes that affect layout or multiple panes
-                    let needs_full_render = 
-                        self.mode != old_mode ||                    // Mode changed (affects status, cursor style, highlighting)
+                    let needs_full_render = self.mode != old_mode ||                    // Mode changed (affects status, cursor style, highlighting)
                         self.current_pane != old_pane ||            // Pane switched (affects focus indicators, cursor position)
                         self.mode == EditorMode::Command ||         // Command mode (bottom status line changes constantly)
                         self.mode == EditorMode::Visual ||          // Visual mode (requires selection highlighting)
                         self.mode == EditorMode::VisualLine ||      // Visual line mode (requires line highlighting)
                         scroll_occurred ||                          // Movement caused scrolling (content repositions)
                         pane_layout_changed ||                      // Pane boundary changed (layout repositions)
-                        (key.modifiers.contains(KeyModifiers::CONTROL) && 
+                        (key.modifiers.contains(KeyModifiers::CONTROL) &&
                          matches!(key.code, KeyCode::Char('u') | KeyCode::Char('d') | KeyCode::Char('f') | KeyCode::Char('b') | KeyCode::Char('g'))) || // Scrolling commands (content repositions)
                         matches!(key.code, KeyCode::PageUp | KeyCode::PageDown); // Page scrolling (major content changes)
-                    
+
                     // TIER 2: Single pane content update (moderate cost, efficient)
                     // When: Content changes within one pane, other pane stays untouched
-                    let needs_content_update = 
-                        matches!(key.code, KeyCode::Enter) ||       // New line added (content area expands)
+                    let needs_content_update = matches!(key.code, KeyCode::Enter) ||       // New line added (content area expands)
                         matches!(key.code, KeyCode::Delete | KeyCode::Backspace) || // Content deleted (text removal)
                         (self.mode == EditorMode::Insert && matches!(key.code, KeyCode::Char(_)) && !key.modifiers.contains(KeyModifiers::CONTROL)); // Regular typing (character insertion)
-                    
+
                     // TIER 1: Pure cursor movement (fastest, zero flicker)
                     // When: Only cursor position changes, no content or UI state changes
                     // Examples: hjkl keys, arrow keys, word movement (w/b), line start/end (0/$)
-                    
+
                     // Apply the appropriate rendering strategy
                     if needs_full_render {
                         self.render_full()?;
@@ -1004,15 +1032,17 @@ impl VimRepl {
                     let old_total_content_height = old_height - 2;
                     let new_height = height as usize;
                     let new_total_content_height = new_height - 2;
-                    
+
                     // Adjust request pane height proportionally to maintain relative split
                     if old_total_content_height > 0 {
-                        let proportion = self.request_pane_height as f64 / old_total_content_height as f64;
-                        self.request_pane_height = ((new_total_content_height as f64 * proportion) as usize)
+                        let proportion =
+                            self.request_pane_height as f64 / old_total_content_height as f64;
+                        self.request_pane_height = ((new_total_content_height as f64 * proportion)
+                            as usize)
                             .max(3) // Minimum input height
                             .min(new_total_content_height - 3); // Maximum (leave 3 for output)
                     }
-                    
+
                     self.terminal_size = (width, height);
                     // Full render needed on resize - layout completely changes
                     self.render_full()?;
@@ -1020,7 +1050,7 @@ impl VimRepl {
                 _ => {}
             }
         }
-        
+
         Ok(())
     }
 
@@ -1039,7 +1069,7 @@ impl VimRepl {
             KeyCode::Char('g') => false,
             _ => true,
         };
-        
+
         let reset_pending_ctrl_w = match key.code {
             KeyCode::Char('w') => {
                 // Only reset if we're not in a pending Ctrl+W state
@@ -1047,11 +1077,11 @@ impl VimRepl {
             }
             _ => true,
         };
-        
+
         if reset_pending_g {
             self.pending_g = false;
         }
-        
+
         if reset_pending_ctrl_w {
             self.pending_ctrl_w = false;
         }
@@ -1061,7 +1091,7 @@ impl VimRepl {
             self.pending_ctrl_w = true;
             return Ok(false);
         }
-        
+
         // Handle second step of Ctrl+W commands
         if self.pending_ctrl_w {
             match key.code {
@@ -1107,7 +1137,8 @@ impl VimRepl {
                     if self.current_pane == Pane::Request {
                         let half_page = self.get_request_pane_height() / 2;
                         let visible_height = self.get_request_pane_height();
-                        self.buffer.scroll_half_page_down_with_cursor(half_page, visible_height);
+                        self.buffer
+                            .scroll_half_page_down_with_cursor(half_page, visible_height);
                     } else if self.response_buffer.is_some() {
                         let half_page = self.get_response_pane_height() / 2;
                         let visible_height = self.get_response_pane_height();
@@ -1122,7 +1153,8 @@ impl VimRepl {
                     if self.current_pane == Pane::Request {
                         let full_page = self.get_request_pane_height();
                         let visible_height = self.get_request_pane_height();
-                        self.buffer.scroll_half_page_down_with_cursor(full_page, visible_height);
+                        self.buffer
+                            .scroll_half_page_down_with_cursor(full_page, visible_height);
                     } else if self.response_buffer.is_some() {
                         let full_page = self.get_response_pane_height();
                         let visible_height = self.get_response_pane_height();
@@ -1365,7 +1397,11 @@ impl VimRepl {
                         start_line: self.buffer.cursor_line,
                         start_col: 0,
                         end_line: self.buffer.cursor_line,
-                        end_col: self.buffer.lines.get(self.buffer.cursor_line).map_or(0, |l| l.len()),
+                        end_col: self
+                            .buffer
+                            .lines
+                            .get(self.buffer.cursor_line)
+                            .map_or(0, |l| l.len()),
                     });
                     self.status_message = "-- VISUAL LINE --".to_string();
                 } else if self.current_pane == Pane::Response && self.response_buffer.is_some() {
@@ -1375,7 +1411,10 @@ impl VimRepl {
                             start_line: response.cursor_line,
                             start_col: 0,
                             end_line: response.cursor_line,
-                            end_col: response.lines.get(response.cursor_line).map_or(0, |l| l.len()),
+                            end_col: response
+                                .lines
+                                .get(response.cursor_line)
+                                .map_or(0, |l| l.len()),
                         });
                     }
                     self.status_message = "-- VISUAL LINE --".to_string();
@@ -1541,7 +1580,8 @@ impl VimRepl {
                         }
                         'k' => {
                             // Ctrl+K - Boundary control (downward) in insert mode
-                            if self.current_pane == Pane::Request && self.response_buffer.is_some() {
+                            if self.current_pane == Pane::Request && self.response_buffer.is_some()
+                            {
                                 // Expand input pane
                                 self.expand_input_pane();
                             }
@@ -1645,9 +1685,16 @@ impl VimRepl {
                     if let Some(ref mut sel) = self.visual_selection {
                         sel.start_col = 0;
                         if self.current_pane == Pane::Request {
-                            sel.end_col = self.buffer.lines.get(self.buffer.cursor_line).map_or(0, |l| l.len());
+                            sel.end_col = self
+                                .buffer
+                                .lines
+                                .get(self.buffer.cursor_line)
+                                .map_or(0, |l| l.len());
                         } else if let Some(ref response) = self.response_buffer {
-                            sel.end_col = response.lines.get(response.cursor_line).map_or(0, |l| l.len());
+                            sel.end_col = response
+                                .lines
+                                .get(response.cursor_line)
+                                .map_or(0, |l| l.len());
                         }
                     }
                 } else {
@@ -1772,14 +1819,21 @@ impl VimRepl {
             if self.current_pane == Pane::Request {
                 selection.end_line = self.buffer.cursor_line;
                 if self.mode == EditorMode::VisualLine {
-                    selection.end_col = self.buffer.lines.get(self.buffer.cursor_line).map_or(0, |l| l.len());
+                    selection.end_col = self
+                        .buffer
+                        .lines
+                        .get(self.buffer.cursor_line)
+                        .map_or(0, |l| l.len());
                 } else {
                     selection.end_col = self.buffer.cursor_col;
                 }
             } else if let Some(ref response) = self.response_buffer {
                 selection.end_line = response.cursor_line;
                 if self.mode == EditorMode::VisualLine {
-                    selection.end_col = response.lines.get(response.cursor_line).map_or(0, |l| l.len());
+                    selection.end_col = response
+                        .lines
+                        .get(response.cursor_line)
+                        .map_or(0, |l| l.len());
                 } else {
                     selection.end_col = response.cursor_col;
                 }
@@ -1790,8 +1844,16 @@ impl VimRepl {
     fn get_selected_text(&self, selection: &VisualSelection) -> String {
         let start_line = selection.start_line.min(selection.end_line);
         let end_line = selection.start_line.max(selection.end_line);
-        let start_col = if selection.start_line == start_line { selection.start_col } else { selection.end_col };
-        let end_col = if selection.end_line == end_line { selection.end_col } else { selection.start_col };
+        let start_col = if selection.start_line == start_line {
+            selection.start_col
+        } else {
+            selection.end_col
+        };
+        let end_col = if selection.end_line == end_line {
+            selection.end_col
+        } else {
+            selection.start_col
+        };
 
         // Choose the appropriate lines based on current pane
         let lines = if self.current_pane == Pane::Request {
@@ -1812,7 +1874,12 @@ impl VimRepl {
         } else {
             // Multi-line selection
             let mut result = String::new();
-            for (i, line) in lines.iter().enumerate().skip(start_line).take(end_line - start_line + 1) {
+            for (i, line) in lines
+                .iter()
+                .enumerate()
+                .skip(start_line)
+                .take(end_line - start_line + 1)
+            {
                 if i == start_line {
                     result.push_str(&line[start_col..]);
                 } else if i == end_line {
@@ -1831,11 +1898,19 @@ impl VimRepl {
 
     fn delete_selected_text(&mut self, selection: &VisualSelection) -> String {
         let deleted_text = self.get_selected_text(selection);
-        
+
         let start_line = selection.start_line.min(selection.end_line);
         let end_line = selection.start_line.max(selection.end_line);
-        let start_col = if selection.start_line == start_line { selection.start_col } else { selection.end_col };
-        let end_col = if selection.end_line == end_line { selection.end_col } else { selection.start_col };
+        let start_col = if selection.start_line == start_line {
+            selection.start_col
+        } else {
+            selection.end_col
+        };
+        let end_col = if selection.end_line == end_line {
+            selection.end_col
+        } else {
+            selection.start_col
+        };
 
         if start_line == end_line {
             // Single line deletion
@@ -1865,7 +1940,7 @@ impl VimRepl {
             self.buffer.cursor_line = start_line;
             self.buffer.cursor_col = start_col;
         }
-        
+
         deleted_text
     }
 
@@ -1894,7 +1969,7 @@ impl VimRepl {
                 // Execute the request in the request pane
                 if self.current_pane == Pane::Request || self.response_buffer.is_none() {
                     self.execute_request().await?;
-                } 
+                }
             }
             "clear" => {
                 self.response_buffer = None;
@@ -1933,74 +2008,87 @@ impl VimRepl {
     async fn execute_request(&mut self) -> Result<()> {
         let text = self.buffer.get_text();
         let lines: Vec<&str> = text.lines().collect();
-        
+
         if lines.is_empty() || lines[0].trim().is_empty() {
             self.status_message = "No request to execute".to_string();
             return Ok(());
         }
-        
+
         // Parse first line as method and URL
         let parts: Vec<&str> = lines[0].split_whitespace().collect();
         if parts.len() < 2 {
             self.status_message = "Invalid request format. Use: METHOD URL".to_string();
             return Ok(());
         }
-        
+
         let method = parts[0].to_uppercase();
         let url_str = parts[1];
         let url = Url::parse(url_str);
-        
+
         // Skip empty line after URL if it exists, then rest becomes the body
-        let body_start_idx = if lines.len() > 1 && lines[1].trim().is_empty() { 2 } else { 1 };
+        let body_start_idx = if lines.len() > 1 && lines[1].trim().is_empty() {
+            2
+        } else {
+            1
+        };
         let body = if lines.len() > body_start_idx {
             Some(lines[body_start_idx..].join("\n"))
         } else {
             None
         };
-        
+
         let cmd = ReplCommand {
             method,
             url,
             body,
             headers: self.session_headers.clone(),
         };
-        
+
         // Start timing the request
         self.request_start_time = Some(Instant::now());
-        
+
         match self.client.request(&cmd).await {
             Ok(response) => {
                 // Calculate request duration
                 if let Some(start_time) = self.request_start_time.take() {
                     self.last_request_duration = Some(start_time.elapsed().as_millis() as u64);
                 }
-                
+
                 let status = response.status();
-                let headers = response.headers();
                 let body = response.body();
-                
+
                 // Store the response status for display in status bar
-                self.last_response_status = Some(format!("HTTP {} {}", 
-                    status.as_u16(), 
+                self.last_response_status = Some(format!(
+                    "HTTP {} {}",
+                    status.as_u16(),
                     status.canonical_reason().unwrap_or("")
                 ));
-                
+
                 let mut response_text = String::new();
-                
+
                 if self.verbose {
-                    response_text.push_str("Headers:\n");
-                    for (name, value) in headers {
-                        response_text.push_str(&format!("  {}: {}\n", name.as_str(), value.to_str().unwrap_or("<invalid>")));
-                    }
+                    // Add profile information
+                    response_text.push_str(&Self::format_profile(&self.profile));
+                    response_text.push('\n');
+
+                    // Add request information
+                    response_text.push_str(&Self::format_request(&cmd));
+                    response_text.push('\n');
+
+                    // Add response information
+                    response_text.push_str(&Self::format_response(&response));
                     response_text.push('\n');
                 }
-                
+
                 if let Some(json) = response.json() {
-                    response_text.push_str(&serde_json::to_string_pretty(json).unwrap_or_else(|_| "Invalid JSON".to_string()));
+                    response_text.push_str(
+                        &serde_json::to_string_pretty(json)
+                            .unwrap_or_else(|_| "Invalid JSON".to_string()),
+                    );
                 } else if !body.is_empty() {
                     response_text.push_str(body);
                 }
-                
+
                 self.response_buffer = Some(ResponseBuffer::new(response_text));
                 // Restore default 50/50 split when new response is generated if currently maximized
                 let height = self.terminal_size.1 as usize;
@@ -2016,7 +2104,7 @@ impl VimRepl {
                 if let Some(start_time) = self.request_start_time.take() {
                     self.last_request_duration = Some(start_time.elapsed().as_millis() as u64);
                 }
-                
+
                 self.last_response_status = Some("Error".to_string());
                 self.status_message = format!("Request failed: {}", e);
                 self.response_buffer = Some(ResponseBuffer::new(format!("Error: {}", e)));
@@ -2030,7 +2118,7 @@ impl VimRepl {
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -2071,31 +2159,38 @@ impl VimRepl {
     }
 
     /// TIER 1: Pure cursor movement rendering (fastest, zero flicker)
-    /// 
+    ///
     /// Position cursor with minimal terminal I/O for navigation commands.
-    /// When users press hjkl, arrow keys, or movement commands like w/b/0/$, 
-    /// only the cursor position changes - no content modification. We use a single 
-    /// ANSI escape sequence to move the cursor directly. Without this approach, 
+    /// When users press hjkl, arrow keys, or movement commands like w/b/0/$,
+    /// only the cursor position changes - no content modification. We use a single
+    /// ANSI escape sequence to move the cursor directly. Without this approach,
     /// we'd need screen clearing or content redrawing which causes flicker.
-    /// 
+    ///
     /// WHEN USED: Pure navigation in Normal mode (hjkl, arrow keys, w/b, 0/$, gg/G)
     /// PERFORMANCE: ~0.1ms - Single escape sequence, no buffering overhead
     /// FLICKER: None - No screen clearing or content redrawing
     fn render(&self) -> Result<()> {
-        let request_height = if self.response_buffer.is_some() { 
-            self.get_request_pane_height() 
-        } else { 
+        let request_height = if self.response_buffer.is_some() {
+            self.get_request_pane_height()
+        } else {
             self.terminal_size.1 as usize - 1
         };
-        
+
         // Calculate cursor position based on current pane
         if self.current_pane == Pane::Request {
-            let cursor_y = self.buffer.cursor_line.saturating_sub(self.buffer.scroll_offset);
+            let cursor_y = self
+                .buffer
+                .cursor_line
+                .saturating_sub(self.buffer.scroll_offset);
             if cursor_y < request_height {
                 let max_line_num = self.buffer.lines.len();
-                let line_num_width = if max_line_num == 0 { 3 } else { format!("{}", max_line_num).len().max(3) };
+                let line_num_width = if max_line_num == 0 {
+                    3
+                } else {
+                    format!("{}", max_line_num).len().max(3)
+                };
                 let cursor_x = line_num_width + 1 + self.buffer.cursor_col;
-                
+
                 // Single ANSI escape sequence - direct cursor positioning
                 // Format: \x1b[row;colH (1-indexed)
                 print!("\x1b[{};{}H", cursor_y + 1, cursor_x + 1);
@@ -2106,61 +2201,69 @@ impl VimRepl {
                 let cursor_y = response.cursor_line.saturating_sub(response.scroll_offset);
                 if cursor_y < response_height {
                     let max_line_num = response.lines.len();
-                    let line_num_width = if max_line_num == 0 { 3 } else { format!("{}", max_line_num).len().max(3) };
+                    let line_num_width = if max_line_num == 0 {
+                        3
+                    } else {
+                        format!("{}", max_line_num).len().max(3)
+                    };
                     let cursor_x = line_num_width + 1 + response.cursor_col;
-                    
+
                     // Position cursor in response pane (offset by request pane height + separator)
-                    print!("\x1b[{};{}H", request_height + 1 + cursor_y + 1, cursor_x + 1);
+                    print!(
+                        "\x1b[{};{}H",
+                        request_height + 1 + cursor_y + 1,
+                        cursor_x + 1
+                    );
                 }
             }
         }
-        
+
         // Single flush - minimal I/O overhead
         io::stdout().flush()?;
         Ok(())
     }
 
     /// TIER 3: Full screen rendering (most expensive, used sparingly)
-    /// 
+    ///
     /// Complete UI redraw when layout, modes, or multiple panes change.
     /// Some operations require redrawing the entire interface:
     /// - Mode changes (affects status line, cursor style, visual highlighting)
     /// - Pane switching (focus indicators, cursor visibility)
     /// - Scrolling operations (content repositions in visible area)
     /// - Visual mode (selection highlighting across content)
-    /// 
+    ///
     /// We use a single-buffer strategy: collect all output in memory, then
     /// write everything at once. Without this approach, partial content would
     /// be visible during the redraw which causes flicker.
-    /// 
+    ///
     /// WHEN USED: Mode changes, pane switching, scrolling, visual selections
     /// PERFORMANCE: ~2-5ms - Full UI redraw with buffering
     /// FLICKER: Minimal - Single atomic write prevents partial updates
     fn render_full(&self) -> Result<()> {
         // Collect all output in a single buffer to minimize terminal I/O
         let mut output_buffer = String::new();
-        
+
         let height = self.terminal_size.1 as usize;
         let width = self.terminal_size.0 as usize;
-        
+
         // Calculate pane sizes using dynamic split ratio
-        let request_height = if self.response_buffer.is_some() { 
-            self.get_request_pane_height() 
-        } else { 
+        let request_height = if self.response_buffer.is_some() {
+            self.get_request_pane_height()
+        } else {
             height - 1 // Full height minus status line
         };
-        let response_height = if self.response_buffer.is_some() { 
-            self.get_response_pane_height() 
-        } else { 
-            0 
+        let response_height = if self.response_buffer.is_some() {
+            self.get_response_pane_height()
+        } else {
+            0
         };
-        
+
         // Hide cursor during rendering to prevent cursor flicker
         output_buffer.push_str("\x1b[?25l");
-        
+
         // Render request pane (top)
         self.render_request_pane_to_buffer(&mut output_buffer, request_height, width);
-        
+
         // Render horizontal separator only if there's a response buffer
         if self.response_buffer.is_some() {
             output_buffer.push_str(&format!("\x1b[{};1H", request_height + 1)); // Move to separator row
@@ -2168,21 +2271,27 @@ impl VimRepl {
             output_buffer.push_str(&"─".repeat(width));
             output_buffer.push_str("\x1b[0m"); // Reset color
         }
-        
+
         // Render response pane (bottom)
         if let Some(ref response) = self.response_buffer {
-            self.render_response_pane_to_buffer(&mut output_buffer, response, response_height, width, request_height + 1);
+            self.render_response_pane_to_buffer(
+                &mut output_buffer,
+                response,
+                response_height,
+                width,
+                request_height + 1,
+            );
         }
-        
+
         // Render status line
         self.render_status_line_to_buffer(&mut output_buffer, height - 1, width);
-        
+
         // Position cursor based on current pane
         self.position_cursor_to_buffer(&mut output_buffer, request_height);
-        
+
         // Show cursor at end
         output_buffer.push_str("\x1b[?25h");
-        
+
         // Write everything at once
         print!("{}", output_buffer);
         io::stdout().flush()?;
@@ -2190,35 +2299,35 @@ impl VimRepl {
     }
 
     /// TIER 2: Single pane content update (moderate cost, efficient)
-    /// 
+    ///
     /// Update only the pane where content changed, leaving other pane untouched.
-    /// The key insight is that when typing in the Request pane, the Response pane 
+    /// The key insight is that when typing in the Request pane, the Response pane
     /// content is completely static and doesn't need redrawing. Without this approach,
     /// traditional methods would redraw both panes, causing flicker in the Response pane.
-    /// 
+    ///
     /// By isolating updates to only the active pane, we eliminate cross-pane flicker
     /// while still updating the modified content area efficiently.
-    /// 
+    ///
     /// WHEN USED: Content modification (typing, Enter, Backspace/Delete)
     /// PERFORMANCE: ~1-2ms - Single pane redraw with buffering  
     /// FLICKER: Minimal - Only active pane redraws, other pane stays static
     fn render_pane_update(&self) -> Result<()> {
         // Collect output for only the changed areas
         let mut output_buffer = String::new();
-        
+
         let height = self.terminal_size.1 as usize;
         let width = self.terminal_size.0 as usize;
-        
+
         // Calculate pane sizes using dynamic split ratio
-        let request_height = if self.response_buffer.is_some() { 
-            self.get_request_pane_height() 
-        } else { 
+        let request_height = if self.response_buffer.is_some() {
+            self.get_request_pane_height()
+        } else {
             height - 1 // Full height minus status line
         };
-        
+
         // Hide cursor at start
         output_buffer.push_str("\x1b[?25l");
-        
+
         // Only update the active pane content
         if self.current_pane == Pane::Request {
             // Clear and redraw only the request pane area
@@ -2227,19 +2336,25 @@ impl VimRepl {
             // Clear and redraw only the response pane area
             let response_height = self.get_response_pane_height();
             if let Some(ref response) = self.response_buffer {
-                self.render_response_pane_to_buffer(&mut output_buffer, response, response_height, width, request_height + 1);
+                self.render_response_pane_to_buffer(
+                    &mut output_buffer,
+                    response,
+                    response_height,
+                    width,
+                    request_height + 1,
+                );
             }
         }
-        
+
         // Update status line (minimal cost)
         self.render_status_line_to_buffer(&mut output_buffer, height - 1, width);
-        
+
         // Position cursor based on current pane
         self.position_cursor_to_buffer(&mut output_buffer, request_height);
-        
+
         // Show cursor at end
         output_buffer.push_str("\x1b[?25h");
-        
+
         // Write everything at once
         print!("{}", output_buffer);
         io::stdout().flush()?;
@@ -2249,17 +2364,24 @@ impl VimRepl {
     fn position_cursor(&self, request_height: usize) -> Result<()> {
         // Position cursor based on current pane
         if self.current_pane == Pane::Request {
-            let cursor_y = self.buffer.cursor_line.saturating_sub(self.buffer.scroll_offset);
+            let cursor_y = self
+                .buffer
+                .cursor_line
+                .saturating_sub(self.buffer.scroll_offset);
             if cursor_y < request_height {
                 // Calculate line number width and adjust cursor position
                 let max_line_num = self.buffer.lines.len();
-                let line_num_width = if max_line_num == 0 { 3 } else { format!("{}", max_line_num).len().max(3) };
+                let line_num_width = if max_line_num == 0 {
+                    3
+                } else {
+                    format!("{}", max_line_num).len().max(3)
+                };
                 let cursor_x = line_num_width + 1 + self.buffer.cursor_col; // +1 for space separator
-                
-                execute!(io::stdout(), cursor::MoveTo(
-                    cursor_x as u16, 
-                    cursor_y as u16
-                ))?;
+
+                execute!(
+                    io::stdout(),
+                    cursor::MoveTo(cursor_x as u16, cursor_y as u16)
+                )?;
             }
         } else if self.current_pane == Pane::Response && self.response_buffer.is_some() {
             // Show cursor in response pane for navigation
@@ -2269,13 +2391,17 @@ impl VimRepl {
                 if cursor_y < response_height {
                     // Calculate line number width and adjust cursor position
                     let max_line_num = response.lines.len();
-                    let line_num_width = if max_line_num == 0 { 3 } else { format!("{}", max_line_num).len().max(3) };
+                    let line_num_width = if max_line_num == 0 {
+                        3
+                    } else {
+                        format!("{}", max_line_num).len().max(3)
+                    };
                     let cursor_x = line_num_width + 1 + response.cursor_col; // +1 for space separator
-                    
-                    execute!(io::stdout(), cursor::MoveTo(
-                        cursor_x as u16,
-                        (request_height + 1 + cursor_y) as u16
-                    ))?;
+
+                    execute!(
+                        io::stdout(),
+                        cursor::MoveTo(cursor_x as u16, (request_height + 1 + cursor_y) as u16)
+                    )?;
                 }
             }
         }
@@ -2285,35 +2411,42 @@ impl VimRepl {
     // ========================================================================
     // BUFFER-BASED RENDERING SYSTEM
     // ========================================================================
-    // 
+    //
     // Eliminate terminal flicker through atomic screen updates.
-    // 
-    // Direct terminal writes (print! statements) can create visual artifacts 
-    // when the user sees partial screen states. By collecting all output in a 
-    // String buffer first, we ensure the terminal sees only complete, consistent 
-    // screen states. Without this buffering approach, users would see incomplete 
+    //
+    // Direct terminal writes (print! statements) can create visual artifacts
+    // when the user sees partial screen states. By collecting all output in a
+    // String buffer first, we ensure the terminal sees only complete, consistent
+    // screen states. Without this buffering approach, users would see incomplete
     // or inconsistent screen updates during rendering.
-    // 
+    //
     // PATTERN: Each *_to_buffer method appends its output to a shared buffer.
     // The caller then writes the entire buffer atomically with a single print!
     // statement, followed by a flush to ensure immediate visibility.
-    // 
+    //
     // METHODS:
     // - position_cursor_to_buffer: Cursor positioning escape sequences
     // - render_request_pane_to_buffer: Request pane content (top)
-    // - render_response_pane_to_buffer: Response pane content (bottom) 
+    // - render_response_pane_to_buffer: Response pane content (bottom)
     // - render_status_line_to_buffer: Status bar (bottom line)
 
     fn position_cursor_to_buffer(&self, buffer: &mut String, request_height: usize) {
         // Position cursor based on current pane
         if self.current_pane == Pane::Request {
-            let cursor_y = self.buffer.cursor_line.saturating_sub(self.buffer.scroll_offset);
+            let cursor_y = self
+                .buffer
+                .cursor_line
+                .saturating_sub(self.buffer.scroll_offset);
             if cursor_y < request_height {
                 // Calculate line number width and adjust cursor position
                 let max_line_num = self.buffer.lines.len();
-                let line_num_width = if max_line_num == 0 { 3 } else { format!("{}", max_line_num).len().max(3) };
+                let line_num_width = if max_line_num == 0 {
+                    3
+                } else {
+                    format!("{}", max_line_num).len().max(3)
+                };
                 let cursor_x = line_num_width + 1 + self.buffer.cursor_col; // +1 for space separator
-                
+
                 buffer.push_str(&format!("\x1b[{};{}H", cursor_y + 1, cursor_x + 1));
             }
         } else if self.current_pane == Pane::Response && self.response_buffer.is_some() {
@@ -2324,10 +2457,18 @@ impl VimRepl {
                 if cursor_y < response_height {
                     // Calculate line number width and adjust cursor position
                     let max_line_num = response.lines.len();
-                    let line_num_width = if max_line_num == 0 { 3 } else { format!("{}", max_line_num).len().max(3) };
+                    let line_num_width = if max_line_num == 0 {
+                        3
+                    } else {
+                        format!("{}", max_line_num).len().max(3)
+                    };
                     let cursor_x = line_num_width + 1 + response.cursor_col; // +1 for space separator
-                    
-                    buffer.push_str(&format!("\x1b[{};{}H", request_height + 1 + cursor_y + 1, cursor_x + 1));
+
+                    buffer.push_str(&format!(
+                        "\x1b[{};{}H",
+                        request_height + 1 + cursor_y + 1,
+                        cursor_x + 1
+                    ));
                 }
             }
         }
@@ -2335,18 +2476,22 @@ impl VimRepl {
 
     fn render_request_pane(&self, height: usize, width: usize) -> Result<()> {
         let active = self.current_pane == Pane::Request;
-        
+
         // Calculate line number width based on total lines
         let max_line_num = self.buffer.lines.len();
-        let line_num_width = if max_line_num == 0 { 3 } else { format!("{}", max_line_num).len().max(3) };
+        let line_num_width = if max_line_num == 0 {
+            3
+        } else {
+            format!("{}", max_line_num).len().max(3)
+        };
         let content_width = width.saturating_sub(line_num_width + 1); // +1 for space separator
-        
+
         for i in 0..height {
             execute!(io::stdout(), cursor::MoveTo(0, i as u16))?;
             execute!(io::stdout(), Clear(ClearType::CurrentLine))?; // Clear current line to avoid artifacts
-            
+
             let line_idx = i + self.buffer.scroll_offset;
-            
+
             // Render line number
             if line_idx < self.buffer.lines.len() {
                 if active {
@@ -2355,7 +2500,7 @@ impl VimRepl {
                     execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
                 }
                 print!("{:>width$} ", line_idx + 1, width = line_num_width);
-                
+
                 // Render line content with visual selection highlighting
                 if let Some(line) = self.buffer.lines.get(line_idx) {
                     let display_line = if line.len() > content_width {
@@ -2363,12 +2508,15 @@ impl VimRepl {
                     } else {
                         line
                     };
-                    
+
                     // Render character by character to handle visual selection
                     for (col_idx, ch) in display_line.chars().enumerate() {
                         let is_selected = self.is_position_selected(line_idx, col_idx);
-                        
-                        if is_selected && (self.mode == EditorMode::Visual || self.mode == EditorMode::VisualLine) {
+
+                        if is_selected
+                            && (self.mode == EditorMode::Visual
+                                || self.mode == EditorMode::VisualLine)
+                        {
                             // Highlight selected text
                             execute!(io::stdout(), SetBackgroundColor(Color::White))?;
                             execute!(io::stdout(), SetForegroundColor(Color::Black))?;
@@ -2382,7 +2530,7 @@ impl VimRepl {
                         }
                         print!("{}", ch);
                     }
-                    
+
                     // Reset colors - line is already cleared so no need to pad
                     execute!(io::stdout(), crossterm::style::ResetColor)?;
                 }
@@ -2391,33 +2539,41 @@ impl VimRepl {
                 execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
                 print!("{}", " ".repeat(line_num_width + 1));
             }
-            
+
             execute!(io::stdout(), ResetColor)?;
         }
-        
+
         Ok(())
     }
 
     fn render_request_pane_to_buffer(&self, buffer: &mut String, height: usize, width: usize) {
         let active = self.current_pane == Pane::Request;
-        
+
         // Calculate line number width based on total lines
         let max_line_num = self.buffer.lines.len();
-        let line_num_width = if max_line_num == 0 { 3 } else { format!("{}", max_line_num).len().max(3) };
+        let line_num_width = if max_line_num == 0 {
+            3
+        } else {
+            format!("{}", max_line_num).len().max(3)
+        };
         let content_width = width.saturating_sub(line_num_width + 1); // +1 for space separator
-        
+
         for i in 0..height {
             // Move to line and clear it
             buffer.push_str(&format!("\x1b[{};1H\x1b[2K", i + 1));
-            
+
             let line_idx = i + self.buffer.scroll_offset;
-            
+
             // Render line number
             if line_idx < self.buffer.lines.len() {
                 // Line number color (dark grey)
                 buffer.push_str("\x1b[90m");
-                buffer.push_str(&format!("{:>width$} ", line_idx + 1, width = line_num_width));
-                
+                buffer.push_str(&format!(
+                    "{:>width$} ",
+                    line_idx + 1,
+                    width = line_num_width
+                ));
+
                 // Render line content with visual selection highlighting
                 if let Some(line) = self.buffer.lines.get(line_idx) {
                     let display_line = if line.len() > content_width {
@@ -2425,12 +2581,15 @@ impl VimRepl {
                     } else {
                         line
                     };
-                    
+
                     // Render character by character to handle visual selection
                     for (col_idx, ch) in display_line.chars().enumerate() {
                         let is_selected = self.is_position_selected(line_idx, col_idx);
-                        
-                        if is_selected && (self.mode == EditorMode::Visual || self.mode == EditorMode::VisualLine) {
+
+                        if is_selected
+                            && (self.mode == EditorMode::Visual
+                                || self.mode == EditorMode::VisualLine)
+                        {
                             // Highlight selected text
                             buffer.push_str("\x1b[47m\x1b[30m"); // White bg, black fg
                         } else {
@@ -2443,7 +2602,7 @@ impl VimRepl {
                         }
                         buffer.push(ch);
                     }
-                    
+
                     // Reset colors
                     buffer.push_str("\x1b[0m");
                 }
@@ -2456,20 +2615,30 @@ impl VimRepl {
         }
     }
 
-    fn render_response_pane(&self, response: &ResponseBuffer, height: usize, width: usize, start_row: usize) -> Result<()> {
+    fn render_response_pane(
+        &self,
+        response: &ResponseBuffer,
+        height: usize,
+        width: usize,
+        start_row: usize,
+    ) -> Result<()> {
         let active = self.current_pane == Pane::Response;
-        
+
         // Calculate line number width based on total lines
         let max_line_num = response.lines.len();
-        let line_num_width = if max_line_num == 0 { 3 } else { format!("{}", max_line_num).len().max(3) };
+        let line_num_width = if max_line_num == 0 {
+            3
+        } else {
+            format!("{}", max_line_num).len().max(3)
+        };
         let content_width = width.saturating_sub(line_num_width + 1); // +1 for space separator
-        
+
         for i in 0..height {
             execute!(io::stdout(), cursor::MoveTo(0, (start_row + i) as u16))?;
             execute!(io::stdout(), Clear(ClearType::CurrentLine))?; // Clear current line to avoid artifacts
-            
+
             let line_idx = i + response.scroll_offset;
-            
+
             // Render line number
             if line_idx < response.lines.len() {
                 if active {
@@ -2478,7 +2647,7 @@ impl VimRepl {
                     execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
                 }
                 print!("{:>width$} ", line_idx + 1, width = line_num_width);
-                
+
                 // Render line content with visual selection highlighting
                 if let Some(line) = response.lines.get(line_idx) {
                     let display_line = if line.len() > content_width {
@@ -2486,12 +2655,16 @@ impl VimRepl {
                     } else {
                         line
                     };
-                    
+
                     // Render character by character to handle visual selection
                     for (col_idx, ch) in display_line.chars().enumerate() {
-                        let is_selected = self.current_pane == Pane::Response && self.is_position_selected(line_idx, col_idx);
-                        
-                        if is_selected && (self.mode == EditorMode::Visual || self.mode == EditorMode::VisualLine) {
+                        let is_selected = self.current_pane == Pane::Response
+                            && self.is_position_selected(line_idx, col_idx);
+
+                        if is_selected
+                            && (self.mode == EditorMode::Visual
+                                || self.mode == EditorMode::VisualLine)
+                        {
                             // Highlight selected text
                             execute!(io::stdout(), SetBackgroundColor(Color::White))?;
                             execute!(io::stdout(), SetForegroundColor(Color::Black))?;
@@ -2505,7 +2678,7 @@ impl VimRepl {
                         }
                         print!("{}", ch);
                     }
-                    
+
                     // Reset colors - line is already cleared so no need to pad
                     execute!(io::stdout(), crossterm::style::ResetColor)?;
                 }
@@ -2514,33 +2687,48 @@ impl VimRepl {
                 execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
                 print!("{}", " ".repeat(line_num_width + 1));
             }
-            
+
             execute!(io::stdout(), ResetColor)?;
         }
-        
+
         Ok(())
     }
 
-    fn render_response_pane_to_buffer(&self, buffer: &mut String, response: &ResponseBuffer, height: usize, width: usize, start_row: usize) {
+    fn render_response_pane_to_buffer(
+        &self,
+        buffer: &mut String,
+        response: &ResponseBuffer,
+        height: usize,
+        width: usize,
+        start_row: usize,
+    ) {
         let active = self.current_pane == Pane::Response;
-        
+
         // Calculate line number width based on total lines
         let max_line_num = response.lines.len();
-        let line_num_width = if max_line_num == 0 { 3 } else { format!("{}", max_line_num).len().max(3) };
+        let line_num_width = if max_line_num == 0 {
+            3
+        } else {
+            format!("{}", max_line_num).len().max(3)
+        };
         let content_width = width.saturating_sub(line_num_width + 1); // +1 for space separator
-        
+
         for i in 0..height {
             // Move to line and clear it
             buffer.push_str(&format!("\x1b[{};1H\x1b[2K", start_row + i + 1));
-            
+
             let line_idx = i + response.scroll_offset;
-            
+
             // Render line number
             if line_idx < response.lines.len() {
                 // Line number color (dark grey)
                 buffer.push_str("\x1b[90m");
-                buffer.push_str(&format!("{:>width$} ", line_idx + 1, width = line_num_width));
-                
+                buffer.push_str(&format!(
+                    "{:>width$} ",
+                    line_idx + 1,
+                    width = line_num_width
+                ));
+
                 // Render line content with visual selection highlighting
                 if let Some(line) = response.lines.get(line_idx) {
                     let display_line = if line.len() > content_width {
@@ -2548,12 +2736,16 @@ impl VimRepl {
                     } else {
                         line
                     };
-                    
+
                     // Render character by character to handle visual selection
                     for (col_idx, ch) in display_line.chars().enumerate() {
-                        let is_selected = self.current_pane == Pane::Response && self.is_position_selected(line_idx, col_idx);
-                        
-                        if is_selected && (self.mode == EditorMode::Visual || self.mode == EditorMode::VisualLine) {
+                        let is_selected = self.current_pane == Pane::Response
+                            && self.is_position_selected(line_idx, col_idx);
+
+                        if is_selected
+                            && (self.mode == EditorMode::Visual
+                                || self.mode == EditorMode::VisualLine)
+                        {
                             // Highlight selected text
                             buffer.push_str("\x1b[47m\x1b[30m"); // White bg, black fg
                         } else {
@@ -2566,7 +2758,7 @@ impl VimRepl {
                         }
                         buffer.push(ch);
                     }
-                    
+
                     // Reset colors
                     buffer.push_str("\x1b[0m");
                 }
@@ -2581,25 +2773,25 @@ impl VimRepl {
 
     fn render_status_line(&self, row: usize, width: usize) -> Result<()> {
         execute!(io::stdout(), cursor::MoveTo(0, row as u16))?;
-        
+
         // Handle command mode display
         let left_content = if self.mode == EditorMode::Command {
             format!(":{}", self.command_buffer)
         } else {
             String::new()
         };
-        
+
         // Create right-aligned status content
         let mut right_content = String::new();
-        
+
         if let Some(ref response_status) = self.last_response_status {
             right_content.push_str(response_status);
-            
+
             if let Some(duration) = self.last_request_duration {
                 right_content.push_str(&format!(" ({}ms)", duration));
             }
         }
-        
+
         // Calculate available space for padding between left and right content
         let used_space = left_content.len() + right_content.len();
         let padding = if used_space < width {
@@ -2607,10 +2799,10 @@ impl VimRepl {
         } else {
             0
         };
-        
+
         // Create the full status line
         let status_line = format!("{}{}{}", left_content, " ".repeat(padding), right_content);
-        
+
         // Truncate if too long
         let final_status = if status_line.len() > width {
             if left_content.len() > width {
@@ -2624,34 +2816,34 @@ impl VimRepl {
         } else {
             status_line
         };
-        
+
         print!("{}", final_status);
-        
+
         Ok(())
     }
 
     fn render_status_line_to_buffer(&self, buffer: &mut String, row: usize, width: usize) {
         // Move to status line position and clear it
         buffer.push_str(&format!("\x1b[{};1H\x1b[2K", row + 1));
-        
+
         // Handle command mode display
         let left_content = if self.mode == EditorMode::Command {
             format!(":{}", self.command_buffer)
         } else {
             String::new()
         };
-        
+
         // Create right-aligned status content
         let mut right_content = String::new();
-        
+
         if let Some(ref response_status) = self.last_response_status {
             right_content.push_str(response_status);
-            
+
             if let Some(duration) = self.last_request_duration {
                 right_content.push_str(&format!(" ({}ms)", duration));
             }
         }
-        
+
         // Calculate available space for padding between left and right content
         let used_space = left_content.len() + right_content.len();
         let padding = if used_space < width {
@@ -2659,10 +2851,10 @@ impl VimRepl {
         } else {
             0
         };
-        
+
         // Create the full status line
         let status_line = format!("{}{}{}", left_content, " ".repeat(padding), right_content);
-        
+
         // Truncate if too long
         let final_status = if status_line.len() > width {
             if left_content.len() > width {
@@ -2676,7 +2868,7 @@ impl VimRepl {
         } else {
             status_line
         };
-        
+
         buffer.push_str(&final_status);
     }
 
@@ -2695,7 +2887,7 @@ impl VimRepl {
         let total_content_height = height - 2; // Minus separator and status line
         let min_output_height = 3;
         let max_input_height = total_content_height - min_output_height;
-        
+
         if self.request_pane_height < max_input_height {
             self.request_pane_height = (self.request_pane_height + 1).min(max_input_height);
         }
@@ -2703,7 +2895,7 @@ impl VimRepl {
 
     fn expand_output_pane(&mut self) {
         let min_input_height = 3;
-        
+
         if self.request_pane_height > min_input_height {
             self.request_pane_height = (self.request_pane_height - 1).max(min_input_height);
         }
@@ -2711,7 +2903,7 @@ impl VimRepl {
 
     fn shrink_input_pane(&mut self) {
         let min_input_height = 3;
-        
+
         if self.request_pane_height > min_input_height {
             self.request_pane_height = (self.request_pane_height - 1).max(min_input_height);
         }
@@ -2722,7 +2914,7 @@ impl VimRepl {
         let total_content_height = height - 2; // Minus separator and status line
         let min_output_height = 3;
         let max_input_height = total_content_height - min_output_height;
-        
+
         if self.request_pane_height < max_input_height {
             self.request_pane_height = (self.request_pane_height + 1).min(max_input_height);
         }
@@ -2733,14 +2925,125 @@ impl VimRepl {
         let total_content_height = height - 2; // Minus separator and status line
         let min_output_height = 3;
         let max_input_height = total_content_height - min_output_height;
-        
+
         self.request_pane_height = max_input_height;
     }
 
     fn maximize_output_pane(&mut self) {
         let min_input_height = 3;
-        
+
         self.request_pane_height = min_input_height;
+    }
+
+    /// Print connection profile details to stderr when verbose mode is enabled
+    /// This function displays host, port, scheme, certificates, authentication, headers, and proxy settings
+    pub fn print_profile(profile: &impl HttpConnectionProfile) -> String {
+        Self::format_profile(profile)
+    }
+
+    /// Print HTTP request details to stderr when verbose mode is enabled
+    /// This function displays the HTTP method, URL path, and request body (truncated if long)
+    pub fn print_request(req: &impl HttpRequestArgs) -> String {
+        Self::format_request(req)
+    }
+
+    /// Print HTTP response details to stderr when verbose mode is enabled
+    /// This function displays the response status code and all response headers
+    pub fn print_response(res: &HttpResponse) -> String {
+        Self::format_response(res)
+    }
+
+    /// Format connection profile details as a string for display in REPL response pane
+    /// Returns a formatted string showing host, port, scheme, certificates, authentication, headers, and proxy settings
+    pub fn format_profile(profile: &impl HttpConnectionProfile) -> String {
+        let mut output = String::new();
+
+        if let Some(endpoint) = profile.server() {
+            output.push_str("> connection:\n");
+            output.push_str(&format!(">   host: {}\n", endpoint.host()));
+            output.push_str(&format!(
+                ">   port: {}\n",
+                endpoint
+                    .port()
+                    .map(|p| p.to_string())
+                    .unwrap_or("<none>".to_string())
+            ));
+            output.push_str(&format!(">   scheme: {}\n", endpoint.scheme().unwrap()));
+            if endpoint.scheme().unwrap() == "https" {
+                output.push_str(&format!(
+                    ">   ca-cert: {}\n",
+                    profile.ca_cert().unwrap_or(&"<none>".to_string())
+                ));
+                output.push_str(&format!(
+                    ">   insecure: {}\n",
+                    profile
+                        .insecure()
+                        .map(|x| x.to_string())
+                        .unwrap_or("<none>".to_string())
+                ));
+            }
+        } else {
+            output.push_str("> connection: <none>\n");
+        }
+
+        if profile.user().is_some() {
+            output.push_str(&format!(">   user: {}\n", profile.user().unwrap()));
+            output.push_str(&format!(
+                ">   password: {}\n",
+                profile.password().map(|_| "<provided>").unwrap_or("<none>")
+            ));
+        }
+
+        output.push_str(">   headers:\n");
+        profile.headers().iter().for_each(|(name, value)| {
+            output.push_str(&format!(">    {name}: {value}\n"));
+        });
+
+        if profile.proxy().is_some() {
+            output.push_str(&format!(">   proxy: {}\n", profile.proxy().unwrap()));
+        }
+
+        output
+    }
+
+    /// Format HTTP request details as a string for display in REPL response pane
+    /// Returns a formatted string showing the HTTP method, URL path, and request body (truncated if long)
+    pub fn format_request(req: &impl HttpRequestArgs) -> String {
+        let url = req
+            .url_path()
+            .map(|u| u.to_string())
+            .unwrap_or("<none>".to_string());
+
+        let mut output = String::new();
+        output.push_str("> request:\n");
+        output.push_str(&format!(">   method: {}\n", req.method().unwrap()));
+        output.push_str(&format!(">   path: {url}\n"));
+        output.push_str(&format!(
+            ">   body: {}\n",
+            req.body()
+                .map(|b| if b.len() > 78 {
+                    format!("{}...", &b[0..75])
+                } else {
+                    b.to_string()
+                })
+                .unwrap_or("<none>".to_string())
+        ));
+
+        output
+    }
+
+    /// Format HTTP response details as a string for display in REPL response pane
+    /// Returns a formatted string showing the response status code and all response headers
+    pub fn format_response(res: &HttpResponse) -> String {
+        let mut output = String::new();
+        output.push_str("> response:\n");
+        output.push_str(&format!(">   status: {}\n", res.status()));
+        output.push_str(">   headers:\n");
+        res.headers().iter().for_each(|(name, value)| {
+            output.push_str(&format!(">     {}: {}\n", name, value.to_str().unwrap()));
+        });
+
+        output
     }
 }
 

@@ -2,20 +2,20 @@
 name = "blueline"
 version = "0.2.0"
 authors = ["Sam Wisely <samwisely75@gmail.com>"]
-description = "A lightweight, profile-based HTTP client"
+description = "A lightweight, profile-based HTTP client with REPL interface"
 edition = "2021"
 license = "Elastic-2.0"
 repository = "https://github.com/samwisely75/blueline"
 homepage = "https://github.com/samwisely75/blueline"
 readme = "README.md"
-keywords = ["http", "client", "cli", "curl", "api"]
+keywords = ["http", "client", "cli", "repl", "api"]
 categories = ["command-line-utilities", "web-programming::http-client"]
 
 # Package metadata for deb/rpm generation
 [package.metadata.deb]
 maintainer = "Sam Wisely"
 copyright = "2025, Sam Wisely"
-extended-description = "A fast, modern HTTP client with profile-based configuration for the command line. Think of it as curl with persistent profile and simplified syntax."
+extended-description = "A fast, modern HTTP client with REPL interface and profile-based configuration for the command line. Features vi-style navigation and interactive HTTP request testing."
 depends = "$auto"
 section = "net"
 priority = "optional"
@@ -26,7 +26,7 @@ assets = [
 
 [package.metadata.generate-rpm]
 license = "Elastic-2.0"
-summary = "A lightweight, profile-based HTTP client"
+summary = "A lightweight, profile-based HTTP client with REPL interface"
 post_install_script = """echo "Setting up blueline..."
 echo "blueline installed successfully!"
 echo "See documentation: https://github.com/samwisely75/blueline\""""
@@ -36,23 +36,16 @@ assets = [
 ]
 
 [dependencies]
+bluenote = "0.1.0"
 anyhow = "1.0"
-flate2 = "1.1.0"
-reqwest = { version = "0.12.12", features = ["rustls-tls", "blocking", "json"], default-features = false }
 tokio = { version = "1.44.0", features = ["full"] }
 clap = { version = "4.5.28", features = ["derive"] }
-rust-ini = "0.21.1"
-shellexpand = "3.1.0"
-zstd = "0.13.3"
-tempfile = "3.19.1"
-regex = "1.11.1"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = [ "chrono", "env-filter" ] }
-encoding_rs = "0.8.35"
-bytes = "1.10.1"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
-rustyline = "12.0"
-colored = "2.0"
+serde_json = "1.0"
 crossterm = "0.28"
+colored = "2.0"
+rustyline = "12.0"
 
+[dev-dependencies]
+tempfile = "3.19.1"
