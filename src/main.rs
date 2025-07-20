@@ -1,7 +1,9 @@
 mod cmd;
 mod repl;
 
-use bluenote::{get_blank_profile, IniProfileStore, Result, DEFAULT_INI_FILE_PATH, HttpConnectionProfile};
+use bluenote::{
+    get_blank_profile, HttpConnectionProfile, IniProfileStore, Result, DEFAULT_INI_FILE_PATH,
+};
 use cmd::CommandLineArgs;
 use repl::VimRepl;
 use tracing_subscriber::{fmt::time::ChronoLocal, EnvFilter};
@@ -20,12 +22,19 @@ async fn main() -> Result<()> {
     // Uses bluenote's default profile path
     let profile_name = cmd_args.profile();
 
-    tracing::debug!("DEFAULT_INI_FILE_PATH constant: '{}'", DEFAULT_INI_FILE_PATH);
+    tracing::debug!(
+        "DEFAULT_INI_FILE_PATH constant: '{}'",
+        DEFAULT_INI_FILE_PATH
+    );
     let ini_store = IniProfileStore::new(DEFAULT_INI_FILE_PATH);
 
-    tracing::debug!("Loading profile '{}' from '{}'", profile_name, DEFAULT_INI_FILE_PATH);
+    tracing::debug!(
+        "Loading profile '{}' from '{}'",
+        profile_name,
+        DEFAULT_INI_FILE_PATH
+    );
     let profile_result = ini_store.get_profile(profile_name)?;
-    
+
     let profile = match profile_result {
         Some(p) => {
             tracing::debug!("Profile loaded successfully, server: {:?}", p.server());
@@ -36,7 +45,7 @@ async fn main() -> Result<()> {
             get_blank_profile()
         }
     };
-    
+
     tracing::debug!("INI profile: {:?}", profile);
 
     // Create and run the VIM-like REPL - this is now the only mode

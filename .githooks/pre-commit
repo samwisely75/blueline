@@ -6,6 +6,24 @@
 
 set -e
 
+echo "🎨 Running cargo fmt check..."
+
+# Check if code is properly formatted
+if ! cargo fmt --all -- --check > /dev/null 2>&1; then
+    echo ""
+    echo "❌ COMMIT REJECTED: Code formatting issues found!"
+    echo ""
+    echo "Please run 'cargo fmt' to format your code before committing:"
+    echo ""
+    cargo fmt --all -- --check
+    echo ""
+    echo "💡 Tip: Run 'cargo fmt' to automatically format your code"
+    echo ""
+    exit 1
+fi
+
+echo "✅ Code formatting check passed!"
+
 echo "🔍 Running cargo clippy check..."
 
 # Run clippy with warnings as errors
@@ -23,3 +41,4 @@ if ! cargo clippy --all-targets --all-features -- -D warnings > /dev/null 2>&1; 
 fi
 
 echo "✅ Clippy check passed!"
+echo "🎉 All pre-commit checks passed! Code is properly formatted and lint-free."
