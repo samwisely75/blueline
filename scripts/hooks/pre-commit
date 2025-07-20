@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# Pre-commit hook to enforce clippy format string checks
+# Prevents commits with clippy::uninlined_format_args warnings
+#
+
+set -e
+
+echo "🔍 Running cargo clippy check..."
+
+# Run clippy with warnings as errors
+if ! cargo clippy --all-targets --all-features -- -D warnings > /dev/null 2>&1; then
+    echo ""
+    echo "❌ COMMIT REJECTED: Clippy warnings found!"
+    echo ""
+    echo "Please fix the following clippy warnings before committing:"
+    echo ""
+    cargo clippy --all-targets --all-features -- -D warnings
+    echo ""
+    echo "💡 Tip: Use modern format string syntax like format!(\"Hello {name}\") instead of format!(\"Hello {}\", name)"
+    echo ""
+    exit 1
+fi
+
+echo "✅ Clippy check passed!"

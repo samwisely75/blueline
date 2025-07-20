@@ -253,10 +253,28 @@ Contributions are welcome! Please:
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
+3. **Install Git hooks**: Run `./scripts/install-hooks.sh` to set up pre-commit clippy checks
+4. Make your changes
+5. Add tests for new functionality
+6. Ensure all tests pass (hooks will enforce clippy compliance)
+7. Submit a pull request
+
+### Development Setup
+
+The project includes pre-commit hooks to maintain code quality:
+
+```bash
+# Install Git hooks (required for contributors)
+./scripts/install-hooks.sh
+```
+
+The pre-commit hook will:
+
+- Run `cargo clippy --all-targets --all-features -- -D warnings`
+- Reject commits with any clippy warnings
+- Ensure modern format string syntax (e.g., `format!("Hello {name}")`)
+
+To bypass in emergencies: `git commit --no-verify`
 
 ## Related Projects
 
