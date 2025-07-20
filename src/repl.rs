@@ -1984,16 +1984,16 @@ impl VimRepl {
                         let key = parts[1].to_string();
                         let value = parts[2].to_string();
                         self.session_headers.insert(key.clone(), value.clone());
-                        self.status_message = format!("Header set: {} = {}", key, value);
+                        self.status_message = format!("Header set: {key} = {value}");
                     }
                 } else if self.command_buffer.starts_with("unhead ") {
                     let parts: Vec<&str> = self.command_buffer.splitn(2, ' ').collect();
                     if parts.len() >= 2 {
                         let key = parts[1].to_string();
                         if self.session_headers.remove(&key).is_some() {
-                            self.status_message = format!("Header removed: {}", key);
+                            self.status_message = format!("Header removed: {key}");
                         } else {
-                            self.status_message = format!("Header not found: {}", key);
+                            self.status_message = format!("Header not found: {key}");
                         }
                     }
                 } else {
@@ -2105,8 +2105,8 @@ impl VimRepl {
                 }
 
                 self.last_response_status = Some("Error".to_string());
-                self.status_message = format!("Request failed: {}", e);
-                self.response_buffer = Some(ResponseBuffer::new(format!("Error: {}", e)));
+                self.status_message = format!("Request failed: {e}");
+                self.response_buffer = Some(ResponseBuffer::new(format!("Error: {e}")));
                 // Restore default 50/50 split when new response is generated if currently maximized
                 let height = self.terminal_size.1 as usize;
                 let total_content_height = height - 2; // Minus separator and status line
@@ -2186,7 +2186,7 @@ impl VimRepl {
                 let line_num_width = if max_line_num == 0 {
                     3
                 } else {
-                    format!("{}", max_line_num).len().max(3)
+                    format!("{max_line_num}").len().max(3)
                 };
                 let cursor_x = line_num_width + 1 + self.buffer.cursor_col;
 
@@ -2203,7 +2203,7 @@ impl VimRepl {
                     let line_num_width = if max_line_num == 0 {
                         3
                     } else {
-                        format!("{}", max_line_num).len().max(3)
+                        format!("{max_line_num}").len().max(3)
                     };
                     let cursor_x = line_num_width + 1 + response.cursor_col;
 
@@ -2292,7 +2292,7 @@ impl VimRepl {
         output_buffer.push_str("\x1b[?25h");
 
         // Write everything at once
-        print!("{}", output_buffer);
+        print!("{output_buffer}");
         io::stdout().flush()?;
         Ok(())
     }
@@ -2355,7 +2355,7 @@ impl VimRepl {
         output_buffer.push_str("\x1b[?25h");
 
         // Write everything at once
-        print!("{}", output_buffer);
+        print!("{output_buffer}");
         io::stdout().flush()?;
         Ok(())
     }
@@ -2373,7 +2373,7 @@ impl VimRepl {
                 let line_num_width = if max_line_num == 0 {
                     3
                 } else {
-                    format!("{}", max_line_num).len().max(3)
+                    format!("{max_line_num}").len().max(3)
                 };
                 let cursor_x = line_num_width + 1 + self.buffer.cursor_col; // +1 for space separator
 
@@ -2393,7 +2393,7 @@ impl VimRepl {
                     let line_num_width = if max_line_num == 0 {
                         3
                     } else {
-                        format!("{}", max_line_num).len().max(3)
+                        format!("{max_line_num}").len().max(3)
                     };
                     let cursor_x = line_num_width + 1 + response.cursor_col; // +1 for space separator
 
@@ -2442,7 +2442,7 @@ impl VimRepl {
                 let line_num_width = if max_line_num == 0 {
                     3
                 } else {
-                    format!("{}", max_line_num).len().max(3)
+                    format!("{max_line_num}").len().max(3)
                 };
                 let cursor_x = line_num_width + 1 + self.buffer.cursor_col; // +1 for space separator
 
@@ -2459,7 +2459,7 @@ impl VimRepl {
                     let line_num_width = if max_line_num == 0 {
                         3
                     } else {
-                        format!("{}", max_line_num).len().max(3)
+                        format!("{max_line_num}").len().max(3)
                     };
                     let cursor_x = line_num_width + 1 + response.cursor_col; // +1 for space separator
 
@@ -2481,7 +2481,7 @@ impl VimRepl {
         let line_num_width = if max_line_num == 0 {
             3
         } else {
-            format!("{}", max_line_num).len().max(3)
+            format!("{max_line_num}").len().max(3)
         };
         let content_width = width.saturating_sub(line_num_width + 1); // +1 for space separator
 
@@ -2527,7 +2527,7 @@ impl VimRepl {
                                 execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
                             }
                         }
-                        print!("{}", ch);
+                        print!("{ch}");
                     }
 
                     // Reset colors - line is already cleared so no need to pad
@@ -2553,7 +2553,7 @@ impl VimRepl {
         let line_num_width = if max_line_num == 0 {
             3
         } else {
-            format!("{}", max_line_num).len().max(3)
+            format!("{max_line_num}").len().max(3)
         };
         let content_width = width.saturating_sub(line_num_width + 1); // +1 for space separator
 
@@ -2628,7 +2628,7 @@ impl VimRepl {
         let line_num_width = if max_line_num == 0 {
             3
         } else {
-            format!("{}", max_line_num).len().max(3)
+            format!("{max_line_num}").len().max(3)
         };
         let content_width = width.saturating_sub(line_num_width + 1); // +1 for space separator
 
@@ -2675,7 +2675,7 @@ impl VimRepl {
                                 execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
                             }
                         }
-                        print!("{}", ch);
+                        print!("{ch}");
                     }
 
                     // Reset colors - line is already cleared so no need to pad
@@ -2708,7 +2708,7 @@ impl VimRepl {
         let line_num_width = if max_line_num == 0 {
             3
         } else {
-            format!("{}", max_line_num).len().max(3)
+            format!("{max_line_num}").len().max(3)
         };
         let content_width = width.saturating_sub(line_num_width + 1); // +1 for space separator
 
@@ -2787,7 +2787,7 @@ impl VimRepl {
             right_content.push_str(response_status);
 
             if let Some(duration) = self.last_request_duration {
-                right_content.push_str(&format!(" ({}ms)", duration));
+                right_content.push_str(&format!(" ({duration}ms)"));
             }
         }
 
@@ -2812,7 +2812,7 @@ impl VimRepl {
             status_line
         };
 
-        print!("{}", final_status);
+        print!("{final_status}");
 
         Ok(())
     }
@@ -2835,7 +2835,7 @@ impl VimRepl {
             right_content.push_str(response_status);
 
             if let Some(duration) = self.last_request_duration {
-                right_content.push_str(&format!(" ({}ms)", duration));
+                right_content.push_str(&format!(" ({duration}ms)"));
             }
         }
 
