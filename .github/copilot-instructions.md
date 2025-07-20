@@ -83,3 +83,33 @@ When implementing design patterns, ensure they add value without over-engineerin
 - Avoid creating elaborate hierarchies of unused interfaces
 - Keep the original functionality intact while adding pattern structure
 - Remember: patterns should simplify code maintenance, not complicate it
+
+# Core Development Principles from Refactoring Experience
+
+## Mindset for Sustainable Code Evolution
+
+**DRY (Don't Repeat Yourself)**: When you see the same logic pattern 3+ times, extract it into reusable abstractions. Look beyond surface-level code similarity to identify conceptual patterns that can be generalized through traits or helper functions.
+
+**Preserve First, Improve Second**: Never sacrifice working functionality for architectural beauty. The best refactoring maintains identical external behavior while improving internal structure. If it breaks, it's not refactoring—it's rewriting.
+
+**Measure Before Claiming Victory**: Quantify improvements with concrete metrics (line count, modularity, complexity). If you can't measure the improvement, question whether the change was worth the effort.
+
+**Incremental Courage Over Big Bang**: Large architectural changes succeed through small, verifiable steps. Each step should compile, test, and function identically to the previous state. Bold vision, careful execution.
+
+**Recognize Natural Boundaries**: Code wants to separate along natural fault lines—data vs. presentation vs. control logic. Listen to where the code wants to split rather than forcing artificial divisions.
+
+**Early Filtering Patterns**: When processing events or commands, filter irrelevant cases as early as possible (like `is_relevant()` methods). This prevents unnecessary computation and keeps hot paths lean.
+
+**Observer Pattern for Loose Coupling**: When one component needs to react to changes in another, prefer observer patterns over direct coupling. This enables independent evolution of components.
+
+**Traits for Behavioral Contracts**: Use traits to define behavioral contracts that multiple types can implement. This enables code reuse while maintaining type safety and clear interfaces.
+
+## Refactoring Wisdom
+
+**Start with Working Code**: You cannot improve what doesn't work. Get it working first, then make it better. Working ugly code beats elegant broken code every time.
+
+**Know When to Stop**: Not every piece of code needs to be perfectly architected. Sometimes "good enough" really is good enough. Focus optimization efforts where they matter most.
+
+**Embrace Temporary Ugliness**: During refactoring, code may temporarily become uglier before it becomes cleaner. This is normal and necessary—don't abandon the effort during the awkward middle phase.
+
+**Test the Transformation**: The only way to verify that refactoring preserved behavior is through testing. If the code isn't testable, make it testable first, then refactor.
