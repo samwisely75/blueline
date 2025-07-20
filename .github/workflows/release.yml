@@ -1,0 +1,522 @@
+name: Release
+on:
+  push:
+    branches:
+      - 'release/*'  # Only trigger on release branches
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release'
+        required: true
+        default: 'v0.2.0'
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+permissions:
+  contents: write
+  packages: write
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # Windows
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            name: blueline-windows-x64
+          
+          # macOS
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            name: blueline-macos-x64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            name: blueline-macos-arm64
+          
+          # Linux
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: blueline-linux-x64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: blueline-linux-arm64
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Configure cross-compilation (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          mkdir -p ~/.cargo
+          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Prepare binary (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cp target/${{ matrix.target }}/release/blueline.exe ${{ matrix.name }}.exe
+      - name: Prepare binary (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cp target/${{ matrix.target }}/release/blueline ${{ matrix.name }}
+          chmod +x ${{ matrix.name }}
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}${{ runner.os == 'Windows' && '.exe' || '' }}
+          if-no-files-found: error
+  build-packages:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: blueline-linux-x64
+          path: binaries/
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm alien fakeroot
+      - name: Setup package structure
+        run: |
+          chmod +x binaries/blueline-linux-x64
+          
+          # Create directory structure for packaging
+          mkdir -p packaging/usr/bin
+          mkdir -p packaging/usr/share/man/man1
+          mkdir -p packaging/DEBIAN
+          mkdir -p packaging/usr/share/doc/blueline
+          
+          # Copy binary
+          cp binaries/blueline-linux-x64 packaging/usr/bin/blueline
+          
+          # Create basic man page
+          cat > packaging/usr/share/man/man1/blueline.1 << 'EOF'
+          .TH BLUELINE 1 "$(date +'%B %Y')" "blueline $(grep '^version' Cargo.toml | cut -d'"' -f2)" "User Commands"
+          .SH NAME
+          blueline \- A lightweight, profile-based HTTP client with REPL interface
+          .SH SYNOPSIS
+          .B blueline
+          [\fIOPTIONS\fR]
+          .SH DESCRIPTION
+          \fBblueline\fP is a lightweight HTTP client with an interactive REPL interface that supports configuration profiles and vi-style navigation.
+          .SH OPTIONS
+          .TP
+          \fB\-p, \-\-profile\fR \fIPROFILE\fR
+          Use the specified profile (default: default)
+          .TP
+          \fB\-v, \-\-verbose\fR
+          Enable verbose output
+          .TP
+          \fB\-h, \-\-help\fR
+          Show help message
+          .TP
+          \fB\-V, \-\-version\fR
+          Show version information
+          .SH CONFIGURATION
+          Configuration profiles are stored in ~/.blueline/profile in INI format.
+          .SH EXAMPLES
+          .TP
+          blueline
+          Start the REPL with default profile
+          .TP
+          blueline -p staging
+          Start the REPL with staging profile
+          .TP
+          blueline -v
+          Start the REPL with verbose output
+          .SH AUTHOR
+          Written by Sam Wisely.
+          .SH REPORTING BUGS
+          Report bugs to: https://github.com/samwisely75/blueline/issues
+          EOF
+          
+          # Compress man page
+          gzip packaging/usr/share/man/man1/blueline.1
+          
+          # Create copyright file
+          cp LICENSE packaging/usr/share/doc/blueline/copyright
+          
+          # Create changelog
+          echo "blueline ($(grep '^version' Cargo.toml | cut -d'"' -f2)) stable; urgency=medium" > packaging/usr/share/doc/blueline/changelog.Debian
+          echo "" >> packaging/usr/share/doc/blueline/changelog.Debian
+          echo "  * Release version $(grep '^version' Cargo.toml | cut -d'"' -f2)" >> packaging/usr/share/doc/blueline/changelog.Debian
+          echo "" >> packaging/usr/share/doc/blueline/changelog.Debian
+          echo " -- Sam Wisely <samwisely75@gmail.com>  $(date -R)" >> packaging/usr/share/doc/blueline/changelog.Debian
+          
+          # Compress changelog
+          gzip packaging/usr/share/doc/blueline/changelog.Debian
+      - name: Create DEB package
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | cut -d'"' -f2)
+          
+          # Create DEBIAN control file
+          cat > packaging/DEBIAN/control << EOF
+          Package: blueline
+          Version: ${VERSION}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Depends: libc6 (>= 2.17)
+          Maintainer: Sam Wisely <samwisely75@gmail.com>
+          Description: A lightweight, profile-based HTTP client with REPL interface
+           blueline is a lightweight HTTP client with an interactive REPL interface
+           that supports configuration profiles and vi-style navigation. It's designed
+           for developers who need a powerful command-line HTTP client for testing
+           APIs and web services with an interactive interface.
+          Homepage: https://github.com/samwisely75/blueline
+          EOF
+          
+          # Create postinst script using the existing script
+          cp scripts/deb-postinstall.sh packaging/DEBIAN/postinst
+          chmod +x packaging/DEBIAN/postinst
+          
+          # Build DEB package
+          fakeroot dpkg-deb --build packaging blueline_${VERSION}_amd64.deb
+          
+          # Verify package
+          dpkg-deb --info blueline_${VERSION}_amd64.deb
+          dpkg-deb --contents blueline_${VERSION}_amd64.deb
+      - name: Upload DEB package
+        uses: actions/upload-artifact@v4
+        with:
+          name: blueline-deb-package
+          path: "*.deb"
+          if-no-files-found: error
+  test-binaries:
+    needs: build
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: blueline-linux-x64
+          - os: macos-latest
+            binary: blueline-macos-x64
+          - os: windows-latest
+            binary: blueline-windows-x64
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.binary }}
+      - name: Test binary (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          chmod +x ${{ matrix.binary }}
+          ./${{ matrix.binary }} --version
+          ./${{ matrix.binary }} --help
+      - name: Test binary (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: cmd
+        run: |
+          .\%BINARY%.exe --version
+          .\%BINARY%.exe --help
+        env:
+          BINARY: ${{ matrix.binary }}
+  create-release:
+    needs: [build, build-packages, test-binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Extract version from branch name
+        id: extract_version
+        run: |
+          if [[ "${{ github.ref_name }}" =~ ^release/(.+)$ ]]; then
+            VERSION=${BASH_REMATCH[1]}
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "tag_name=v${VERSION}" >> $GITHUB_OUTPUT
+            echo "Extracted version: ${VERSION}"
+          else
+            echo "Error: Could not extract version from branch name: ${{ github.ref_name }}"
+            exit 1
+          fi
+      - name: Create and push release tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          TAG_NAME="${{ steps.extract_version.outputs.tag_name }}"
+          VERSION="${{ steps.extract_version.outputs.version }}"
+          RELEASE_BRANCH="release/$VERSION"
+          echo "Processing tag: $TAG_NAME"
+          echo "Processing release branch: $RELEASE_BRANCH"
+          
+          # Check if tag exists locally and delete it
+          if git tag -l | grep -q "^${TAG_NAME}$"; then
+            echo "Local tag $TAG_NAME exists, deleting it..."
+            git tag -d "$TAG_NAME"
+          fi
+          
+          # Check if tag exists on remote and delete it
+          if git ls-remote --tags origin | grep -q "refs/tags/${TAG_NAME}$"; then
+            echo "Remote tag $TAG_NAME exists, deleting it..."
+            git push origin ":refs/tags/$TAG_NAME"
+          fi
+          
+          # Create and push the tag
+          git tag "$TAG_NAME"
+          git push origin "$TAG_NAME"
+          echo "Created and pushed tag: $TAG_NAME"
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -name "blueline-*" -exec cp {} release-assets/ \;
+          find artifacts -name "*.deb" -exec cp {} release-assets/ \;
+          ls -la release-assets/
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.extract_version.outputs.tag_name }}
+          name: Release ${{ steps.extract_version.outputs.tag_name }}
+          draft: false
+          prerelease: false
+          files: release-assets/*
+          body: |
+            ## What's Changed
+            
+            * Cross-platform release for Windows, macOS, and Linux
+            * Linux packages available in DEB format
+            * Interactive REPL interface with vi-style navigation
+            * Profile-based configuration for API endpoints
+            * Integration with bluenote HTTP client library
+            
+            ## Installation
+            
+            ### Using Pre-built Binaries
+            
+            Download the appropriate binary for your platform from the assets below:
+            
+            ### Windows
+            - `blueline-windows-x64.exe` - Windows 64-bit (Intel/AMD)
+            
+            ### macOS
+            - `blueline-macos-x64` - macOS Intel (x64)
+            - `blueline-macos-arm64` - macOS Apple Silicon (M1/M2)
+            
+            ### Linux
+            - `blueline-linux-x64` - Linux 64-bit (Intel/AMD)
+            - `blueline-linux-arm64` - Linux ARM64
+            - `blueline_*_amd64.deb` - Debian/Ubuntu package
+            
+            ### Using Package Managers (Linux)
+            
+            **Debian/Ubuntu (.deb):**
+            ```bash
+            # Download the .deb file from assets below, then:
+            sudo dpkg -i blueline_*_amd64.deb
+            ```
+            
+            ## Configuration
+            
+            blueline uses configuration profiles managed by the bluenote library. Profiles are stored in `~/.blueline/profile` in INI format.
+            
+            Example profile configuration:
+            ```ini
+            [default]
+            host = https://api.example.com
+            @content-type = application/json
+            @accept = application/json
+            
+            [local]
+            host = http://localhost:8080
+            @content-type = application/json
+            ```
+            
+            ## Usage
+            
+            ```bash
+            # Start REPL with default profile
+            blueline
+            
+            # Using a specific profile
+            blueline -p staging
+            
+            # With verbose output
+            blueline -v
+            ```
+            
+            ## Interactive REPL
+            
+            Once in the REPL interface, you can:
+            - Type HTTP requests directly (e.g., `GET /api/users`)
+            - Use vi-style navigation commands
+            - Switch between request and response panes
+            - View formatted JSON responses
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  publish-homebrew:
+    name: Publish to Homebrew
+    runs-on: macos-latest
+    needs: create-release
+    steps:
+      - name: Extract version from ref
+        id: extract_version
+        run: |
+          if [[ "${{ github.ref_name }}" =~ ^release/(.+)$ ]]; then
+            VERSION=${BASH_REMATCH[1]}
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          else
+            echo "Error: Could not extract version from branch name: ${{ github.ref_name }}"
+            exit 1
+          fi
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: samwisely75/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+      - name: Update formula
+        working-directory: homebrew-tap
+        run: |
+          VERSION=${{ steps.extract_version.outputs.version }}
+          TAG="v${VERSION}"
+          
+          # Create or update the formula
+          cat > Formula/blueline.rb << EOF
+          class Blueline < Formula
+            desc "A lightweight, profile-based HTTP client with REPL interface"
+            homepage "https://github.com/samwisely75/blueline"
+            version "${VERSION}"
+            license "Elastic-2.0"
+            on_macos do
+              on_arm do
+                url "https://github.com/samwisely75/blueline/releases/download/${TAG}/blueline-macos-arm64"
+                sha256 "$(curl -L https://github.com/samwisely75/blueline/releases/download/${TAG}/blueline-macos-arm64 | sha256sum | cut -d ' ' -f 1)"
+              end
+              on_intel do
+                url "https://github.com/samwisely75/blueline/releases/download/${TAG}/blueline-macos-x64"
+                sha256 "$(curl -L https://github.com/samwisely75/blueline/releases/download/${TAG}/blueline-macos-x64 | sha256sum | cut -d ' ' -f 1)"
+              end
+            end
+          
+            def install
+              bin.install Dir["*"].first => "blueline"
+            end
+          
+            test do
+              assert_match "blueline #{version}", shell_output("#{bin}/blueline --version")
+            end
+          end
+          EOF
+          
+          # Commit and push the changes
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/blueline.rb
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "blueline ${VERSION}"
+            git push
+          fi
+  merge-to-main:
+    name: Merge Release to Main
+    runs-on: ubuntu-latest
+    needs: [create-release, build, build-packages, test-binaries]
+    if: startsWith(github.ref, 'refs/heads/release/')
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Need full history for merge
+        token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Configure git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+    - name: Merge release to main
+      run: |
+        # Determine the source branch
+        SOURCE_BRANCH=${GITHUB_REF#refs/heads/}
+        echo "Branch triggered: merging from $SOURCE_BRANCH"
+        
+        # Switch to main and merge
+        git checkout main
+        git pull origin main
+        
+        # Check if the release branch/tag is already merged
+        if git merge-base --is-ancestor ${{ github.sha }} HEAD; then
+          echo "Changes already merged into main"
+        else
+          echo "Merging $SOURCE_BRANCH to main..."
+          git merge --no-ff ${{ github.sha }} -m "Merge release ${{ github.ref_name }} to main - All release artifacts and tests passed"
+          
+          # Push to main
+          git push origin main
+          echo "✅ Successfully merged release to main"
+        fi
+    - name: Update develop branch
+      run: |
+        # Also merge any release changes back to develop to keep it up to date
+        git checkout develop
+        git pull origin develop
+        
+        # Check if already merged
+        if git merge-base --is-ancestor ${{ github.sha }} HEAD; then
+          echo "Changes already in develop"
+        else
+          echo "Merging release changes back to develop..."
+          git merge --no-ff ${{ github.sha }} -m "Merge release ${{ github.ref_name }} back to develop"
+          git push origin develop
+          echo "✅ Successfully updated develop branch"
+        fi
+    - name: Clean up release branch
+      if: startsWith(github.ref, 'refs/heads/release/')
+      run: |
+        # Delete the release branch after successful merge
+        RELEASE_BRANCH=${GITHUB_REF#refs/heads/}
+        echo "Deleting release branch: $RELEASE_BRANCH"
+        
+        # Try to delete the remote branch
+        if git ls-remote --heads origin | grep -q "refs/heads/$RELEASE_BRANCH"; then
+          echo "Attempting to delete remote branch: refs/heads/$RELEASE_BRANCH"
+          git push origin --delete "$RELEASE_BRANCH" || {
+            echo "Standard delete failed, trying alternative syntax..."
+            git push origin ":refs/heads/$RELEASE_BRANCH" || {
+              echo "⚠️  Could not delete remote branch, may already be deleted"
+            }
+          }
+        else
+          echo "Remote branch $RELEASE_BRANCH not found, may already be deleted"
+        fi
+        
+        echo "✅ Cleaned up release branch"
