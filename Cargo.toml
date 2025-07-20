@@ -1,38 +1,38 @@
 [package]
-name = "webly"
-version = "0.1.12"
-authors = ["Satoshi Iizuka <satoshi.iizuka@elastic.co>"]
+name = "blueline"
+version = "0.2.0"
+authors = ["Sam Wisely <samwisely75@gmail.com>"]
 description = "A lightweight, profile-based HTTP client"
 edition = "2021"
 license = "Elastic-2.0"
-repository = "https://github.com/samwisely75/webly"
-homepage = "https://github.com/samwisely75/webly"
+repository = "https://github.com/samwisely75/blueline"
+homepage = "https://github.com/samwisely75/blueline"
 readme = "README.md"
 keywords = ["http", "client", "cli", "curl", "api"]
 categories = ["command-line-utilities", "web-programming::http-client"]
 
 # Package metadata for deb/rpm generation
 [package.metadata.deb]
-maintainer = "Satoshi Iizuka"
-copyright = "2025, Satoshi Iizuka"
-extended-description = "A fast, modern HTTP client with profile-based configuration for the command line. Think of it as curl with persistent profiles and simplified syntax."
+maintainer = "Sam Wisely"
+copyright = "2025, Sam Wisely"
+extended-description = "A fast, modern HTTP client with profile-based configuration for the command line. Think of it as curl with persistent profile and simplified syntax."
 depends = "$auto"
 section = "net"
 priority = "optional"
 assets = [
-    ["target/release/webly", "usr/bin/", "755"],
-    ["README.md", "usr/share/doc/webly/", "644"],
+    ["target/release/blueline", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/blueline/", "644"],
 ]
 
 [package.metadata.generate-rpm]
 license = "Elastic-2.0"
 summary = "A lightweight, profile-based HTTP client"
-post_install_script = """echo "Setting up webly..."
-echo "Webly installed successfully!"
-echo "See documentation: https://github.com/samwisely75/webly\""""
+post_install_script = """echo "Setting up blueline..."
+echo "blueline installed successfully!"
+echo "See documentation: https://github.com/samwisely75/blueline\""""
 assets = [
-    { source = "target/release/webly", dest = "/usr/bin/webly", mode = "755" },
-    { source = "README.md", dest = "/usr/share/doc/webly/README.md", mode = "644" },
+    { source = "target/release/blueline", dest = "/usr/bin/blueline", mode = "755" },
+    { source = "README.md", dest = "/usr/share/doc/blueline/README.md", mode = "644" },
 ]
 
 [dependencies]
@@ -52,4 +52,7 @@ encoding_rs = "0.8.35"
 bytes = "1.10.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
+rustyline = "12.0"
+colored = "2.0"
+crossterm = "0.28"
 

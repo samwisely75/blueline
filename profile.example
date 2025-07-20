@@ -1,0 +1,12 @@
+# blueline Configuration Profile
+# This file contains configuration profile for blueline HTTP client
+# Copy this file to ~/.blueline/profile and customize as needed
+
+[default]
+host = https://api.example.com
+@content-type = application/json
+@accept = application/json
+# user = username
+# password = password
+# insecure = false
+# ca_cert = /path/to/cert.pem
