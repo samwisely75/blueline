@@ -17,6 +17,7 @@ async fn main() -> Result<()> {
     // Load profile from INI file by name specified in --profile argument
     // (default to "default")
     // If the profile is not found, then use a blank profile.
+    // Uses bluenote's default profile path
     let profile_name = cmd_args.profile();
     let ini_store = IniProfileStore::new(DEFAULT_INI_FILE_PATH);
     let profile = ini_store

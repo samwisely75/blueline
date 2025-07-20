@@ -6,7 +6,7 @@ set -e
 echo "Setting up blueline..."
 
 # Run the setup script for all users who have a home directory
-# This will create ~/.blueline/profile if it doesn't exist
+# This will create the default profile file if it doesn't exist
 if [ -n "$SUDO_USER" ]; then
     # If installed with sudo, set up for the user who ran sudo
     USER_HOME=$(eval echo ~$SUDO_USER)

@@ -1,5 +1,5 @@
-# blueline Configuration Profile
-# This file contains configuration profile for blueline HTTP client
+# HTTP Client Configuration Profile
+# This file contains configuration profiles for HTTP requests
 # Copy this file to ~/.blueline/profile and customize as needed
 
 [default]
