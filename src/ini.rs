@@ -1,5 +1,5 @@
 use crate::http::HttpConnectionProfile;
-use crate::stdio::{ask, ask_binary, ask_no_space_string, ask_path};
+// use crate::stdio::{ask, ask_binary, ask_no_space_string, ask_path};  // Suspended - interactive setup disabled for REPL migration
 use crate::url::Endpoint;
 use crate::utils::Result;
 
@@ -229,6 +229,9 @@ pub fn get_blank_profile() -> IniProfile {
     }
 }
 
+// Suspended - interactive profile setup disabled during REPL migration
+// TODO: Re-enable or replace with REPL-based profile setup
+/*
 #[allow(dead_code)]
 pub fn ask_new_profile(name: &str, i: &std::io::Stdin) -> Result<Option<IniProfile>> {
     let init_msg = format!("Profile \"{name}\" doesn't exist. Do you want to create it? [y/N]: ");
@@ -283,6 +286,8 @@ pub fn ask_new_profile(name: &str, i: &std::io::Stdin) -> Result<Option<IniProfi
         proxy: None,
     }))
 }
+*/
+
 #[cfg(test)]
 mod test {
     use super::*;
