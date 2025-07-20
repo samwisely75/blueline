@@ -46,3 +46,40 @@ The app supports Vi-style commands for navigation and editing within the REPL mo
 9. Run cargo clippy and cargo fmt before submitting pull requests to ensure code quality and consistency.
 
 10. **Commenting**: Write comments that explain the purpose of the code and what problems it solves, focusing on consequences rather than just descriptions. Combine the objective and reasoning into natural, flowing explanations that describe what would happen without the code. For example, instead of saying "This validates input," explain "Validate input to prevent SQL injection attacks that would compromise the database." Use comments to explain the big picture and the reasoning behind complex logic, not what the code does line by line. The code itself should be self-documenting through descriptive function and variable names. Avoid marketing language like "sophisticated" or "advanced" - stick to technical facts. Always assume the reader has no prior knowledge of the code or libraries. Use `//!` for module-level documentation and `///` for function-level documentation.
+
+# Refactoring Guidelines
+
+## When Asked to "Remove" or "Simplify" Code
+
+**CRITICAL**: When the user asks to remove complexity or features that "weren't in the original", follow these strict guidelines:
+
+1. **Ask for Clarification First**: Before making ANY changes, ask specific questions:
+   - "Which specific parts should I remove?"
+   - "Should I preserve the existing functionality while removing only the unused abstractions?"
+   - "Are you referring to removing unused interfaces or actual working features?"
+
+2. **Preserve ALL Working Functionality**: Never remove or gut working features. The user's request to "remove what was NOT there in the original" means:
+   - Remove unused abstract interfaces that add complexity
+   - Remove over-engineered patterns that aren't being used
+   - Remove dead code and empty implementations
+   - **DO NOT** remove actual working methods, data structures, or functionality
+
+3. **Make Incremental Changes**: 
+   - Change one file at a time
+   - Test compilation after each change
+   - Ask for feedback before proceeding to the next component
+
+4. **Follow KISS and YAGNI Correctly**:
+   - KISS = Keep the working code simple, remove unnecessary abstractions
+   - YAGNI = Remove features/interfaces that aren't currently needed
+   - **NOT** = Remove all features and leave empty stubs
+
+5. **When in Doubt, STOP and ASK**: If unclear about scope, always ask for clarification rather than making assumptions.
+
+## Design Pattern Implementation
+
+When implementing design patterns, ensure they add value without over-engineering:
+- Only implement what's immediately needed
+- Avoid creating elaborate hierarchies of unused interfaces
+- Keep the original functionality intact while adding pattern structure
+- Remember: patterns should simplify code maintenance, not complicate it

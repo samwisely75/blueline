@@ -169,8 +169,6 @@ dependencies = [
 [[package]]
 name = "bluenote"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5fea48e61376383c7b23eda2f27961749550412d44a38a1b91d6bdd1b8a61fa"
 dependencies = [
  "anyhow",
  "bytes",

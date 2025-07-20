@@ -36,7 +36,7 @@ assets = [
 ]
 
 [dependencies]
-bluenote = "0.1.0"
+bluenote = { path = "../bluenote" }
 anyhow = "1.0"
 tokio = { version = "1.44.0", features = ["full"] }
 clap = { version = "4.5.28", features = ["derive"] }
