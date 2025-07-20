@@ -1,4 +1,4 @@
-//! # HTTPC REPL: Vim-Style HTTP Client Interface
+//! # BLUELINE REPL: Vim-Style HTTP Client Interface
 //!
 //! ## ARCHITECTURE OVERVIEW
 //!

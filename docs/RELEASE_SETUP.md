@@ -14,7 +14,7 @@ The release workflow requires the following secrets to be configured in the GitH
 1. Visit [crates.io](https://crates.io) and log in with your GitHub account
 2. Go to **Account Settings** → **API Tokens**
 3. Click **New Token**
-4. Give it a descriptive name like "httpc-github-actions"
+4. Give it a descriptive name like "blueline-github-actions"
 5. Select appropriate scopes (publish permissions)
 6. Copy the generated token
 
@@ -53,9 +53,9 @@ Once secrets are configured, releases are fully automated:
 
 After a successful release, verify:
 
-- [ ] New version appears on [crates.io](https://crates.io/crates/httpc)
+- [ ] New version appears on [crates.io](https://crates.io/crates/blueline)
 - [ ] GitHub release created with all assets
-- [ ] Installation works: `cargo install httpc`
+- [ ] Installation works: `cargo install blueline`
 
 ## Troubleshooting
 

@@ -1,10 +1,10 @@
-# WebLy Release Process
+# blueline Release Process
 
-This document describes the release process for WebLy, based on the sophisticated release pipeline from the quot project.
+This document describes the release process for blueline, based on the sophisticated release pipeline from the quot project.
 
 ## Release Pipeline Overview
 
-The WebLy release pipeline uses **release branches** instead of tags to trigger releases. This approach provides better control and allows for last-minute fixes before release.
+The blueline release pipeline uses **release branches** instead of tags to trigger releases. This approach provides better control and allows for last-minute fixes before release.
 
 ## Release Workflow
 
@@ -63,7 +63,7 @@ When you push a `release/*` branch, the pipeline automatically:
 
 ### Configuration Templates
 - Includes `profile.example` with common configurations
-- Automatically creates `~/.httpc/profile` on first install
+- Automatically creates `~/.blueline/profile` on first install
 - Examples for various API types (REST, GraphQL, XML)
 
 ### Testing
@@ -112,17 +112,17 @@ Each release includes:
 ### Package Managers (Linux)
 ```bash
 # Debian/Ubuntu
-sudo dpkg -i httpc_*_amd64.deb
+sudo dpkg -i blueline_*_amd64.deb
 
-# Creates /etc/httpc/profile.example
-# Sets up ~/.httpc/profile if not exists
+# Creates /etc/blueline/profile.example
+# Sets up ~/.blueline/profile if not exists
 ```
 
 ### Direct Binary
 ```bash
 # Download binary from GitHub releases
-chmod +x httpc-linux-x64
-sudo mv httpc-linux-x64 /usr/local/bin/httpc
+chmod +x blueline-linux-x64
+sudo mv blueline-linux-x64 /usr/local/bin/blueline
 ```
 
 ## Configuration
@@ -138,10 +138,10 @@ The release pipeline creates comprehensive profile examples:
 ### Post-Installation
 ```bash
 # Check installation
-httpc --version
+blueline --version
 
 # Copy example profile
-cp /etc/httpc/profile.example ~/.httpc/profile
+cp /etc/blueline/profile.example ~/.blueline/profile
 # Edit as needed
 ```
 
@@ -154,7 +154,7 @@ cp /etc/httpc/profile.example ~/.httpc/profile
 - Automated tag creation
 - Merge to main/develop
 
-### WebLy Enhancements
+### blueline Enhancements
 - **Configuration focus**: Includes profile templates and setup
 - **Simplified packaging**: Focused on essential packages
 - **API-centric**: Examples tailored for HTTP clients
@@ -203,8 +203,8 @@ git branch -a | grep release
 echo "release/1.2.3" | grep -E "^release/[0-9]+\.[0-9]+\.[0-9]+"
 
 # Test binary
-./httpc --version
-./httpc --help
+./blueline --version
+./blueline --help
 ```
 
-This release pipeline provides a robust, automated solution for WebLy releases with comprehensive configuration management and cross-platform support.
+This release pipeline provides a robust, automated solution for blueline releases with comprehensive configuration management and cross-platform support.

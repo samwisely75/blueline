@@ -1,9 +1,9 @@
-# httpc
+# blueline
 
 [![License](https://img.shields.io/badge/license-Elastic%20License%202.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/github/v/release/samwisely75/httpc)](https://github.com/samwisely75/httpc/releases)
-[![CI](https://github.com/samwisely75/httpc/actions/workflows/ci.yml/badge.svg)](https://github.com/samwisely75/httpc/actions/workflows/ci.yml)
-[![Release](https://github.com/samwisely75/httpc/actions/workflows/release.yml/badge.svg)](https://github.com/samwisely75/httpc/actions/workflows/release.yml)
+[![Version](https://img.shields.io/github/v/release/samwisely75/blueline)](https://github.com/samwisely75/blueline/releases)
+[![CI](https://github.com/samwisely75/blueline/actions/workflows/ci.yml/badge.svg)](https://github.com/samwisely75/blueline/actions/workflows/ci.yml)
+[![Release](https://github.com/samwisely75/blueline/actions/workflows/release.yml/badge.svg)](https://github.com/samwisely75/blueline/actions/workflows/release.yml)
 
 A lightweight, profile-based HTTP client that allows you to talk to web servers with minimal effort. Think of it as `curl` with persistent profile and simplified syntax.
 
@@ -16,12 +16,12 @@ A lightweight, profile-based HTTP client that allows you to talk to web servers 
 - [Usage](#usage)
 - [Examples](#examples)
 - [Troubleshooting](#troubleshooting)
-- [Why httpc and not curl?](#why-httpc-and-not-curl)
+- [Why blueline and not curl?](#why-blueline-and-not-curl)
 - [License](#license)
 
 ## Features
 
-**Profile-based simplicity** - Transform complex curl commands into simple, memorable requests. Store connection details, authentication, and headers in `~/.httpc/profile` once, then use clean relative URLs like `httpc -p prod GET /api/users` instead of repeating lengthy curl parameters every time.
+**Profile-based simplicity** - Transform complex curl commands into simple, memorable requests. Store connection details, authentication, and headers in `~/.blueline/profile` once, then use clean relative URLs like `blueline -p prod GET /api/users` instead of repeating lengthy curl parameters every time.
 
 Plus all the HTTP client features you expect:
 
@@ -36,51 +36,51 @@ Plus all the HTTP client features you expect:
 
 ## Installation
 
-Download the appropriate binary from [releases](https://github.com/samwisely75/httpc/releases) for your platform:
+Download the appropriate binary from [releases](https://github.com/samwisely75/blueline/releases) for your platform:
 
 **macOS (Homebrew):**
 
 ```bash
 # Install via Homebrew (easiest method for macOS)
-brew install samwisely75/tap/httpc
+brew install samwisely75/tap/blueline
 ```
 
 **Linux/macOS (Manual):**
 
 ```bash
 # Download and extract
-curl -L https://github.com/samwisely75/httpc/releases/latest/download/httpc-linux-x64.tar.gz | tar -xz
-sudo mv httpc /usr/local/bin/
+curl -L https://github.com/samwisely75/blueline/releases/latest/download/blueline-linux-x64.tar.gz | tar -xz
+sudo mv blueline /usr/local/bin/
 
 # Or for macOS
-curl -L https://github.com/samwisely75/httpc/releases/latest/download/httpc-macos-x64.tar.gz | tar -xz
-sudo mv httpc /usr/local/bin/
+curl -L https://github.com/samwisely75/blueline/releases/latest/download/blueline-macos-x64.tar.gz | tar -xz
+sudo mv blueline /usr/local/bin/
 ```
 
 **From crates.io (requires Rust):**
 
 ```bash
-cargo install httpc
+cargo install blueline
 ```
 
 **Build from source:**
 
 ```bash
-git clone https://github.com/samwisely75/httpc.git
-cd httpc
+git clone https://github.com/samwisely75/blueline.git
+cd blueline
 cargo build --release
-sudo cp target/release/httpc /usr/local/bin/
+sudo cp target/release/blueline /usr/local/bin/
 ```
 
-Test the installation: `httpc --help`
+Test the installation: `blueline --help`
 
-No additional dependencies required - httpc is a single, self-contained binary.
+No additional dependencies required - blueline is a single, self-contained binary.
 
 ## Configuration
 
 ### Configuration File Location
 
-httpc looks for configuration in `~/.httpc/profile`.
+blueline looks for configuration in `~/.blueline/profile`.
 
 ### Configuration Format
 
@@ -94,7 +94,7 @@ password = your-password
 insecure = false
 ca_cert = /path/to/ca.pem
 @content-type = application/json
-@user-agent = httpc/0.1
+@user-agent = blueline/0.1
 @accept = application/json
 @accept-encoding = gzip, deflate
 
@@ -135,11 +135,11 @@ Examples:
 
 ```bash
 # Use default profile
-httpc GET /api/endpoint
+blueline GET /api/endpoint
 
 # Use specific profile
-httpc -p staging GET /api/endpoint
-httpc --profile production GET /api/endpoint
+blueline -p staging GET /api/endpoint
+blueline --profile production GET /api/endpoint
 ```
 
 ### Override with Command Line Options
@@ -148,10 +148,10 @@ Command line options override profile settings:
 
 ```bash
 # Override user from profile
-httpc -p staging --user different-user GET /api/data
+blueline -p staging --user different-user GET /api/data
 
 # Override host entirely
-httpc GET https://completely-different-host.com/api
+blueline GET https://completely-different-host.com/api
 ```
 
 ## Quick Start
@@ -159,29 +159,29 @@ httpc GET https://completely-different-host.com/api
 1. **Create a profile for your favorite API:**
 
    ```bash
-   # Create ~/.httpc directory and profile file
-   mkdir -p ~/.httpc
+   # Create ~/.blueline directory and profile file
+   mkdir -p ~/.blueline
    echo "[swapi]
    host = https://swapi.dev/api
-   @content-type = application/json" > ~/.httpc/profile
+   @content-type = application/json" > ~/.blueline/profile
    ```
 
 2. **Use the profile to explore the Star Wars universe:**
 
    ```bash
    # Now you can use short URLs to explore the galaxy!
-   httpc -p swapi GET /people/1/        # Luke Skywalker
-   httpc -p swapi GET /people/4/        # Darth Vader
-   httpc -p swapi GET /starships/10/    # Millennium Falcon
-   httpc -p swapi GET /films/1/         # A New Hope
+   blueline -p swapi GET /people/1/        # Luke Skywalker
+   blueline -p swapi GET /people/4/        # Darth Vader
+   blueline -p swapi GET /starships/10/    # Millennium Falcon
+   blueline -p swapi GET /films/1/         # A New Hope
    ```
 
 3. **Or override with full URLs when needed:**
 
    ```bash
    # You can always use absolute URLs to override the profile
-   httpc GET https://httpbin.org/get
-   httpc GET https://swapi.dev/api/planets/
+   blueline GET https://httpbin.org/get
+   blueline GET https://swapi.dev/api/planets/
    ```
 
 ## Usage
@@ -192,19 +192,19 @@ The simplest usage is to make a request to any URL:
 
 ```bash
 # GET request
-httpc GET https://httpbin.org/get
+blueline GET https://httpbin.org/get
 
 # POST request with JSON data
-httpc POST https://httpbin.org/post '{
+blueline POST https://httpbin.org/post '{
     "name": "John Doe",
     "email": "john@example.com"
 }'
 
 # PUT request
-httpc PUT https://httpbin.org/put '{"status": "updated"}'
+blueline PUT https://httpbin.org/put '{"status": "updated"}'
 
 # DELETE request
-httpc DELETE https://httpbin.org/delete
+blueline DELETE https://httpbin.org/delete
 ```
 
 ### Using Standard Input
@@ -213,10 +213,10 @@ You can pass request body via standard input:
 
 ```bash
 # From file
-cat data.json | httpc POST https://api.example.com/users
+cat data.json | blueline POST https://api.example.com/users
 
 # From command output
-echo '{"query": {"match_all": {}}}' | httpc POST https://elasticsearch.example.com/my-index/_search
+echo '{"query": {"match_all": {}}}' | blueline POST https://elasticsearch.example.com/my-index/_search
 
 # Complex pipeline example
 echo '{
@@ -228,7 +228,7 @@ echo '{
             }
         }
     }
-}' | httpc GET my-index/_search | jq '.hits.hits[]._source.name'
+}' | blueline GET my-index/_search | jq '.hits.hits[]._source.name'
 ```
 
 ### Profile-Based Requests
@@ -237,29 +237,29 @@ Use profile to avoid repeating connection details:
 
 ```bash
 # Use default profile
-httpc GET /api/users
+blueline GET /api/users
 
 # Use specific profile
-httpc -p staging GET /api/users
-httpc -p production GET /health
+blueline -p staging GET /api/users
+blueline -p production GET /health
 ```
 
 ### Authentication & Headers
 
 ```bash
 # Basic authentication
-httpc GET https://api.example.com/protected \
+blueline GET https://api.example.com/protected \
     --user admin \
     --password secret
 
 # Custom headers
-httpc POST https://api.example.com/data \
+blueline POST https://api.example.com/data \
     -H "Authorization: Bearer your-token" \
     -H "X-Custom-Header: value" \
     '{"data": "value"}'
 
 # SSL options
-httpc GET https://self-signed.example.com/api \
+blueline GET https://self-signed.example.com/api \
     --ca-cert /path/to/ca.pem \
     --insecure
 ```
@@ -268,14 +268,14 @@ httpc GET https://self-signed.example.com/api \
 
 ```bash
 # Through proxy
-httpc GET https://api.example.com/data \
+blueline GET https://api.example.com/data \
     --proxy http://proxy.company.com:8080
 
 # Verbose mode for debugging
-httpc -v GET https://api.example.com/debug
+blueline -v GET https://api.example.com/debug
 
 # Override profile settings
-httpc -p production GET /api/data \
+blueline -p production GET /api/data \
     --user different-user \
     --password different-pass
 ```
@@ -286,14 +286,14 @@ When using special characters in URLs or query parameters, you may need to escap
 
 ```bash
 # Query parameters with special characters - escape or quote
-httpc GET "/api/search?q=hello world&sort=date"
-httpc GET /api/search\?q=hello\ world\&sort=date
+blueline GET "/api/search?q=hello world&sort=date"
+blueline GET /api/search\?q=hello\ world\&sort=date
 
 # Complex URLs with fragments
-httpc GET "https://api.example.com/items?filter=status:active&limit=10#results"
+blueline GET "https://api.example.com/items?filter=status:active&limit=10#results"
 
 # JSON with special characters in URLs
-httpc POST "/api/items?category=tools&type=screws" '{
+blueline POST "/api/items?category=tools&type=screws" '{
     "name": "Phillips head screw",
     "size": "M4"
 }'
@@ -304,7 +304,7 @@ httpc POST "/api/items?category=tools&type=screws" '{
 For all available options, run:
 
 ```bash
-httpc --help
+blueline --help
 ```
 
 ## Examples
@@ -313,8 +313,8 @@ httpc --help
 
 ```bash
 # Test REST API endpoints
-httpc GET https://jsonplaceholder.typicode.com/posts/1
-httpc POST https://jsonplaceholder.typicode.com/posts '{
+blueline GET https://jsonplaceholder.typicode.com/posts/1
+blueline POST https://jsonplaceholder.typicode.com/posts '{
     "title": "My Post",
     "body": "Post content",
     "userId": 1
@@ -325,34 +325,34 @@ httpc POST https://jsonplaceholder.typicode.com/posts '{
 
 ```bash
 # JSON API
-httpc POST https://api.example.com/users \
+blueline POST https://api.example.com/users \
     -H "Content-Type: application/json" \
     '{"name": "John", "email": "john@example.com"}'
 
 # Form data
-httpc POST https://api.example.com/form \
+blueline POST https://api.example.com/form \
     -H "Content-Type: application/x-www-form-urlencoded" \
     'name=John&email=john@example.com'
 
 # File upload simulation
-cat document.json | httpc PUT https://api.example.com/documents/123
+cat document.json | blueline PUT https://api.example.com/documents/123
 ```
 
 ### Elasticsearch Examples
 
 ```bash
 # Check cluster health
-httpc -p elastic GET /_cluster/health
+blueline -p elastic GET /_cluster/health
 
 # Search documents
 echo '{
     "query": {
         "match": {"title": "search term"}
     }
-}' | httpc -p elastic GET /my-index/_search
+}' | blueline -p elastic GET /my-index/_search
 
 # Index a document
-httpc -p elastic PUT /my-index/_doc/1 '{
+blueline -p elastic PUT /my-index/_doc/1 '{
     "title": "My Document",
     "content": "Document content here"
 }'
@@ -362,8 +362,8 @@ httpc -p elastic PUT /my-index/_doc/1 '{
 
 ```bash
 # Set up profile for different environments
-mkdir -p ~/.httpc
-cat > ~/.httpc/profile << EOF
+mkdir -p ~/.blueline
+cat > ~/.blueline/profile << EOF
 [dev]
 host = http://localhost:3000
 @content-type = application/json
@@ -382,36 +382,36 @@ password = production-password
 EOF
 
 # Test the same endpoint across environments
-httpc -p dev GET /api/health
-httpc -p staging GET /api/health
-httpc -p prod GET /api/health
+blueline -p dev GET /api/health
+blueline -p staging GET /api/health
+blueline -p prod GET /api/health
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Q: `httpc: command not found`**
-A: Make sure httpc is in your PATH. Try `which httpc` or reinstall following the installation instructions.
+**Q: `blueline: command not found`**
+A: Make sure blueline is in your PATH. Try `which blueline` or reinstall following the installation instructions.
 
 **Q: SSL certificate errors**
 A: Use `--insecure` to skip certificate validation, or provide a CA certificate with `--ca-cert /path/to/ca.pem`.
 
 **Q: Profile not found**
-A: Check that `~/.httpc/profile` exists and contains the profile. Use `httpc -p nonexistent GET /` to see the error.
+A: Check that `~/.blueline/profile` exists and contains the profile. Use `blueline -p nonexistent GET /` to see the error.
 
 **Q: Authentication failures**
 A: Verify credentials in your profile or override with `--user` and `--password` flags.
 
 **Q: Request body from stdin not working**
-A: Make sure you're piping data correctly: `echo '{"key": "value"}' | httpc POST /api/endpoint`
+A: Make sure you're piping data correctly: `echo '{"key": "value"}' | blueline POST /api/endpoint`
 
 ### Debug Mode
 
 Use verbose mode to see detailed request/response information:
 
 ```bash
-httpc -v GET https://httpbin.org/get
+blueline -v GET https://httpbin.org/get
 ```
 
 This shows:
@@ -427,13 +427,13 @@ Check your configuration file:
 
 ```bash
 # View current configuration
-cat ~/.httpc/profile
+cat ~/.blueline/profile
 
 # Test with a simple request
-httpc -p your-profile GET /simple/endpoint
+blueline -p your-profile GET /simple/endpoint
 ```
 
-## Why httpc and not curl?
+## Why blueline and not curl?
 
 I work with Elasticsearch clusters day in and day out. Kibana Dev Tools is ideal, but often unavailable in client environments where I need to SSH into nodes, check logs, and run diagnostic queries from the terminal.
 
@@ -479,8 +479,8 @@ Python and Bash scripts work but become unwieldy and hard to maintain. Sometimes
 2. **Build from source**
 
    ```bash
-   git clone https://github.com/samwisely75/httpc.git
-   cd httpc
+   git clone https://github.com/samwisely75/blueline.git
+   cd blueline
    cargo build
    ```
 

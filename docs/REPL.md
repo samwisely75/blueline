@@ -1,13 +1,13 @@
 # REPL Mode Documentation
 
-The `httpc` HTTP client includes a powerful REPL (Read-Eval-Print Loop) mode that provides a vim-like terminal user interface for interactively testing HTTP requests.
+The `blueline` HTTP client includes a powerful REPL (Read-Eval-Print Loop) mode that provides a vim-like terminal user interface for interactively testing HTTP requests.
 
 ## Getting Started
 
 Start the REPL by running the application without arguments:
 
 ```bash
-./httpc
+./blueline
 ```
 
 The application will enter REPL mode with a dual-pane interface.
@@ -113,7 +113,7 @@ Request Body (JSON, text, etc.)
 ```
 GET https://jsonplaceholder.typicode.com/posts/1
 Accept: application/json
-User-Agent: httpc/1.0
+User-Agent: blueline/1.0
 
 ```
 
@@ -259,4 +259,4 @@ Clear the response pane:
 
 ---
 
-This REPL mode transforms `httpc` into a powerful interactive HTTP testing tool, combining the efficiency of vim-like editing with modern HTTP client capabilities.
+This REPL mode transforms `blueline` into a powerful interactive HTTP testing tool, combining the efficiency of vim-like editing with modern HTTP client capabilities.
