@@ -274,6 +274,8 @@ The pre-commit hook will:
 - Reject commits with any clippy warnings
 - Ensure modern format string syntax (e.g., `format!("Hello {name}")`)
 
+**Note**: Hooks are now tracked in the repository at `.githooks/` and automatically configured.
+
 To bypass in emergencies: `git commit --no-verify`
 
 ## Related Projects

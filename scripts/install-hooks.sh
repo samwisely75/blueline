@@ -8,15 +8,15 @@ set -e
 
 echo "🔧 Installing Git hooks..."
 
-# Make the hook executable and copy it to .git/hooks/
-chmod +x scripts/hooks/pre-commit
-cp scripts/hooks/pre-commit .git/hooks/pre-commit
+# Configure Git to use .githooks directory (tracked in repository)
+git config core.hooksPath .githooks
 
-echo "✅ Pre-commit hook installed successfully!"
+echo "✅ Git hooks configured successfully!"
 echo ""
 echo "The pre-commit hook will now:"
 echo "  • Run 'cargo clippy --all-targets --all-features -- -D warnings'"
 echo "  • Reject commits if any clippy warnings are found"
 echo "  • Ensure modern format string syntax is used"
 echo ""
-echo "To bypass the hook in emergencies, use: git commit --no-verify"
+echo "💡 The hooks are now tracked in the repository at .githooks/"
+echo "💡 To bypass the hook in emergencies, use: git commit --no-verify"
