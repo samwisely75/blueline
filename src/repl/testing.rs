@@ -119,7 +119,7 @@ impl ReplTestHelper {
 
     /// Create test helper with specific profile configuration
     pub fn with_profile(endpoint: &str, name: &str) -> Self {
-        let mut model = AppState::new((80, 24), false);
+        let model = AppState::new((80, 24), false);
         // Note: Profile configuration would need to be added to AppState
         // For now, just use default state
         let _ = (endpoint, name); // Suppress unused warnings
@@ -130,7 +130,6 @@ impl ReplTestHelper {
             event_source: MockEventSource::new(),
         }
     }
-
     /// Add a sequence of text input to the event source
     pub fn type_text(&mut self, text: &str) -> &mut Self {
         self.event_source.add_text(text);
@@ -241,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_repl_test_helper_with_profile() {
-        let helper = ReplTestHelper::with_profile("https://api.example.com", "test");
+        let _helper = ReplTestHelper::with_profile("https://api.example.com", "test");
         // Model should be configured with the profile
         // This would need specific model methods to verify
     }

@@ -4,7 +4,7 @@
 //! without requiring actual terminal interaction.
 
 #[cfg(test)]
-mod tests {
+mod command_tests {
     use crate::repl::command::Command;
     use crate::repl::commands::editing::{ExitInsertModeCommand, InsertCharCommand};
     use crate::repl::commands::movement::{MoveCursorLeftCommand, SwitchPaneCommand};

@@ -136,7 +136,7 @@ impl ReplController {
 
         // Track old state for change detection
         let old_mode = self.state.mode.clone();
-        let old_pane = self.state.current_pane.clone();
+        let old_pane = self.state.current_pane;
         let old_request_scroll = self.state.request_buffer.scroll_offset;
         let old_response_scroll = self.state.response_buffer.as_ref().map(|r| r.scroll_offset);
         let old_request_pane_height = self.state.request_pane_height;
