@@ -31,6 +31,9 @@ pub mod model;
 pub mod new_repl;
 pub mod view;
 
+#[cfg(test)]
+pub mod testing;
+
 // Re-export main types for convenience
 pub use command::Command;
 pub use controller::ReplController;

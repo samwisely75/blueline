@@ -7,7 +7,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::repl::{
-    command::{CommandResult, CommandV2},
+    command::{Command, CommandResult},
     model::{AppState, EditorMode, Pane, RequestBuffer, ResponseBuffer},
 };
 
@@ -158,24 +158,34 @@ impl MoveCursorLeftCommand {
     }
 }
 
-impl CommandV2 for MoveCursorLeftCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Normal mode with h or Left arrow
+impl Command for MoveCursorLeftCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Normal mode
         matches!(state.mode, EditorMode::Normal)
-            && matches!(event.code, KeyCode::Char('h') | KeyCode::Left)
-            && (matches!(event.code, KeyCode::Left) || event.modifiers == KeyModifiers::NONE)
     }
 
-    fn process_detailed(&self, _event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
-        match state.current_pane {
-            Pane::Request => move_cursor_left(&mut state.request_buffer),
-            Pane::Response => {
-                if let Some(ref mut buffer) = state.response_buffer {
-                    move_cursor_left(buffer)
-                } else {
-                    Ok(CommandResult::not_handled())
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Check for h or Left arrow
+        let is_match = matches!(event.code, KeyCode::Char('h') | KeyCode::Left)
+            && (matches!(event.code, KeyCode::Left) || event.modifiers == KeyModifiers::NONE);
+
+        if is_match {
+            match state.current_pane {
+                Pane::Request => {
+                    move_cursor_left(&mut state.request_buffer)?;
+                    Ok(true)
+                }
+                Pane::Response => {
+                    if let Some(ref mut buffer) = state.response_buffer {
+                        move_cursor_left(buffer)?;
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
                 }
             }
+        } else {
+            Ok(false)
         }
     }
 
@@ -193,24 +203,34 @@ impl MoveCursorRightCommand {
     }
 }
 
-impl CommandV2 for MoveCursorRightCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Normal mode with l or Right arrow
+impl Command for MoveCursorRightCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Normal mode
         matches!(state.mode, EditorMode::Normal)
-            && matches!(event.code, KeyCode::Char('l') | KeyCode::Right)
-            && (matches!(event.code, KeyCode::Right) || event.modifiers == KeyModifiers::NONE)
     }
 
-    fn process_detailed(&self, _event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
-        match state.current_pane {
-            Pane::Request => move_cursor_right(&mut state.request_buffer),
-            Pane::Response => {
-                if let Some(ref mut buffer) = state.response_buffer {
-                    move_cursor_right(buffer)
-                } else {
-                    Ok(CommandResult::not_handled())
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Check for l or Right arrow
+        let is_match = matches!(event.code, KeyCode::Char('l') | KeyCode::Right)
+            && (matches!(event.code, KeyCode::Right) || event.modifiers == KeyModifiers::NONE);
+
+        if is_match {
+            match state.current_pane {
+                Pane::Request => {
+                    move_cursor_right(&mut state.request_buffer)?;
+                    Ok(true)
+                }
+                Pane::Response => {
+                    if let Some(ref mut buffer) = state.response_buffer {
+                        move_cursor_right(buffer)?;
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
                 }
             }
+        } else {
+            Ok(false)
         }
     }
 
@@ -228,24 +248,34 @@ impl MoveCursorUpCommand {
     }
 }
 
-impl CommandV2 for MoveCursorUpCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Normal mode with k or Up arrow
+impl Command for MoveCursorUpCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Normal mode
         matches!(state.mode, EditorMode::Normal)
-            && matches!(event.code, KeyCode::Char('k') | KeyCode::Up)
-            && (matches!(event.code, KeyCode::Up) || event.modifiers == KeyModifiers::NONE)
     }
 
-    fn process_detailed(&self, _event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
-        match state.current_pane {
-            Pane::Request => move_cursor_up(&mut state.request_buffer),
-            Pane::Response => {
-                if let Some(ref mut buffer) = state.response_buffer {
-                    move_cursor_up(buffer)
-                } else {
-                    Ok(CommandResult::not_handled())
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Check for k or Up arrow
+        let is_match = matches!(event.code, KeyCode::Char('k') | KeyCode::Up)
+            && (matches!(event.code, KeyCode::Up) || event.modifiers == KeyModifiers::NONE);
+
+        if is_match {
+            match state.current_pane {
+                Pane::Request => {
+                    move_cursor_up(&mut state.request_buffer)?;
+                    Ok(true)
+                }
+                Pane::Response => {
+                    if let Some(ref mut buffer) = state.response_buffer {
+                        move_cursor_up(buffer)?;
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
                 }
             }
+        } else {
+            Ok(false)
         }
     }
 
@@ -263,28 +293,38 @@ impl MoveCursorDownCommand {
     }
 }
 
-impl CommandV2 for MoveCursorDownCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Normal mode with j or Down arrow
+impl Command for MoveCursorDownCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Normal mode
         matches!(state.mode, EditorMode::Normal)
-            && matches!(event.code, KeyCode::Char('j') | KeyCode::Down)
-            && (matches!(event.code, KeyCode::Down) || event.modifiers == KeyModifiers::NONE)
     }
 
-    fn process_detailed(&self, _event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
-        // Get visible heights before mutable borrows
-        let request_visible_height = state.get_request_pane_height();
-        let response_visible_height = state.get_response_pane_height();
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Check for j or Down arrow
+        let is_match = matches!(event.code, KeyCode::Char('j') | KeyCode::Down)
+            && (matches!(event.code, KeyCode::Down) || event.modifiers == KeyModifiers::NONE);
 
-        match state.current_pane {
-            Pane::Request => move_cursor_down(&mut state.request_buffer, request_visible_height),
-            Pane::Response => {
-                if let Some(ref mut buffer) = state.response_buffer {
-                    move_cursor_down(buffer, response_visible_height)
-                } else {
-                    Ok(CommandResult::not_handled())
+        if is_match {
+            // Get visible heights before mutable borrows
+            let request_visible_height = state.get_request_pane_height();
+            let response_visible_height = state.get_response_pane_height();
+
+            match state.current_pane {
+                Pane::Request => {
+                    move_cursor_down(&mut state.request_buffer, request_visible_height)?;
+                    Ok(true)
+                }
+                Pane::Response => {
+                    if let Some(ref mut buffer) = state.response_buffer {
+                        move_cursor_down(buffer, response_visible_height)?;
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
                 }
             }
+        } else {
+            Ok(false)
         }
     }
 
@@ -302,24 +342,31 @@ impl MoveCursorLineStartCommand {
     }
 }
 
-impl CommandV2 for MoveCursorLineStartCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Normal mode with '0' key and no modifiers
+impl Command for MoveCursorLineStartCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Normal mode
         matches!(state.mode, EditorMode::Normal)
-            && matches!(event.code, KeyCode::Char('0'))
-            && event.modifiers == KeyModifiers::NONE
     }
 
-    fn process_detailed(&self, _event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
-        match state.current_pane {
-            Pane::Request => move_cursor_line_start(&mut state.request_buffer),
-            Pane::Response => {
-                if let Some(ref mut buffer) = state.response_buffer {
-                    move_cursor_line_start(buffer)
-                } else {
-                    Ok(CommandResult::not_handled())
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Check for '0' key with no modifiers
+        if matches!(event.code, KeyCode::Char('0')) && event.modifiers == KeyModifiers::NONE {
+            match state.current_pane {
+                Pane::Request => {
+                    move_cursor_line_start(&mut state.request_buffer)?;
+                    Ok(true)
+                }
+                Pane::Response => {
+                    if let Some(ref mut buffer) = state.response_buffer {
+                        move_cursor_line_start(buffer)?;
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
                 }
             }
+        } else {
+            Ok(false)
         }
     }
 
@@ -337,24 +384,31 @@ impl MoveCursorLineEndCommand {
     }
 }
 
-impl CommandV2 for MoveCursorLineEndCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Normal mode with '$' key and no modifiers
+impl Command for MoveCursorLineEndCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Normal mode
         matches!(state.mode, EditorMode::Normal)
-            && matches!(event.code, KeyCode::Char('$'))
-            && event.modifiers == KeyModifiers::NONE
     }
 
-    fn process_detailed(&self, _event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
-        match state.current_pane {
-            Pane::Request => move_cursor_line_end(&mut state.request_buffer),
-            Pane::Response => {
-                if let Some(ref mut buffer) = state.response_buffer {
-                    move_cursor_line_end(buffer)
-                } else {
-                    Ok(CommandResult::not_handled())
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Check for '$' key with no modifiers
+        if matches!(event.code, KeyCode::Char('$')) && event.modifiers == KeyModifiers::NONE {
+            match state.current_pane {
+                Pane::Request => {
+                    move_cursor_line_end(&mut state.request_buffer)?;
+                    Ok(true)
+                }
+                Pane::Response => {
+                    if let Some(ref mut buffer) = state.response_buffer {
+                        move_cursor_line_end(buffer)?;
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
                 }
             }
+        } else {
+            Ok(false)
         }
     }
 
@@ -372,44 +426,19 @@ impl SwitchPaneCommand {
     }
 }
 
-impl CommandV2 for SwitchPaneCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Normal mode for Ctrl+W sequences
-        if !matches!(state.mode, EditorMode::Normal) {
-            return false;
-        }
-
-        // First step: Ctrl+W
-        if event.modifiers.contains(KeyModifiers::CONTROL)
-            && matches!(event.code, KeyCode::Char('w'))
-        {
-            return true;
-        }
-
-        // Second step: commands after Ctrl+W
-        if state.pending_ctrl_w && matches!(event.code, KeyCode::Char('w') | KeyCode::Esc) {
-            return true;
-        }
-
-        // Invalid second step (for error handling)
-        state.pending_ctrl_w
+impl Command for SwitchPaneCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Normal mode
+        matches!(state.mode, EditorMode::Normal)
     }
 
-    fn process_detailed(&self, event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
         // Handle Ctrl+W (first step)
         if event.modifiers.contains(KeyModifiers::CONTROL)
             && matches!(event.code, KeyCode::Char('w'))
         {
             state.pending_ctrl_w = true;
-            return Ok(CommandResult {
-                handled: true,
-                content_changed: false,
-                cursor_moved: false,
-                mode_changed: false,
-                pane_changed: false,
-                scroll_occurred: false,
-                status_message: None,
-            });
+            return Ok(true);
         }
 
         // Handle second step of Ctrl+W commands
@@ -422,38 +451,23 @@ impl CommandV2 for SwitchPaneCommand {
                         Pane::Response => Pane::Request,
                     };
                     state.pending_ctrl_w = false;
-                    return Ok(CommandResult::cursor_moved().with_pane_change());
+                    return Ok(true);
                 }
                 KeyCode::Esc => {
                     // Cancel Ctrl+W command
                     state.pending_ctrl_w = false;
-                    return Ok(CommandResult {
-                        handled: true,
-                        content_changed: false,
-                        cursor_moved: false,
-                        mode_changed: false,
-                        pane_changed: false,
-                        scroll_occurred: false,
-                        status_message: None,
-                    });
+                    return Ok(true);
                 }
                 _ => {
                     // Invalid Ctrl+W command
                     state.pending_ctrl_w = false;
-                    return Ok(CommandResult {
-                        handled: true,
-                        content_changed: false,
-                        cursor_moved: false,
-                        mode_changed: false,
-                        pane_changed: false,
-                        scroll_occurred: false,
-                        status_message: Some("Invalid window command".to_string()),
-                    });
+                    state.status_message = "Invalid window command".to_string();
+                    return Ok(true);
                 }
             }
         }
 
-        Ok(CommandResult::not_handled())
+        Ok(false)
     }
 
     fn name(&self) -> &'static str {

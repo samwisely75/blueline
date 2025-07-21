@@ -27,7 +27,7 @@ pub enum EditorMode {
 }
 
 /// Active pane in the dual-pane interface
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Pane {
     Request,
     Response,

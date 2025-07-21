@@ -2,47 +2,40 @@
 
 ## Features
 
-### Enhancements
-
-1. I want to skip space characters in `w` and `b` commands like vi.
-1. I want to print tilda (~) for the empty lines like vi.
-1. I want the font color when the pane is not focused one or two step lighter.
-1. I want to ring a short beep when the response pane is refreshed by the new request. Only when it took more than 5 second to process the request.
-1. I want to not cancel a request when the previous request is still being processed.
-1. I want to be able to use `Ctrl` + `C` to cancel the request.
-1. I want to support `Ctrl` + `Enter` to send the request.
-
 ### Fixes
 
 #### Request Pane
 
-##### Normal Mode on Request Pane
+##### Normal Mode
 
-1. I suspect any of the normal command keys does not refresh the request pane correctly.
-1. `x`, `d`, `D` commands do not refresh the pane. Precisely, after typing those keys, switching to the insert mode will refresh the request pane and the changes are reflected.
-1. Support `Ctrl` + `R` to refresh the request pane so I can see what I see is what I have in the buffer.
-
-##### Insert Mode on Request Pane
-
-1. Tab key does not work in the insert mode. It should insert a tab character. The default tab stop is 4 and to be configurable by `set tabstop=4`.
+1. Scroll does not work sometimes. Not sure what triggers it.
+1. Scroll flicks the Response pane
+1. `dd`, `x`, `d`, `D` are not working
+1. Overall the pane does not represent what the Request buffer has.
 
 #### Response Pane
 
-##### Normal Mode on the Response Pane
+##### Normal Mode
 
-1. Flickers when I type Ctrl + F while the pane is at the last page.
-1. Flickers when I type Ctrl + B while the pane is at the top page. Only at the first attempt; there is no flicker when I type Ctrl + B again.
 1. Ctrl + M does not maximize the pane.
 
-##### Visual Mode on the Response Pane
+##### Visual Mode
 
-1. Visual selection causes flickers a lot.
-1. In Visual Mode on the Response Pane, the selection with scrolling with `j`, `k` etc does not work.
-1. `v` + `gg` or `v` + `G` does not work.
+1. Visual selection + cursor move causes flickers a LOT.
+1. `v` + downward cursor move does not scroll the pane. Upward scroll works.
+1. `v` + `gg` does not work.
+1. `v` + `G` seems to be working but doesn't scroll to the bottom of the buffer.
 
-#### Status line
+### Enhancements (After the above fixes)
 
-### Code Refactoring
-
-1. replace "input" with "request" in the codebase.
-1. replace "output" with "response" in the codebase.
+1. I want to print tilda (~) for the empty lines like vi.
+1. I want to skip space characters in `w` and `b` commands like vi.
+1. I want to support `p` and `P` to paste the content of the clipboard in the Request pane.
+1. I want `Ctrl` + `R` to refresh the pane (both) so I can make sure what I have in the buffer.
+1. I want to support Tab. The default tab stop is 4 and to be configurable by `set tabstop=4`.
+1. I want to be able to use `Ctrl` + `C` to cancel the request.
+1. I want to support `Ctrl` + `Enter` to send the request.
+1. I want the font color when the pane is not focused one or two step lighter.
+1. I want to ring a short beep when the response pane is refreshed by the new request. Only when it took more than 5 second to process the request.
+1. I want to refrain from submitting a request when the previous request is still being processed.
+1. I want to support `:` + number to jump to the line number in the pane.

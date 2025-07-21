@@ -7,7 +7,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::repl::{
-    command::{CommandResult, CommandV2},
+    command::{Command, CommandResult},
     model::{AppState, EditorMode, Pane},
 };
 
@@ -20,32 +20,31 @@ impl EnterInsertModeCommand {
     }
 }
 
-impl CommandV2 for EnterInsertModeCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Normal mode, Request pane, with i/I/A keys, no modifiers
-        matches!(state.mode, EditorMode::Normal)
-            && state.current_pane == Pane::Request
-            && event.modifiers == KeyModifiers::NONE
-            && matches!(
-                event.code,
-                KeyCode::Char('i') | KeyCode::Char('I') | KeyCode::Char('A')
-            )
+impl Command for EnterInsertModeCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Normal mode, Request pane
+        matches!(state.mode, EditorMode::Normal) && state.current_pane == Pane::Request
     }
 
-    fn process_detailed(&self, event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Check if the key matches what we handle
+        if event.modifiers != KeyModifiers::NONE {
+            return Ok(false);
+        }
+
         match event.code {
             KeyCode::Char('i') => {
                 // Insert at current position
                 state.mode = EditorMode::Insert;
                 state.status_message = "-- INSERT --".to_string();
-                Ok(CommandResult::cursor_moved().with_mode_change())
+                Ok(true)
             }
             KeyCode::Char('I') => {
                 // Insert at beginning of line
                 state.request_buffer.cursor_col = 0;
                 state.mode = EditorMode::Insert;
                 state.status_message = "-- INSERT --".to_string();
-                Ok(CommandResult::cursor_moved().with_mode_change())
+                Ok(true)
             }
             KeyCode::Char('A') => {
                 // Append at end of line
@@ -58,9 +57,9 @@ impl CommandV2 for EnterInsertModeCommand {
                 }
                 state.mode = EditorMode::Insert;
                 state.status_message = "-- INSERT --".to_string();
-                Ok(CommandResult::cursor_moved().with_mode_change())
+                Ok(true)
             }
-            _ => Ok(CommandResult::not_handled()),
+            _ => Ok(false),
         }
     }
 
@@ -78,17 +77,20 @@ impl ExitInsertModeCommand {
     }
 }
 
-impl CommandV2 for ExitInsertModeCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Insert mode with Esc key
-        matches!(state.mode, EditorMode::Insert) && matches!(event.code, KeyCode::Esc)
+impl Command for ExitInsertModeCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Insert mode
+        matches!(state.mode, EditorMode::Insert)
     }
 
-    fn process_detailed(&self, _event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
-        state.mode = EditorMode::Normal;
-        state.status_message = "".to_string();
-
-        Ok(CommandResult::cursor_moved().with_mode_change())
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        if matches!(event.code, KeyCode::Esc) {
+            state.mode = EditorMode::Normal;
+            state.status_message = "".to_string();
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     fn name(&self) -> &'static str {
@@ -105,31 +107,31 @@ impl InsertCharCommand {
     }
 }
 
-impl CommandV2 for InsertCharCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Insert mode, Request pane, with printable characters (no control modifiers)
-        matches!(state.mode, EditorMode::Insert)
-            && state.current_pane == Pane::Request
-            && matches!(event.code, KeyCode::Char(_))
-            && !event.modifiers.contains(KeyModifiers::CONTROL)
+impl Command for InsertCharCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Insert mode, Request pane
+        matches!(state.mode, EditorMode::Insert) && state.current_pane == Pane::Request
     }
 
-    fn process_detailed(&self, event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Check for printable characters (no control modifiers)
         if let KeyCode::Char(ch) = event.code {
-            // Ensure we have a valid line to insert into
-            if state.request_buffer.cursor_line >= state.request_buffer.lines.len() {
-                state.request_buffer.lines.push(String::new());
-            }
+            if !event.modifiers.contains(KeyModifiers::CONTROL) {
+                // Ensure we have a valid line to insert into
+                if state.request_buffer.cursor_line >= state.request_buffer.lines.len() {
+                    state.request_buffer.lines.push(String::new());
+                }
 
-            let line = &mut state.request_buffer.lines[state.request_buffer.cursor_line];
-            if state.request_buffer.cursor_col <= line.len() {
-                line.insert(state.request_buffer.cursor_col, ch);
-                state.request_buffer.cursor_col += 1;
-                return Ok(CommandResult::content_changed());
+                let line = &mut state.request_buffer.lines[state.request_buffer.cursor_line];
+                if state.request_buffer.cursor_col <= line.len() {
+                    line.insert(state.request_buffer.cursor_col, ch);
+                    state.request_buffer.cursor_col += 1;
+                    return Ok(true);
+                }
             }
         }
 
-        Ok(CommandResult::not_handled())
+        Ok(false)
     }
 
     fn name(&self) -> &'static str {
@@ -146,43 +148,41 @@ impl InsertNewLineCommand {
     }
 }
 
-impl CommandV2 for InsertNewLineCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Insert mode, Request pane, with Enter key
-        matches!(state.mode, EditorMode::Insert)
-            && state.current_pane == Pane::Request
-            && matches!(event.code, KeyCode::Enter)
+impl Command for InsertNewLineCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Insert mode, Request pane
+        matches!(state.mode, EditorMode::Insert) && state.current_pane == Pane::Request
     }
 
-    fn process_detailed(&self, _event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
-        // Ensure we have a valid line
-        if state.request_buffer.cursor_line >= state.request_buffer.lines.len() {
-            state.request_buffer.lines.push(String::new());
-        }
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        if matches!(event.code, KeyCode::Enter) {
+            // Ensure we have a valid line
+            if state.request_buffer.cursor_line >= state.request_buffer.lines.len() {
+                state.request_buffer.lines.push(String::new());
+            }
 
-        let line = &mut state.request_buffer.lines[state.request_buffer.cursor_line];
-        let remainder = line.split_off(state.request_buffer.cursor_col);
-        state.request_buffer.cursor_line += 1;
-        state
-            .request_buffer
-            .lines
-            .insert(state.request_buffer.cursor_line, remainder);
-        state.request_buffer.cursor_col = 0;
+            let line = &mut state.request_buffer.lines[state.request_buffer.cursor_line];
+            let remainder = line.split_off(state.request_buffer.cursor_col);
+            state.request_buffer.cursor_line += 1;
+            state
+                .request_buffer
+                .lines
+                .insert(state.request_buffer.cursor_line, remainder);
+            state.request_buffer.cursor_col = 0;
 
-        // Auto-scroll down if cursor goes below visible area
-        let visible_height = state.get_request_pane_height();
-        let mut scroll_occurred = false;
-        if state.request_buffer.cursor_line >= state.request_buffer.scroll_offset + visible_height {
-            state.request_buffer.scroll_offset =
-                state.request_buffer.cursor_line - visible_height + 1;
-            scroll_occurred = true;
-        }
+            // Auto-scroll down if cursor goes below visible area
+            let visible_height = state.get_request_pane_height();
+            if state.request_buffer.cursor_line
+                >= state.request_buffer.scroll_offset + visible_height
+            {
+                state.request_buffer.scroll_offset =
+                    state.request_buffer.cursor_line - visible_height + 1;
+            }
 
-        let mut result = CommandResult::content_changed();
-        if scroll_occurred {
-            result = result.with_scroll();
+            Ok(true)
+        } else {
+            Ok(false)
         }
-        Ok(result)
     }
 
     fn name(&self) -> &'static str {
@@ -199,37 +199,41 @@ impl DeleteCharCommand {
     }
 }
 
-impl CommandV2 for DeleteCharCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Insert mode, Request pane, with Backspace key
-        matches!(state.mode, EditorMode::Insert)
-            && state.current_pane == Pane::Request
-            && matches!(event.code, KeyCode::Backspace)
+impl Command for DeleteCharCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Insert mode, Request pane
+        matches!(state.mode, EditorMode::Insert) && state.current_pane == Pane::Request
     }
 
-    fn process_detailed(&self, _event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
-        if state.request_buffer.cursor_line >= state.request_buffer.lines.len() {
-            return Ok(CommandResult::not_handled());
-        }
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        if matches!(event.code, KeyCode::Backspace) {
+            if state.request_buffer.cursor_line >= state.request_buffer.lines.len() {
+                return Ok(false);
+            }
 
-        let line = &mut state.request_buffer.lines[state.request_buffer.cursor_line];
-        if state.request_buffer.cursor_col > 0 && state.request_buffer.cursor_col <= line.len() {
-            line.remove(state.request_buffer.cursor_col - 1);
-            state.request_buffer.cursor_col -= 1;
-            Ok(CommandResult::content_changed())
-        } else if state.request_buffer.cursor_col == 0 && state.request_buffer.cursor_line > 0 {
-            // At beginning of line, join with previous line
-            let current_line = state
-                .request_buffer
-                .lines
-                .remove(state.request_buffer.cursor_line);
-            state.request_buffer.cursor_line -= 1;
-            state.request_buffer.cursor_col =
-                state.request_buffer.lines[state.request_buffer.cursor_line].len();
-            state.request_buffer.lines[state.request_buffer.cursor_line].push_str(&current_line);
-            Ok(CommandResult::content_changed())
+            let line = &mut state.request_buffer.lines[state.request_buffer.cursor_line];
+            if state.request_buffer.cursor_col > 0 && state.request_buffer.cursor_col <= line.len()
+            {
+                line.remove(state.request_buffer.cursor_col - 1);
+                state.request_buffer.cursor_col -= 1;
+                Ok(true)
+            } else if state.request_buffer.cursor_col == 0 && state.request_buffer.cursor_line > 0 {
+                // At beginning of line, join with previous line
+                let current_line = state
+                    .request_buffer
+                    .lines
+                    .remove(state.request_buffer.cursor_line);
+                state.request_buffer.cursor_line -= 1;
+                state.request_buffer.cursor_col =
+                    state.request_buffer.lines[state.request_buffer.cursor_line].len();
+                state.request_buffer.lines[state.request_buffer.cursor_line]
+                    .push_str(&current_line);
+                Ok(true)
+            } else {
+                Ok(false)
+            }
         } else {
-            Ok(CommandResult::not_handled())
+            Ok(false)
         }
     }
 
@@ -247,20 +251,21 @@ impl EnterCommandModeCommand {
     }
 }
 
-impl CommandV2 for EnterCommandModeCommand {
-    fn is_relevant(&self, event: KeyEvent, state: &AppState) -> bool {
-        // Only relevant in Normal mode with ':' key and no modifiers
+impl Command for EnterCommandModeCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Normal mode
         matches!(state.mode, EditorMode::Normal)
-            && matches!(event.code, KeyCode::Char(':'))
-            && event.modifiers == KeyModifiers::NONE
     }
 
-    fn process_detailed(&self, _event: KeyEvent, state: &mut AppState) -> Result<CommandResult> {
-        state.mode = EditorMode::Command;
-        state.command_buffer.clear();
-        state.status_message = ":".to_string();
-
-        Ok(CommandResult::cursor_moved().with_mode_change())
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        if matches!(event.code, KeyCode::Char(':')) && event.modifiers == KeyModifiers::NONE {
+            state.mode = EditorMode::Command;
+            state.command_buffer.clear();
+            state.status_message = ":".to_string();
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     fn name(&self) -> &'static str {

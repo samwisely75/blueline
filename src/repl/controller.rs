@@ -37,7 +37,7 @@ use crossterm::{
 use bluenote::{HttpClient, IniProfile};
 
 use super::{
-    command::{Command, CommandResult, CommandV2},
+    command::{Command, CommandResult},
     commands::{
         DeleteCharCommand, EnterCommandModeCommand, EnterInsertModeCommand, ExitInsertModeCommand,
         InsertCharCommand, InsertNewLineCommand, MoveCursorDownCommand, MoveCursorLeftCommand,
@@ -143,40 +143,25 @@ impl ReplController {
 
         // Try each command until one handles the event
         for command in &self.commands {
-            // Check if this is a CommandV2 for detailed processing
-            if let Some(cmd_v2) = command.as_any().downcast_ref::<Box<dyn CommandV2>>() {
-                // Skip commands that aren't relevant to current state
-                if !cmd_v2.is_relevant(key, &self.state) {
-                    continue;
-                }
+            // Use the unified Command trait (CommandV2 is auto-implemented via blanket impl)
+            if !command.is_relevant(&self.state) {
+                continue;
+            }
 
-                let result = cmd_v2.process_detailed(key, &mut self.state)?;
-                if result.handled {
-                    command_results.push(result);
-                    any_handled = true;
-                    break; // First handler wins
-                }
-            } else {
-                // Fall back to basic Command trait (uses default is_relevant = true)
-                if !command.is_relevant(&self.state) {
-                    continue;
-                }
-
-                let handled = command.process(key, &mut self.state)?;
-                if handled {
-                    // Create a basic result for legacy commands
-                    command_results.push(CommandResult {
-                        handled: true,
-                        content_changed: false, // Conservative assumption
-                        cursor_moved: true,     // Conservative assumption
-                        mode_changed: false,
-                        pane_changed: false,
-                        scroll_occurred: false,
-                        status_message: None,
-                    });
-                    any_handled = true;
-                    break;
-                }
+            let handled = command.process(key, &mut self.state)?;
+            if handled {
+                // Create a basic result for all commands
+                command_results.push(CommandResult {
+                    handled: true,
+                    content_changed: false, // Conservative assumption
+                    cursor_moved: true,     // Conservative assumption
+                    mode_changed: false,
+                    pane_changed: false,
+                    scroll_occurred: false,
+                    status_message: None,
+                });
+                any_handled = true;
+                break; // First handler wins
             }
         }
 
