@@ -277,6 +277,6 @@ mod tests {
             .press_enter()
             .enter_colon_command("send");
 
-        assert_eq!(helper.event_source.event_count(), 19); // All the events added
+        assert_eq!(helper.event_source.event_count(), 21); // All the events added
     }
 }
