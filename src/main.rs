@@ -1,4 +1,4 @@
-mod cmd;
+mod cmd_args;
 mod old_repl;
 mod repl;
 
@@ -7,8 +7,8 @@ use std::env;
 use bluenote::{
     get_blank_profile, HttpConnectionProfile, IniProfileStore, Result, DEFAULT_INI_FILE_PATH,
 };
-use cmd::CommandLineArgs;
-use old_repl::VimRepl;
+use cmd_args::CommandLineArgs;
+// use old_repl::VimRepl;
 use tracing_subscriber::{fmt::time::ChronoLocal, EnvFilter};
 
 #[tracing::instrument]
@@ -51,20 +51,12 @@ async fn main() -> Result<()> {
 
     tracing::debug!("INI profile: {:?}", profile);
 
-    // Check if the new REPL should be used (via environment variable)
-    #[allow(clippy::disallowed_methods)]
-    let use_new_repl = env::var("BLUELINE_NEW_REPL").unwrap_or_default() == "1";
+    // run the new REPL
+    repl::run_new_repl(profile, cmd_args.verbose()).await
 
-    if use_new_repl {
-        // Use the new MVC-based REPL
-        tracing::info!("Using new MVC-based REPL implementation");
-        repl::run_new_repl(profile, cmd_args.verbose()).await
-    } else {
-        // Use the existing REPL (default)
-        tracing::info!("Using existing REPL implementation");
-        let mut repl = VimRepl::new(profile, cmd_args.verbose())?;
-        repl.run().await
-    }
+    //    // Use the existing REPL (default)
+    //    let mut repl = VimRepl::new(profile, cmd_args.verbose())?;
+    //    repl.run().await
 }
 
 fn init_tracing_subscriber() {

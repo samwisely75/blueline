@@ -25,8 +25,18 @@
 //! both data storage AND key processing, improving maintainability and testability.
 
 pub mod command;
-pub mod commands;
 pub mod controller;
+
+// Command modules
+pub mod commands {
+    pub mod editing;
+    pub mod movement;
+    
+    // Re-export commonly used commands
+    pub use editing::*;
+    pub use movement::*;
+}
+
 pub mod model;
 pub mod new_repl;
 pub mod view;
@@ -42,4 +52,4 @@ pub use new_repl::run_new_repl;
 pub use view::{RenderObserver, ViewManager};
 
 // Legacy types for compatibility during transition
-pub use crate::repl::model::{EditorMode, Pane, VisualSelection};
+pub use model::{EditorMode, Pane, VisualSelection};
