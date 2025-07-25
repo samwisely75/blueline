@@ -9,7 +9,7 @@ use bluenote::{
 };
 use cmd_args::CommandLineArgs;
 // use old_repl::VimRepl;
-use repl::controller::ReplController;
+use repl::{controller::ReplController, view::create_default_view_manager};
 use tracing_subscriber::{fmt::time::ChronoLocal, EnvFilter};
 
 // tokio is primarily for async I/O operations in the bluenote HTTP client
@@ -63,7 +63,8 @@ async fn main() -> Result<()> {
 
 /// Create and run the MVC-based REPL
 async fn run_repl(profile: IniProfile, verbose: bool) -> Result<()> {
-    let mut controller = ReplController::new(profile, verbose)?;
+    let view_manager = create_default_view_manager();
+    let mut controller = ReplController::new(profile, verbose, view_manager)?;
     controller.run().await
 }
 

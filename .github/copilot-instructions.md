@@ -46,7 +46,7 @@ The project is being refactored to follow the Model-View-Controller (MVC) archit
 
 ## Technical Difficulties
 
-1. If the terminal command is too long, contains backtick and emojis, or contains special characters like `|`, `&`, `;`, or `>`, it may not be rendered correctly in the terminal. In such cases, you can use the following workaround:
+1. **Git commit message**: If the terminal command is too long, contains backtick and emojis, or contains special characters like `|`, `&`, `;`, or `>`, it may not be rendered correctly in the terminal. Git commit is the primary use case for this issue. In such cases, you can use the following workaround:
    - Use a single backtick for inline code formatting, e.g., \`command\`.
    - Use triple backticks for code blocks, e.g., \`\`\`bash
      command

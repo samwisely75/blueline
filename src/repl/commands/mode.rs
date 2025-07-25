@@ -7,18 +7,14 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::repl::{
-    command::{Command, CommandResult},
+    commands::{Command, CommandResult},
     model::{AppState, EditorMode, Pane},
 };
 
 /// Command for entering insert mode (i, I, A)
 pub struct EnterInsertModeCommand;
 
-impl EnterInsertModeCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl EnterInsertModeCommand {}
 
 impl Command for EnterInsertModeCommand {
     fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
@@ -71,11 +67,7 @@ impl Command for EnterInsertModeCommand {
 /// Command for exiting insert mode (Esc)
 pub struct ExitInsertModeCommand;
 
-impl ExitInsertModeCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl ExitInsertModeCommand {}
 
 impl Command for ExitInsertModeCommand {
     fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
@@ -101,11 +93,7 @@ impl Command for ExitInsertModeCommand {
 /// Command for entering command mode (:)
 pub struct EnterCommandModeCommand;
 
-impl EnterCommandModeCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl EnterCommandModeCommand {}
 
 impl Command for EnterCommandModeCommand {
     fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
@@ -132,11 +120,7 @@ impl Command for EnterCommandModeCommand {
 /// Command for canceling command mode (Esc)
 pub struct CancelCommandModeCommand;
 
-impl CancelCommandModeCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl CancelCommandModeCommand {}
 
 impl Command for CancelCommandModeCommand {
     fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
@@ -174,7 +158,7 @@ mod tests {
 
     #[test]
     fn enter_insert_mode_command_should_be_relevant_for_i_key_in_normal_mode() {
-        let command = EnterInsertModeCommand::new();
+        let command = EnterInsertModeCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE);
 
@@ -184,7 +168,7 @@ mod tests {
 
     #[test]
     fn enter_insert_mode_command_should_not_be_relevant_in_insert_mode() {
-        let command = EnterInsertModeCommand::new();
+        let command = EnterInsertModeCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE);
@@ -194,7 +178,7 @@ mod tests {
 
     #[test]
     fn enter_insert_mode_with_i_should_maintain_cursor_position() {
-        let command = EnterInsertModeCommand::new();
+        let command = EnterInsertModeCommand;
         let mut state = create_test_app_state();
         state.request_buffer.cursor_col = 5;
         let event = KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE);
@@ -209,7 +193,7 @@ mod tests {
 
     #[test]
     fn enter_insert_mode_with_capital_i_should_move_cursor_to_line_start() {
-        let command = EnterInsertModeCommand::new();
+        let command = EnterInsertModeCommand;
         let mut state = create_test_app_state();
         state.request_buffer.cursor_col = 5;
         let event = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::NONE);
@@ -224,7 +208,7 @@ mod tests {
 
     #[test]
     fn enter_insert_mode_with_a_should_move_cursor_to_line_end() {
-        let command = EnterInsertModeCommand::new();
+        let command = EnterInsertModeCommand;
         let mut state = create_test_app_state();
         state.request_buffer.lines = vec!["hello world".to_string()];
         state.request_buffer.cursor_col = 5;
@@ -240,7 +224,7 @@ mod tests {
 
     #[test]
     fn exit_insert_mode_command_should_be_relevant_for_esc_in_insert_mode() {
-        let command = ExitInsertModeCommand::new();
+        let command = ExitInsertModeCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
@@ -251,7 +235,7 @@ mod tests {
 
     #[test]
     fn exit_insert_mode_command_should_not_be_relevant_in_normal_mode() {
-        let command = ExitInsertModeCommand::new();
+        let command = ExitInsertModeCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
 
@@ -260,7 +244,7 @@ mod tests {
 
     #[test]
     fn exit_insert_mode_should_return_to_normal_mode_and_clear_status() {
-        let command = ExitInsertModeCommand::new();
+        let command = ExitInsertModeCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         state.status_message = "-- INSERT --".to_string();
@@ -275,7 +259,7 @@ mod tests {
 
     #[test]
     fn enter_command_mode_command_should_be_relevant_for_colon_in_normal_mode() {
-        let command = EnterCommandModeCommand::new();
+        let command = EnterCommandModeCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE);
 
@@ -285,7 +269,7 @@ mod tests {
 
     #[test]
     fn enter_command_mode_should_switch_to_command_mode_and_clear_buffer() {
-        let command = EnterCommandModeCommand::new();
+        let command = EnterCommandModeCommand;
         let mut state = create_test_app_state();
         state.command_buffer = "old_command".to_string();
         let event = KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE);
@@ -300,7 +284,7 @@ mod tests {
 
     #[test]
     fn cancel_command_mode_command_should_be_relevant_for_esc_in_command_mode() {
-        let command = CancelCommandModeCommand::new();
+        let command = CancelCommandModeCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Command;
         let event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
@@ -311,7 +295,7 @@ mod tests {
 
     #[test]
     fn cancel_command_mode_should_return_to_normal_mode_and_clear_state() {
-        let command = CancelCommandModeCommand::new();
+        let command = CancelCommandModeCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Command;
         state.command_buffer = "partial_command".to_string();

@@ -7,18 +7,12 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::repl::{
-    command::{Command, CommandResult},
+    commands::{Command, CommandResult},
     model::{AppState, EditorMode, Pane, ResponseBuffer},
 };
 
 /// Command for typing characters in command mode
 pub struct CommandModeInputCommand;
-
-impl CommandModeInputCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
 
 impl Command for CommandModeInputCommand {
     fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
@@ -57,12 +51,6 @@ impl Command for CommandModeInputCommand {
 
 /// Command for executing commands in command mode (Enter)
 pub struct ExecuteCommandCommand;
-
-impl ExecuteCommandCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
 
 impl Command for ExecuteCommandCommand {
     fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
@@ -145,7 +133,7 @@ mod tests {
 
     #[test]
     fn command_mode_input_command_should_be_relevant_in_command_mode() {
-        let command = CommandModeInputCommand::new();
+        let command = CommandModeInputCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Command;
         let event = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE);
@@ -156,7 +144,7 @@ mod tests {
 
     #[test]
     fn command_mode_input_should_add_characters_to_buffer() {
-        let command = CommandModeInputCommand::new();
+        let command = CommandModeInputCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Command;
         let event = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE);
@@ -170,7 +158,7 @@ mod tests {
 
     #[test]
     fn command_mode_input_should_handle_backspace() {
-        let command = CommandModeInputCommand::new();
+        let command = CommandModeInputCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Command;
         state.command_buffer = "qu".to_string();
@@ -186,7 +174,7 @@ mod tests {
 
     #[test]
     fn command_mode_input_should_exit_command_mode_when_buffer_empty_and_backspace() {
-        let command = CommandModeInputCommand::new();
+        let command = CommandModeInputCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Command;
         state.command_buffer = "".to_string();
@@ -207,7 +195,7 @@ mod tests {
         state.current_pane = Pane::Request;
         state.command_buffer = "q".to_string();
 
-        let command = ExecuteCommandCommand::new();
+        let command = ExecuteCommandCommand;
         let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
 
         // Execute the command
@@ -234,7 +222,7 @@ mod tests {
         let response_buffer = ResponseBuffer::new(response_content);
         state.response_buffer = Some(response_buffer);
 
-        let command = ExecuteCommandCommand::new();
+        let command = ExecuteCommandCommand;
         let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
 
         // Execute the command
@@ -258,7 +246,7 @@ mod tests {
         state.current_pane = Pane::Request;
         state.command_buffer = "q!".to_string();
 
-        let command = ExecuteCommandCommand::new();
+        let command = ExecuteCommandCommand;
         let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
 
         let result = command.process(event, &mut state).unwrap();
@@ -290,7 +278,7 @@ mod tests {
         state.current_pane = Pane::Request;
         state.command_buffer = "quit".to_string();
 
-        let command = ExecuteCommandCommand::new();
+        let command = ExecuteCommandCommand;
         let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
 
         let result = command.process(event, &mut state).unwrap();
@@ -305,7 +293,7 @@ mod tests {
         state.mode = EditorMode::Command;
         state.command_buffer = "x".to_string();
 
-        let command = ExecuteCommandCommand::new();
+        let command = ExecuteCommandCommand;
         let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
 
         let result = command.process(event, &mut state).unwrap();
@@ -321,7 +309,7 @@ mod tests {
         state.mode = EditorMode::Command;
         state.command_buffer = "execute".to_string();
 
-        let command = ExecuteCommandCommand::new();
+        let command = ExecuteCommandCommand;
         let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
 
         let result = command.process(event, &mut state).unwrap();
@@ -336,7 +324,7 @@ mod tests {
         state.mode = EditorMode::Command;
         state.command_buffer = "unknown".to_string();
 
-        let command = ExecuteCommandCommand::new();
+        let command = ExecuteCommandCommand;
         let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
 
         let result = command.process(event, &mut state).unwrap();
@@ -352,7 +340,7 @@ mod tests {
         state.mode = EditorMode::Command;
         state.command_buffer = "".to_string();
 
-        let command = ExecuteCommandCommand::new();
+        let command = ExecuteCommandCommand;
         let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
 
         let result = command.process(event, &mut state).unwrap();
@@ -363,7 +351,7 @@ mod tests {
 
     #[test]
     fn execute_command_command_should_be_relevant_for_enter_in_command_mode() {
-        let command = ExecuteCommandCommand::new();
+        let command = ExecuteCommandCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Command;
         let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);

@@ -1,6 +1,7 @@
-//! # Command Pattern Implementation
+//! # Command Pattern Implementation and Command Modules
 //!
-//! This module defines the command pattern infrastructure for handling vim-style key events.
+//! This module defines the command pattern infrastructure for handling vim-style key events
+//! and organizes all command implementations.
 //! It includes both legacy Command trait and new CommandV2 trait with relevancy filtering.
 //!
 //! ## Design Principles
@@ -173,3 +174,15 @@ impl CommandResult {
         self
     }
 }
+
+// Command modules
+pub mod command_line;
+pub mod editing;
+pub mod mode;
+pub mod movement;
+
+// Re-export commonly used commands
+pub use command_line::*;
+pub use editing::*;
+pub use mode::*;
+pub use movement::*;

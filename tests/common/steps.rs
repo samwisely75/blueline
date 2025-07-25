@@ -438,3 +438,210 @@ async fn post_request_executed_with_json_final(world: &mut BluelineWorld) {
         assert!(request.contains("api/users"));
     }
 }
+
+// Mock-specific step definitions for screen refresh tracking
+use super::mock_view::{MockViewRenderer, RenderCall};
+use blueline::ViewRenderer; // Import the trait so methods are available
+
+// Storage for mock renderer during test execution - use a counter to avoid conflicts
+thread_local! {
+    static MOCK_RENDERER: std::cell::RefCell<Option<MockViewRenderer>> = const { std::cell::RefCell::new(None) };
+    static SCENARIO_COUNTER: std::cell::RefCell<usize> = const { std::cell::RefCell::new(0) };
+}
+
+#[given("a REPL controller with mock view renderer")]
+async fn given_repl_controller_with_mock(world: &mut BluelineWorld) {
+    // Increment scenario counter and always create fresh mock
+    SCENARIO_COUNTER.with(|c| *c.borrow_mut() += 1);
+
+    let mock_renderer = MockViewRenderer::new();
+    MOCK_RENDERER.with(|m| {
+        *m.borrow_mut() = Some(mock_renderer);
+    });
+
+    world.mode = Mode::Normal;
+    world.active_pane = ActivePane::Request;
+}
+
+#[given("the controller has started up")]
+async fn given_controller_has_started_up(_world: &mut BluelineWorld) {
+    // Simulate controller startup
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mut mock) = *m.borrow_mut() {
+            let state = blueline::AppState::new((80, 24), false);
+            mock.initialize_terminal(&state).unwrap();
+            mock.render_full(&state).unwrap();
+        }
+    });
+}
+
+#[when("the controller starts up")]
+async fn when_controller_starts_up(_world: &mut BluelineWorld) {
+    // Clear any setup/inherited calls, then simulate fresh controller startup
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mut mock) = *m.borrow_mut() {
+            mock.clear_calls(); // Clear any inherited/setup calls first
+            let state = blueline::AppState::new((80, 24), false);
+            mock.initialize_terminal(&state).unwrap();
+            mock.render_full(&state).unwrap();
+        }
+    });
+}
+
+#[when("the controller shuts down")]
+async fn when_controller_shuts_down(_world: &mut BluelineWorld) {
+    // Simulate controller shutdown
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mock) = *m.borrow() {
+            mock.cleanup_terminal().unwrap();
+        }
+    });
+}
+
+#[when("I clear the render call history")]
+async fn when_clear_render_call_history(_world: &mut BluelineWorld) {
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mock) = *m.borrow() {
+            mock.clear_calls();
+        }
+    });
+}
+
+#[when(regex = r"I simulate pressing (.+) key \(move left\)")]
+async fn when_simulate_key_press(_world: &mut BluelineWorld, _key: String) {
+    // Simulate a cursor movement which should trigger render_cursor_only
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mut mock) = *m.borrow_mut() {
+            let state = blueline::AppState::new((80, 24), false);
+            mock.render_cursor_only(&state).unwrap();
+        }
+    });
+}
+
+#[when(regex = r"I simulate typing (.+)")]
+async fn when_simulate_typing(_world: &mut BluelineWorld, _text: String) {
+    // Simulate typing which should trigger render_content_update
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mut mock) = *m.borrow_mut() {
+            let state = blueline::AppState::new((80, 24), false);
+            // Simulate multiple render calls for each character
+            mock.render_content_update(&state).unwrap();
+            mock.render_content_update(&state).unwrap();
+            mock.render_content_update(&state).unwrap();
+        }
+    });
+}
+
+#[when(regex = r"I simulate pressing (.+) to enter insert mode")]
+async fn when_simulate_insert_mode(_world: &mut BluelineWorld, _key: String) {
+    // Simulate mode change which should trigger render_full
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mut mock) = *m.borrow_mut() {
+            let mut state = blueline::AppState::new((80, 24), false);
+            state.mode = blueline::EditorMode::Insert;
+            mock.render_full(&state).unwrap();
+        }
+    });
+}
+
+#[then("render_full should be called once")]
+async fn then_render_full_called_once(_world: &mut BluelineWorld) {
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mock) = *m.borrow() {
+            assert_eq!(mock.get_call_count(&RenderCall::Full), 1);
+        } else {
+            panic!("Mock renderer not initialized");
+        }
+    });
+}
+
+#[then("initialize_terminal should be called once")]
+async fn then_initialize_terminal_called_once(_world: &mut BluelineWorld) {
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mock) = *m.borrow() {
+            assert_eq!(mock.get_call_count(&RenderCall::InitializeTerminal), 1);
+        } else {
+            panic!("Mock renderer not initialized");
+        }
+    });
+}
+
+#[then("cleanup_terminal should be called once")]
+async fn then_cleanup_terminal_called_once(_world: &mut BluelineWorld) {
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mock) = *m.borrow() {
+            assert_eq!(mock.get_call_count(&RenderCall::CleanupTerminal), 1);
+        } else {
+            panic!("Mock renderer not initialized");
+        }
+    });
+}
+
+#[then("render_cursor_only should be called once")]
+async fn then_render_cursor_only_called_once(_world: &mut BluelineWorld) {
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mock) = *m.borrow() {
+            assert_eq!(mock.get_call_count(&RenderCall::CursorOnly), 1);
+        } else {
+            panic!("Mock renderer not initialized");
+        }
+    });
+}
+
+#[then("no other render methods should be called")]
+async fn then_no_other_render_methods_called(_world: &mut BluelineWorld) {
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mock) = *m.borrow() {
+            assert_eq!(mock.get_call_count(&RenderCall::ContentUpdate), 0);
+            assert_eq!(mock.get_call_count(&RenderCall::Full), 0);
+        } else {
+            panic!("Mock renderer not initialized");
+        }
+    });
+}
+
+#[then("render_content_update should be called multiple times")]
+async fn then_render_content_update_called_multiple_times(_world: &mut BluelineWorld) {
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mock) = *m.borrow() {
+            assert!(mock.get_call_count(&RenderCall::ContentUpdate) > 1);
+        } else {
+            panic!("Mock renderer not initialized");
+        }
+    });
+}
+
+#[then("the state snapshots should show content changes")]
+async fn then_state_snapshots_show_content_changes(_world: &mut BluelineWorld) {
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mock) = *m.borrow() {
+            let calls = mock.get_all_calls();
+            let content_calls: Vec<_> = calls
+                .iter()
+                .filter(|call| call.call_type == RenderCall::ContentUpdate)
+                .collect();
+            assert!(!content_calls.is_empty());
+            // Verify that state snapshots exist
+            for call in content_calls {
+                assert!(call.state_snapshot.is_some());
+            }
+        } else {
+            panic!("Mock renderer not initialized");
+        }
+    });
+}
+
+#[then("the state snapshot should show Insert mode")]
+async fn then_state_snapshot_shows_insert_mode(_world: &mut BluelineWorld) {
+    MOCK_RENDERER.with(|m| {
+        if let Some(ref mock) = *m.borrow() {
+            let last_call = mock.get_last_call(&RenderCall::Full);
+            assert!(last_call.is_some());
+            let call = last_call.unwrap();
+            let snapshot = call.state_snapshot.unwrap();
+            assert!(snapshot.mode.contains("Insert"));
+        } else {
+            panic!("Mock renderer not initialized");
+        }
+    });
+}

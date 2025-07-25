@@ -7,18 +7,14 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::repl::{
-    command::{Command, CommandResult},
+    commands::{Command, CommandResult},
     model::{AppState, EditorMode, Pane},
 };
 
 /// Command for inserting characters (any printable character in insert mode)
 pub struct InsertCharCommand;
 
-impl InsertCharCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl InsertCharCommand {}
 
 impl Command for InsertCharCommand {
     fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
@@ -55,11 +51,7 @@ impl Command for InsertCharCommand {
 /// Command for inserting new lines (Enter in insert mode)
 pub struct InsertNewLineCommand;
 
-impl InsertNewLineCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl InsertNewLineCommand {}
 
 impl Command for InsertNewLineCommand {
     fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
@@ -106,11 +98,7 @@ impl Command for InsertNewLineCommand {
 /// Command for deleting characters (Backspace in insert mode)
 pub struct DeleteCharCommand;
 
-impl DeleteCharCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl DeleteCharCommand {}
 
 impl Command for DeleteCharCommand {
     fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
@@ -168,7 +156,7 @@ mod tests {
 
     #[test]
     fn insert_char_command_should_be_relevant_in_insert_mode() {
-        let command = InsertCharCommand::new();
+        let command = InsertCharCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
@@ -179,7 +167,7 @@ mod tests {
 
     #[test]
     fn insert_char_command_should_not_be_relevant_in_normal_mode() {
-        let command = InsertCharCommand::new();
+        let command = InsertCharCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
 
@@ -188,7 +176,7 @@ mod tests {
 
     #[test]
     fn insert_char_should_add_character_at_cursor_position() {
-        let command = InsertCharCommand::new();
+        let command = InsertCharCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         state.request_buffer.lines = vec!["hello".to_string()];
@@ -204,7 +192,7 @@ mod tests {
 
     #[test]
     fn insert_char_should_not_handle_control_characters() {
-        let command = InsertCharCommand::new();
+        let command = InsertCharCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
@@ -216,7 +204,7 @@ mod tests {
 
     #[test]
     fn insert_char_should_create_line_if_not_exists() {
-        let command = InsertCharCommand::new();
+        let command = InsertCharCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         state.request_buffer.lines = vec![];
@@ -234,7 +222,7 @@ mod tests {
 
     #[test]
     fn insert_new_line_command_should_be_relevant_in_insert_mode() {
-        let command = InsertNewLineCommand::new();
+        let command = InsertNewLineCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
@@ -245,7 +233,7 @@ mod tests {
 
     #[test]
     fn insert_new_line_should_split_line_at_cursor() {
-        let command = InsertNewLineCommand::new();
+        let command = InsertNewLineCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         state.request_buffer.lines = vec!["hello world".to_string()];
@@ -264,7 +252,7 @@ mod tests {
 
     #[test]
     fn insert_new_line_should_handle_auto_scroll() {
-        let command = InsertNewLineCommand::new();
+        let command = InsertNewLineCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         // Set up a small visible height to trigger scrolling
@@ -283,7 +271,7 @@ mod tests {
 
     #[test]
     fn delete_char_command_should_be_relevant_in_insert_mode() {
-        let command = DeleteCharCommand::new();
+        let command = DeleteCharCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE);
@@ -294,7 +282,7 @@ mod tests {
 
     #[test]
     fn delete_char_should_remove_character_before_cursor() {
-        let command = DeleteCharCommand::new();
+        let command = DeleteCharCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         state.request_buffer.lines = vec!["hello".to_string()];
@@ -310,7 +298,7 @@ mod tests {
 
     #[test]
     fn delete_char_should_join_lines_when_at_line_start() {
-        let command = DeleteCharCommand::new();
+        let command = DeleteCharCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         state.request_buffer.lines = vec!["hello".to_string(), "world".to_string()];
@@ -329,7 +317,7 @@ mod tests {
 
     #[test]
     fn delete_char_should_not_delete_when_at_start_of_first_line() {
-        let command = DeleteCharCommand::new();
+        let command = DeleteCharCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         state.request_buffer.lines = vec!["hello".to_string()];

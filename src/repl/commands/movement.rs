@@ -7,7 +7,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::repl::{
-    command::{Command, CommandResult},
+    commands::{Command, CommandResult},
     model::{AppState, EditorMode, Pane, RequestBuffer, ResponseBuffer},
 };
 
@@ -152,11 +152,7 @@ fn move_cursor_line_end<T: MovementBuffer>(buffer: &mut T) -> Result<CommandResu
 /// Command for moving cursor left (h, Left arrow)
 pub struct MoveCursorLeftCommand;
 
-impl MoveCursorLeftCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl MoveCursorLeftCommand {}
 
 impl Command for MoveCursorLeftCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
@@ -194,11 +190,7 @@ impl Command for MoveCursorLeftCommand {
 /// Command for moving cursor right (l, Right arrow)
 pub struct MoveCursorRightCommand;
 
-impl MoveCursorRightCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl MoveCursorRightCommand {}
 
 impl Command for MoveCursorRightCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
@@ -236,11 +228,7 @@ impl Command for MoveCursorRightCommand {
 /// Command for moving cursor up (k, Up arrow)
 pub struct MoveCursorUpCommand;
 
-impl MoveCursorUpCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl MoveCursorUpCommand {}
 
 impl Command for MoveCursorUpCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
@@ -278,11 +266,7 @@ impl Command for MoveCursorUpCommand {
 /// Command for moving cursor down (j, Down arrow)
 pub struct MoveCursorDownCommand;
 
-impl MoveCursorDownCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl MoveCursorDownCommand {}
 
 impl Command for MoveCursorDownCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
@@ -324,11 +308,7 @@ impl Command for MoveCursorDownCommand {
 /// Command for moving cursor to line start (0)
 pub struct MoveCursorLineStartCommand;
 
-impl MoveCursorLineStartCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl MoveCursorLineStartCommand {}
 
 impl Command for MoveCursorLineStartCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
@@ -363,11 +343,7 @@ impl Command for MoveCursorLineStartCommand {
 /// Command for moving cursor to line end ($)
 pub struct MoveCursorLineEndCommand;
 
-impl MoveCursorLineEndCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl MoveCursorLineEndCommand {}
 
 impl Command for MoveCursorLineEndCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
@@ -402,11 +378,7 @@ impl Command for MoveCursorLineEndCommand {
 /// Command for switching between panes (Ctrl+W w)
 pub struct SwitchPaneCommand;
 
-impl SwitchPaneCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl SwitchPaneCommand {}
 
 impl Command for SwitchPaneCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
@@ -463,11 +435,7 @@ impl Command for SwitchPaneCommand {
 /// Command for scrolling up half a page (Ctrl+U)
 pub struct ScrollHalfPageUpCommand;
 
-impl ScrollHalfPageUpCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl ScrollHalfPageUpCommand {}
 
 impl Command for ScrollHalfPageUpCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
@@ -504,11 +472,7 @@ impl Command for ScrollHalfPageUpCommand {
 /// Command for scrolling down half a page (Ctrl+D)
 pub struct ScrollHalfPageDownCommand;
 
-impl ScrollHalfPageDownCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl ScrollHalfPageDownCommand {}
 
 impl Command for ScrollHalfPageDownCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
@@ -545,11 +509,7 @@ impl Command for ScrollHalfPageDownCommand {
 /// Command for scrolling down a full page (Ctrl+F)
 pub struct ScrollFullPageDownCommand;
 
-impl ScrollFullPageDownCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl ScrollFullPageDownCommand {}
 
 impl Command for ScrollFullPageDownCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
@@ -588,11 +548,7 @@ impl Command for ScrollFullPageDownCommand {
 /// Command for scrolling up a full page (Ctrl+B)
 pub struct ScrollFullPageUpCommand;
 
-impl ScrollFullPageUpCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
+impl ScrollFullPageUpCommand {}
 
 impl Command for ScrollFullPageUpCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
@@ -894,7 +850,7 @@ mod tests {
 
     #[test]
     fn move_cursor_left_command_should_be_relevant_for_h_key_in_normal_mode() {
-        let command = MoveCursorLeftCommand::new();
+        let command = MoveCursorLeftCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE);
 
@@ -904,7 +860,7 @@ mod tests {
 
     #[test]
     fn move_cursor_left_command_should_be_relevant_for_left_arrow_in_normal_mode() {
-        let command = MoveCursorLeftCommand::new();
+        let command = MoveCursorLeftCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Left, KeyModifiers::NONE);
 
@@ -913,7 +869,7 @@ mod tests {
 
     #[test]
     fn move_cursor_left_command_should_not_be_relevant_in_insert_mode() {
-        let command = MoveCursorLeftCommand::new();
+        let command = MoveCursorLeftCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE);
@@ -923,7 +879,7 @@ mod tests {
 
     #[test]
     fn move_cursor_right_command_should_be_relevant_for_l_key_in_normal_mode() {
-        let command = MoveCursorRightCommand::new();
+        let command = MoveCursorRightCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE);
 
@@ -933,7 +889,7 @@ mod tests {
 
     #[test]
     fn move_cursor_up_command_should_be_relevant_for_k_key_in_normal_mode() {
-        let command = MoveCursorUpCommand::new();
+        let command = MoveCursorUpCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE);
 
@@ -943,7 +899,7 @@ mod tests {
 
     #[test]
     fn move_cursor_down_command_should_be_relevant_for_j_key_in_normal_mode() {
-        let command = MoveCursorDownCommand::new();
+        let command = MoveCursorDownCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE);
 
@@ -953,7 +909,7 @@ mod tests {
 
     #[test]
     fn move_cursor_line_start_command_should_be_relevant_for_zero_key_in_normal_mode() {
-        let command = MoveCursorLineStartCommand::new();
+        let command = MoveCursorLineStartCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE);
 
@@ -963,7 +919,7 @@ mod tests {
 
     #[test]
     fn move_cursor_line_end_command_should_be_relevant_for_dollar_key_in_normal_mode() {
-        let command = MoveCursorLineEndCommand::new();
+        let command = MoveCursorLineEndCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('$'), KeyModifiers::NONE);
 
@@ -973,7 +929,7 @@ mod tests {
 
     #[test]
     fn switch_pane_command_should_be_relevant_for_ctrl_w_in_normal_mode() {
-        let command = SwitchPaneCommand::new();
+        let command = SwitchPaneCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL);
 
@@ -983,7 +939,7 @@ mod tests {
 
     #[test]
     fn switch_pane_command_should_be_relevant_when_pending_ctrl_w() {
-        let command = SwitchPaneCommand::new();
+        let command = SwitchPaneCommand;
         let mut state = create_test_app_state();
         state.pending_ctrl_w = true;
         let event = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE);
@@ -993,7 +949,7 @@ mod tests {
 
     #[test]
     fn scroll_half_page_up_command_should_be_relevant_for_ctrl_u_in_normal_mode() {
-        let command = ScrollHalfPageUpCommand::new();
+        let command = ScrollHalfPageUpCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
 
@@ -1003,7 +959,7 @@ mod tests {
 
     #[test]
     fn scroll_half_page_up_command_should_not_be_relevant_in_insert_mode() {
-        let command = ScrollHalfPageUpCommand::new();
+        let command = ScrollHalfPageUpCommand;
         let mut state = create_test_app_state();
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
@@ -1013,7 +969,7 @@ mod tests {
 
     #[test]
     fn scroll_half_page_up_command_should_not_be_relevant_without_ctrl() {
-        let command = ScrollHalfPageUpCommand::new();
+        let command = ScrollHalfPageUpCommand;
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::NONE);
 
@@ -1022,7 +978,7 @@ mod tests {
 
     #[test]
     fn scroll_half_page_up_command_should_scroll_request_buffer() {
-        let command = ScrollHalfPageUpCommand::new();
+        let command = ScrollHalfPageUpCommand;
         let mut state = create_test_app_state();
 
         // Set up buffer with enough content to scroll
@@ -1047,7 +1003,7 @@ mod tests {
 
     #[test]
     fn scroll_half_page_up_command_should_scroll_response_buffer() {
-        let command = ScrollHalfPageUpCommand::new();
+        let command = ScrollHalfPageUpCommand;
         let mut state = create_test_app_state();
         state.current_pane = Pane::Response;
 
@@ -1070,7 +1026,7 @@ mod tests {
 
     #[test]
     fn scroll_half_page_down_command_should_be_relevant_for_ctrl_d_in_normal_mode() {
-        let command = ScrollHalfPageDownCommand::new();
+        let command = ScrollHalfPageDownCommand;
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
 
@@ -1079,7 +1035,7 @@ mod tests {
 
     #[test]
     fn scroll_half_page_down_command_should_not_be_relevant_in_insert_mode() {
-        let command = ScrollHalfPageDownCommand::new();
+        let command = ScrollHalfPageDownCommand;
         let mut state = AppState::new((80, 24), true);
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
@@ -1089,7 +1045,7 @@ mod tests {
 
     #[test]
     fn scroll_half_page_down_command_should_not_be_relevant_without_ctrl() {
-        let command = ScrollHalfPageDownCommand::new();
+        let command = ScrollHalfPageDownCommand;
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE);
 
@@ -1098,7 +1054,7 @@ mod tests {
 
     #[test]
     fn scroll_half_page_down_command_should_scroll_request_buffer() {
-        let command = ScrollHalfPageDownCommand::new();
+        let command = ScrollHalfPageDownCommand;
         let mut state = AppState::new((80, 24), true);
         // Create enough content to allow scrolling (more than page height of 22)
         state.request_buffer.lines = (0..30).map(|i| format!("line {}", i)).collect();
@@ -1117,7 +1073,7 @@ mod tests {
 
     #[test]
     fn scroll_half_page_down_command_should_scroll_response_buffer() {
-        let command = ScrollHalfPageDownCommand::new();
+        let command = ScrollHalfPageDownCommand;
         let mut state = AppState::new((80, 24), true);
         state.current_pane = Pane::Response;
         // Create enough content to allow scrolling (more than response pane height)
@@ -1140,7 +1096,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_down_command_should_be_relevant_for_ctrl_f_in_normal_mode() {
-        let command = ScrollFullPageDownCommand::new();
+        let command = ScrollFullPageDownCommand;
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
 
@@ -1150,7 +1106,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_down_command_should_not_be_relevant_in_insert_mode() {
-        let command = ScrollFullPageDownCommand::new();
+        let command = ScrollFullPageDownCommand;
         let mut state = AppState::new((80, 24), true);
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
@@ -1160,7 +1116,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_down_command_should_not_be_relevant_without_ctrl() {
-        let command = ScrollFullPageDownCommand::new();
+        let command = ScrollFullPageDownCommand;
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE);
 
@@ -1169,7 +1125,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_down_command_should_scroll_request_buffer() {
-        let command = ScrollFullPageDownCommand::new();
+        let command = ScrollFullPageDownCommand;
         let mut state = AppState::new((80, 24), true);
         // Create enough content to allow scrolling (more than page height of 22)
         state.request_buffer.lines = (0..50).map(|i| format!("line {}", i)).collect();
@@ -1187,7 +1143,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_down_command_should_scroll_response_buffer() {
-        let command = ScrollFullPageDownCommand::new();
+        let command = ScrollFullPageDownCommand;
         let mut state = AppState::new((80, 24), true);
         state.current_pane = Pane::Response;
         // Create enough content to allow scrolling (more than response pane height)
@@ -1210,7 +1166,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_down_command_should_handle_scroll_bounds() {
-        let command = ScrollFullPageDownCommand::new();
+        let command = ScrollFullPageDownCommand;
         let mut state = AppState::new((80, 24), true);
         // Create content with limited lines (less than 2 pages)
         state.request_buffer.lines = (0..30).map(|i| format!("line {}", i)).collect();
@@ -1229,7 +1185,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_up_command_should_be_relevant_for_ctrl_b_in_normal_mode() {
-        let command = ScrollFullPageUpCommand::new();
+        let command = ScrollFullPageUpCommand;
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
 
@@ -1239,7 +1195,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_up_command_should_not_be_relevant_in_insert_mode() {
-        let command = ScrollFullPageUpCommand::new();
+        let command = ScrollFullPageUpCommand;
         let mut state = AppState::new((80, 24), true);
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
@@ -1249,7 +1205,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_up_command_should_not_be_relevant_without_ctrl() {
-        let command = ScrollFullPageUpCommand::new();
+        let command = ScrollFullPageUpCommand;
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE);
 
@@ -1258,7 +1214,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_up_command_should_scroll_request_buffer() {
-        let command = ScrollFullPageUpCommand::new();
+        let command = ScrollFullPageUpCommand;
         let mut state = AppState::new((80, 24), true);
         // Create enough content to allow scrolling and set initial scroll position
         state.request_buffer.lines = (0..50).map(|i| format!("line {}", i)).collect();
@@ -1276,7 +1232,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_up_command_should_scroll_response_buffer() {
-        let command = ScrollFullPageUpCommand::new();
+        let command = ScrollFullPageUpCommand;
         let mut state = AppState::new((80, 24), true);
         state.current_pane = Pane::Response;
         // Create enough content to allow scrolling
@@ -1305,7 +1261,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_up_command_should_handle_scroll_bounds() {
-        let command = ScrollFullPageUpCommand::new();
+        let command = ScrollFullPageUpCommand;
         let mut state = AppState::new((80, 24), true);
         // Create content and set initial scroll position
         state.request_buffer.lines = (0..50).map(|i| format!("line {}", i)).collect();
@@ -1323,7 +1279,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_up_command_should_handle_no_scroll_when_at_top() {
-        let command = ScrollFullPageUpCommand::new();
+        let command = ScrollFullPageUpCommand;
         let mut state = AppState::new((80, 24), true);
         // Create content but start at top
         state.request_buffer.lines = (0..50).map(|i| format!("line {}", i)).collect();
@@ -1341,7 +1297,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_down_command_should_be_relevant_for_page_down_in_normal_mode() {
-        let command = ScrollFullPageDownCommand::new();
+        let command = ScrollFullPageDownCommand;
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE);
 
@@ -1350,7 +1306,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_down_command_should_be_relevant_for_page_down_in_insert_mode() {
-        let command = ScrollFullPageDownCommand::new();
+        let command = ScrollFullPageDownCommand;
         let mut state = AppState::new((80, 24), true);
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE);
@@ -1360,7 +1316,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_down_command_should_process_page_down_key() {
-        let command = ScrollFullPageDownCommand::new();
+        let command = ScrollFullPageDownCommand;
         let mut state = AppState::new((80, 24), true);
         // Create enough content to allow scrolling
         state.request_buffer.lines = (0..50).map(|i| format!("line {}", i)).collect();
@@ -1378,7 +1334,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_up_command_should_be_relevant_for_page_up_in_normal_mode() {
-        let command = ScrollFullPageUpCommand::new();
+        let command = ScrollFullPageUpCommand;
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE);
 
@@ -1387,7 +1343,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_up_command_should_be_relevant_for_page_up_in_insert_mode() {
-        let command = ScrollFullPageUpCommand::new();
+        let command = ScrollFullPageUpCommand;
         let mut state = AppState::new((80, 24), true);
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE);
@@ -1397,7 +1353,7 @@ mod tests {
 
     #[test]
     fn scroll_full_page_up_command_should_process_page_up_key() {
-        let command = ScrollFullPageUpCommand::new();
+        let command = ScrollFullPageUpCommand;
         let mut state = AppState::new((80, 24), true);
         // Create enough content to allow scrolling and set initial scroll position
         state.request_buffer.lines = (0..50).map(|i| format!("line {}", i)).collect();

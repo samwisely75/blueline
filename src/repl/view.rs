@@ -27,6 +27,7 @@ use crossterm::{
 };
 
 use super::model::AppState;
+use super::view_trait::ViewRenderer;
 
 /// Trait for components that observe state changes and update the display.
 ///
@@ -221,15 +222,32 @@ impl Default for ViewManager {
     }
 }
 
+/// Implementation of ViewRenderer trait for dependency injection
+impl ViewRenderer for ViewManager {
+    fn render_cursor_only(&mut self, state: &AppState) -> Result<()> {
+        ViewManager::render_cursor_only(self, state)
+    }
+
+    fn render_content_update(&mut self, state: &AppState) -> Result<()> {
+        ViewManager::render_content_update(self, state)
+    }
+
+    fn render_full(&mut self, state: &AppState) -> Result<()> {
+        ViewManager::render_full(self, state)
+    }
+
+    fn initialize_terminal(&self, state: &AppState) -> Result<()> {
+        ViewManager::initialize_terminal(self, state)
+    }
+
+    fn cleanup_terminal(&self) -> Result<()> {
+        ViewManager::cleanup_terminal(self)
+    }
+}
+
 /// Observer that renders the request pane
 pub struct RequestPaneRenderer {
     // Add any specific state needed for request pane rendering
-}
-
-impl RequestPaneRenderer {
-    pub fn new() -> Self {
-        Self {}
-    }
 }
 
 impl RenderObserver for RequestPaneRenderer {
@@ -320,12 +338,6 @@ impl RequestPaneRenderer {
 /// Observer that renders the response pane
 pub struct ResponsePaneRenderer {
     // Add any specific state needed for response pane rendering
-}
-
-impl ResponsePaneRenderer {
-    pub fn new() -> Self {
-        Self {}
-    }
 }
 
 impl RenderObserver for ResponsePaneRenderer {
@@ -470,12 +482,6 @@ pub struct StatusLineRenderer {
     // Add any specific state needed for status line rendering
 }
 
-impl StatusLineRenderer {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
 impl RenderObserver for StatusLineRenderer {
     fn render_cursor_only(&mut self, state: &AppState) -> Result<()> {
         // Status line should update to show cursor position changes
@@ -590,9 +596,9 @@ impl StatusLineRenderer {
 pub fn create_default_view_manager() -> ViewManager {
     let mut view_manager = ViewManager::new();
 
-    view_manager.add_observer(Box::new(RequestPaneRenderer::new()));
-    view_manager.add_observer(Box::new(ResponsePaneRenderer::new()));
-    view_manager.add_observer(Box::new(StatusLineRenderer::new()));
+    view_manager.add_observer(Box::new(RequestPaneRenderer {}));
+    view_manager.add_observer(Box::new(ResponsePaneRenderer {}));
+    view_manager.add_observer(Box::new(StatusLineRenderer {}));
 
     view_manager
 }
@@ -617,7 +623,7 @@ mod tests {
         ];
 
         // Create a request renderer to test
-        let renderer = RequestPaneRenderer::new();
+        let renderer = RequestPaneRenderer {};
 
         // This test verifies that the renderer can be created and
         // that the line number calculation logic works correctly
@@ -643,7 +649,7 @@ mod tests {
         assert_eq!(state.request_buffer.lines.len(), 1);
         assert_eq!(state.request_buffer.lines[0], "");
 
-        let renderer = RequestPaneRenderer::new();
+        let renderer = RequestPaneRenderer {};
 
         // This test verifies that the renderer can handle empty state
         // In this case, most visible lines should be tilda lines (except the first empty line)
@@ -688,7 +694,7 @@ mod tests {
             "Host: example.com".to_string(),
         ];
 
-        let renderer = RequestPaneRenderer::new();
+        let renderer = RequestPaneRenderer {};
         let pane_height = state.get_request_pane_height();
         let (start, end) = state.request_buffer.visible_range(pane_height);
 
@@ -754,7 +760,7 @@ mod tests {
         state.response_buffer = Some(response_buffer);
 
         // Create a response renderer to test
-        let renderer = ResponsePaneRenderer::new();
+        let renderer = ResponsePaneRenderer {};
 
         // This test verifies that the response pane can show line numbers
         let line_count = state.response_buffer.as_ref().unwrap().line_count();
@@ -780,7 +786,7 @@ mod tests {
         assert_eq!(state.get_response_pane_height(), 0);
 
         // Create a response renderer to test clearing behavior
-        let renderer = ResponsePaneRenderer::new();
+        let renderer = ResponsePaneRenderer {};
 
         // This should not panic when rendering with hidden pane
         // The clear_response_area method should be called internally
@@ -823,7 +829,7 @@ mod tests {
         state.last_response_status = Some("200 OK".to_string());
         state.last_request_duration = Some(250);
 
-        let renderer = StatusLineRenderer::new();
+        let renderer = StatusLineRenderer {};
         // Test should not panic - actual output testing would require terminal capture
         let result = renderer.render_status_line(&state);
         assert!(result.is_ok());
@@ -837,7 +843,7 @@ mod tests {
         state.last_response_status = None;
         state.last_request_duration = Some(100);
 
-        let renderer = StatusLineRenderer::new();
+        let renderer = StatusLineRenderer {};
         let result = renderer.render_status_line(&state);
         assert!(result.is_ok());
     }
@@ -850,7 +856,7 @@ mod tests {
         state.last_response_status = Some("404 Not Found".to_string());
         state.last_request_duration = None;
 
-        let renderer = StatusLineRenderer::new();
+        let renderer = StatusLineRenderer {};
         let result = renderer.render_status_line(&state);
         assert!(result.is_ok());
     }
@@ -863,7 +869,7 @@ mod tests {
         state.last_response_status = None;
         state.last_request_duration = None;
 
-        let renderer = StatusLineRenderer::new();
+        let renderer = StatusLineRenderer {};
         let result = renderer.render_status_line(&state);
         assert!(result.is_ok());
     }
@@ -876,14 +882,14 @@ mod tests {
         state.last_response_status = Some("200 OK".to_string());
         state.last_request_duration = Some(1500);
 
-        let renderer = StatusLineRenderer::new();
+        let renderer = StatusLineRenderer {};
         let result = renderer.render_status_line(&state);
         assert!(result.is_ok());
     }
 
     #[test]
     fn status_signal_icon_should_return_correct_colors() {
-        let renderer = StatusLineRenderer::new();
+        let renderer = StatusLineRenderer {};
 
         // Test success status codes (2xx) - should return green circle
         // Note: Controller now formats status as "200 OK" (removed HTTP prefix)

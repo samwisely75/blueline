@@ -2,7 +2,7 @@ use cucumber::World;
 
 pub mod common;
 
-pub use common::BluelineWorld;
+pub use common::world::BluelineWorld;
 
 /// Integration tests using Cucumber BDD framework
 /// Run with: cargo test --test integration_tests
@@ -21,6 +21,7 @@ async fn run_features_sequentially() {
         "features/editing.feature",
         "features/command_line.feature",
         "features/integration.feature",
+        "features/screen_refresh.feature",
     ];
 
     println!("Running {} feature files sequentially...", features.len());

@@ -24,31 +24,18 @@
 //! This separation eliminates the current tight coupling where buffers handle
 //! both data storage AND key processing, improving maintainability and testability.
 
-pub mod command;
+pub mod commands;
 pub mod controller;
-
-// Command modules
-pub mod commands {
-    pub mod command_line;
-    pub mod editing;
-    pub mod mode;
-    pub mod movement;
-
-    // Re-export commonly used commands
-    pub use command_line::*;
-    pub use editing::*;
-    pub use mode::*;
-    pub use movement::*;
-}
-
 pub mod model;
 pub mod view;
+pub mod view_trait;
 
 // Re-export main types for convenience
-pub use command::Command;
+pub use commands::Command;
 pub use controller::ReplController;
 pub use model::{AppState, RequestBuffer, ResponseBuffer};
 pub use view::{RenderObserver, ViewManager};
+pub use view_trait::ViewRenderer;
 
 // Legacy types for compatibility during transition
 pub use model::{EditorMode, Pane, VisualSelection};

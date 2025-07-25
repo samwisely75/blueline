@@ -35,10 +35,9 @@ use crossterm::{
 use bluenote::{HttpClient, HttpRequestArgs, IniProfile, Url, UrlPath};
 
 use super::{
-    command::{Command, CommandResult},
     commands::{
-        CancelCommandModeCommand, CommandModeInputCommand, DeleteCharCommand,
-        EnterCommandModeCommand, EnterInsertModeCommand, ExecuteCommandCommand,
+        CancelCommandModeCommand, Command, CommandModeInputCommand, CommandResult,
+        DeleteCharCommand, EnterCommandModeCommand, EnterInsertModeCommand, ExecuteCommandCommand,
         ExitInsertModeCommand, InsertCharCommand, InsertNewLineCommand, MoveCursorDownCommand,
         MoveCursorLeftCommand, MoveCursorLineEndCommand, MoveCursorLineStartCommand,
         MoveCursorRightCommand, MoveCursorUpCommand, ScrollFullPageDownCommand,
@@ -47,6 +46,7 @@ use super::{
     },
     model::{AppState, ResponseBuffer},
     view::{create_default_view_manager, ViewManager},
+    view_trait::ViewRenderer,
 };
 
 /// HTTP request arguments parsed from the request buffer
@@ -90,26 +90,25 @@ type CommandRegistry = Vec<Box<dyn Command>>;
 /// - Maintains command registry  
 /// - Coordinates model updates and view rendering
 /// - Handles application lifecycle
-pub struct ReplController {
+pub struct ReplController<V: ViewRenderer> {
     state: AppState,
-    view_manager: ViewManager,
+    view_renderer: V,
     commands: CommandRegistry,
     client: HttpClient,
     profile: IniProfile,
 }
 
-impl ReplController {
-    /// Create a new REPL controller
-    pub fn new(profile: IniProfile, verbose: bool) -> Result<Self> {
+impl<V: ViewRenderer> ReplController<V> {
+    /// Create a new REPL controller with dependency injection
+    pub fn new(profile: IniProfile, verbose: bool, view_renderer: V) -> Result<Self> {
         let client = HttpClient::new(&profile)?;
         let terminal_size = terminal::size()?;
 
         let state = AppState::new(terminal_size, verbose);
-        let view_manager = create_default_view_manager();
 
         let mut controller = Self {
             state,
-            view_manager,
+            view_renderer,
             commands: Vec::new(),
             client,
             profile,
@@ -127,15 +126,15 @@ impl ReplController {
         terminal::enable_raw_mode()?;
         execute!(io::stdout(), EnterAlternateScreen)?;
 
-        self.view_manager.initialize_terminal(&self.state)?;
+        self.view_renderer.initialize_terminal(&self.state)?;
 
         // Initial render
-        self.view_manager.render_full(&self.state)?;
+        self.view_renderer.render_full(&self.state)?;
 
         let result = self.event_loop().await;
 
         // Cleanup
-        self.view_manager.cleanup_terminal()?;
+        self.view_renderer.cleanup_terminal()?;
         execute!(io::stdout(), LeaveAlternateScreen)?;
         terminal::disable_raw_mode()?;
 
@@ -154,7 +153,7 @@ impl ReplController {
                 }
                 Event::Resize(width, height) => {
                     self.state.update_terminal_size((width, height));
-                    self.view_manager.render_full(&self.state)?;
+                    self.view_renderer.render_full(&self.state)?;
                 }
                 _ => {}
             }
@@ -257,7 +256,7 @@ impl ReplController {
             self.state.execute_request_flag = false; // Reset flag
             self.execute_http_request().await?;
             // Re-render after HTTP request execution
-            self.view_manager.render_full(&self.state)?;
+            self.view_renderer.render_full(&self.state)?;
         }
 
         Ok(should_quit)
@@ -304,11 +303,11 @@ impl ReplController {
         let needs_content_update = any_content_changed && !needs_full_render;
 
         if needs_full_render {
-            self.view_manager.render_full(&self.state)?;
+            self.view_renderer.render_full(&self.state)?;
         } else if needs_content_update {
-            self.view_manager.render_content_update(&self.state)?;
+            self.view_renderer.render_content_update(&self.state)?;
         } else if any_cursor_moved {
-            self.view_manager.render_cursor_only(&self.state)?;
+            self.view_renderer.render_cursor_only(&self.state)?;
         }
 
         Ok(())
@@ -317,35 +316,30 @@ impl ReplController {
     /// Register all default commands
     fn register_default_commands(&mut self) {
         // Movement commands
-        self.commands.push(Box::new(MoveCursorLeftCommand::new()));
-        self.commands.push(Box::new(MoveCursorRightCommand::new()));
-        self.commands.push(Box::new(MoveCursorUpCommand::new()));
-        self.commands.push(Box::new(MoveCursorDownCommand::new()));
-        self.commands
-            .push(Box::new(MoveCursorLineStartCommand::new()));
-        self.commands
-            .push(Box::new(MoveCursorLineEndCommand::new()));
-        self.commands.push(Box::new(SwitchPaneCommand::new()));
-        self.commands.push(Box::new(ScrollHalfPageUpCommand::new()));
-        self.commands
-            .push(Box::new(ScrollHalfPageDownCommand::new()));
-        self.commands.push(Box::new(ScrollFullPageUpCommand::new()));
-        self.commands
-            .push(Box::new(ScrollFullPageDownCommand::new()));
+        self.commands.push(Box::new(MoveCursorLeftCommand));
+        self.commands.push(Box::new(MoveCursorRightCommand));
+        self.commands.push(Box::new(MoveCursorUpCommand));
+        self.commands.push(Box::new(MoveCursorDownCommand));
+        self.commands.push(Box::new(MoveCursorLineStartCommand));
+        self.commands.push(Box::new(MoveCursorLineEndCommand));
+        self.commands.push(Box::new(SwitchPaneCommand));
+        self.commands.push(Box::new(ScrollHalfPageUpCommand));
+        self.commands.push(Box::new(ScrollHalfPageDownCommand));
+        self.commands.push(Box::new(ScrollFullPageUpCommand));
+        self.commands.push(Box::new(ScrollFullPageDownCommand));
 
         // Editing commands
-        self.commands.push(Box::new(EnterInsertModeCommand::new()));
-        self.commands.push(Box::new(ExitInsertModeCommand::new()));
-        self.commands.push(Box::new(InsertCharCommand::new()));
-        self.commands.push(Box::new(InsertNewLineCommand::new()));
-        self.commands.push(Box::new(DeleteCharCommand::new()));
+        self.commands.push(Box::new(EnterInsertModeCommand));
+        self.commands.push(Box::new(ExitInsertModeCommand));
+        self.commands.push(Box::new(InsertCharCommand));
+        self.commands.push(Box::new(InsertNewLineCommand));
+        self.commands.push(Box::new(DeleteCharCommand));
 
         // Command mode commands
-        self.commands.push(Box::new(EnterCommandModeCommand::new()));
-        self.commands.push(Box::new(CommandModeInputCommand::new()));
-        self.commands.push(Box::new(ExecuteCommandCommand::new()));
-        self.commands
-            .push(Box::new(CancelCommandModeCommand::new()));
+        self.commands.push(Box::new(EnterCommandModeCommand));
+        self.commands.push(Box::new(CommandModeInputCommand));
+        self.commands.push(Box::new(ExecuteCommandCommand));
+        self.commands.push(Box::new(CancelCommandModeCommand));
 
         // Note: Commands are processed in order, so put more specific commands first
         // and more general commands (like InsertCharCommand) later
@@ -559,7 +553,7 @@ mod tests {
         let text = "GET https://api.example.com/users";
         let headers = HashMap::new();
 
-        let result = ReplController::parse_request_from_text(text, &headers);
+        let result = ReplController::<ViewManager>::parse_request_from_text(text, &headers);
         assert!(result.is_ok());
 
         let (request_args, url_str) = result.unwrap();
@@ -573,7 +567,7 @@ mod tests {
         let text = "POST https://api.example.com/users\n\n{\"name\": \"test\"}";
         let headers = HashMap::new();
 
-        let result = ReplController::parse_request_from_text(text, &headers);
+        let result = ReplController::<ViewManager>::parse_request_from_text(text, &headers);
         assert!(result.is_ok());
 
         let (request_args, url_str) = result.unwrap();
@@ -590,7 +584,7 @@ mod tests {
         let text = "PUT https://api.example.com/users/1\n\n{\n  \"name\": \"test\",\n  \"email\": \"test@example.com\"\n}";
         let headers = HashMap::new();
 
-        let result = ReplController::parse_request_from_text(text, &headers);
+        let result = ReplController::<ViewManager>::parse_request_from_text(text, &headers);
         assert!(result.is_ok());
 
         let (request_args, _) = result.unwrap();
@@ -603,7 +597,7 @@ mod tests {
         let text = "";
         let headers = HashMap::new();
 
-        let result = ReplController::parse_request_from_text(text, &headers);
+        let result = ReplController::<ViewManager>::parse_request_from_text(text, &headers);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "No request to execute");
     }
@@ -613,7 +607,7 @@ mod tests {
         let text = "GET"; // Missing URL
         let headers = HashMap::new();
 
-        let result = ReplController::parse_request_from_text(text, &headers);
+        let result = ReplController::<ViewManager>::parse_request_from_text(text, &headers);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -626,7 +620,7 @@ mod tests {
         let text = "post https://api.example.com/users";
         let headers = HashMap::new();
 
-        let result = ReplController::parse_request_from_text(text, &headers);
+        let result = ReplController::<ViewManager>::parse_request_from_text(text, &headers);
         assert!(result.is_ok());
 
         let (request_args, _) = result.unwrap();
@@ -640,7 +634,7 @@ mod tests {
         headers.insert("Authorization".to_string(), "Bearer token123".to_string());
         headers.insert("Content-Type".to_string(), "application/json".to_string());
 
-        let result = ReplController::parse_request_from_text(text, &headers);
+        let result = ReplController::<ViewManager>::parse_request_from_text(text, &headers);
         assert!(result.is_ok());
 
         let (request_args, _) = result.unwrap();
@@ -659,7 +653,7 @@ mod tests {
         let text = "POST https://api.example.com/users\n{\"name\": \"test\"}";
         let headers = HashMap::new();
 
-        let result = ReplController::parse_request_from_text(text, &headers);
+        let result = ReplController::<ViewManager>::parse_request_from_text(text, &headers);
         assert!(result.is_ok());
 
         let (request_args, _) = result.unwrap();

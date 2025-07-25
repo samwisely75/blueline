@@ -63,6 +63,7 @@ pub struct BluelineWorld {
     pub cli_flags: Vec<String>,
 
     /// Profile configuration for testing
+    #[allow(dead_code)]
     pub profile_config: HashMap<String, String>,
 
     /// Application exit status
@@ -129,6 +130,7 @@ impl BluelineWorld {
     }
 
     /// Get the base URL for the mock server
+    #[allow(dead_code)]
     pub fn mock_server_url(&self) -> String {
         self.mock_server
             .as_ref()
@@ -369,6 +371,7 @@ impl BluelineWorld {
     }
 
     /// Get request buffer as a single string
+    #[allow(dead_code)]
     pub fn get_request_buffer(&self) -> String {
         self.request_buffer.join("\n")
     }
