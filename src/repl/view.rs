@@ -20,7 +20,7 @@ use std::io::{self, Write};
 
 use anyhow::Result;
 use crossterm::{
-    cursor::{self, SetCursorStyle},
+    cursor::{self, Hide, SetCursorStyle, Show},
     execute,
     style::{Attribute, Color, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor},
     terminal::{Clear, ClearType},
@@ -94,6 +94,9 @@ impl ViewManager {
 
     /// Render content updates (moderate cost)
     pub fn render_content_update(&mut self, state: &AppState) -> Result<()> {
+        // Hide cursor to prevent flicker during redraw
+        execute!(io::stdout(), Hide)?;
+
         for observer in &mut self.observers {
             observer.render_content_update(state)?;
         }
@@ -101,6 +104,10 @@ impl ViewManager {
         self.update_cursor_style(state)?;
         // Position cursor correctly after all rendering
         self.position_cursor_after_render(state)?;
+
+        // Show cursor after all rendering is complete
+        execute!(io::stdout(), Show)?;
+
         self.last_render_type = RenderType::ContentUpdate;
         io::stdout().flush()?;
         Ok(())
@@ -108,6 +115,9 @@ impl ViewManager {
 
     /// Render full screen (most expensive)
     pub fn render_full(&mut self, state: &AppState) -> Result<()> {
+        // Hide cursor to prevent flicker during redraw
+        execute!(io::stdout(), Hide)?;
+
         for observer in &mut self.observers {
             observer.render_full(state)?;
         }
@@ -115,6 +125,10 @@ impl ViewManager {
         self.update_cursor_style(state)?;
         // Position cursor correctly after all rendering
         self.position_cursor_after_render(state)?;
+
+        // Show cursor after all rendering is complete
+        execute!(io::stdout(), Show)?;
+
         self.last_render_type = RenderType::Full;
         io::stdout().flush()?;
         Ok(())
@@ -128,13 +142,16 @@ impl ViewManager {
         // Set initial cursor style based on current mode
         self.update_cursor_style(state)?;
 
+        // Ensure cursor is visible
+        execute!(io::stdout(), Show)?;
+
         Ok(())
     }
 
     /// Clean up terminal state
     pub fn cleanup_terminal(&self) -> Result<()> {
-        // Restore default cursor
-        execute!(io::stdout(), SetCursorStyle::DefaultUserShape)?;
+        // Restore default cursor and ensure it's visible
+        execute!(io::stdout(), SetCursorStyle::DefaultUserShape, Show)?;
         Ok(())
     }
 

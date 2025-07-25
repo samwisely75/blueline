@@ -22,9 +22,11 @@ The project is being refactored to follow the Model-View-Controller (MVC) archit
    - "Are you referring to removing unused interfaces or actual working features?"
    - "Do you also want me to implement Y to support a corner case Z?"
 
-   Please display your questions in a bold test with a question mark icon in the beginning.
+   Please display your questions in a bold text with a question mark icon in the beginning.
 
    And if you are asking multiple questions, please use a numbered list format for me to answer them by number.
+
+   If you ask questions, do not proceed any further until you receive a clear answer.
 
 1. **Preserve the original functionality**: Always keep the original functionality intact unless explicitly asked to remove it. If you are unsure about what to remove, ask for clarification. Do not remove any working methods, data structures, or functionality unless it is confirmed that they are not needed.
 
