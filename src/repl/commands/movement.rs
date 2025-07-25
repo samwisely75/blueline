@@ -375,63 +375,6 @@ impl Command for MoveCursorLineEndCommand {
     }
 }
 
-/// Command for switching between panes (Ctrl+W w)
-pub struct SwitchPaneCommand;
-
-impl SwitchPaneCommand {}
-
-impl Command for SwitchPaneCommand {
-    fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode and for Ctrl+W sequences or pending Ctrl+W state
-        matches!(state.mode, EditorMode::Normal)
-            && ((event.modifiers.contains(KeyModifiers::CONTROL)
-                && matches!(event.code, KeyCode::Char('w')))
-                || state.pending_ctrl_w)
-    }
-
-    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        // Handle Ctrl+W (first step)
-        if event.modifiers.contains(KeyModifiers::CONTROL)
-            && matches!(event.code, KeyCode::Char('w'))
-        {
-            state.pending_ctrl_w = true;
-            return Ok(true);
-        }
-
-        // Handle second step of Ctrl+W commands
-        if state.pending_ctrl_w {
-            match event.code {
-                KeyCode::Char('w') => {
-                    // Ctrl+W w - switch to next window
-                    state.current_pane = match state.current_pane {
-                        Pane::Request => Pane::Response,
-                        Pane::Response => Pane::Request,
-                    };
-                    state.pending_ctrl_w = false;
-                    return Ok(true);
-                }
-                KeyCode::Esc => {
-                    // Cancel Ctrl+W command
-                    state.pending_ctrl_w = false;
-                    return Ok(true);
-                }
-                _ => {
-                    // Invalid Ctrl+W command
-                    state.pending_ctrl_w = false;
-                    state.status_message = "Invalid window command".to_string();
-                    return Ok(true);
-                }
-            }
-        }
-
-        Ok(false)
-    }
-
-    fn name(&self) -> &'static str {
-        "SwitchPane"
-    }
-}
-
 /// Command for scrolling up half a page (Ctrl+U)
 pub struct ScrollHalfPageUpCommand;
 
@@ -925,26 +868,6 @@ mod tests {
 
         assert!(command.is_relevant(&state, &event));
         assert_eq!(command.name(), "MoveCursorLineEnd");
-    }
-
-    #[test]
-    fn switch_pane_command_should_be_relevant_for_ctrl_w_in_normal_mode() {
-        let command = SwitchPaneCommand;
-        let state = create_test_app_state();
-        let event = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL);
-
-        assert!(command.is_relevant(&state, &event));
-        assert_eq!(command.name(), "SwitchPane");
-    }
-
-    #[test]
-    fn switch_pane_command_should_be_relevant_when_pending_ctrl_w() {
-        let command = SwitchPaneCommand;
-        let mut state = create_test_app_state();
-        state.pending_ctrl_w = true;
-        let event = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE);
-
-        assert!(command.is_relevant(&state, &event));
     }
 
     #[test]

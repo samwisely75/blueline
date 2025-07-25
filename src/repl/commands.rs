@@ -180,9 +180,11 @@ pub mod command_line;
 pub mod editing;
 pub mod mode;
 pub mod movement;
+pub mod window;
 
 // Re-export commonly used commands
 pub use command_line::*;
 pub use editing::*;
 pub use mode::*;
 pub use movement::*;
+pub use window::*;

@@ -4,7 +4,7 @@
 [x] initial width for the line number must be 3. The tilda should be placed in the first column.
 [x] src/repl/command.rs can be renamed as commands.rs and we can then migrate mod declaration from repl.rs to this.
 [x] integration tests must incorporate the check for the screen refresh. This could be done by a mock framework that hooks the invocation of a refresh method and maintain/check its call count.
-[] SwitchPaneCommand in the movement.rs must be pushed out to window.rs.
+[x] SwitchPaneCommand in the movement.rs must be pushed out to window.rs.
 [] Implement `gg` to go to the top of the current pane.
 [] Implement `G` to go to the bottom of the current pane.
 [] Implement `Shift + a` to append text to the end of the current line in the request buffer.
