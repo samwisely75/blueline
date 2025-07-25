@@ -451,9 +451,17 @@ thread_local! {
 
 #[given("a REPL controller with mock view renderer")]
 async fn given_repl_controller_with_mock(world: &mut BluelineWorld) {
-    // Increment scenario counter and always create fresh mock
-    SCENARIO_COUNTER.with(|c| *c.borrow_mut() += 1);
+    // Increment scenario counter to ensure fresh state for each scenario
+    SCENARIO_COUNTER.with(|c| {
+        *c.borrow_mut() += 1;
+    });
 
+    // Completely clear any existing renderer to ensure total isolation
+    MOCK_RENDERER.with(|m| {
+        *m.borrow_mut() = None;
+    });
+
+    // Create a completely fresh mock renderer for this scenario
     let mock_renderer = MockViewRenderer::new();
     MOCK_RENDERER.with(|m| {
         *m.borrow_mut() = Some(mock_renderer);

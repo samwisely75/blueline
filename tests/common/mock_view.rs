@@ -59,7 +59,7 @@ pub struct RenderCallRecord {
 }
 
 /// Mock implementation of ViewRenderer that tracks calls for testing
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MockViewRenderer {
     /// Thread-safe storage for tracking render calls
     calls: RenderCallStorage,
