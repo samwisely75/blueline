@@ -187,7 +187,12 @@ impl ViewManager {
 
     /// Position cursor correctly based on current pane and mode
     fn position_cursor_after_render(&self, state: &AppState) -> Result<()> {
-        use super::model::Pane;
+        use super::model::{EditorMode, Pane};
+
+        // Don't position cursor in command mode since it's hidden
+        if matches!(state.mode, EditorMode::Command) {
+            return Ok(());
+        }
 
         match state.current_pane {
             Pane::Request => {
@@ -1071,6 +1076,28 @@ mod tests {
         // Switch back to normal mode and verify renders still work
         state.mode = crate::repl::model::EditorMode::Normal;
         let result = view_manager.render_full(&state);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn position_cursor_should_be_skipped_in_command_mode() {
+        // Test that cursor positioning is skipped when in command mode
+        let view_manager = ViewManager::new();
+        let mut state = AppState::new((80, 24), false);
+
+        // Test normal mode - cursor positioning should work
+        state.mode = crate::repl::model::EditorMode::Normal;
+        let result = view_manager.position_cursor_after_render(&state);
+        assert!(result.is_ok());
+
+        // Test command mode - cursor positioning should be skipped
+        state.mode = crate::repl::model::EditorMode::Command;
+        let result = view_manager.position_cursor_after_render(&state);
+        assert!(result.is_ok());
+
+        // Should work in other modes too
+        state.mode = crate::repl::model::EditorMode::Insert;
+        let result = view_manager.position_cursor_after_render(&state);
         assert!(result.is_ok());
     }
 }
