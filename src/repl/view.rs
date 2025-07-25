@@ -2,9 +2,6 @@
 //!
 //! This module implements the View layer of the MVC architecture using the Observer pattern.
 //! It provides three levels of rendering optimization based on what changed.
-
-#![allow(dead_code)] // Allow unused code during refactoring
-#![allow(clippy::type_complexity)] // Allow complex types during refactoring
 //!
 //! ## Architecture
 //!
@@ -49,12 +46,15 @@ pub trait RenderObserver {
     fn name(&self) -> &'static str;
 }
 
+/// Type alias for observer registry to reduce complexity
+type ObserverRegistry = Vec<Box<dyn RenderObserver>>;
+
 /// Manages all terminal rendering and coordinates observers.
 ///
 /// This is the main view controller that decides what type of rendering
 /// is needed based on state changes and delegates to appropriate observers.
 pub struct ViewManager {
-    observers: Vec<Box<dyn RenderObserver>>,
+    observers: ObserverRegistry,
     last_render_type: RenderType,
 }
 
