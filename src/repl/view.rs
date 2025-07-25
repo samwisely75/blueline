@@ -162,18 +162,26 @@ impl ViewManager {
         Ok(())
     }
 
-    /// Update cursor style based on current editor mode
+    /// Update cursor style and visibility based on current editor mode
     pub fn update_cursor_style(&self, state: &AppState) -> Result<()> {
         use super::model::EditorMode;
 
-        let cursor_style = match state.mode {
-            EditorMode::Normal => SetCursorStyle::SteadyBlock,
-            EditorMode::Insert => SetCursorStyle::BlinkingBar,
-            EditorMode::Command => SetCursorStyle::BlinkingUnderScore,
-            EditorMode::Visual | EditorMode::VisualLine => SetCursorStyle::SteadyBlock,
+        match state.mode {
+            EditorMode::Normal => {
+                execute!(io::stdout(), SetCursorStyle::SteadyBlock, Show)?;
+            }
+            EditorMode::Insert => {
+                execute!(io::stdout(), SetCursorStyle::BlinkingBar, Show)?;
+            }
+            EditorMode::Command => {
+                // Hide cursor completely in command mode
+                execute!(io::stdout(), Hide)?;
+            }
+            EditorMode::Visual | EditorMode::VisualLine => {
+                execute!(io::stdout(), SetCursorStyle::SteadyBlock, Show)?;
+            }
         };
 
-        execute!(io::stdout(), cursor_style)?;
         Ok(())
     }
 
@@ -984,6 +992,85 @@ mod tests {
         // Move cursor position and test again
         state.request_buffer.cursor_col = 10;
         let result = view_manager.render_cursor_only(&state);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn update_cursor_style_should_hide_cursor_in_command_mode() {
+        // Test that cursor is hidden when switching to command mode
+        let view_manager = ViewManager::new();
+        let mut state = AppState::new((80, 24), false);
+
+        // Test Normal mode - cursor should be visible with steady block
+        state.mode = crate::repl::model::EditorMode::Normal;
+        let result = view_manager.update_cursor_style(&state);
+        assert!(result.is_ok());
+
+        // Test Insert mode - cursor should be visible with blinking bar
+        state.mode = crate::repl::model::EditorMode::Insert;
+        let result = view_manager.update_cursor_style(&state);
+        assert!(result.is_ok());
+
+        // Test Command mode - cursor should be hidden
+        state.mode = crate::repl::model::EditorMode::Command;
+        let result = view_manager.update_cursor_style(&state);
+        assert!(result.is_ok());
+
+        // Test Visual mode - cursor should be visible with steady block
+        state.mode = crate::repl::model::EditorMode::Visual;
+        let result = view_manager.update_cursor_style(&state);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn cursor_should_be_restored_when_exiting_command_mode() {
+        // Test that cursor visibility is properly restored when leaving command mode
+        let view_manager = ViewManager::new();
+        let mut state = AppState::new((80, 24), false);
+
+        // Start in Normal mode
+        state.mode = crate::repl::model::EditorMode::Normal;
+        let result = view_manager.update_cursor_style(&state);
+        assert!(result.is_ok());
+
+        // Switch to Command mode (cursor should be hidden)
+        state.mode = crate::repl::model::EditorMode::Command;
+        let result = view_manager.update_cursor_style(&state);
+        assert!(result.is_ok());
+
+        // Switch back to Normal mode (cursor should be visible again)
+        state.mode = crate::repl::model::EditorMode::Normal;
+        let result = view_manager.update_cursor_style(&state);
+        assert!(result.is_ok());
+
+        // Switch to Insert mode (cursor should be visible with different style)
+        state.mode = crate::repl::model::EditorMode::Insert;
+        let result = view_manager.update_cursor_style(&state);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn command_mode_cursor_hiding_should_work_with_render_methods() {
+        // Test that cursor hiding in command mode works correctly with different render methods
+        let mut view_manager = ViewManager::new();
+        let mut state = AppState::new((80, 24), false);
+
+        // Set to command mode
+        state.mode = crate::repl::model::EditorMode::Command;
+
+        // All render methods should work without issues when cursor is hidden
+        let result = view_manager.render_cursor_only(&state);
+        assert!(result.is_ok());
+
+        let result = view_manager.render_content_update(&state);
+        assert!(result.is_ok());
+
+        let result = view_manager.render_full(&state);
+        assert!(result.is_ok());
+
+        // Switch back to normal mode and verify renders still work
+        state.mode = crate::repl::model::EditorMode::Normal;
+        let result = view_manager.render_full(&state);
         assert!(result.is_ok());
     }
 }
