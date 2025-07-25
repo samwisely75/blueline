@@ -7,7 +7,7 @@
 [x] SwitchPaneCommand in the movement.rs must be pushed out to window.rs.
 [x] Implement `Ctrl + j` to expand the response pane for one line. It goes up to the request pane shrinks to three lines.
 [x] Implement `Ctrl + k` to shrink the response pane for one line. It goes down to the response pane shrinks to three lines.
-[] Implement `:r` to show/hide the response pane.
+[x] Implement `:r` to show/hide the response pane.
 [] Implement `gg` to go to the top of the current pane.
 [] Implement `G` to go to the bottom of the current pane.
 [] Implement `Shift + a` to append text to the end of the current line in the request buffer.
