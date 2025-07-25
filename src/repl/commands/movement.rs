@@ -156,13 +156,14 @@ impl MoveCursorLeftCommand {}
 
 impl Command for MoveCursorLeftCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode and for h/Left arrow keys
-        matches!(state.mode, EditorMode::Normal)
-            && match event.code {
-                KeyCode::Char('h') => event.modifiers == KeyModifiers::NONE,
-                KeyCode::Left => true,
-                _ => false,
+        // Allow Left arrow in any mode, but 'h' only in Normal mode
+        match event.code {
+            KeyCode::Char('h') => {
+                matches!(state.mode, EditorMode::Normal) && event.modifiers == KeyModifiers::NONE
             }
+            KeyCode::Left => true,
+            _ => false,
+        }
     }
 
     fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
@@ -194,13 +195,14 @@ impl MoveCursorRightCommand {}
 
 impl Command for MoveCursorRightCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode and for l/Right arrow keys
-        matches!(state.mode, EditorMode::Normal)
-            && match event.code {
-                KeyCode::Char('l') => event.modifiers == KeyModifiers::NONE,
-                KeyCode::Right => true,
-                _ => false,
+        // Allow Right arrow in any mode, but 'l' only in Normal mode
+        match event.code {
+            KeyCode::Char('l') => {
+                matches!(state.mode, EditorMode::Normal) && event.modifiers == KeyModifiers::NONE
             }
+            KeyCode::Right => true,
+            _ => false,
+        }
     }
 
     fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
@@ -232,13 +234,14 @@ impl MoveCursorUpCommand {}
 
 impl Command for MoveCursorUpCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode and for k/Up arrow keys
-        matches!(state.mode, EditorMode::Normal)
-            && match event.code {
-                KeyCode::Char('k') => event.modifiers == KeyModifiers::NONE,
-                KeyCode::Up => true,
-                _ => false,
+        // Allow Up arrow in any mode, but 'k' only in Normal mode
+        match event.code {
+            KeyCode::Char('k') => {
+                matches!(state.mode, EditorMode::Normal) && event.modifiers == KeyModifiers::NONE
             }
+            KeyCode::Up => true,
+            _ => false,
+        }
     }
 
     fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
@@ -270,13 +273,14 @@ impl MoveCursorDownCommand {}
 
 impl Command for MoveCursorDownCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode and for j/Down arrow keys
-        matches!(state.mode, EditorMode::Normal)
-            && match event.code {
-                KeyCode::Char('j') => event.modifiers == KeyModifiers::NONE,
-                KeyCode::Down => true,
-                _ => false,
+        // Allow Down arrow in any mode, but 'j' only in Normal mode
+        match event.code {
+            KeyCode::Char('j') => {
+                matches!(state.mode, EditorMode::Normal) && event.modifiers == KeyModifiers::NONE
             }
+            KeyCode::Down => true,
+            _ => false,
+        }
     }
 
     fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {

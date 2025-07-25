@@ -12,6 +12,7 @@
 [x] Hide the cursor when it is switched to the command mode. Restore the cursor when it is switched back to the normal mode.
 [x] Implement `gg` to go to the top of the current pane.
 [x] Implement `G` to go to the bottom of the current pane.
+[] Make arrow keys work in the request/response pane, regardless of the mode.
 [] Implement `w` to skip to the next word in the request/response buffer.
 [] Implement `b` to skip to the previous word in the request/response buffer.
 [] Implement `0` and `Home` to go to the beginning of the current line in the request/response buffer.

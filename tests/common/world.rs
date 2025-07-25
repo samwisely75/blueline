@@ -194,12 +194,70 @@ impl BluelineWorld {
                     }
                 }
             }
-            (Mode::Normal, ActivePane::Request, "0") => {
-                self.cursor_position.column = 0;
+            // Arrow keys work in all modes
+            (_, ActivePane::Request, "Left") => {
+                if self.cursor_position.column > 0 {
+                    self.cursor_position.column -= 1;
+                }
             }
-            (Mode::Normal, ActivePane::Request, "$") => {
+            (_, ActivePane::Request, "Right") => {
                 if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                    self.cursor_position.column = line.len();
+                    if self.cursor_position.column < line.len() {
+                        self.cursor_position.column += 1;
+                    }
+                }
+            }
+            (_, ActivePane::Request, "Up") => {
+                if self.cursor_position.line > 0 {
+                    self.cursor_position.line -= 1;
+                    if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
+                        if self.cursor_position.column > line.len() {
+                            self.cursor_position.column = line.len();
+                        }
+                    }
+                }
+            }
+            (_, ActivePane::Request, "Down") => {
+                if self.cursor_position.line < self.request_buffer.len().saturating_sub(1) {
+                    self.cursor_position.line += 1;
+                    if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
+                        if self.cursor_position.column > line.len() {
+                            self.cursor_position.column = line.len();
+                        }
+                    }
+                }
+            }
+            // Arrow keys work in all modes
+            (_, ActivePane::Response, "Left") => {
+                if self.cursor_position.column > 0 {
+                    self.cursor_position.column -= 1;
+                }
+            }
+            (_, ActivePane::Response, "Right") => {
+                if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
+                    if self.cursor_position.column < line.len() {
+                        self.cursor_position.column += 1;
+                    }
+                }
+            }
+            (_, ActivePane::Response, "Up") => {
+                if self.cursor_position.line > 0 {
+                    self.cursor_position.line -= 1;
+                    if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
+                        if self.cursor_position.column > line.len() {
+                            self.cursor_position.column = line.len();
+                        }
+                    }
+                }
+            }
+            (_, ActivePane::Response, "Down") => {
+                if self.cursor_position.line < self.response_buffer.len().saturating_sub(1) {
+                    self.cursor_position.line += 1;
+                    if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
+                        if self.cursor_position.column > line.len() {
+                            self.cursor_position.column = line.len();
+                        }
+                    }
                 }
             }
 
