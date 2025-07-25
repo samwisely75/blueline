@@ -542,6 +542,47 @@ impl Command for ScrollHalfPageDownCommand {
     }
 }
 
+/// Command for scrolling down a full page (Ctrl+F)
+pub struct ScrollFullPageDownCommand;
+
+impl ScrollFullPageDownCommand {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Command for ScrollFullPageDownCommand {
+    fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
+        // Only relevant in Normal mode and for Ctrl+F
+        matches!(state.mode, EditorMode::Normal)
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && matches!(event.code, KeyCode::Char('f'))
+    }
+
+    fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        match state.current_pane {
+            Pane::Request => {
+                let page_size = state.get_request_pane_height();
+                state.request_buffer.scroll_full_page_down(page_size);
+                Ok(true)
+            }
+            Pane::Response => {
+                let page_size = state.get_response_pane_height();
+                if let Some(ref mut buffer) = state.response_buffer {
+                    buffer.scroll_full_page_down(page_size);
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "ScrollFullPageDown"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1035,7 +1076,10 @@ mod tests {
         let mut state = AppState::new((80, 24), true);
         state.current_pane = Pane::Response;
         // Create enough content to allow scrolling (more than response pane height)
-        let content = (0..30).map(|i| format!("line {}", i)).collect::<Vec<_>>().join("\n");
+        let content = (0..30)
+            .map(|i| format!("line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         state.response_buffer = Some(ResponseBuffer::new(content));
 
         let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
@@ -1047,5 +1091,94 @@ mod tests {
             assert_eq!(buffer.scroll_offset, expected_scroll);
             assert_eq!(buffer.cursor_line, expected_scroll);
         }
+    }
+
+    #[test]
+    fn scroll_full_page_down_command_should_be_relevant_for_ctrl_f_in_normal_mode() {
+        let command = ScrollFullPageDownCommand::new();
+        let state = AppState::new((80, 24), true);
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "ScrollFullPageDown");
+    }
+
+    #[test]
+    fn scroll_full_page_down_command_should_not_be_relevant_in_insert_mode() {
+        let command = ScrollFullPageDownCommand::new();
+        let mut state = AppState::new((80, 24), true);
+        state.mode = EditorMode::Insert;
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        assert!(!command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_full_page_down_command_should_not_be_relevant_without_ctrl() {
+        let command = ScrollFullPageDownCommand::new();
+        let state = AppState::new((80, 24), true);
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE);
+
+        assert!(!command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_full_page_down_command_should_scroll_request_buffer() {
+        let command = ScrollFullPageDownCommand::new();
+        let mut state = AppState::new((80, 24), true);
+        // Create enough content to allow scrolling (more than page height of 22)
+        state.request_buffer.lines = (0..50).map(|i| format!("line {}", i)).collect();
+        state.request_buffer.cursor_line = 5;
+        state.request_buffer.scroll_offset = 0;
+
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        let page_size = state.get_request_pane_height();
+        assert_eq!(state.request_buffer.scroll_offset, page_size);
+        assert_eq!(state.request_buffer.cursor_line, page_size);
+    }
+
+    #[test]
+    fn scroll_full_page_down_command_should_scroll_response_buffer() {
+        let command = ScrollFullPageDownCommand::new();
+        let mut state = AppState::new((80, 24), true);
+        state.current_pane = Pane::Response;
+        // Create enough content to allow scrolling (more than response pane height)
+        let content = (0..50)
+            .map(|i| format!("line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        state.response_buffer = Some(ResponseBuffer::new(content));
+
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        if let Some(ref buffer) = state.response_buffer {
+            let page_size = state.get_response_pane_height();
+            assert_eq!(buffer.scroll_offset, page_size);
+            assert_eq!(buffer.cursor_line, page_size);
+        }
+    }
+
+    #[test]
+    fn scroll_full_page_down_command_should_handle_scroll_bounds() {
+        let command = ScrollFullPageDownCommand::new();
+        let mut state = AppState::new((80, 24), true);
+        // Create content with limited lines (less than 2 pages)
+        state.request_buffer.lines = (0..30).map(|i| format!("line {}", i)).collect();
+        state.request_buffer.cursor_line = 0;
+        state.request_buffer.scroll_offset = 0;
+
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        // With 30 lines and page height 22, max scroll is 30-22=8
+        // Requested scroll is 22 but limited to available space of 8
+        assert_eq!(state.request_buffer.scroll_offset, 8);
+        assert_eq!(state.request_buffer.cursor_line, 8);
     }
 }
