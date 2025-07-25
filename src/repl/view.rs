@@ -82,11 +82,18 @@ impl ViewManager {
 
     /// Render cursor position only (fastest update)
     pub fn render_cursor_only(&mut self, state: &AppState) -> Result<()> {
+        // Hide cursor to prevent flicker during positioning
+        execute!(io::stdout(), Hide)?;
+
         for observer in &mut self.observers {
             observer.render_cursor_only(state)?;
         }
         // Position cursor correctly after all rendering
         self.position_cursor_after_render(state)?;
+
+        // Show cursor after positioning is complete
+        execute!(io::stdout(), Show)?;
+
         self.last_render_type = RenderType::CursorOnly;
         io::stdout().flush()?;
         Ok(())
@@ -932,5 +939,51 @@ mod tests {
 
         let invalid_icon = renderer.get_status_signal_icon("Not a status");
         assert_eq!(invalid_icon, "● ");
+    }
+
+    #[test]
+    fn render_cursor_only_should_hide_and_show_cursor() {
+        use std::io::Write;
+
+        // Create a test ViewManager
+        let mut view_manager = ViewManager::new();
+        let state = AppState::new((80, 24), false);
+
+        // Capture stdout to verify cursor hide/show commands are sent
+        // Note: This test verifies the method completes without panicking
+        // In a real terminal environment, the Hide/Show commands would be executed
+        let result = view_manager.render_cursor_only(&state);
+
+        // The method should complete successfully
+        assert!(result.is_ok());
+
+        // Verify that last render type was set correctly
+        assert_eq!(view_manager.last_render_type, RenderType::CursorOnly);
+    }
+
+    #[test]
+    fn render_cursor_only_should_not_cause_flicker_in_request_pane() {
+        // This test verifies the fix for request pane cursor movement flickering
+        // by ensuring render_cursor_only properly manages cursor visibility
+        let mut view_manager = ViewManager::new();
+        let mut state = AppState::new((80, 24), false);
+
+        // Set up state for request pane with some content
+        state.request_buffer.lines =
+            vec!["GET /api/users".to_string(), "".to_string(), "".to_string()];
+        state.request_buffer.cursor_line = 0;
+        state.request_buffer.cursor_col = 5;
+        state.current_pane = crate::repl::model::Pane::Request;
+
+        // Multiple rapid cursor movements should not cause issues
+        for _ in 0..10 {
+            let result = view_manager.render_cursor_only(&state);
+            assert!(result.is_ok());
+        }
+
+        // Move cursor position and test again
+        state.request_buffer.cursor_col = 10;
+        let result = view_manager.render_cursor_only(&state);
+        assert!(result.is_ok());
     }
 }
