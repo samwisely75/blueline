@@ -1,8 +1,74 @@
-//! # Movement Commands
-//!
-//! This module contains command implementations for cursor movement in both
-//! the Request and Response panes. These commands follow vim-style navigation.
+/// Move cursor to the start of the next word in the current line or next line
+fn move_to_next_word<T: MovementBuffer>(buffer: &mut T) -> Result<CommandResult> {
+    let line_idx = buffer.cursor_line();
+    let col_idx = *buffer.cursor_col_mut();
+    let lines = buffer.lines();
+    if let Some(line) = lines.get(line_idx) {
+        let chars: Vec<char> = line.chars().collect();
+        let mut i = col_idx;
+        let len = chars.len();
+        // Skip current non-word chars
+        while i < len && !chars[i].is_alphanumeric() {
+            i += 1;
+        }
+        // Skip current word chars
+        while i < len && chars[i].is_alphanumeric() {
+            i += 1;
+        }
+        // Skip spaces/non-word to next word
+        while i < len && !chars[i].is_alphanumeric() {
+            i += 1;
+        }
+        if i < len {
+            *buffer.cursor_col_mut() = i;
+            return Ok(CommandResult::cursor_moved());
+        } else if line_idx + 1 < lines.len() {
+            *buffer.cursor_line_mut() += 1;
+            *buffer.cursor_col_mut() = 0;
+            // Recursively move to next word in next line
+            return move_to_next_word(buffer);
+        }
+    }
+    Ok(CommandResult::not_handled())
+}
+/// Command for moving cursor to next word (w)
+pub struct MoveToNextWordCommand;
 
+impl MoveToNextWordCommand {}
+
+impl Command for MoveToNextWordCommand {
+    fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
+        matches!(state.mode, EditorMode::Normal)
+            && matches!(event.code, KeyCode::Char('w'))
+            && event.modifiers == KeyModifiers::NONE
+    }
+
+    fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        match state.current_pane {
+            Pane::Request => {
+                move_to_next_word(&mut state.request_buffer)?;
+                Ok(true)
+            }
+            Pane::Response => {
+                if let Some(ref mut buffer) = state.response_buffer {
+                    move_to_next_word(buffer)?;
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "MoveToNextWord"
+    }
+}
+
+/// # Movement Commands
+///
+/// This module contains command implementations for cursor movement in both
+/// the Request and Response panes. These commands follow vim-style navigation.
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
