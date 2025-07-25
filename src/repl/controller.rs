@@ -450,7 +450,7 @@ impl ReplController {
 
                 // Store the response status for display in status bar
                 self.state.last_response_status = Some(format!(
-                    "HTTP {} {}",
+                    "{} {}",
                     status.as_u16(),
                     status.canonical_reason().unwrap_or("")
                 ));
@@ -517,11 +517,7 @@ impl ReplController {
                 self.state.response_buffer = Some(ResponseBuffer::new(response_text));
 
                 // Update status message
-                self.state.status_message = format!(
-                    "Request executed: {} {}",
-                    status.as_u16(),
-                    status.canonical_reason().unwrap_or("")
-                );
+                self.state.status_message = "".to_string();
             }
             Err(err) => {
                 // Reset timing on error

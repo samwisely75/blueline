@@ -285,9 +285,9 @@ impl RequestPaneRenderer {
                 print!("{}", line);
             } else {
                 // Show tilda for non-existing lines (like vi) with dimmed style
-                // Place tilda in the same column as line numbers would be
+                // Place tilda in the first column, followed by spaces to match line number width
                 execute!(io::stdout(), SetAttribute(Attribute::Dim))?;
-                print!("{:>width$} ", "~", width = line_num_width);
+                print!("~{} ", " ".repeat(line_num_width.saturating_sub(1)));
                 execute!(io::stdout(), SetAttribute(Attribute::Reset))?;
             }
 
@@ -502,21 +502,87 @@ impl RenderObserver for StatusLineRenderer {
 impl StatusLineRenderer {
     fn render_status_line(&self, state: &AppState) -> Result<()> {
         let status_row = state.terminal_size.1 - 1; // Bottom row
+        let terminal_width = state.terminal_size.0 as usize;
         execute!(io::stdout(), cursor::MoveTo(0, status_row))?;
 
         // Clear the entire status line
         execute!(io::stdout(), Clear(ClearType::UntilNewLine))?;
 
-        // Print status message
-        print!("{}", state.status_message);
+        // Left side: status message
+        let left_content = &state.status_message;
 
-        // Add timing information if available
+        // Right side: HTTP status, message, and turnaround time (if available)
+        let mut right_content = String::new();
+        let mut right_content_visible_len = 0; // Track visible length (excluding ANSI codes)
+
+        if let Some(ref status) = state.last_response_status {
+            // Add signal icon based on HTTP status code
+            let signal_icon = self.get_status_signal_icon(status);
+            right_content.push_str(&signal_icon);
+            right_content.push_str(status);
+            // Signal icon has 2 visible chars: ● and space, status text is all visible
+            right_content_visible_len += 2 + status.len();
+        }
         if let Some(duration) = state.last_request_duration {
-            let timing_info = format!(" | {}ms", duration);
-            print!("{}", timing_info);
+            if !right_content.is_empty() {
+                right_content.push_str("  ");
+                right_content_visible_len += 2;
+            }
+            let duration_text = format!("{}ms", duration);
+            right_content.push_str(&duration_text);
+            right_content_visible_len += duration_text.len();
+        }
+
+        // Calculate spacing to align right content to the right edge
+        let left_len = left_content.len();
+
+        if left_len + right_content_visible_len >= terminal_width {
+            // If content is too long, truncate left content and show right content
+            let available_for_left = terminal_width.saturating_sub(right_content_visible_len + 2); // 2 for "  "
+            if available_for_left > 0 {
+                let truncated_left = if left_content.len() > available_for_left {
+                    format!(
+                        "{}...",
+                        &left_content[..available_for_left.saturating_sub(3)]
+                    )
+                } else {
+                    left_content.to_string()
+                };
+                print!("{}  {}", truncated_left, right_content);
+            } else {
+                // Just show right content if no space for left
+                print!("{}", right_content);
+            }
+        } else {
+            // Normal case: show left content, spaces, then right content
+            print!("{}", left_content);
+            if !right_content.is_empty() {
+                let spaces_needed =
+                    terminal_width.saturating_sub(left_len + right_content_visible_len);
+                print!("{}{}", " ".repeat(spaces_needed), right_content);
+            }
         }
 
         Ok(())
+    }
+
+    /// Get colored signal icon based on HTTP status code
+    /// Returns green signal for success (2xx), red signal for errors (4xx, 5xx)
+    fn get_status_signal_icon(&self, status: &str) -> String {
+        // Extract status code from status string (e.g., "200 OK" -> 200)
+        let status_code = status
+            .split_whitespace()
+            .next() // Get first token (status code) since we removed "HTTP" prefix
+            .and_then(|s| s.parse::<u16>().ok())
+            .unwrap_or(0);
+
+        // Use ANSI escape codes for colors since we're already using crossterm
+        match status_code {
+            200..=299 => "\x1b[32m●\x1b[0m ", // Green circle for success
+            400..=599 => "\x1b[31m●\x1b[0m ", // Red circle for client/server errors
+            _ => "● ",                        // Default (no color) for unknown status
+        }
+        .to_string()
     }
 }
 
@@ -747,5 +813,101 @@ mod tests {
 
         // Should have 3 observers: Request, Response, and Status renderers
         assert_eq!(view_manager.observers.len(), 3);
+    }
+
+    #[test]
+    fn status_line_should_display_http_status_and_timing_right_aligned() {
+        // Test with both status and timing information
+        let mut state = AppState::new((80, 24), false);
+        state.status_message = "Ready".to_string();
+        state.last_response_status = Some("200 OK".to_string());
+        state.last_request_duration = Some(250);
+
+        let renderer = StatusLineRenderer::new();
+        // Test should not panic - actual output testing would require terminal capture
+        let result = renderer.render_status_line(&state);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn status_line_should_handle_missing_http_status_gracefully() {
+        // Test with only timing information
+        let mut state = AppState::new((50, 20), false);
+        state.status_message = "Loading...".to_string();
+        state.last_response_status = None;
+        state.last_request_duration = Some(100);
+
+        let renderer = StatusLineRenderer::new();
+        let result = renderer.render_status_line(&state);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn status_line_should_handle_missing_timing_gracefully() {
+        // Test with only HTTP status
+        let mut state = AppState::new((60, 15), false);
+        state.status_message = "Error occurred".to_string();
+        state.last_response_status = Some("404 Not Found".to_string());
+        state.last_request_duration = None;
+
+        let renderer = StatusLineRenderer::new();
+        let result = renderer.render_status_line(&state);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn status_line_should_handle_no_http_data_gracefully() {
+        // Test with only status message (original behavior)
+        let mut state = AppState::new((40, 10), false);
+        state.status_message = "Idle".to_string();
+        state.last_response_status = None;
+        state.last_request_duration = None;
+
+        let renderer = StatusLineRenderer::new();
+        let result = renderer.render_status_line(&state);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn status_line_should_handle_very_narrow_terminal() {
+        // Test edge case with very narrow terminal
+        let mut state = AppState::new((20, 10), false);
+        state.status_message = "Very long status message that exceeds terminal width".to_string();
+        state.last_response_status = Some("200 OK".to_string());
+        state.last_request_duration = Some(1500);
+
+        let renderer = StatusLineRenderer::new();
+        let result = renderer.render_status_line(&state);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn status_signal_icon_should_return_correct_colors() {
+        let renderer = StatusLineRenderer::new();
+
+        // Test success status codes (2xx) - should return green circle
+        // Note: Controller now formats status as "200 OK" (removed HTTP prefix)
+        let green_icon = renderer.get_status_signal_icon("200 OK");
+        assert!(green_icon.contains("32m●")); // Green ANSI color code
+        assert!(green_icon.contains("0m")); // Reset ANSI color code
+
+        let green_icon_created = renderer.get_status_signal_icon("201 Created");
+        assert!(green_icon_created.contains("32m●"));
+
+        // Test client error status codes (4xx) - should return red circle
+        let red_icon_not_found = renderer.get_status_signal_icon("404 Not Found");
+        assert!(red_icon_not_found.contains("31m●")); // Red ANSI color code
+        assert!(red_icon_not_found.contains("0m")); // Reset ANSI color code
+
+        // Test server error status codes (5xx) - should return red circle
+        let red_icon_server_error = renderer.get_status_signal_icon("500 Internal Server Error");
+        assert!(red_icon_server_error.contains("31m●"));
+
+        // Test unknown/invalid status - should return default circle
+        let default_icon = renderer.get_status_signal_icon("999 Unknown");
+        assert_eq!(default_icon, "● ");
+
+        let invalid_icon = renderer.get_status_signal_icon("Not a status");
+        assert_eq!(invalid_icon, "● ");
     }
 }
