@@ -144,6 +144,11 @@ impl RequestBuffer {
         self.scroll(half_page_size as i32, half_page_size * 2);
     }
 
+    /// Scroll up by a full page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_full_page_up(&mut self, page_size: usize) {
+        self.scroll(-(page_size as i32), page_size);
+    }
+
     /// Scroll down by a full page, moving cursor to top of newly visible area (vim behavior)
     pub fn scroll_full_page_down(&mut self, page_size: usize) {
         self.scroll(page_size as i32, page_size);
@@ -272,6 +277,11 @@ impl ResponseBuffer {
     /// Scroll down by half a page, moving cursor to top of newly visible area (vim behavior)
     pub fn scroll_half_page_down(&mut self, half_page_size: usize) {
         self.scroll(half_page_size as i32, half_page_size * 2);
+    }
+
+    /// Scroll up by a full page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_full_page_up(&mut self, page_size: usize) {
+        self.scroll(-(page_size as i32), page_size);
     }
 
     /// Scroll down by a full page, moving cursor to top of newly visible area (vim behavior)
@@ -1142,6 +1152,47 @@ mod tests {
     }
 
     #[test]
+    fn request_buffer_scroll_full_page_up_should_scroll_and_move_cursor() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = (0..20).map(|i| format!("line {}", i)).collect();
+        buffer.cursor_line = 12;
+        buffer.cursor_col = 3;
+        buffer.scroll_offset = 10; // Start scrolled down
+
+        buffer.scroll_full_page_up(5);
+
+        assert_eq!(buffer.scroll_offset, 5); // Should scroll up by 5 lines
+        assert_eq!(buffer.cursor_line, 5); // Cursor moves to top of newly visible area
+        assert_eq!(buffer.cursor_col, 3);
+    }
+
+    #[test]
+    fn request_buffer_scroll_full_page_up_should_handle_insufficient_scroll_offset() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = (0..20).map(|i| format!("line {}", i)).collect();
+        buffer.cursor_line = 2;
+        buffer.scroll_offset = 2; // Small scroll offset
+
+        buffer.scroll_full_page_up(5); // Request more than current offset
+
+        assert_eq!(buffer.scroll_offset, 0); // Should scroll to top
+        assert_eq!(buffer.cursor_line, 0); // Cursor moves to top of visible area (vim behavior)
+    }
+
+    #[test]
+    fn request_buffer_scroll_full_page_up_should_handle_zero_scroll_offset() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = (0..20).map(|i| format!("line {}", i)).collect();
+        buffer.cursor_line = 3;
+        buffer.scroll_offset = 0; // Already at top
+
+        buffer.scroll_full_page_up(5); // Request scroll up from top
+
+        assert_eq!(buffer.scroll_offset, 0); // Should remain at top
+        assert_eq!(buffer.cursor_line, 3); // Cursor should remain unchanged
+    }
+
+    #[test]
     fn response_buffer_scroll_full_page_down_should_scroll_and_move_cursor() {
         let mut buffer = ResponseBuffer::new(
             (0..20)
@@ -1187,6 +1238,59 @@ mod tests {
 
         assert_eq!(buffer.scroll_offset, 2); // Max scroll is 10-8=2
         assert_eq!(buffer.cursor_line, 2);
+    }
+
+    #[test]
+    fn response_buffer_scroll_full_page_up_should_scroll_and_move_cursor() {
+        let mut buffer = ResponseBuffer::new(
+            (0..20)
+                .map(|i| format!("line {}", i))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        buffer.cursor_line = 12;
+        buffer.cursor_col = 3;
+        buffer.scroll_offset = 10; // Start scrolled down
+
+        buffer.scroll_full_page_up(5);
+
+        assert_eq!(buffer.scroll_offset, 5); // Should scroll up by 5 lines
+        assert_eq!(buffer.cursor_line, 5); // Cursor moves to top of newly visible area
+        assert_eq!(buffer.cursor_col, 3);
+    }
+
+    #[test]
+    fn response_buffer_scroll_full_page_up_should_handle_insufficient_scroll_offset() {
+        let mut buffer = ResponseBuffer::new(
+            (0..20)
+                .map(|i| format!("line {}", i))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        buffer.cursor_line = 2;
+        buffer.scroll_offset = 2; // Small scroll offset
+
+        buffer.scroll_full_page_up(5); // Request more than current offset
+
+        assert_eq!(buffer.scroll_offset, 0); // Should scroll to top
+        assert_eq!(buffer.cursor_line, 0); // Cursor moves to top of visible area (vim behavior)
+    }
+
+    #[test]
+    fn response_buffer_scroll_full_page_up_should_handle_zero_scroll_offset() {
+        let mut buffer = ResponseBuffer::new(
+            (0..20)
+                .map(|i| format!("line {}", i))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        buffer.cursor_line = 3;
+        buffer.scroll_offset = 0; // Already at top
+
+        buffer.scroll_full_page_up(5); // Request scroll up from top
+
+        assert_eq!(buffer.scroll_offset, 0); // Should remain at top
+        assert_eq!(buffer.cursor_line, 3); // Cursor should remain unchanged
     }
 
     #[test]

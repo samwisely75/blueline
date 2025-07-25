@@ -42,7 +42,8 @@ use super::{
         ExitInsertModeCommand, InsertCharCommand, InsertNewLineCommand, MoveCursorDownCommand,
         MoveCursorLeftCommand, MoveCursorLineEndCommand, MoveCursorLineStartCommand,
         MoveCursorRightCommand, MoveCursorUpCommand, ScrollFullPageDownCommand,
-        ScrollHalfPageDownCommand, ScrollHalfPageUpCommand, SwitchPaneCommand,
+        ScrollFullPageUpCommand, ScrollHalfPageDownCommand, ScrollHalfPageUpCommand,
+        SwitchPaneCommand,
     },
     model::{AppState, ResponseBuffer},
     view::{create_default_view_manager, ViewManager},
@@ -328,6 +329,7 @@ impl ReplController {
         self.commands.push(Box::new(ScrollHalfPageUpCommand::new()));
         self.commands
             .push(Box::new(ScrollHalfPageDownCommand::new()));
+        self.commands.push(Box::new(ScrollFullPageUpCommand::new()));
         self.commands
             .push(Box::new(ScrollFullPageDownCommand::new()));
 
