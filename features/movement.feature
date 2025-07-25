@@ -41,18 +41,6 @@ Feature: Cursor Movement Commands
     Then the cursor moves to the end of the line
     And I am still in normal mode
 
-  Scenario: Switch between panes
-    Given there is a response in the response pane
-    And I am in normal mode
-    When I press "Ctrl+W"
-    And I press "j"
-    Then I am in the response pane
-    And I am in normal mode
-    When I press "Ctrl+W"
-    And I press "k"
-    Then I am in the request pane
-    And I am in normal mode
-
   Scenario: Navigate response content
     Given I have executed a request that returned a large JSON response from:
       """

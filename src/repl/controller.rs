@@ -42,7 +42,7 @@ use super::{
         MoveCursorDownCommand, MoveCursorLeftCommand, MoveCursorLineEndCommand,
         MoveCursorLineStartCommand, MoveCursorRightCommand, MoveCursorUpCommand,
         ScrollFullPageDownCommand, ScrollFullPageUpCommand, ScrollHalfPageDownCommand,
-        ScrollHalfPageUpCommand, SwitchPaneCommand,
+        ScrollHalfPageUpCommand, ShrinkResponsePaneCommand, SwitchPaneCommand,
     },
     model::{AppState, ResponseBuffer},
     view::{create_default_view_manager, ViewManager},
@@ -324,6 +324,7 @@ impl<V: ViewRenderer> ReplController<V> {
         self.commands.push(Box::new(MoveCursorLineEndCommand));
         self.commands.push(Box::new(SwitchPaneCommand));
         self.commands.push(Box::new(ExpandResponsePaneCommand));
+        self.commands.push(Box::new(ShrinkResponsePaneCommand));
         self.commands.push(Box::new(ScrollHalfPageUpCommand));
         self.commands.push(Box::new(ScrollHalfPageDownCommand));
         self.commands.push(Box::new(ScrollFullPageUpCommand));

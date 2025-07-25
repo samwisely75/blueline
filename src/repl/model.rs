@@ -425,6 +425,18 @@ impl AppState {
 
         if self.request_pane_height > MIN_REQUEST_HEIGHT {
             self.request_pane_height = (self.request_pane_height - 1).max(MIN_REQUEST_HEIGHT);
+
+            // Clamp cursor if it goes beyond the new visible area of the request pane
+            let new_request_height = self.get_request_pane_height();
+            let (_visible_start, visible_end) =
+                self.request_buffer.visible_range(new_request_height);
+
+            // If cursor is beyond the visible area, move it to the last visible line
+            if self.request_buffer.cursor_line >= visible_end && visible_end > 0 {
+                self.request_buffer.cursor_line = visible_end - 1;
+                // Ensure the cursor column is valid for the new line
+                self.request_buffer.clamp_cursor();
+            }
         }
     }
 
@@ -437,6 +449,22 @@ impl AppState {
 
         if self.request_pane_height < max_request_height {
             self.request_pane_height = (self.request_pane_height + 1).min(max_request_height);
+
+            // Clamp cursor if it goes beyond the new visible area of the response pane
+            if let Some(ref mut response_buffer) = self.response_buffer {
+                // Calculate new response height manually to avoid borrow conflicts
+                let new_response_height =
+                    total_content_height.saturating_sub(self.request_pane_height);
+                let (_visible_start, visible_end) =
+                    response_buffer.visible_range(new_response_height);
+
+                // If cursor is beyond the visible area, move it to the last visible line
+                if response_buffer.cursor_line >= visible_end && visible_end > 0 {
+                    response_buffer.cursor_line = visible_end - 1;
+                    // Ensure the cursor column is valid for the new line
+                    response_buffer.clamp_cursor();
+                }
+            }
         }
     }
 
@@ -1543,6 +1571,96 @@ mod tests {
         state.shrink_response_pane();
 
         assert_eq!(state.request_pane_height, 19); // Should not go above max
+    }
+
+    #[test]
+    fn app_state_expand_response_pane_should_clamp_cursor_when_request_pane_shrinks() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("Test response".to_string());
+        state.request_pane_height = 10;
+
+        // Add multiple lines to request buffer and position cursor at the end
+        for i in 0..15 {
+            state.request_buffer.lines.push(format!("Line {}", i));
+        }
+        state.request_buffer.cursor_line = 14; // Last line (0-indexed)
+
+        // Expand response pane (shrink request pane) so cursor goes beyond visible area
+        state.expand_response_pane();
+
+        // Cursor should be clamped to the last visible line of the new smaller request pane
+        // Request pane height went from 10 to 9, so visible range is 0..9
+        // Cursor should be at line 8 (last visible line, 0-indexed)
+        assert_eq!(state.request_buffer.cursor_line, 8);
+    }
+
+    #[test]
+    fn app_state_shrink_response_pane_should_clamp_cursor_when_response_pane_shrinks() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_pane_height = 10;
+
+        // Create response buffer with multiple lines
+        let mut response_lines = Vec::new();
+        for i in 0..15 {
+            response_lines.push(format!("Response line {}", i));
+        }
+        let response_buffer = ResponseBuffer::new(response_lines.join("\n"));
+
+        // Position cursor at the end of response buffer
+        let mut modified_response = response_buffer;
+        modified_response.cursor_line = 14; // Last line (0-indexed)
+        state.response_buffer = Some(modified_response);
+
+        // Shrink response pane so cursor goes beyond visible area
+        state.shrink_response_pane();
+
+        // Response pane height calculation: terminal(24) - separator/status(2) - request_pane(11) = 11
+        // So visible range for response is 0..11, cursor should be at line 10 (last visible, 0-indexed)
+        if let Some(ref response_buffer) = state.response_buffer {
+            assert_eq!(response_buffer.cursor_line, 10);
+        } else {
+            panic!("Response buffer should exist");
+        }
+    }
+
+    #[test]
+    fn app_state_expand_response_pane_should_not_clamp_cursor_when_within_bounds() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("Test response".to_string());
+        state.request_pane_height = 10;
+
+        // Add some lines and position cursor within visible area
+        for i in 0..5 {
+            state.request_buffer.lines.push(format!("Line {}", i));
+        }
+        state.request_buffer.cursor_line = 3; // Well within visible area
+
+        state.expand_response_pane();
+
+        // Cursor should remain at original position since it's still visible
+        assert_eq!(state.request_buffer.cursor_line, 3);
+    }
+
+    #[test]
+    fn app_state_shrink_response_pane_should_not_clamp_cursor_when_within_bounds() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_pane_height = 10;
+
+        // Create response buffer with moderate content
+        let response_buffer =
+            ResponseBuffer::new("Line 0\nLine 1\nLine 2\nLine 3\nLine 4".to_string());
+        let mut modified_response = response_buffer;
+        modified_response.cursor_line = 2; // Well within visible area
+        state.response_buffer = Some(modified_response);
+
+        state.shrink_response_pane();
+
+        // Cursor should remain at original position since it's still visible
+        if let Some(ref response_buffer) = state.response_buffer {
+            assert_eq!(response_buffer.cursor_line, 2);
+        } else {
+            panic!("Response buffer should exist");
+        }
     }
 
     #[test]
