@@ -574,9 +574,9 @@ impl GoToBottomCommand {}
 
 impl Command for GoToBottomCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode for 'G' key
+        // Only relevant in Normal mode for 'G' key (accept both NONE and SHIFT modifiers)
         matches!(state.mode, EditorMode::Normal)
-            && event.modifiers == KeyModifiers::NONE
+            && (event.modifiers == KeyModifiers::NONE || event.modifiers == KeyModifiers::SHIFT)
             && matches!(event.code, KeyCode::Char('G'))
     }
 
@@ -1574,6 +1574,15 @@ mod tests {
         let command = GoToBottomCommand;
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('G'), KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn go_to_bottom_command_should_be_relevant_for_capital_g_with_shift_in_normal_mode() {
+        let command = GoToBottomCommand;
+        let state = AppState::new((80, 24), true);
+        let event = KeyEvent::new(KeyCode::Char('G'), KeyModifiers::SHIFT);
 
         assert!(command.is_relevant(&state, &event));
     }
