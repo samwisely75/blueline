@@ -11,6 +11,7 @@ use cmd_args::CommandLineArgs;
 // use old_repl::VimRepl;
 use tracing_subscriber::{fmt::time::ChronoLocal, EnvFilter};
 
+// tokio is primarily for async I/O operations in the bluenote HTTP client
 #[tracing::instrument]
 #[tokio::main]
 async fn main() -> Result<()> {

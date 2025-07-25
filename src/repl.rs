@@ -31,7 +31,7 @@ pub mod controller;
 pub mod commands {
     pub mod editing;
     pub mod movement;
-    
+
     // Re-export commonly used commands
     pub use editing::*;
     pub use movement::*;
