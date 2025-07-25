@@ -10,16 +10,16 @@
 [x] Implement `:r` to show/hide the response pane.
 [x] Fix the flicking issue when the cursor is moved in the request pane. It only happens in the request pane, regardless of the response pane being shown or not.
 [x] Hide the cursor when it is switched to the command mode. Restore the cursor when it is switched back to the normal mode.
-[] Implement `gg` to go to the top of the current pane.
-[] Implement `G` to go to the bottom of the current pane.
+[x] Implement `gg` to go to the top of the current pane.
+[x] Implement `G` to go to the bottom of the current pane.
+[] Implement `w` to skip to the next word in the request/response buffer.
+[] Implement `b` to skip to the previous word in the request/response buffer.
+[] Implement `0` and `Home` to go to the beginning of the current line in the request/response buffer.
+[] Implement `$` and `End` to go to the end of the current line in the request/response buffer.
 [] Implement `Shift + a` to append text to the end of the current line in the request buffer.
 [] Implement `Shift + i` to insert text at the beginning of the current line in the request buffer.
 [] Implement `Ctrl + r` to refresh the current pane.
 [] Implement `Ctrl + l` to clear the current pane.
-[] Implement `w` to skip to the next word in the request/response buffer.
-[] Implement `b` to skip to the previous word in the request/response buffer.
-[] Implement `0` to go to the beginning of the current line in the request/response buffer.
-[] Implement `$` to go to the end of the current line in the request/response buffer.
 [] Implement `v` to enter visual mode in the request/response buffer.
 [] Implement `y` to copy the selected text in the request/response buffer to the clipboard.
 [] Implement `yy` to copy the current line in the request/response buffer to the clipboard.
