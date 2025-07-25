@@ -1,7 +1,7 @@
-//! # Editing Commands
+//! # Text Editing Commands
 //!
-//! This module contains commands for text editing operations like insertion,
-//! deletion, and mode switching.
+//! This module contains commands for text manipulation in insert mode,
+//! such as inserting characters, new lines, and deleting characters.
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -10,93 +10,6 @@ use crate::repl::{
     command::{Command, CommandResult},
     model::{AppState, EditorMode, Pane},
 };
-
-/// Command for entering insert mode (i, I, A)
-pub struct EnterInsertModeCommand;
-
-impl EnterInsertModeCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Command for EnterInsertModeCommand {
-    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode, Request pane
-        matches!(state.mode, EditorMode::Normal) && state.current_pane == Pane::Request
-    }
-
-    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        // Check if the key matches what we handle
-        if event.modifiers != KeyModifiers::NONE {
-            return Ok(false);
-        }
-
-        match event.code {
-            KeyCode::Char('i') => {
-                // Insert at current position
-                state.mode = EditorMode::Insert;
-                state.status_message = "-- INSERT --".to_string();
-                Ok(true)
-            }
-            KeyCode::Char('I') => {
-                // Insert at beginning of line
-                state.request_buffer.cursor_col = 0;
-                state.mode = EditorMode::Insert;
-                state.status_message = "-- INSERT --".to_string();
-                Ok(true)
-            }
-            KeyCode::Char('A') => {
-                // Append at end of line
-                if let Some(line) = state
-                    .request_buffer
-                    .lines
-                    .get(state.request_buffer.cursor_line)
-                {
-                    state.request_buffer.cursor_col = line.len();
-                }
-                state.mode = EditorMode::Insert;
-                state.status_message = "-- INSERT --".to_string();
-                Ok(true)
-            }
-            _ => Ok(false),
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        "EnterInsertMode"
-    }
-}
-
-/// Command for exiting insert mode (Esc)
-pub struct ExitInsertModeCommand;
-
-impl ExitInsertModeCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Command for ExitInsertModeCommand {
-    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
-        // Only relevant in Insert mode
-        matches!(state.mode, EditorMode::Insert)
-    }
-
-    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        if matches!(event.code, KeyCode::Esc) {
-            state.mode = EditorMode::Normal;
-            state.status_message = "".to_string();
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        "ExitInsertMode"
-    }
-}
 
 /// Command for inserting characters (any printable character in insert mode)
 pub struct InsertCharCommand;
@@ -242,309 +155,192 @@ impl Command for DeleteCharCommand {
     }
 }
 
-/// Command for entering command mode (:)
-pub struct EnterCommandModeCommand;
-
-impl EnterCommandModeCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Command for EnterCommandModeCommand {
-    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode
-        matches!(state.mode, EditorMode::Normal)
-    }
-
-    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        if matches!(event.code, KeyCode::Char(':')) && event.modifiers == KeyModifiers::NONE {
-            state.mode = EditorMode::Command;
-            state.command_buffer.clear();
-            state.status_message = ":".to_string();
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        "EnterCommandMode"
-    }
-}
-
-/// Command for typing characters in command mode
-pub struct CommandModeInputCommand;
-
-impl CommandModeInputCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Command for CommandModeInputCommand {
-    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
-        // Only relevant in Command mode
-        matches!(state.mode, EditorMode::Command)
-    }
-
-    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        match event.code {
-            KeyCode::Char(ch) if event.modifiers == KeyModifiers::NONE => {
-                // Add character to command buffer
-                state.command_buffer.push(ch);
-                state.status_message = format!(":{}", state.command_buffer);
-                Ok(true)
-            }
-            KeyCode::Backspace => {
-                // Remove last character from command buffer
-                if !state.command_buffer.is_empty() {
-                    state.command_buffer.pop();
-                    state.status_message = format!(":{}", state.command_buffer);
-                } else {
-                    // If buffer is empty, exit command mode
-                    state.mode = EditorMode::Normal;
-                    state.status_message = "".to_string();
-                }
-                Ok(true)
-            }
-            _ => Ok(false),
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        "CommandModeInput"
-    }
-}
-
-/// Command for executing commands in command mode (Enter)
-pub struct ExecuteCommandCommand;
-
-impl ExecuteCommandCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Command for ExecuteCommandCommand {
-    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
-        // Only relevant in Command mode
-        matches!(state.mode, EditorMode::Command)
-    }
-
-    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        if matches!(event.code, KeyCode::Enter) {
-            let command = state.command_buffer.trim();
-
-            // Handle basic vim commands
-            match command {
-                "q" | "quit" => {
-                    match state.current_pane {
-                        Pane::Request => {
-                            // In Request pane, quit the application
-                            state.should_quit = true;
-                            state.status_message = "Goodbye!".to_string();
-                        }
-                        Pane::Response => {
-                            // In Response pane, close the response and maximize request
-                            state.response_buffer = None;
-                            state.current_pane = Pane::Request;
-                            state.status_message = "Response pane closed".to_string();
-                        }
-                    }
-                }
-                "q!" | "quit!" => {
-                    // Force quit the application regardless of pane
-                    state.should_quit = true;
-                    state.status_message = "Goodbye!".to_string();
-                }
-                "w" | "write" => {
-                    // TODO: Save functionality
-                    state.status_message = "Save not implemented yet".to_string();
-                }
-                "wq" => {
-                    // TODO: Save and quit
-                    state.status_message = "Save and quit not implemented yet".to_string();
-                }
-                "x" | "execute" => {
-                    // Request execution - set a flag to trigger async execution
-                    state.execute_request_flag = true;
-                    state.status_message = "Executing request...".to_string();
-                }
-                "" => {
-                    // Empty command, just exit command mode
-                    state.status_message = "".to_string();
-                }
-                _ => {
-                    state.status_message = format!("Unknown command: {}", command);
-                }
-            }
-
-            // Exit command mode
-            state.mode = EditorMode::Normal;
-            state.command_buffer.clear();
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        "ExecuteCommand"
-    }
-}
-
-/// Command for canceling command mode (Esc)
-pub struct CancelCommandModeCommand;
-
-impl CancelCommandModeCommand {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Command for CancelCommandModeCommand {
-    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
-        // Only relevant in Command mode
-        matches!(state.mode, EditorMode::Command)
-    }
-
-    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        if matches!(event.code, KeyCode::Esc) {
-            // Cancel command mode and return to normal mode
-            state.mode = EditorMode::Normal;
-            state.command_buffer.clear();
-            state.status_message = "".to_string();
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        "CancelCommandMode"
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::model::{AppState, ResponseBuffer};
+    use crate::repl::model::AppState;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-    #[test]
-    fn execute_q_command_should_quit_from_request_pane() {
-        // Create a test state in Request pane
-        let mut state = AppState::new((80, 24), false);
-        state.mode = EditorMode::Command;
-        state.current_pane = Pane::Request;
-        state.command_buffer = "q".to_string();
-
-        let command = ExecuteCommandCommand::new();
-        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
-
-        // Execute the command
-        let result = command.process(event, &mut state).unwrap();
-
-        // Should handle the event and set quit flag
-        assert!(result);
-        assert!(state.should_quit);
-        assert_eq!(state.mode, EditorMode::Normal);
-        assert!(state.command_buffer.is_empty());
-        assert_eq!(state.status_message, "Goodbye!");
+    /// Create a test AppState for command testing
+    fn create_test_app_state() -> AppState {
+        AppState::new((80, 24), false)
     }
 
     #[test]
-    fn execute_q_command_should_close_response_pane_from_response_pane() {
-        // Create a test state with response buffer in Response pane
-        let mut state = AppState::new((80, 24), false);
-        state.mode = EditorMode::Command;
-        state.current_pane = Pane::Response;
-        state.command_buffer = "q".to_string();
+    fn insert_char_command_should_be_relevant_in_insert_mode() {
+        let command = InsertCharCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        let event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
 
-        // Add a response buffer
-        let response_content = "HTTP/1.1 200 OK\nContent-Type: application/json".to_string();
-        let response_buffer = ResponseBuffer::new(response_content);
-        state.response_buffer = Some(response_buffer);
-
-        let command = ExecuteCommandCommand::new();
-        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
-
-        // Execute the command
-        let result = command.process(event, &mut state).unwrap();
-
-        // Should handle the event, close response pane, and switch to Request pane
-        assert!(result);
-        assert!(!state.should_quit); // Should not quit, just close response
-        assert!(state.response_buffer.is_none()); // Response buffer should be cleared
-        assert_eq!(state.current_pane, Pane::Request); // Should switch to Request pane
-        assert_eq!(state.mode, EditorMode::Normal);
-        assert!(state.command_buffer.is_empty());
-        assert_eq!(state.status_message, "Response pane closed");
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "InsertChar");
     }
 
     #[test]
-    fn execute_q_force_command_should_always_quit() {
-        // Test from Request pane
-        let mut state = AppState::new((80, 24), false);
-        state.mode = EditorMode::Command;
-        state.current_pane = Pane::Request;
-        state.command_buffer = "q!".to_string();
+    fn insert_char_command_should_not_be_relevant_in_normal_mode() {
+        let command = InsertCharCommand::new();
+        let state = create_test_app_state();
+        let event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
 
-        let command = ExecuteCommandCommand::new();
-        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
-
-        let result = command.process(event, &mut state).unwrap();
-        assert!(result);
-        assert!(state.should_quit);
-
-        // Test from Response pane
-        let mut state = AppState::new((80, 24), false);
-        state.mode = EditorMode::Command;
-        state.current_pane = Pane::Response;
-        state.command_buffer = "q!".to_string();
-
-        // Add a response buffer
-        let response_content = "HTTP/1.1 200 OK".to_string();
-        let response_buffer = ResponseBuffer::new(response_content);
-        state.response_buffer = Some(response_buffer);
-
-        let result = command.process(event, &mut state).unwrap();
-        assert!(result);
-        assert!(state.should_quit); // Should quit even from Response pane
-        assert!(state.response_buffer.is_some()); // Response buffer should remain
+        assert!(!command.is_relevant(&state, &event));
     }
 
     #[test]
-    fn execute_quit_command_should_work_like_q() {
-        // Test "quit" command works the same as "q"
-        let mut state = AppState::new((80, 24), false);
-        state.mode = EditorMode::Command;
-        state.current_pane = Pane::Request;
-        state.command_buffer = "quit".to_string();
-
-        let command = ExecuteCommandCommand::new();
-        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+    fn insert_char_should_add_character_at_cursor_position() {
+        let command = InsertCharCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        state.request_buffer.lines = vec!["hello".to_string()];
+        state.request_buffer.cursor_col = 3;
+        let event = KeyEvent::new(KeyCode::Char('X'), KeyModifiers::NONE);
 
         let result = command.process(event, &mut state).unwrap();
+
         assert!(result);
-        assert!(state.should_quit);
-        assert_eq!(state.status_message, "Goodbye!");
+        assert_eq!(state.request_buffer.lines[0], "helXlo");
+        assert_eq!(state.request_buffer.cursor_col, 4);
     }
 
     #[test]
-    fn execute_unknown_command_should_show_error() {
-        let mut state = AppState::new((80, 24), false);
-        state.mode = EditorMode::Command;
-        state.command_buffer = "unknown".to_string();
+    fn insert_char_should_not_handle_control_characters() {
+        let command = InsertCharCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        let event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
 
-        let command = ExecuteCommandCommand::new();
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(!result);
+    }
+
+    #[test]
+    fn insert_char_should_create_line_if_not_exists() {
+        let command = InsertCharCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        state.request_buffer.lines = vec![];
+        state.request_buffer.cursor_line = 0;
+        state.request_buffer.cursor_col = 0;
+        let event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
+
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        assert_eq!(state.request_buffer.lines.len(), 1);
+        assert_eq!(state.request_buffer.lines[0], "a");
+        assert_eq!(state.request_buffer.cursor_col, 1);
+    }
+
+    #[test]
+    fn insert_new_line_command_should_be_relevant_in_insert_mode() {
+        let command = InsertNewLineCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "InsertNewLine");
+    }
+
+    #[test]
+    fn insert_new_line_should_split_line_at_cursor() {
+        let command = InsertNewLineCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        state.request_buffer.lines = vec!["hello world".to_string()];
+        state.request_buffer.cursor_col = 5;
         let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
 
         let result = command.process(event, &mut state).unwrap();
+
         assert!(result);
-        assert!(!state.should_quit);
-        assert_eq!(state.status_message, "Unknown command: unknown");
-        assert_eq!(state.mode, EditorMode::Normal);
+        assert_eq!(state.request_buffer.lines.len(), 2);
+        assert_eq!(state.request_buffer.lines[0], "hello");
+        assert_eq!(state.request_buffer.lines[1], " world");
+        assert_eq!(state.request_buffer.cursor_line, 1);
+        assert_eq!(state.request_buffer.cursor_col, 0);
+    }
+
+    #[test]
+    fn insert_new_line_should_handle_auto_scroll() {
+        let command = InsertNewLineCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        // Set up a small visible height to trigger scrolling
+        state.terminal_size = (80, 5); // Small terminal
+        state.request_buffer.lines = vec!["line1".to_string(), "line2".to_string()];
+        state.request_buffer.cursor_line = 1;
+        state.request_buffer.cursor_col = 0;
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        assert_eq!(state.request_buffer.cursor_line, 2);
+        // Should have scrolled due to small visible height
+    }
+
+    #[test]
+    fn delete_char_command_should_be_relevant_in_insert_mode() {
+        let command = DeleteCharCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        let event = KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "DeleteChar");
+    }
+
+    #[test]
+    fn delete_char_should_remove_character_before_cursor() {
+        let command = DeleteCharCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        state.request_buffer.lines = vec!["hello".to_string()];
+        state.request_buffer.cursor_col = 3;
+        let event = KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE);
+
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        assert_eq!(state.request_buffer.lines[0], "helo");
+        assert_eq!(state.request_buffer.cursor_col, 2);
+    }
+
+    #[test]
+    fn delete_char_should_join_lines_when_at_line_start() {
+        let command = DeleteCharCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        state.request_buffer.lines = vec!["hello".to_string(), "world".to_string()];
+        state.request_buffer.cursor_line = 1;
+        state.request_buffer.cursor_col = 0;
+        let event = KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE);
+
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        assert_eq!(state.request_buffer.lines.len(), 1);
+        assert_eq!(state.request_buffer.lines[0], "helloworld");
+        assert_eq!(state.request_buffer.cursor_line, 0);
+        assert_eq!(state.request_buffer.cursor_col, 5);
+    }
+
+    #[test]
+    fn delete_char_should_not_delete_when_at_start_of_first_line() {
+        let command = DeleteCharCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        state.request_buffer.lines = vec!["hello".to_string()];
+        state.request_buffer.cursor_line = 0;
+        state.request_buffer.cursor_col = 0;
+        let event = KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE);
+
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(!result);
+        assert_eq!(state.request_buffer.lines[0], "hello");
+        assert_eq!(state.request_buffer.cursor_col, 0);
     }
 }

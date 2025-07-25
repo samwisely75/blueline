@@ -24,6 +24,8 @@ The project is being refactored to follow the Model-View-Controller (MVC) archit
 
    Please display your questions in a bold test with a question mark icon in the beginning.
 
+   And if you are asking multiple questions, please use a numbered list format for me to answer them by number.
+
 1. **Preserve the original functionality**: Always keep the original functionality intact unless explicitly asked to remove it. If you are unsure about what to remove, ask for clarification. Do not remove any working methods, data structures, or functionality unless it is confirmed that they are not needed.
 
 1. **Answer the question**: If you are asked a question, provide a direct answer. You don't know if that's meant to be a change request so NEVER change the code. If you see a point of improvement by the question, just suggest it and ask if I want to make the change. 
@@ -39,6 +41,8 @@ The project is being refactored to follow the Model-View-Controller (MVC) archit
 1. **Use embedded expressions for format! macro**: Use embedded expressions for string formatting, e.g., `format!("Hello, {name}")` instead of `format!("Hello, {}", name)`. The latter is deprecated in Rust 2021 edition.
 
 1. **Measure before claiming victory**: Run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` before you say it's complete to ensure code quality and consistency at every change you make. I.e., do not have me stuck at the pre-commit stage and ask you to run these commands again and again.
+
+1. **No mod.rs files**: Do not create `mod.rs` files. Instead, use the file name as the module name directly. For example, if you have a file named `commands.rs`, it should be declared as `pub mod commands;` in the parent module.
 
 ## Technical Difficulties
 

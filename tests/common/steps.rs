@@ -24,6 +24,11 @@ async fn i_am_in_normal_mode(world: &mut BluelineWorld) {
     world.mode = Mode::Normal;
 }
 
+#[given("I am in insert mode")]
+async fn given_i_am_in_insert_mode(world: &mut BluelineWorld) {
+    world.mode = Mode::Insert;
+}
+
 // Buffer setup steps
 #[given(regex = r"^the request buffer contains:$")]
 async fn request_buffer_contains(world: &mut BluelineWorld, step: &Step) {
@@ -332,8 +337,17 @@ async fn line_numbers_visible(_world: &mut BluelineWorld) {
 
 #[then("I see detailed request information")]
 async fn i_see_detailed_request_info(world: &mut BluelineWorld) {
-    assert!(world.cli_flags.contains(&"-v".to_string()));
-    // In a real implementation, this would verify verbose output
+    // Verify verbose flag is set
+    assert!(
+        world.cli_flags.contains(&"-v".to_string()),
+        "Expected -v flag to be set for verbose mode"
+    );
+
+    // Verify we have executed a request
+    assert!(
+        world.last_request.is_some(),
+        "Expected a request to have been executed"
+    );
 }
 
 #[then("I see response headers")]

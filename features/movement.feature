@@ -1,0 +1,64 @@
+Feature: Cursor Movement Commands
+  As a developer using blueline
+  I want to navigate through HTTP request text using vim-style cursor movement
+  So that I can efficiently position my cursor for editing
+
+  Background:
+    Given blueline is running with default profile
+    And I am in the request pane
+    And I am in normal mode
+
+  Scenario: Basic vim navigation
+    Given the request buffer contains:
+      """
+      POST /api/users
+
+      {"name": "John Doe"}
+      """
+    And I am in normal mode
+    When I press "h"
+    Then the cursor moves left
+    When I press "l"
+    Then the cursor moves right
+    When I press "j"
+    Then the cursor moves down
+    When I press "k"
+    Then the cursor moves up
+    And I am still in normal mode
+
+  Scenario: Line navigation
+    Given the request buffer contains:
+      """
+      POST /api/users
+
+      {"name": "John Doe"}
+      """
+    And I am in normal mode
+    When I press "0"
+    Then the cursor moves to the beginning of the line
+    And I am still in normal mode
+    When I press "$"
+    Then the cursor moves to the end of the line
+    And I am still in normal mode
+
+  Scenario: Switch between panes
+    Given there is a response in the response pane
+    And I am in normal mode
+    When I press "Ctrl+W"
+    And I press "j"
+    Then I am in the response pane
+    And I am in normal mode
+    When I press "Ctrl+W"
+    And I press "k"
+    Then I am in the request pane
+    And I am in normal mode
+
+  Scenario: Navigate response content
+    Given I have executed a request that returned a large JSON response from:
+      """
+      GET /api/users
+      """
+    And I am in the response pane
+    When I use vim navigation keys
+    Then I can scroll through the response content
+    And line numbers are visible

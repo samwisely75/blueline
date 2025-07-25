@@ -29,11 +29,15 @@ pub mod controller;
 
 // Command modules
 pub mod commands {
+    pub mod command_line;
     pub mod editing;
+    pub mod mode;
     pub mod movement;
 
     // Re-export commonly used commands
+    pub use command_line::*;
     pub use editing::*;
+    pub use mode::*;
     pub use movement::*;
 }
 
