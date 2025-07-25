@@ -1,29 +1,11 @@
 ---
-applyTo: '**'
----
 Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.
 
 # Project Context
 
-This project is a Rust-based HTTP client named `httpc`, previously known as `webly`. It is designed to be lightweight and profile-based, allowing users to manage HTTP requests easily. The project has been recently renamed and restructured, with a focus on improving usability and functionality.
+This project is a Rust-based HTTP client  named `blueline`, previously known as `httpc` and `webly`. It is designed to be lightweight and profile-based, allowing users to manage HTTP requests easily. The project has been recently renamed and restructured, with a focus on REPL.
 
-## REPL mode
-
-### Request / Response Pane
-
-The project includes a REPL (Read-Eval-Print Loop) mode that allows users to interactively test HTTP requests. This mode is designed to be user-friendly and supports various HTTP methods, headers, and body content.
-
-Since we are using terminal UI, I will split the terminal to two logical panes: Request and Response. The Request pane is where users can type their HTTP requests, and the Response pane displays the results of those requests. The Like the vi's multiple windows mode, user can switch between the Request and Response panes using keyboard shortcuts and navigate though the content by moving the cursor. 
-
-The Request pane supports syntax highlighting for HTTP methods, headers, and body content, making it easier to read and write requests.
-
-Both panes support basic vi commands (discussed below) for navigation and editing, allowing users to use familiar commands to interact with the REPL. The Response pane is for read-only; users cannot edit the output.
-
-Think the app has two buffers simultaneously.
-
-### Vi commands
-
-The app supports Vi-style commands for navigation and editing within the REPL mode. Users can use familiar Vi commands to move around, edit their input, and execute HTTP requests.
+The goal of this project is to mimic vi as closely as possible with providing a easy way to interact with HTTP endpoints in a terminal environment. 
 
 # Coding Guidelines
 

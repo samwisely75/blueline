@@ -2,8 +2,6 @@
 //!
 //! This module defines the command pattern infrastructure for handling vim-style key events.
 //! It includes both legacy Command trait and new CommandV2 trait with relevancy filtering.
-
-#![allow(dead_code)] // Allow unused code during refactoring
 //!
 //! ## Design Principles
 //!

@@ -1,14 +1,15 @@
 mod cmd_args;
-mod old_repl;
 mod repl;
 
 use std::env;
 
 use bluenote::{
-    get_blank_profile, HttpConnectionProfile, IniProfileStore, Result, DEFAULT_INI_FILE_PATH,
+    get_blank_profile, HttpConnectionProfile, IniProfile, IniProfileStore, Result,
+    DEFAULT_INI_FILE_PATH,
 };
 use cmd_args::CommandLineArgs;
 // use old_repl::VimRepl;
+use repl::controller::ReplController;
 use tracing_subscriber::{fmt::time::ChronoLocal, EnvFilter};
 
 // tokio is primarily for async I/O operations in the bluenote HTTP client
@@ -52,12 +53,18 @@ async fn main() -> Result<()> {
 
     tracing::debug!("INI profile: {:?}", profile);
 
-    // run the new REPL
-    repl::run_new_repl(profile, cmd_args.verbose()).await
+    // run the REPL
+    run_repl(profile, cmd_args.verbose()).await
 
     //    // Use the existing REPL (default)
     //    let mut repl = VimRepl::new(profile, cmd_args.verbose())?;
     //    repl.run().await
+}
+
+/// Create and run the MVC-based REPL
+async fn run_repl(profile: IniProfile, verbose: bool) -> Result<()> {
+    let mut controller = ReplController::new(profile, verbose)?;
+    controller.run().await
 }
 
 fn init_tracing_subscriber() {

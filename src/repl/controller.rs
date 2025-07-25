@@ -8,9 +8,6 @@
 //!
 //! ```text
 //! ┌─────────────────────┐
-
-#![allow(dead_code)] // Allow unused code during refactoring
-#![allow(clippy::type_complexity)] // Allow complex types during refactoring
 //! │   ReplController    │
 //! │                     │
 //! │  ┌───────────────┐  │    ┌─────────────┐
@@ -48,6 +45,9 @@ use super::{
     view::{create_default_view_manager, ViewManager},
 };
 
+/// Type alias for command registry to reduce complexity
+type CommandRegistry = Vec<Box<dyn Command>>;
+
 /// Main controller that orchestrates the REPL application.
 ///
 /// This is the central coordinator that:
@@ -58,7 +58,7 @@ use super::{
 pub struct ReplController {
     state: AppState,
     view_manager: ViewManager,
-    commands: Vec<Box<dyn Command>>,
+    commands: CommandRegistry,
     client: HttpClient,
     profile: IniProfile,
 }

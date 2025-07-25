@@ -2,9 +2,6 @@
 //!
 //! This module contains all data structures for the REPL including buffers,
 //! application state, and enums for modes and configuration.
-
-#![allow(dead_code)] // Allow unused code during refactoring
-#![allow(clippy::needless_lifetimes)] // Allow explicit lifetimes during refactoring
 //!
 //! ## Design Principles
 //!
@@ -332,7 +329,7 @@ pub enum CurrentBuffer<'a> {
     Response(&'a ResponseBuffer),
 }
 
-impl<'a> CurrentBuffer<'a> {
+impl CurrentBuffer<'_> {
     pub fn cursor_line(&self) -> usize {
         match self {
             CurrentBuffer::Request(buf) => buf.cursor_line,

@@ -38,17 +38,12 @@ pub mod commands {
 }
 
 pub mod model;
-pub mod new_repl;
 pub mod view;
-
-#[cfg(test)]
-pub mod testing;
 
 // Re-export main types for convenience
 pub use command::Command;
 pub use controller::ReplController;
 pub use model::{AppState, RequestBuffer, ResponseBuffer};
-pub use new_repl::run_new_repl;
 pub use view::{RenderObserver, ViewManager};
 
 // Legacy types for compatibility during transition
