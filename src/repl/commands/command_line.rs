@@ -97,6 +97,23 @@ impl Command for ExecuteCommandCommand {
                     state.execute_request_flag = true;
                     state.status_message = "Executing request...".to_string();
                 }
+                "r" | "response" => {
+                    // Toggle response pane visibility
+                    if state.response_buffer.is_some() {
+                        // Response exists - toggle visibility
+                        state.response_pane_visible = !state.response_pane_visible;
+                        if state.response_pane_visible {
+                            state.status_message = "Response pane shown".to_string();
+                        } else {
+                            state.current_pane = Pane::Request; // Switch to request pane when hiding response
+                            state.status_message = "Response pane hidden".to_string();
+                        }
+                    } else {
+                        // No response buffer exists - cannot show empty response
+                        state.status_message =
+                            "No response to show. Execute a request first.".to_string();
+                    }
+                }
                 "" => {
                     // Empty command, just exit command mode
                     state.status_message = "".to_string();
@@ -347,6 +364,70 @@ mod tests {
         assert!(result);
         assert_eq!(state.mode, EditorMode::Normal);
         assert_eq!(state.status_message, "");
+    }
+
+    #[test]
+    fn execute_r_command_should_toggle_response_pane_visibility() {
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Command;
+        state.set_response("Test response".to_string());
+        state.command_buffer = "r".to_string();
+        assert!(state.response_pane_visible); // Should be visible after setting response
+
+        let command = ExecuteCommandCommand;
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        // First toggle - hide response pane
+        let result = command.process(event, &mut state).unwrap();
+        assert!(result);
+        assert!(!state.response_pane_visible);
+        assert_eq!(state.current_pane, Pane::Request);
+        assert_eq!(state.status_message, "Response pane hidden");
+        assert_eq!(state.mode, EditorMode::Normal);
+
+        // Second toggle - show response pane again
+        state.mode = EditorMode::Command;
+        state.command_buffer = "r".to_string();
+        let result = command.process(event, &mut state).unwrap();
+        assert!(result);
+        assert!(state.response_pane_visible);
+        assert_eq!(state.status_message, "Response pane shown");
+        assert_eq!(state.mode, EditorMode::Normal);
+    }
+
+    #[test]
+    fn execute_response_command_should_work_like_r() {
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Command;
+        state.set_response("Test response".to_string());
+        state.command_buffer = "response".to_string();
+
+        let command = ExecuteCommandCommand;
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let result = command.process(event, &mut state).unwrap();
+        assert!(result);
+        assert!(!state.response_pane_visible);
+        assert_eq!(state.status_message, "Response pane hidden");
+    }
+
+    #[test]
+    fn execute_r_command_should_show_error_when_no_response() {
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Command;
+        state.command_buffer = "r".to_string();
+        // No response buffer set
+
+        let command = ExecuteCommandCommand;
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let result = command.process(event, &mut state).unwrap();
+        assert!(result);
+        assert_eq!(
+            state.status_message,
+            "No response to show. Execute a request first."
+        );
+        assert_eq!(state.mode, EditorMode::Normal);
     }
 
     #[test]

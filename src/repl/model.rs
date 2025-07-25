@@ -305,6 +305,7 @@ pub struct AppState {
     // Buffers
     pub request_buffer: RequestBuffer,
     pub response_buffer: Option<ResponseBuffer>,
+    pub response_pane_visible: bool, // Controls whether response pane is shown even when response_buffer exists
 
     // UI state
     pub terminal_size: (u16, u16),
@@ -348,6 +349,7 @@ impl AppState {
             visual_selection: None,
             request_buffer: RequestBuffer::new(),
             response_buffer: None,
+            response_pane_visible: true, // Default to visible when response exists
             terminal_size,
             request_pane_height: initial_request_pane_height,
             status_message: "-- INSERT --".to_string(),
@@ -366,10 +368,10 @@ impl AppState {
     }
 
     /// Get the height of the request pane in lines
-    /// Uses full available space when there's no response buffer
+    /// Uses full available space when there's no response buffer or when response pane is hidden
     pub fn get_request_pane_height(&self) -> usize {
-        // Use full available space when there's no response buffer
-        if self.response_buffer.is_none() {
+        // Use full available space when there's no response buffer or response pane is hidden
+        if self.response_buffer.is_none() || !self.response_pane_visible {
             let total_height = self.terminal_size.1 as usize;
             return total_height.saturating_sub(2); // Minus separator and status
         }
@@ -378,10 +380,10 @@ impl AppState {
     }
 
     /// Get the height of the response pane in lines
-    /// Returns 0 when there's no response to hide the pane initially
+    /// Returns 0 when there's no response or when response pane is hidden
     pub fn get_response_pane_height(&self) -> usize {
-        // Hide response pane when there's no response buffer
-        if self.response_buffer.is_none() {
+        // Hide response pane when there's no response buffer or when visibility is disabled
+        if self.response_buffer.is_none() || !self.response_pane_visible {
             return 0;
         }
 
@@ -411,6 +413,7 @@ impl AppState {
     /// Set response content and create response buffer
     pub fn set_response(&mut self, content: String) {
         self.response_buffer = Some(ResponseBuffer::new(content));
+        self.response_pane_visible = true; // Ensure response pane is visible when setting new response
     }
 
     /// Clear response buffer
@@ -1443,6 +1446,59 @@ mod tests {
         state.clear_response();
 
         assert!(state.response_buffer.is_none());
+    }
+
+    #[test]
+    fn app_state_default_response_pane_visibility_should_be_true() {
+        let state = AppState::new((80, 24), false);
+        assert!(state.response_pane_visible);
+    }
+
+    #[test]
+    fn app_state_toggle_response_pane_visibility_should_change_state() {
+        let mut state = AppState::new((80, 24), false);
+
+        // Default should be visible
+        assert!(state.response_pane_visible);
+
+        // Toggle to hidden
+        state.response_pane_visible = false;
+        assert!(!state.response_pane_visible);
+
+        // Toggle back to visible
+        state.response_pane_visible = true;
+        assert!(state.response_pane_visible);
+    }
+
+    #[test]
+    fn get_response_pane_height_should_return_zero_when_hidden() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test response".to_string()); // Need response buffer first
+        state.response_pane_visible = false; // Then hide it
+
+        assert_eq!(state.get_response_pane_height(), 0);
+    }
+
+    #[test]
+    fn get_request_pane_height_should_adjust_when_response_pane_hidden() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test response".to_string()); // Need response buffer first
+        state.response_pane_visible = false; // Then hide it
+
+        // When response pane is hidden, request pane should get full height minus separators
+        // Total height 24 - 2 (separator + status) = 22
+        assert_eq!(state.get_request_pane_height(), 22);
+    }
+
+    #[test]
+    fn get_response_pane_height_should_return_calculated_height_when_visible() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test response".to_string()); // This sets response_pane_visible = true
+
+        // Total content height = 24 - 2 = 22
+        // Request pane height = 11 (from initial calculation)
+        // Response pane height = 22 - 11 = 11
+        assert_eq!(state.get_response_pane_height(), 11);
     }
 
     #[test]
