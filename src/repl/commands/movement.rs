@@ -553,10 +553,12 @@ impl ScrollFullPageDownCommand {
 
 impl Command for ScrollFullPageDownCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode and for Ctrl+F
-        matches!(state.mode, EditorMode::Normal)
+        // Relevant in Normal mode for Ctrl+F, and in both Normal and Insert modes for PageDown
+        (matches!(state.mode, EditorMode::Normal)
             && event.modifiers.contains(KeyModifiers::CONTROL)
-            && matches!(event.code, KeyCode::Char('f'))
+            && matches!(event.code, KeyCode::Char('f')))
+            || (matches!(state.mode, EditorMode::Normal | EditorMode::Insert)
+                && matches!(event.code, KeyCode::PageDown))
     }
 
     fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
@@ -594,10 +596,12 @@ impl ScrollFullPageUpCommand {
 
 impl Command for ScrollFullPageUpCommand {
     fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode and for Ctrl+B
-        matches!(state.mode, EditorMode::Normal)
+        // Relevant in Normal mode for Ctrl+B, and in both Normal and Insert modes for PageUp
+        (matches!(state.mode, EditorMode::Normal)
             && event.modifiers.contains(KeyModifiers::CONTROL)
-            && matches!(event.code, KeyCode::Char('b'))
+            && matches!(event.code, KeyCode::Char('b')))
+            || (matches!(state.mode, EditorMode::Normal | EditorMode::Insert)
+                && matches!(event.code, KeyCode::PageUp))
     }
 
     fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
@@ -1333,5 +1337,79 @@ mod tests {
         // Should remain at top since we can't scroll up further
         assert_eq!(state.request_buffer.scroll_offset, 0);
         assert_eq!(state.request_buffer.cursor_line, 3); // Cursor should remain unchanged
+    }
+
+    #[test]
+    fn scroll_full_page_down_command_should_be_relevant_for_page_down_in_normal_mode() {
+        let command = ScrollFullPageDownCommand::new();
+        let state = AppState::new((80, 24), true);
+        let event = KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_full_page_down_command_should_be_relevant_for_page_down_in_insert_mode() {
+        let command = ScrollFullPageDownCommand::new();
+        let mut state = AppState::new((80, 24), true);
+        state.mode = EditorMode::Insert;
+        let event = KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_full_page_down_command_should_process_page_down_key() {
+        let command = ScrollFullPageDownCommand::new();
+        let mut state = AppState::new((80, 24), true);
+        // Create enough content to allow scrolling
+        state.request_buffer.lines = (0..50).map(|i| format!("line {}", i)).collect();
+        state.request_buffer.cursor_line = 5;
+        state.request_buffer.scroll_offset = 0;
+
+        let event = KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE);
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        let page_size = state.get_request_pane_height();
+        assert_eq!(state.request_buffer.scroll_offset, page_size);
+        assert_eq!(state.request_buffer.cursor_line, page_size);
+    }
+
+    #[test]
+    fn scroll_full_page_up_command_should_be_relevant_for_page_up_in_normal_mode() {
+        let command = ScrollFullPageUpCommand::new();
+        let state = AppState::new((80, 24), true);
+        let event = KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_full_page_up_command_should_be_relevant_for_page_up_in_insert_mode() {
+        let command = ScrollFullPageUpCommand::new();
+        let mut state = AppState::new((80, 24), true);
+        state.mode = EditorMode::Insert;
+        let event = KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_full_page_up_command_should_process_page_up_key() {
+        let command = ScrollFullPageUpCommand::new();
+        let mut state = AppState::new((80, 24), true);
+        // Create enough content to allow scrolling and set initial scroll position
+        state.request_buffer.lines = (0..50).map(|i| format!("line {}", i)).collect();
+        let page_size = state.get_request_pane_height();
+        state.request_buffer.cursor_line = page_size + 5;
+        state.request_buffer.scroll_offset = page_size; // Start scrolled down one page
+
+        let event = KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE);
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        assert_eq!(state.request_buffer.scroll_offset, 0); // Should scroll back to top
+        assert_eq!(state.request_buffer.cursor_line, 0); // Cursor moves to top of visible area
     }
 }

@@ -206,3 +206,85 @@ Feature: Cursor Movement Commands
     Then the cursor moves up by a full page
     And the scroll offset is adjusted accordingly
     And I am still in normal mode
+
+  Scenario: Scroll down with Page Down key
+    Given the request buffer contains:
+      """
+      {"line": 1}
+      {"line": 2}
+      {"line": 3}
+      {"line": 4}
+      {"line": 5}
+      {"line": 6}
+      {"line": 7}
+      {"line": 8}
+      {"line": 9}
+      {"line": 10}
+      {"line": 11}
+      {"line": 12}
+      {"line": 13}
+      {"line": 14}
+      {"line": 15}
+      {"line": 16}
+      {"line": 17}
+      {"line": 18}
+      {"line": 19}
+      {"line": 20}
+      {"line": 21}
+      {"line": 22}
+      {"line": 23}
+      {"line": 24}
+      {"line": 25}
+      {"line": 26}
+      {"line": 27}
+      {"line": 28}
+      {"line": 29}
+      {"line": 30}
+      """
+    And I am in normal mode
+    And the cursor is at line 5
+    When I press "Page Down"
+    Then the cursor moves down by a full page
+    And the scroll offset is adjusted accordingly
+    And I am still in normal mode
+
+  Scenario: Scroll up with Page Up key
+    Given the request buffer contains:
+      """
+      {"line": 1}
+      {"line": 2}
+      {"line": 3}
+      {"line": 4}
+      {"line": 5}
+      {"line": 6}
+      {"line": 7}
+      {"line": 8}
+      {"line": 9}
+      {"line": 10}
+      {"line": 11}
+      {"line": 12}
+      {"line": 13}
+      {"line": 14}
+      {"line": 15}
+      {"line": 16}
+      {"line": 17}
+      {"line": 18}
+      {"line": 19}
+      {"line": 20}
+      {"line": 21}
+      {"line": 22}
+      {"line": 23}
+      {"line": 24}
+      {"line": 25}
+      {"line": 26}
+      {"line": 27}
+      {"line": 28}
+      {"line": 29}
+      {"line": 30}
+      """
+    And I am in normal mode
+    And the cursor is at line 25
+    When I press "Page Up"
+    Then the cursor moves up by a full page
+    And the scroll offset is adjusted accordingly
+    And I am still in normal mode
