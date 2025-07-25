@@ -68,6 +68,31 @@ impl Command for SwitchPaneCommand {
     }
 }
 
+/// Command for expanding response pane (Ctrl+J)
+pub struct ExpandResponsePaneCommand;
+
+impl ExpandResponsePaneCommand {}
+
+impl Command for ExpandResponsePaneCommand {
+    fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
+        // Only relevant in Normal mode for Ctrl+J
+        matches!(state.mode, EditorMode::Normal)
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && matches!(event.code, KeyCode::Char('j'))
+            && state.response_buffer.is_some() // Only when response pane exists
+    }
+
+    fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Expand response pane by shrinking request pane
+        state.expand_response_pane();
+        Ok(true)
+    }
+
+    fn name(&self) -> &'static str {
+        "ExpandResponsePane"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,5 +195,67 @@ mod tests {
         assert!(result);
         assert!(!state.pending_ctrl_w);
         assert_eq!(state.status_message, "Invalid window command");
+    }
+
+    #[test]
+    fn expand_response_pane_command_should_be_relevant_for_ctrl_j_with_response() {
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Normal;
+        state.set_response("Test response".to_string());
+        let command = ExpandResponsePaneCommand;
+        let event = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL);
+
+        assert!(command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn expand_response_pane_command_should_not_be_relevant_without_response() {
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Normal;
+        let command = ExpandResponsePaneCommand;
+        let event = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL);
+
+        assert!(!command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn expand_response_pane_command_should_not_be_relevant_in_insert_mode() {
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        state.set_response("Test response".to_string());
+        let command = ExpandResponsePaneCommand;
+        let event = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL);
+
+        assert!(!command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn expand_response_pane_command_should_expand_response_pane() {
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Normal;
+        state.set_response("Test response".to_string());
+        state.request_pane_height = 10;
+        let command = ExpandResponsePaneCommand;
+        let event = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL);
+
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        assert_eq!(state.request_pane_height, 9); // Should decrease by 1
+    }
+
+    #[test]
+    fn expand_response_pane_command_should_respect_minimum_request_height() {
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Normal;
+        state.set_response("Test response".to_string());
+        state.request_pane_height = 3; // At minimum
+        let command = ExpandResponsePaneCommand;
+        let event = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL);
+
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        assert_eq!(state.request_pane_height, 3); // Should not go below minimum
     }
 }

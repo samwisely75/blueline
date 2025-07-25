@@ -418,6 +418,28 @@ impl AppState {
         self.response_buffer = None;
     }
 
+    /// Expand response pane by shrinking request pane by one line
+    /// Minimum request pane height is 3 lines
+    pub fn expand_response_pane(&mut self) {
+        const MIN_REQUEST_HEIGHT: usize = 3;
+
+        if self.request_pane_height > MIN_REQUEST_HEIGHT {
+            self.request_pane_height = (self.request_pane_height - 1).max(MIN_REQUEST_HEIGHT);
+        }
+    }
+
+    /// Shrink response pane by expanding request pane by one line  
+    /// Minimum response pane height is 3 lines
+    pub fn shrink_response_pane(&mut self) {
+        const MIN_RESPONSE_HEIGHT: usize = 3;
+        let total_content_height = self.terminal_size.1 as usize - 2; // Minus separator and status line
+        let max_request_height = total_content_height.saturating_sub(MIN_RESPONSE_HEIGHT);
+
+        if self.request_pane_height < max_request_height {
+            self.request_pane_height = (self.request_pane_height + 1).min(max_request_height);
+        }
+    }
+
     /// Check if there's an active response
     pub fn has_response(&self) -> bool {
         self.response_buffer.is_some()
@@ -1479,6 +1501,48 @@ mod tests {
 
         let debug_str = format!("{:?}", selection);
         assert!(debug_str.contains("VisualSelection"));
+    }
+
+    #[test]
+    fn app_state_expand_response_pane_should_shrink_request_pane() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_pane_height = 10;
+
+        state.expand_response_pane();
+
+        assert_eq!(state.request_pane_height, 9);
+    }
+
+    #[test]
+    fn app_state_expand_response_pane_should_respect_minimum_request_height() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_pane_height = 3; // At minimum
+
+        state.expand_response_pane();
+
+        assert_eq!(state.request_pane_height, 3); // Should not go below 3
+    }
+
+    #[test]
+    fn app_state_shrink_response_pane_should_expand_request_pane() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_pane_height = 10;
+
+        state.shrink_response_pane();
+
+        assert_eq!(state.request_pane_height, 11);
+    }
+
+    #[test]
+    fn app_state_shrink_response_pane_should_respect_minimum_response_height() {
+        let mut state = AppState::new((80, 24), false);
+        // Terminal height 24 - 2 (status/separator) = 22 total content
+        // Max request height = 22 - 3 (min response) = 19
+        state.request_pane_height = 19; // At maximum
+
+        state.shrink_response_pane();
+
+        assert_eq!(state.request_pane_height, 19); // Should not go above max
     }
 
     #[test]

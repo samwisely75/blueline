@@ -5,6 +5,11 @@
 [x] src/repl/command.rs can be renamed as commands.rs and we can then migrate mod declaration from repl.rs to this.
 [x] integration tests must incorporate the check for the screen refresh. This could be done by a mock framework that hooks the invocation of a refresh method and maintain/check its call count.
 [x] SwitchPaneCommand in the movement.rs must be pushed out to window.rs.
+[x] Implement `Ctrl + j` to expand the response pane for one line. It goes up to the request pane shrinks to three lines.
+[] Implement `Ctrl + k` to shrink the response pane for one line. It goes down to the response pane shrinks to three lines.
+[] Implement `Ctrl + m` to maximize the current pane.
+[] Implement `Ctrl + n` to minimize the current pane.
+[] Implement `Ctrl + o` to show/hide the response pane.
 [] Implement `gg` to go to the top of the current pane.
 [] Implement `G` to go to the bottom of the current pane.
 [] Implement `Shift + a` to append text to the end of the current line in the request buffer.
