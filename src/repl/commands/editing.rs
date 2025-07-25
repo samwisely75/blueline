@@ -21,7 +21,7 @@ impl EnterInsertModeCommand {
 }
 
 impl Command for EnterInsertModeCommand {
-    fn is_relevant(&self, state: &AppState) -> bool {
+    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
         // Only relevant in Normal mode, Request pane
         matches!(state.mode, EditorMode::Normal) && state.current_pane == Pane::Request
     }
@@ -78,7 +78,7 @@ impl ExitInsertModeCommand {
 }
 
 impl Command for ExitInsertModeCommand {
-    fn is_relevant(&self, state: &AppState) -> bool {
+    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
         // Only relevant in Insert mode
         matches!(state.mode, EditorMode::Insert)
     }
@@ -108,7 +108,7 @@ impl InsertCharCommand {
 }
 
 impl Command for InsertCharCommand {
-    fn is_relevant(&self, state: &AppState) -> bool {
+    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
         // Only relevant in Insert mode, Request pane
         matches!(state.mode, EditorMode::Insert) && state.current_pane == Pane::Request
     }
@@ -149,7 +149,7 @@ impl InsertNewLineCommand {
 }
 
 impl Command for InsertNewLineCommand {
-    fn is_relevant(&self, state: &AppState) -> bool {
+    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
         // Only relevant in Insert mode, Request pane
         matches!(state.mode, EditorMode::Insert) && state.current_pane == Pane::Request
     }
@@ -200,7 +200,7 @@ impl DeleteCharCommand {
 }
 
 impl Command for DeleteCharCommand {
-    fn is_relevant(&self, state: &AppState) -> bool {
+    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
         // Only relevant in Insert mode, Request pane
         matches!(state.mode, EditorMode::Insert) && state.current_pane == Pane::Request
     }
@@ -252,7 +252,7 @@ impl EnterCommandModeCommand {
 }
 
 impl Command for EnterCommandModeCommand {
-    fn is_relevant(&self, state: &AppState) -> bool {
+    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
         // Only relevant in Normal mode
         matches!(state.mode, EditorMode::Normal)
     }
@@ -283,7 +283,7 @@ impl CommandModeInputCommand {
 }
 
 impl Command for CommandModeInputCommand {
-    fn is_relevant(&self, state: &AppState) -> bool {
+    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
         // Only relevant in Command mode
         matches!(state.mode, EditorMode::Command)
     }
@@ -327,7 +327,7 @@ impl ExecuteCommandCommand {
 }
 
 impl Command for ExecuteCommandCommand {
-    fn is_relevant(&self, state: &AppState) -> bool {
+    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
         // Only relevant in Command mode
         matches!(state.mode, EditorMode::Command)
     }
@@ -339,8 +339,24 @@ impl Command for ExecuteCommandCommand {
             // Handle basic vim commands
             match command {
                 "q" | "quit" => {
-                    // TODO: Set quit flag or exit mechanism
-                    state.status_message = "Use Ctrl+C to quit".to_string();
+                    match state.current_pane {
+                        Pane::Request => {
+                            // In Request pane, quit the application
+                            state.should_quit = true;
+                            state.status_message = "Goodbye!".to_string();
+                        }
+                        Pane::Response => {
+                            // In Response pane, close the response and maximize request
+                            state.response_buffer = None;
+                            state.current_pane = Pane::Request;
+                            state.status_message = "Response pane closed".to_string();
+                        }
+                    }
+                }
+                "q!" | "quit!" => {
+                    // Force quit the application regardless of pane
+                    state.should_quit = true;
+                    state.status_message = "Goodbye!".to_string();
                 }
                 "w" | "write" => {
                     // TODO: Save functionality
@@ -349,6 +365,11 @@ impl Command for ExecuteCommandCommand {
                 "wq" => {
                     // TODO: Save and quit
                     state.status_message = "Save and quit not implemented yet".to_string();
+                }
+                "x" | "execute" => {
+                    // Request execution - set a flag to trigger async execution
+                    state.execute_request_flag = true;
+                    state.status_message = "Executing request...".to_string();
                 }
                 "" => {
                     // Empty command, just exit command mode
@@ -383,7 +404,7 @@ impl CancelCommandModeCommand {
 }
 
 impl Command for CancelCommandModeCommand {
-    fn is_relevant(&self, state: &AppState) -> bool {
+    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
         // Only relevant in Command mode
         matches!(state.mode, EditorMode::Command)
     }
@@ -402,5 +423,128 @@ impl Command for CancelCommandModeCommand {
 
     fn name(&self) -> &'static str {
         "CancelCommandMode"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repl::model::{AppState, ResponseBuffer};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    #[test]
+    fn execute_q_command_should_quit_from_request_pane() {
+        // Create a test state in Request pane
+        let mut state = AppState::new((80, 24), false);
+        state.mode = EditorMode::Command;
+        state.current_pane = Pane::Request;
+        state.command_buffer = "q".to_string();
+
+        let command = ExecuteCommandCommand::new();
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        // Execute the command
+        let result = command.process(event, &mut state).unwrap();
+
+        // Should handle the event and set quit flag
+        assert!(result);
+        assert!(state.should_quit);
+        assert_eq!(state.mode, EditorMode::Normal);
+        assert!(state.command_buffer.is_empty());
+        assert_eq!(state.status_message, "Goodbye!");
+    }
+
+    #[test]
+    fn execute_q_command_should_close_response_pane_from_response_pane() {
+        // Create a test state with response buffer in Response pane
+        let mut state = AppState::new((80, 24), false);
+        state.mode = EditorMode::Command;
+        state.current_pane = Pane::Response;
+        state.command_buffer = "q".to_string();
+
+        // Add a response buffer
+        let response_content = "HTTP/1.1 200 OK\nContent-Type: application/json".to_string();
+        let response_buffer = ResponseBuffer::new(response_content);
+        state.response_buffer = Some(response_buffer);
+
+        let command = ExecuteCommandCommand::new();
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        // Execute the command
+        let result = command.process(event, &mut state).unwrap();
+
+        // Should handle the event, close response pane, and switch to Request pane
+        assert!(result);
+        assert!(!state.should_quit); // Should not quit, just close response
+        assert!(state.response_buffer.is_none()); // Response buffer should be cleared
+        assert_eq!(state.current_pane, Pane::Request); // Should switch to Request pane
+        assert_eq!(state.mode, EditorMode::Normal);
+        assert!(state.command_buffer.is_empty());
+        assert_eq!(state.status_message, "Response pane closed");
+    }
+
+    #[test]
+    fn execute_q_force_command_should_always_quit() {
+        // Test from Request pane
+        let mut state = AppState::new((80, 24), false);
+        state.mode = EditorMode::Command;
+        state.current_pane = Pane::Request;
+        state.command_buffer = "q!".to_string();
+
+        let command = ExecuteCommandCommand::new();
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let result = command.process(event, &mut state).unwrap();
+        assert!(result);
+        assert!(state.should_quit);
+
+        // Test from Response pane
+        let mut state = AppState::new((80, 24), false);
+        state.mode = EditorMode::Command;
+        state.current_pane = Pane::Response;
+        state.command_buffer = "q!".to_string();
+
+        // Add a response buffer
+        let response_content = "HTTP/1.1 200 OK".to_string();
+        let response_buffer = ResponseBuffer::new(response_content);
+        state.response_buffer = Some(response_buffer);
+
+        let result = command.process(event, &mut state).unwrap();
+        assert!(result);
+        assert!(state.should_quit); // Should quit even from Response pane
+        assert!(state.response_buffer.is_some()); // Response buffer should remain
+    }
+
+    #[test]
+    fn execute_quit_command_should_work_like_q() {
+        // Test "quit" command works the same as "q"
+        let mut state = AppState::new((80, 24), false);
+        state.mode = EditorMode::Command;
+        state.current_pane = Pane::Request;
+        state.command_buffer = "quit".to_string();
+
+        let command = ExecuteCommandCommand::new();
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let result = command.process(event, &mut state).unwrap();
+        assert!(result);
+        assert!(state.should_quit);
+        assert_eq!(state.status_message, "Goodbye!");
+    }
+
+    #[test]
+    fn execute_unknown_command_should_show_error() {
+        let mut state = AppState::new((80, 24), false);
+        state.mode = EditorMode::Command;
+        state.command_buffer = "unknown".to_string();
+
+        let command = ExecuteCommandCommand::new();
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let result = command.process(event, &mut state).unwrap();
+        assert!(result);
+        assert!(!state.should_quit);
+        assert_eq!(state.status_message, "Unknown command: unknown");
+        assert_eq!(state.mode, EditorMode::Normal);
     }
 }

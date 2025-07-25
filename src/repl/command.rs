@@ -71,12 +71,12 @@ pub trait Command {
     /// Get a human-readable name for this command (for debugging/logging).
     fn name(&self) -> &'static str;
 
-    /// Check if this command is relevant for the current state.
+    /// Check if this command is relevant for the current state and event.
     ///
     /// This is an optimization to avoid unnecessary processing. The default
     /// implementation returns true (always try to process).
-    fn is_relevant(&self, state: &AppState) -> bool {
-        let _ = state; // Suppress unused parameter warning
+    fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
+        let _ = (state, event); // Suppress unused parameter warning
         true
     }
 }

@@ -22,6 +22,7 @@
 //! └─────────────────────┘    └─────────────┘
 //! ```
 
+use std::collections::HashMap;
 use std::io;
 
 use anyhow::Result;
@@ -31,7 +32,7 @@ use crossterm::{
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
 
-use bluenote::{HttpClient, IniProfile};
+use bluenote::{HttpClient, HttpRequestArgs, IniProfile, Url, UrlPath};
 
 use super::{
     command::{Command, CommandResult},
@@ -42,9 +43,40 @@ use super::{
         MoveCursorLeftCommand, MoveCursorLineEndCommand, MoveCursorLineStartCommand,
         MoveCursorRightCommand, MoveCursorUpCommand, SwitchPaneCommand,
     },
-    model::AppState,
+    model::{AppState, ResponseBuffer},
     view::{create_default_view_manager, ViewManager},
 };
+
+/// HTTP request arguments parsed from the request buffer
+#[derive(Debug)]
+struct BufferRequestArgs {
+    method: Option<String>,
+    url_path: Option<UrlPath>,
+    body: Option<String>,
+    headers: HashMap<String, String>,
+}
+
+/// Type alias for the result of parsing HTTP requests from text
+/// Returns (request_args, url_string) on success, or error message on failure
+type ParseRequestResult = Result<(BufferRequestArgs, String), String>;
+
+impl HttpRequestArgs for BufferRequestArgs {
+    fn method(&self) -> Option<&String> {
+        self.method.as_ref()
+    }
+
+    fn url_path(&self) -> Option<&UrlPath> {
+        self.url_path.as_ref()
+    }
+
+    fn body(&self) -> Option<&String> {
+        self.body.as_ref()
+    }
+
+    fn headers(&self) -> &HashMap<String, String> {
+        &self.headers
+    }
+}
 
 /// Type alias for command registry to reduce complexity
 type CommandRegistry = Vec<Box<dyn Command>>;
@@ -145,26 +177,42 @@ impl ReplController {
         // Try each command until one handles the event
         for command in &self.commands {
             // Use the unified Command trait (CommandV2 is auto-implemented via blanket impl)
-            if !command.is_relevant(&self.state) {
+            if !command.is_relevant(&self.state, &key) {
                 continue;
             }
 
             // Store state before processing to detect changes
             let old_request_content = self.state.request_buffer.get_text();
-            let old_cursor_line = self.state.request_buffer.cursor_line;
-            let old_cursor_col = self.state.request_buffer.cursor_col;
+            let old_request_cursor_line = self.state.request_buffer.cursor_line;
+            let old_request_cursor_col = self.state.request_buffer.cursor_col;
+            let old_response_cursor = self
+                .state
+                .response_buffer
+                .as_ref()
+                .map(|r| (r.cursor_line, r.cursor_col));
 
             let handled = command.process(key, &mut self.state)?;
             if handled {
                 // Detect what actually changed by comparing before/after state
                 let new_request_content = self.state.request_buffer.get_text();
-                let content_changed = old_request_content != new_request_content;
-                let cursor_moved = old_cursor_line != self.state.request_buffer.cursor_line
-                    || old_cursor_col != self.state.request_buffer.cursor_col;
+                let request_content_changed = old_request_content != new_request_content;
+                let request_cursor_moved = old_request_cursor_line
+                    != self.state.request_buffer.cursor_line
+                    || old_request_cursor_col != self.state.request_buffer.cursor_col;
+
+                let response_cursor_moved =
+                    match (&old_response_cursor, &self.state.response_buffer) {
+                        (Some((old_line, old_col)), Some(ref buffer)) => {
+                            *old_line != buffer.cursor_line || *old_col != buffer.cursor_col
+                        }
+                        _ => false,
+                    };
+
+                let cursor_moved = request_cursor_moved || response_cursor_moved;
 
                 command_results.push(CommandResult {
                     handled: true,
-                    content_changed,
+                    content_changed: request_content_changed,
                     cursor_moved,
                     mode_changed: false, // Will be detected by comparing old_mode
                     pane_changed: false, // Will be detected by comparing old_pane
@@ -185,6 +233,11 @@ impl ReplController {
             should_quit = true;
         }
 
+        // Check if quit was requested via command mode
+        if self.state.should_quit {
+            should_quit = true;
+        }
+
         // Determine what type of rendering is needed
         if any_handled {
             self.update_view_based_on_changes(
@@ -195,6 +248,14 @@ impl ReplController {
                 old_response_scroll,
                 old_request_pane_height,
             )?;
+        }
+
+        // Check if HTTP request execution was requested
+        if self.state.execute_request_flag {
+            self.state.execute_request_flag = false; // Reset flag
+            self.execute_http_request().await?;
+            // Re-render after HTTP request execution
+            self.view_manager.render_full(&self.state)?;
         }
 
         Ok(should_quit)
@@ -296,6 +357,173 @@ impl ReplController {
     pub fn state_mut(&mut self) -> &mut AppState {
         &mut self.state
     }
+
+    /// Parse HTTP request from the request buffer content
+    /// Returns (BufferRequestArgs, url_str) or error message
+    fn parse_request_from_buffer(&self) -> ParseRequestResult {
+        Self::parse_request_from_text(
+            &self.state.request_buffer.get_text(),
+            &self.state.session_headers,
+        )
+    }
+
+    /// Parse HTTP request from text content (static method for testing)
+    /// Returns (BufferRequestArgs, url_str) or error message
+    fn parse_request_from_text(
+        text: &str,
+        session_headers: &HashMap<String, String>,
+    ) -> ParseRequestResult {
+        let lines: Vec<&str> = text.lines().collect();
+
+        if lines.is_empty() || lines[0].trim().is_empty() {
+            return Err("No request to execute".to_string());
+        }
+
+        // Parse first line as method and URL
+        let parts: Vec<&str> = lines[0].split_whitespace().collect();
+        if parts.len() < 2 {
+            return Err("Invalid request format. Use: METHOD URL".to_string());
+        }
+
+        let method = parts[0].to_uppercase();
+        let url_str = parts[1].to_string();
+
+        // Parse URL
+        let url = Url::parse(&url_str);
+
+        // Skip empty line after URL if it exists, then rest becomes the body
+        let body_start_idx = if lines.len() > 1 && lines[1].trim().is_empty() {
+            2
+        } else {
+            1
+        };
+
+        let body = if lines.len() > body_start_idx {
+            Some(lines[body_start_idx..].join("\n"))
+        } else {
+            None
+        };
+
+        // Create request args
+        let request_args = BufferRequestArgs {
+            method: Some(method),
+            url_path: url.to_url_path().cloned(),
+            body,
+            headers: session_headers.clone(),
+        };
+
+        Ok((request_args, url_str))
+    }
+
+    /// Execute HTTP request from the request buffer content
+    async fn execute_http_request(&mut self) -> Result<()> {
+        let (request_args, url_str) = match self.parse_request_from_buffer() {
+            Ok(result) => result,
+            Err(error_message) => {
+                self.state.status_message = error_message;
+                return Ok(());
+            }
+        };
+
+        // Start timing the request
+        self.state.request_start_time = Some(std::time::Instant::now());
+
+        // Execute the request
+        match self.client.request(&request_args).await {
+            Ok(response) => {
+                // Calculate request duration
+                if let Some(start_time) = self.state.request_start_time.take() {
+                    self.state.last_request_duration =
+                        Some(start_time.elapsed().as_millis() as u64);
+                }
+
+                let status = response.status();
+                let body = response.body();
+
+                // Store the response status for display in status bar
+                self.state.last_response_status = Some(format!(
+                    "HTTP {} {}",
+                    status.as_u16(),
+                    status.canonical_reason().unwrap_or("")
+                ));
+
+                let mut response_text = String::new();
+
+                if self.state.verbose {
+                    // Add request information
+                    response_text.push_str(&format!(
+                        "Request: {} {}\n",
+                        request_args.method().unwrap_or(&"GET".to_string()),
+                        url_str
+                    ));
+
+                    // Add headers if any
+                    if !self.state.session_headers.is_empty() {
+                        response_text.push_str("Headers:\n");
+                        for (key, value) in &self.state.session_headers {
+                            response_text.push_str(&format!("  {}: {}\n", key, value));
+                        }
+                    }
+
+                    response_text.push('\n');
+
+                    // Add response status
+                    response_text.push_str(&format!(
+                        "Response: {} {}\n\n",
+                        status.as_u16(),
+                        status.canonical_reason().unwrap_or("")
+                    ));
+                }
+
+                if let Some(json) = response.json() {
+                    response_text.push_str(
+                        &serde_json::to_string_pretty(json)
+                            .unwrap_or_else(|_| "Invalid JSON".to_string()),
+                    );
+                } else if !body.is_empty() {
+                    // For very long response bodies, add line breaks to prevent display issues
+                    let processed_body = if body.lines().any(|line| line.len() > 1000) {
+                        // Break very long lines into chunks
+                        body.lines()
+                            .map(|line| {
+                                if line.len() > 1000 {
+                                    let mut chunks = Vec::new();
+                                    for chunk in line.as_bytes().chunks(1000) {
+                                        if let Ok(chunk_str) = std::str::from_utf8(chunk) {
+                                            chunks.push(chunk_str.to_string());
+                                        }
+                                    }
+                                    chunks.join("\n")
+                                } else {
+                                    line.to_string()
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    } else {
+                        body.to_string()
+                    };
+                    response_text.push_str(&processed_body);
+                }
+
+                self.state.response_buffer = Some(ResponseBuffer::new(response_text));
+
+                // Update status message
+                self.state.status_message = format!(
+                    "Request executed: {} {}",
+                    status.as_u16(),
+                    status.canonical_reason().unwrap_or("")
+                );
+            }
+            Err(err) => {
+                // Reset timing on error
+                self.state.request_start_time = None;
+                self.state.status_message = format!("Request failed: {}", err);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 // Trait extension to allow downcasting for CommandV2 check
@@ -314,5 +542,126 @@ impl<T: Command + 'static> AsAny for T {
 impl dyn Command {
     fn as_any(&self) -> &dyn std::any::Any {
         panic!("as_any not implemented for this Command type")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_parse_request_from_text_valid_get() {
+        let text = "GET https://api.example.com/users";
+        let headers = HashMap::new();
+
+        let result = ReplController::parse_request_from_text(text, &headers);
+        assert!(result.is_ok());
+
+        let (request_args, url_str) = result.unwrap();
+        assert_eq!(request_args.method(), Some(&"GET".to_string()));
+        assert_eq!(url_str, "https://api.example.com/users");
+        assert_eq!(request_args.body(), None);
+    }
+
+    #[test]
+    fn test_parse_request_from_text_with_body() {
+        let text = "POST https://api.example.com/users\n\n{\"name\": \"test\"}";
+        let headers = HashMap::new();
+
+        let result = ReplController::parse_request_from_text(text, &headers);
+        assert!(result.is_ok());
+
+        let (request_args, url_str) = result.unwrap();
+        assert_eq!(request_args.method(), Some(&"POST".to_string()));
+        assert_eq!(url_str, "https://api.example.com/users");
+        assert_eq!(
+            request_args.body(),
+            Some(&"{\"name\": \"test\"}".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_request_from_text_multiline_body() {
+        let text = "PUT https://api.example.com/users/1\n\n{\n  \"name\": \"test\",\n  \"email\": \"test@example.com\"\n}";
+        let headers = HashMap::new();
+
+        let result = ReplController::parse_request_from_text(text, &headers);
+        assert!(result.is_ok());
+
+        let (request_args, _) = result.unwrap();
+        let expected_body = "{\n  \"name\": \"test\",\n  \"email\": \"test@example.com\"\n}";
+        assert_eq!(request_args.body(), Some(&expected_body.to_string()));
+    }
+
+    #[test]
+    fn test_parse_request_from_text_empty() {
+        let text = "";
+        let headers = HashMap::new();
+
+        let result = ReplController::parse_request_from_text(text, &headers);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "No request to execute");
+    }
+
+    #[test]
+    fn test_parse_request_from_text_invalid_format() {
+        let text = "GET"; // Missing URL
+        let headers = HashMap::new();
+
+        let result = ReplController::parse_request_from_text(text, &headers);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Invalid request format. Use: METHOD URL"
+        );
+    }
+
+    #[test]
+    fn test_parse_request_from_text_method_case_insensitive() {
+        let text = "post https://api.example.com/users";
+        let headers = HashMap::new();
+
+        let result = ReplController::parse_request_from_text(text, &headers);
+        assert!(result.is_ok());
+
+        let (request_args, _) = result.unwrap();
+        assert_eq!(request_args.method(), Some(&"POST".to_string()));
+    }
+
+    #[test]
+    fn test_parse_request_from_text_with_session_headers() {
+        let text = "GET https://api.example.com/users";
+        let mut headers = HashMap::new();
+        headers.insert("Authorization".to_string(), "Bearer token123".to_string());
+        headers.insert("Content-Type".to_string(), "application/json".to_string());
+
+        let result = ReplController::parse_request_from_text(text, &headers);
+        assert!(result.is_ok());
+
+        let (request_args, _) = result.unwrap();
+        assert_eq!(
+            request_args.headers().get("Authorization"),
+            Some(&"Bearer token123".to_string())
+        );
+        assert_eq!(
+            request_args.headers().get("Content-Type"),
+            Some(&"application/json".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_request_from_text_body_without_empty_line() {
+        let text = "POST https://api.example.com/users\n{\"name\": \"test\"}";
+        let headers = HashMap::new();
+
+        let result = ReplController::parse_request_from_text(text, &headers);
+        assert!(result.is_ok());
+
+        let (request_args, _) = result.unwrap();
+        assert_eq!(
+            request_args.body(),
+            Some(&"{\"name\": \"test\"}".to_string())
+        );
     }
 }

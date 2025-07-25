@@ -209,6 +209,12 @@ pub struct AppState {
     pub request_start_time: Option<Instant>,
     pub last_request_duration: Option<u64>, // in milliseconds
 
+    // Request execution flag for async operations
+    pub execute_request_flag: bool,
+
+    // Application lifecycle
+    pub should_quit: bool,
+
     // Configuration
     pub verbose: bool,
 }
@@ -237,17 +243,32 @@ impl AppState {
             last_response_status: None,
             request_start_time: None,
             last_request_duration: None,
+            execute_request_flag: false,
+            should_quit: false,
             verbose,
         }
     }
 
     /// Get the height of the request pane in lines
+    /// Uses full available space when there's no response buffer
     pub fn get_request_pane_height(&self) -> usize {
+        // Use full available space when there's no response buffer
+        if self.response_buffer.is_none() {
+            let total_height = self.terminal_size.1 as usize;
+            return total_height.saturating_sub(2); // Minus separator and status
+        }
+
         self.request_pane_height
     }
 
     /// Get the height of the response pane in lines
+    /// Returns 0 when there's no response to hide the pane initially
     pub fn get_response_pane_height(&self) -> usize {
+        // Hide response pane when there's no response buffer
+        if self.response_buffer.is_none() {
+            return 0;
+        }
+
         let total_height = self.terminal_size.1 as usize;
         let total_content_height = total_height.saturating_sub(2); // Minus separator and status
         total_content_height.saturating_sub(self.request_pane_height)
