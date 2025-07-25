@@ -1,0 +1,1 @@
+- status bar gets messed up when a colon command issued. The last HTTP status code, message, and turn around time must be retained and aligned to the right.

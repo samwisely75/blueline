@@ -96,6 +96,24 @@ impl RequestBuffer {
         }
     }
 
+    /// Scroll up by half a page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_half_page_up(&mut self, half_page_size: usize) {
+        let scroll_amount = half_page_size.min(self.scroll_offset);
+
+        // Early exit if no scrolling is possible
+        if scroll_amount == 0 {
+            return;
+        }
+
+        self.scroll_offset -= scroll_amount;
+
+        // Move cursor to top of newly visible area (vim behavior)
+        self.cursor_line = self.scroll_offset;
+
+        // Ensure cursor column is within line bounds
+        self.clamp_cursor();
+    }
+
     /// Get visible line range for given viewport height
     pub fn visible_range(&self, viewport_height: usize) -> (usize, usize) {
         let start = self.scroll_offset;
@@ -171,6 +189,24 @@ impl ResponseBuffer {
                 self.cursor_col = line.len();
             }
         }
+    }
+
+    /// Scroll up by half a page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_half_page_up(&mut self, half_page_size: usize) {
+        let scroll_amount = half_page_size.min(self.scroll_offset);
+
+        // Early exit if no scrolling is possible
+        if scroll_amount == 0 {
+            return;
+        }
+
+        self.scroll_offset -= scroll_amount;
+
+        // Move cursor to top of newly visible area (vim behavior)
+        self.cursor_line = self.scroll_offset;
+
+        // Ensure cursor column is within line bounds
+        self.clamp_cursor();
     }
 }
 
@@ -529,6 +565,89 @@ mod tests {
     }
 
     #[test]
+    fn request_buffer_scroll_half_page_up_should_scroll_and_move_cursor() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+            "line 4".to_string(),
+            "line 5".to_string(),
+        ];
+        buffer.cursor_line = 4;
+        buffer.cursor_col = 2;
+        buffer.scroll_offset = 2;
+
+        buffer.scroll_half_page_up(2);
+
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 0); // Cursor moves to top of visible area (vim behavior)
+        assert_eq!(buffer.cursor_col, 2);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_up_should_handle_zero_scroll_offset() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_up(5);
+
+        // Should not change anything when already at top
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 1); // Cursor should remain unchanged
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_up_should_clamp_cursor_to_scroll_offset_when_needed() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+        ];
+        buffer.cursor_line = 1; // Close to top
+        buffer.cursor_col = 3;
+        buffer.scroll_offset = 3;
+
+        buffer.scroll_half_page_up(2);
+
+        assert_eq!(buffer.scroll_offset, 1);
+        assert_eq!(buffer.cursor_line, 1); // Should move to top of visible area (scroll_offset)
+        assert_eq!(buffer.cursor_col, 3);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_up_should_limit_scroll_to_available_offset() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 1;
+
+        buffer.scroll_half_page_up(10); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // Should only scroll available amount
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_up_should_clamp_cursor_column_to_line_bounds() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["short".to_string(), "longer line".to_string()];
+        buffer.cursor_line = 1;
+        buffer.cursor_col = 10; // Beyond first line's length
+        buffer.scroll_offset = 1;
+
+        buffer.scroll_half_page_up(1);
+
+        assert_eq!(buffer.cursor_line, 0);
+        assert_eq!(buffer.cursor_col, 5); // Clamped to "short".len()
+    }
+
+    #[test]
     fn response_buffer_new_should_create_buffer_from_content() {
         let content = "HTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"result\": true}";
         let buffer = ResponseBuffer::new(content.to_string());
@@ -588,6 +707,34 @@ mod tests {
         buffer.clamp_cursor();
         assert_eq!(buffer.cursor_line, 0);
         assert_eq!(buffer.cursor_col, 5);
+    }
+
+    #[test]
+    fn response_buffer_scroll_half_page_up_should_scroll_and_move_cursor() {
+        let mut buffer =
+            ResponseBuffer::new("line 0\nline 1\nline 2\nline 3\nline 4\nline 5".to_string());
+        buffer.cursor_line = 4;
+        buffer.cursor_col = 2;
+        buffer.scroll_offset = 2;
+
+        buffer.scroll_half_page_up(2);
+
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 0); // Cursor moves to top of visible area (vim behavior)
+        assert_eq!(buffer.cursor_col, 2);
+    }
+
+    #[test]
+    fn response_buffer_scroll_half_page_up_should_handle_zero_scroll_offset() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1".to_string());
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_up(5);
+
+        // Should not change anything when already at top
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 1); // Cursor should remain unchanged
     }
 
     #[test]

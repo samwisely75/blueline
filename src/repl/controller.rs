@@ -41,7 +41,7 @@ use super::{
         EnterCommandModeCommand, EnterInsertModeCommand, ExecuteCommandCommand,
         ExitInsertModeCommand, InsertCharCommand, InsertNewLineCommand, MoveCursorDownCommand,
         MoveCursorLeftCommand, MoveCursorLineEndCommand, MoveCursorLineStartCommand,
-        MoveCursorRightCommand, MoveCursorUpCommand, SwitchPaneCommand,
+        MoveCursorRightCommand, MoveCursorUpCommand, ScrollHalfPageUpCommand, SwitchPaneCommand,
     },
     model::{AppState, ResponseBuffer},
     view::{create_default_view_manager, ViewManager},
@@ -324,6 +324,7 @@ impl ReplController {
         self.commands
             .push(Box::new(MoveCursorLineEndCommand::new()));
         self.commands.push(Box::new(SwitchPaneCommand::new()));
+        self.commands.push(Box::new(ScrollHalfPageUpCommand::new()));
 
         // Editing commands
         self.commands.push(Box::new(EnterInsertModeCommand::new()));

@@ -460,6 +460,47 @@ impl Command for SwitchPaneCommand {
     }
 }
 
+/// Command for scrolling up half a page (Ctrl+U)
+pub struct ScrollHalfPageUpCommand;
+
+impl ScrollHalfPageUpCommand {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Command for ScrollHalfPageUpCommand {
+    fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
+        // Only relevant in Normal mode and for Ctrl+U
+        matches!(state.mode, EditorMode::Normal)
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && matches!(event.code, KeyCode::Char('u'))
+    }
+
+    fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        match state.current_pane {
+            Pane::Request => {
+                let half_page_size = state.get_request_pane_height() / 2;
+                state.request_buffer.scroll_half_page_up(half_page_size);
+                Ok(true)
+            }
+            Pane::Response => {
+                let half_page_size = state.get_response_pane_height() / 2;
+                if let Some(ref mut buffer) = state.response_buffer {
+                    buffer.scroll_half_page_up(half_page_size);
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "ScrollHalfPageUp"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -821,5 +862,82 @@ mod tests {
         let event = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE);
 
         assert!(command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_up_command_should_be_relevant_for_ctrl_u_in_normal_mode() {
+        let command = ScrollHalfPageUpCommand::new();
+        let state = create_test_app_state();
+        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "ScrollHalfPageUp");
+    }
+
+    #[test]
+    fn scroll_half_page_up_command_should_not_be_relevant_in_insert_mode() {
+        let command = ScrollHalfPageUpCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+
+        assert!(!command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_up_command_should_not_be_relevant_without_ctrl() {
+        let command = ScrollHalfPageUpCommand::new();
+        let state = create_test_app_state();
+        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::NONE);
+
+        assert!(!command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_up_command_should_scroll_request_buffer() {
+        let command = ScrollHalfPageUpCommand::new();
+        let mut state = create_test_app_state();
+
+        // Set up buffer with enough content to scroll
+        state.request_buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+            "line 4".to_string(),
+            "line 5".to_string(),
+        ];
+        state.request_buffer.cursor_line = 4;
+        state.request_buffer.scroll_offset = 2;
+
+        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        assert_eq!(state.request_buffer.scroll_offset, 0);
+        assert_eq!(state.request_buffer.cursor_line, 0); // Cursor moves to top of visible area (vim behavior)
+    }
+
+    #[test]
+    fn scroll_half_page_up_command_should_scroll_response_buffer() {
+        let command = ScrollHalfPageUpCommand::new();
+        let mut state = create_test_app_state();
+        state.current_pane = Pane::Response;
+
+        // Set up response buffer
+        state.set_response("line 0\nline 1\nline 2\nline 3\nline 4\nline 5".to_string());
+        if let Some(ref mut buffer) = state.response_buffer {
+            buffer.cursor_line = 4;
+            buffer.scroll_offset = 2;
+        }
+
+        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        if let Some(ref buffer) = state.response_buffer {
+            assert_eq!(buffer.scroll_offset, 0);
+            assert_eq!(buffer.cursor_line, 0); // Cursor moves to top of visible area (vim behavior)
+        }
     }
 }

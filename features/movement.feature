@@ -62,3 +62,34 @@ Feature: Cursor Movement Commands
     When I use vim navigation keys
     Then I can scroll through the response content
     And line numbers are visible
+
+  Scenario: Scroll up with Ctrl+U
+    Given the request buffer contains:
+      """
+      GET /api/users
+      Host: example.com
+      Content-Type: application/json
+
+      {"line": 5}
+      {"line": 6}
+      {"line": 7}
+      {"line": 8}
+      {"line": 9}
+      {"line": 10}
+      {"line": 11}
+      {"line": 12}
+      {"line": 13}
+      {"line": 14}
+      {"line": 15}
+      {"line": 16}
+      {"line": 17}
+      {"line": 18}
+      {"line": 19}
+      {"line": 20}
+      """
+    And I am in normal mode
+    And the cursor is at line 15
+    When I press "Ctrl+U"
+    Then the cursor moves up by half a page
+    And the scroll offset is adjusted accordingly
+    And I am still in normal mode
