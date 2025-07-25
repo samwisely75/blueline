@@ -49,8 +49,14 @@ async fn run_features_sequentially() {
 
 /// Run screen refresh scenarios individually to avoid thread_local state interference
 async fn run_screen_refresh_scenarios() {
-    // Create individual feature files for each scenario to ensure complete isolation
-    let scenarios = ["features/screen_refresh_single.feature"];
+    // Run individual feature files for each scenario to ensure complete isolation
+    let scenarios = [
+        "features/screen_refresh_startup.feature",
+        "features/screen_refresh_keyevents.feature",
+        "features/screen_refresh_textchanges.feature",
+        "features/screen_refresh_modechanges.feature",
+        "features/screen_refresh_shutdown.feature",
+    ];
 
     for scenario_file in scenarios {
         BluelineWorld::run(scenario_file).await;
