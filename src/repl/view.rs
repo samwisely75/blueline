@@ -301,7 +301,7 @@ impl RequestPaneRenderer {
         for row in visible_content_lines..pane_height {
             execute!(io::stdout(), cursor::MoveTo(0, row as u16))?;
             execute!(io::stdout(), SetAttribute(Attribute::Dim))?;
-            print!("{:>width$} ", "~", width = line_num_width);
+            print!("~{} ", " ".repeat(line_num_width.saturating_sub(1)));
             execute!(io::stdout(), SetAttribute(Attribute::Reset))?;
             execute!(io::stdout(), Clear(ClearType::UntilNewLine))?;
         }
