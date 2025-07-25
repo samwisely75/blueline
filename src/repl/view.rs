@@ -740,4 +740,12 @@ mod tests {
         let result = renderer.render_response_pane_content(&state_with_response);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn create_default_view_manager_should_create_view_manager_with_all_observers() {
+        let view_manager = create_default_view_manager();
+
+        // Should have 3 observers: Request, Response, and Status renderers
+        assert_eq!(view_manager.observers.len(), 3);
+    }
 }

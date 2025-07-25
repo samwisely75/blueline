@@ -459,3 +459,367 @@ impl Command for SwitchPaneCommand {
         "SwitchPane"
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repl::model::{RequestBuffer, ResponseBuffer};
+
+    /// Create a test request buffer with sample content for testing movement operations
+    fn create_test_request_buffer() -> RequestBuffer {
+        RequestBuffer {
+            lines: vec![
+                "GET /api/users".to_string(),
+                "Host: example.com".to_string(),
+                "".to_string(),
+                "{\"name\": \"test\"}".to_string(),
+            ],
+            cursor_line: 0,
+            cursor_col: 0,
+            scroll_offset: 0,
+        }
+    }
+
+    /// Create a test response buffer with sample content for testing movement operations
+    fn create_test_response_buffer() -> ResponseBuffer {
+        ResponseBuffer::new(
+            "HTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"users\": []}".to_string(),
+        )
+    }
+
+    /// Create a test AppState for command testing
+    fn create_test_app_state() -> AppState {
+        AppState::new((80, 24), false)
+    }
+
+    #[test]
+    fn move_cursor_up_should_move_cursor_up_one_line_and_adjust_column() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 1;
+        buffer.cursor_col = 10;
+
+        let result = move_cursor_up(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_line, 0);
+        assert_eq!(buffer.cursor_col, 10); // Column stays same if line is long enough
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_up_should_adjust_column_when_new_line_is_shorter() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 3; // On line with "{\"name\": \"test\"}" (16 chars)
+        buffer.cursor_col = 15;
+
+        let result = move_cursor_up(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_line, 2);
+        assert_eq!(buffer.cursor_col, 0); // Empty line, so cursor moves to column 0
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_up_should_handle_scroll_when_moving_above_visible_area() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 2;
+        buffer.scroll_offset = 2; // Scrolled down
+
+        let result = move_cursor_up(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_line, 1);
+        assert_eq!(buffer.scroll_offset, 1); // Should scroll up
+        assert!(result.cursor_moved);
+        assert!(result.scroll_occurred);
+    }
+
+    #[test]
+    fn move_cursor_up_should_not_move_when_at_first_line() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 0;
+
+        let result = move_cursor_up(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_line, 0);
+        assert!(!result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_down_should_move_cursor_down_one_line_and_adjust_column() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 5;
+
+        let result = move_cursor_down(&mut buffer, 10).unwrap();
+
+        assert_eq!(buffer.cursor_line, 1);
+        assert_eq!(buffer.cursor_col, 5); // Column stays same if line is long enough
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_down_should_adjust_column_when_new_line_is_shorter() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 1; // On "Host: example.com" (17 chars)
+        buffer.cursor_col = 15;
+
+        let result = move_cursor_down(&mut buffer, 10).unwrap();
+
+        assert_eq!(buffer.cursor_line, 2);
+        assert_eq!(buffer.cursor_col, 0); // Empty line, so cursor moves to column 0
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_down_should_handle_scroll_when_moving_below_visible_area() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 0;
+        let visible_height = 2;
+
+        let _result = move_cursor_down(&mut buffer, visible_height).unwrap();
+        assert_eq!(buffer.cursor_line, 1);
+        assert_eq!(buffer.scroll_offset, 0); // No scroll yet
+
+        let result = move_cursor_down(&mut buffer, visible_height).unwrap();
+        assert_eq!(buffer.cursor_line, 2);
+        assert_eq!(buffer.scroll_offset, 1); // Should scroll down
+        assert!(result.cursor_moved);
+        assert!(result.scroll_occurred);
+    }
+
+    #[test]
+    fn move_cursor_down_should_not_move_when_at_last_line() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 3; // Last line
+
+        let result = move_cursor_down(&mut buffer, 10).unwrap();
+
+        assert_eq!(buffer.cursor_line, 3);
+        assert!(!result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_left_should_move_cursor_left_one_column() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_col = 5;
+
+        let result = move_cursor_left(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_col, 4);
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_left_should_not_move_when_at_start_of_line() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_col = 0;
+
+        let result = move_cursor_left(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_col, 0);
+        assert!(!result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_right_should_move_cursor_right_one_column() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 0; // "GET /api/users" (14 chars)
+        buffer.cursor_col = 5;
+
+        let result = move_cursor_right(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_col, 6);
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_right_should_not_move_when_at_end_of_line() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 0; // "GET /api/users" (14 chars)
+        buffer.cursor_col = 14; // At end of line
+
+        let result = move_cursor_right(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_col, 14);
+        assert!(!result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_right_should_not_move_when_line_is_empty() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 2; // Empty line
+        buffer.cursor_col = 0;
+
+        let result = move_cursor_right(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_col, 0);
+        assert!(!result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_line_start_should_move_cursor_to_beginning_of_line() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_col = 10;
+
+        let result = move_cursor_line_start(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_col, 0);
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_line_start_should_work_when_already_at_start() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_col = 0;
+
+        let result = move_cursor_line_start(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_col, 0);
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_line_end_should_move_cursor_to_end_of_line() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 0; // "GET /api/users" (14 chars)
+        buffer.cursor_col = 5;
+
+        let result = move_cursor_line_end(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_col, 14);
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_line_end_should_work_when_already_at_end() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 0; // "GET /api/users" (14 chars)
+        buffer.cursor_col = 14;
+
+        let result = move_cursor_line_end(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_col, 14);
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_line_end_should_handle_empty_line() {
+        let mut buffer = create_test_request_buffer();
+        buffer.cursor_line = 2; // Empty line
+        buffer.cursor_col = 0;
+
+        let result = move_cursor_line_end(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_col, 0);
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn movement_buffer_trait_should_work_with_response_buffer() {
+        let mut buffer = create_test_response_buffer();
+        buffer.cursor_col = 5;
+
+        let result = move_cursor_left(&mut buffer).unwrap();
+
+        assert_eq!(buffer.cursor_col, 4);
+        assert!(result.cursor_moved);
+    }
+
+    #[test]
+    fn move_cursor_left_command_should_be_relevant_for_h_key_in_normal_mode() {
+        let command = MoveCursorLeftCommand::new();
+        let state = create_test_app_state();
+        let event = KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "MoveCursorLeft");
+    }
+
+    #[test]
+    fn move_cursor_left_command_should_be_relevant_for_left_arrow_in_normal_mode() {
+        let command = MoveCursorLeftCommand::new();
+        let state = create_test_app_state();
+        let event = KeyEvent::new(KeyCode::Left, KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn move_cursor_left_command_should_not_be_relevant_in_insert_mode() {
+        let command = MoveCursorLeftCommand::new();
+        let mut state = create_test_app_state();
+        state.mode = EditorMode::Insert;
+        let event = KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE);
+
+        assert!(!command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn move_cursor_right_command_should_be_relevant_for_l_key_in_normal_mode() {
+        let command = MoveCursorRightCommand::new();
+        let state = create_test_app_state();
+        let event = KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "MoveCursorRight");
+    }
+
+    #[test]
+    fn move_cursor_up_command_should_be_relevant_for_k_key_in_normal_mode() {
+        let command = MoveCursorUpCommand::new();
+        let state = create_test_app_state();
+        let event = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "MoveCursorUp");
+    }
+
+    #[test]
+    fn move_cursor_down_command_should_be_relevant_for_j_key_in_normal_mode() {
+        let command = MoveCursorDownCommand::new();
+        let state = create_test_app_state();
+        let event = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "MoveCursorDown");
+    }
+
+    #[test]
+    fn move_cursor_line_start_command_should_be_relevant_for_zero_key_in_normal_mode() {
+        let command = MoveCursorLineStartCommand::new();
+        let state = create_test_app_state();
+        let event = KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "MoveCursorLineStart");
+    }
+
+    #[test]
+    fn move_cursor_line_end_command_should_be_relevant_for_dollar_key_in_normal_mode() {
+        let command = MoveCursorLineEndCommand::new();
+        let state = create_test_app_state();
+        let event = KeyEvent::new(KeyCode::Char('$'), KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "MoveCursorLineEnd");
+    }
+
+    #[test]
+    fn switch_pane_command_should_be_relevant_for_ctrl_w_in_normal_mode() {
+        let command = SwitchPaneCommand::new();
+        let state = create_test_app_state();
+        let event = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL);
+
+        assert!(command.is_relevant(&state, &event));
+        assert_eq!(command.name(), "SwitchPane");
+    }
+
+    #[test]
+    fn switch_pane_command_should_be_relevant_when_pending_ctrl_w() {
+        let command = SwitchPaneCommand::new();
+        let mut state = create_test_app_state();
+        state.pending_ctrl_w = true;
+        let event = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE);
+
+        assert!(command.is_relevant(&state, &event));
+    }
+}

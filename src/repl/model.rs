@@ -372,3 +372,431 @@ impl CurrentBuffer<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_buffer_new_should_create_empty_buffer_with_single_empty_line() {
+        let buffer = RequestBuffer::new();
+
+        assert_eq!(buffer.lines.len(), 1);
+        assert_eq!(buffer.lines[0], "");
+        assert_eq!(buffer.cursor_line, 0);
+        assert_eq!(buffer.cursor_col, 0);
+        assert_eq!(buffer.scroll_offset, 0);
+    }
+
+    #[test]
+    fn request_buffer_default_should_work_like_new() {
+        let buffer = RequestBuffer::default();
+        let new_buffer = RequestBuffer::new();
+
+        assert_eq!(buffer.lines, new_buffer.lines);
+        assert_eq!(buffer.cursor_line, new_buffer.cursor_line);
+        assert_eq!(buffer.cursor_col, new_buffer.cursor_col);
+        assert_eq!(buffer.scroll_offset, new_buffer.scroll_offset);
+    }
+
+    #[test]
+    fn request_buffer_get_text_should_join_lines_with_newlines() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "GET /api/users".to_string(),
+            "Host: example.com".to_string(),
+            "".to_string(),
+            "{\"test\": true}".to_string(),
+        ];
+
+        let text = buffer.get_text();
+        assert_eq!(
+            text,
+            "GET /api/users\nHost: example.com\n\n{\"test\": true}"
+        );
+    }
+
+    #[test]
+    fn request_buffer_get_text_should_handle_single_line() {
+        let buffer = RequestBuffer::new();
+        assert_eq!(buffer.get_text(), "");
+    }
+
+    #[test]
+    fn request_buffer_current_line_should_return_line_at_cursor_position() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["first line".to_string(), "second line".to_string()];
+        buffer.cursor_line = 1;
+
+        assert_eq!(buffer.current_line(), "second line");
+    }
+
+    #[test]
+    fn request_buffer_current_line_should_return_empty_for_invalid_position() {
+        let mut buffer = RequestBuffer::new();
+        buffer.cursor_line = 10; // Out of bounds
+
+        assert_eq!(buffer.current_line(), "");
+    }
+
+    #[test]
+    fn request_buffer_line_count_should_return_number_of_lines() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line1".to_string(),
+            "line2".to_string(),
+            "line3".to_string(),
+        ];
+
+        assert_eq!(buffer.line_count(), 3);
+    }
+
+    #[test]
+    fn request_buffer_is_cursor_valid_should_return_true_for_valid_position() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["hello world".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 5;
+
+        assert!(buffer.is_cursor_valid());
+    }
+
+    #[test]
+    fn request_buffer_is_cursor_valid_should_return_false_for_invalid_line() {
+        let mut buffer = RequestBuffer::new();
+        buffer.cursor_line = 10;
+
+        assert!(!buffer.is_cursor_valid());
+    }
+
+    #[test]
+    fn request_buffer_is_cursor_valid_should_return_false_for_invalid_column() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["hello".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 10; // Beyond line length
+
+        assert!(!buffer.is_cursor_valid());
+    }
+
+    #[test]
+    fn request_buffer_clamp_cursor_should_fix_invalid_line_position() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line1".to_string(), "line2".to_string()];
+        buffer.cursor_line = 10; // Out of bounds
+
+        buffer.clamp_cursor();
+        assert_eq!(buffer.cursor_line, 1); // Should be clamped to last line
+    }
+
+    #[test]
+    fn request_buffer_clamp_cursor_should_fix_invalid_column_position() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["hello".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 10; // Beyond line length
+
+        buffer.clamp_cursor();
+        assert_eq!(buffer.cursor_col, 5); // Should be clamped to line end
+    }
+
+    #[test]
+    fn request_buffer_visible_range_should_return_correct_range() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "1".to_string(),
+            "2".to_string(),
+            "3".to_string(),
+            "4".to_string(),
+            "5".to_string(),
+        ];
+        buffer.scroll_offset = 1;
+
+        let (start, end) = buffer.visible_range(3);
+        assert_eq!(start, 1);
+        assert_eq!(end, 4);
+    }
+
+    #[test]
+    fn request_buffer_visible_range_should_not_exceed_line_count() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["1".to_string(), "2".to_string()];
+        buffer.scroll_offset = 0;
+
+        let (start, end) = buffer.visible_range(10);
+        assert_eq!(start, 0);
+        assert_eq!(end, 2); // Clamped to actual line count
+    }
+
+    #[test]
+    fn response_buffer_new_should_create_buffer_from_content() {
+        let content = "HTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"result\": true}";
+        let buffer = ResponseBuffer::new(content.to_string());
+
+        assert_eq!(buffer.lines.len(), 4);
+        assert_eq!(buffer.lines[0], "HTTP/1.1 200 OK");
+        assert_eq!(buffer.lines[1], "Content-Type: application/json");
+        assert_eq!(buffer.lines[2], "");
+        assert_eq!(buffer.lines[3], "{\"result\": true}");
+        assert_eq!(buffer.cursor_line, 0);
+        assert_eq!(buffer.cursor_col, 0);
+        assert_eq!(buffer.scroll_offset, 0);
+    }
+
+    #[test]
+    fn response_buffer_current_line_should_return_line_at_cursor_position() {
+        let buffer = ResponseBuffer::new("line1\nline2\nline3".to_string());
+
+        assert_eq!(buffer.current_line(), "line1");
+    }
+
+    #[test]
+    fn response_buffer_line_count_should_return_number_of_lines() {
+        let buffer = ResponseBuffer::new("line1\nline2\nline3".to_string());
+
+        assert_eq!(buffer.line_count(), 3);
+    }
+
+    #[test]
+    fn response_buffer_visible_range_should_work_like_request_buffer() {
+        let mut buffer = ResponseBuffer::new("1\n2\n3\n4\n5".to_string());
+        buffer.scroll_offset = 1;
+
+        let (start, end) = buffer.visible_range(3);
+        assert_eq!(start, 1);
+        assert_eq!(end, 4);
+    }
+
+    #[test]
+    fn response_buffer_is_cursor_valid_should_work_correctly() {
+        let mut buffer = ResponseBuffer::new("hello world".to_string());
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 5;
+
+        assert!(buffer.is_cursor_valid());
+
+        buffer.cursor_col = 50;
+        assert!(!buffer.is_cursor_valid());
+    }
+
+    #[test]
+    fn response_buffer_clamp_cursor_should_fix_invalid_positions() {
+        let mut buffer = ResponseBuffer::new("hello".to_string());
+        buffer.cursor_line = 10;
+        buffer.cursor_col = 10;
+
+        buffer.clamp_cursor();
+        assert_eq!(buffer.cursor_line, 0);
+        assert_eq!(buffer.cursor_col, 5);
+    }
+
+    #[test]
+    fn app_state_new_should_create_state_with_correct_defaults() {
+        let state = AppState::new((80, 24), true);
+
+        assert_eq!(state.mode, EditorMode::Normal);
+        assert_eq!(state.current_pane, Pane::Request);
+        assert!(state.visual_selection.is_none());
+        assert_eq!(state.request_buffer.lines.len(), 1);
+        assert!(state.response_buffer.is_none());
+        assert_eq!(state.terminal_size, (80, 24));
+        assert_eq!(state.status_message, "-- INSERT --");
+        assert_eq!(state.command_buffer, "");
+        assert!(state.session_headers.is_empty());
+        assert_eq!(state.clipboard, "");
+        assert!(!state.pending_g);
+        assert!(!state.pending_ctrl_w);
+        assert!(state.last_response_status.is_none());
+        assert!(state.request_start_time.is_none());
+        assert!(state.last_request_duration.is_none());
+        assert!(!state.execute_request_flag);
+        assert!(!state.should_quit);
+        assert!(state.verbose);
+    }
+
+    #[test]
+    fn app_state_new_should_calculate_initial_pane_height() {
+        let state = AppState::new((80, 24), false);
+
+        // Terminal height 24, minus separator and status = 22, divided by 2 = 11
+        assert_eq!(state.request_pane_height, 11);
+    }
+
+    #[test]
+    fn app_state_get_request_pane_height_should_return_full_space_when_no_response() {
+        let state = AppState::new((80, 24), false);
+
+        // Should get full available space (24 - 2 = 22) when no response buffer
+        assert_eq!(state.get_request_pane_height(), 22);
+    }
+
+    #[test]
+    fn app_state_get_request_pane_height_should_return_configured_height_when_response_exists() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test response".to_string());
+
+        // Should return the configured split height when response exists
+        assert_eq!(state.get_request_pane_height(), state.request_pane_height);
+    }
+
+    #[test]
+    fn app_state_get_response_pane_height_should_return_zero_when_no_response() {
+        let state = AppState::new((80, 24), false);
+
+        assert_eq!(state.get_response_pane_height(), 0);
+    }
+
+    #[test]
+    fn app_state_get_response_pane_height_should_return_remaining_space_when_response_exists() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test response".to_string());
+
+        // Total content height = 24 - 2 = 22
+        // Request pane height = 11 (from initial calculation)
+        // Response pane height = 22 - 11 = 11
+        assert_eq!(state.get_response_pane_height(), 11);
+    }
+
+    #[test]
+    fn app_state_update_terminal_size_should_maintain_proportions() {
+        let mut state = AppState::new((80, 20), false);
+        let initial_request_height = state.request_pane_height;
+
+        state.update_terminal_size((80, 40));
+
+        // Should roughly double the pane height when terminal doubles in height
+        let new_request_height = state.get_request_pane_height();
+        assert!(new_request_height > initial_request_height);
+        assert_eq!(state.terminal_size, (80, 40));
+    }
+
+    #[test]
+    fn app_state_set_response_should_create_response_buffer() {
+        let mut state = AppState::new((80, 24), false);
+
+        state.set_response("HTTP/1.1 200 OK\nContent: test".to_string());
+
+        assert!(state.response_buffer.is_some());
+        let response = state.response_buffer.as_ref().unwrap();
+        assert_eq!(response.lines.len(), 2);
+        assert_eq!(response.lines[0], "HTTP/1.1 200 OK");
+    }
+
+    #[test]
+    fn app_state_clear_response_should_remove_response_buffer() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test".to_string());
+
+        state.clear_response();
+
+        assert!(state.response_buffer.is_none());
+    }
+
+    #[test]
+    fn app_state_has_response_should_return_correct_status() {
+        let mut state = AppState::new((80, 24), false);
+
+        assert!(!state.has_response());
+
+        state.set_response("test".to_string());
+        assert!(state.has_response());
+
+        state.clear_response();
+        assert!(!state.has_response());
+    }
+
+    #[test]
+    fn app_state_current_buffer_should_return_request_when_in_request_pane() {
+        let state = AppState::new((80, 24), false);
+
+        match state.current_buffer() {
+            CurrentBuffer::Request(_) => (), // Expected
+            CurrentBuffer::Response(_) => panic!("Should return request buffer"),
+        }
+    }
+
+    #[test]
+    fn app_state_current_buffer_should_return_response_when_in_response_pane_with_response() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test".to_string());
+        state.current_pane = Pane::Response;
+
+        match state.current_buffer() {
+            CurrentBuffer::Response(_) => (), // Expected
+            CurrentBuffer::Request(_) => panic!("Should return response buffer"),
+        }
+    }
+
+    #[test]
+    fn app_state_current_buffer_should_fallback_to_request_when_no_response() {
+        let mut state = AppState::new((80, 24), false);
+        state.current_pane = Pane::Response;
+
+        match state.current_buffer() {
+            CurrentBuffer::Request(_) => (), // Expected fallback
+            CurrentBuffer::Response(_) => panic!("Should fallback to request buffer"),
+        }
+    }
+
+    #[test]
+    fn current_buffer_cursor_line_should_return_correct_position() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_buffer.cursor_line = 5;
+
+        let buffer = state.current_buffer();
+        assert_eq!(buffer.cursor_line(), 5);
+    }
+
+    #[test]
+    fn current_buffer_cursor_col_should_return_correct_position() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_buffer.cursor_col = 10;
+
+        let buffer = state.current_buffer();
+        assert_eq!(buffer.cursor_col(), 10);
+    }
+
+    #[test]
+    fn current_buffer_line_count_should_return_correct_count() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_buffer.lines = vec!["1".to_string(), "2".to_string(), "3".to_string()];
+
+        let buffer = state.current_buffer();
+        assert_eq!(buffer.line_count(), 3);
+    }
+
+    #[test]
+    fn visual_selection_should_support_debug_trait() {
+        let selection = VisualSelection {
+            start_line: 0,
+            start_col: 0,
+            end_line: 1,
+            end_col: 5,
+        };
+
+        let debug_str = format!("{:?}", selection);
+        assert!(debug_str.contains("VisualSelection"));
+    }
+
+    #[test]
+    fn editor_mode_should_support_debug_and_clone_traits() {
+        let mode = EditorMode::Normal;
+        let cloned_mode = mode.clone();
+
+        assert_eq!(mode, cloned_mode);
+
+        let debug_str = format!("{:?}", mode);
+        assert!(debug_str.contains("Normal"));
+    }
+
+    #[test]
+    fn pane_should_support_copy_and_debug_traits() {
+        let pane = Pane::Request;
+        let copied_pane = pane;
+
+        assert_eq!(pane, copied_pane);
+
+        let debug_str = format!("{:?}", pane);
+        assert!(debug_str.contains("Request"));
+    }
+}

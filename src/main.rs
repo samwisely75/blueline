@@ -98,3 +98,29 @@ fn init_tracing_subscriber() {
         .with_timer(ChronoLocal::rfc_3339())
         .init();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn init_tracing_subscriber_should_initialize_logging_without_panic() {
+        // Test that the function doesn't panic when called
+        // Note: We can't test the actual logging setup easily without side effects
+        // but we can ensure the function completes without errors
+        init_tracing_subscriber();
+    }
+
+    #[test]
+    fn run_repl_function_should_exist_and_be_callable() {
+        // This test ensures the run_repl function signature is correct
+        // We create a blank profile for testing
+        let profile = bluenote::ini::get_blank_profile();
+
+        // Test that we can create the function call (compilation test)
+        let _future = run_repl(profile, false);
+
+        // We don't actually execute it to avoid terminal initialization issues in tests
+        // The fact that this compiles means the function signature is correct
+    }
+}
