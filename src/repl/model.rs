@@ -96,22 +96,52 @@ impl RequestBuffer {
         }
     }
 
-    /// Scroll up by half a page, moving cursor to top of newly visible area (vim behavior)
-    pub fn scroll_half_page_up(&mut self, half_page_size: usize) {
-        let scroll_amount = half_page_size.min(self.scroll_offset);
-
-        // Early exit if no scrolling is possible
-        if scroll_amount == 0 {
+    /// Generic scroll function that handles both directions
+    /// 
+    /// Scrolls the buffer by the specified number of lines. Positive values scroll down,
+    /// negative values scroll up. The cursor is positioned at the top of the newly visible
+    /// area following vim behavior.
+    pub fn scroll(&mut self, lines: i32, page_height: usize) {
+        if lines == 0 {
             return;
         }
 
-        self.scroll_offset -= scroll_amount;
+        if lines > 0 {
+            // Scroll down - increase scroll_offset
+            let max_scroll = self.lines.len().saturating_sub(page_height);
+            let scroll_amount = (lines as usize).min(max_scroll.saturating_sub(self.scroll_offset));
+            
+            if scroll_amount == 0 {
+                return;
+            }
+            
+            self.scroll_offset += scroll_amount;
+        } else {
+            // Scroll up - decrease scroll_offset
+            let scroll_amount = ((-lines) as usize).min(self.scroll_offset);
+            
+            if scroll_amount == 0 {
+                return;
+            }
+            
+            self.scroll_offset -= scroll_amount;
+        }
 
         // Move cursor to top of newly visible area (vim behavior)
         self.cursor_line = self.scroll_offset;
 
         // Ensure cursor column is within line bounds
         self.clamp_cursor();
+    }
+
+    /// Scroll up by half a page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_half_page_up(&mut self, half_page_size: usize) {
+        self.scroll(-(half_page_size as i32), half_page_size * 2);
+    }
+
+    /// Scroll down by half a page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_half_page_down(&mut self, half_page_size: usize) {
+        self.scroll(half_page_size as i32, half_page_size * 2);
     }
 
     /// Get visible line range for given viewport height
@@ -191,22 +221,52 @@ impl ResponseBuffer {
         }
     }
 
-    /// Scroll up by half a page, moving cursor to top of newly visible area (vim behavior)
-    pub fn scroll_half_page_up(&mut self, half_page_size: usize) {
-        let scroll_amount = half_page_size.min(self.scroll_offset);
-
-        // Early exit if no scrolling is possible
-        if scroll_amount == 0 {
+    /// Generic scroll function that handles both directions
+    /// 
+    /// Scrolls the buffer by the specified number of lines. Positive values scroll down,
+    /// negative values scroll up. The cursor is positioned at the top of the newly visible
+    /// area following vim behavior.
+    pub fn scroll(&mut self, lines: i32, page_height: usize) {
+        if lines == 0 {
             return;
         }
 
-        self.scroll_offset -= scroll_amount;
+        if lines > 0 {
+            // Scroll down - increase scroll_offset
+            let max_scroll = self.lines.len().saturating_sub(page_height);
+            let scroll_amount = (lines as usize).min(max_scroll.saturating_sub(self.scroll_offset));
+            
+            if scroll_amount == 0 {
+                return;
+            }
+            
+            self.scroll_offset += scroll_amount;
+        } else {
+            // Scroll up - decrease scroll_offset
+            let scroll_amount = ((-lines) as usize).min(self.scroll_offset);
+            
+            if scroll_amount == 0 {
+                return;
+            }
+            
+            self.scroll_offset -= scroll_amount;
+        }
 
         // Move cursor to top of newly visible area (vim behavior)
         self.cursor_line = self.scroll_offset;
 
         // Ensure cursor column is within line bounds
         self.clamp_cursor();
+    }
+
+    /// Scroll up by half a page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_half_page_up(&mut self, half_page_size: usize) {
+        self.scroll(-(half_page_size as i32), half_page_size * 2);
+    }
+
+    /// Scroll down by half a page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_half_page_down(&mut self, half_page_size: usize) {
+        self.scroll(half_page_size as i32, half_page_size * 2);
     }
 }
 
@@ -565,6 +625,138 @@ mod tests {
     }
 
     #[test]
+    fn request_buffer_scroll_should_handle_zero_lines() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(0, 10); // No scroll
+
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 1);
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_scroll_down_and_move_cursor_to_top() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+            "line 4".to_string(),
+            "line 5".to_string(),
+        ];
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(2, 4); // Scroll down 2 lines with page height 4
+
+        assert_eq!(buffer.scroll_offset, 2);
+        assert_eq!(buffer.cursor_line, 2); // Cursor moves to top of visible area
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_scroll_up_and_move_cursor_to_top() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+            "line 4".to_string(),
+            "line 5".to_string(),
+        ];
+        buffer.cursor_line = 4;
+        buffer.scroll_offset = 3;
+
+        buffer.scroll(-2, 4); // Scroll up 2 lines with page height 4
+
+        assert_eq!(buffer.scroll_offset, 1);
+        assert_eq!(buffer.cursor_line, 1); // Cursor moves to top of visible area
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_limit_scroll_down_to_available_space() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+        ];
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(10, 2); // Request more than available (max scroll would be 1)
+
+        assert_eq!(buffer.scroll_offset, 1); // Limited to max available
+        assert_eq!(buffer.cursor_line, 1);
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_limit_scroll_up_to_available_offset() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+        ];
+        buffer.cursor_line = 2;
+        buffer.scroll_offset = 1;
+
+        buffer.scroll(-10, 2); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // Limited to available offset
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_handle_no_scroll_down_when_at_bottom() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0; // Already showing all content
+
+        buffer.scroll(5, 2); // Try to scroll down
+
+        assert_eq!(buffer.scroll_offset, 0); // No change
+        assert_eq!(buffer.cursor_line, 1); // No change
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_handle_no_scroll_up_when_at_top() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(-5, 2); // Try to scroll up
+
+        assert_eq!(buffer.scroll_offset, 0); // No change
+        assert_eq!(buffer.cursor_line, 0); // No change
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_clamp_cursor_column_after_scroll() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "long line here".to_string(),
+            "short".to_string(),
+            "another long line here".to_string(),
+        ];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 10; // Valid for first line
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(1, 2); // Scroll down 1 line
+
+        assert_eq!(buffer.scroll_offset, 1);
+        assert_eq!(buffer.cursor_line, 1); // Move to top of visible area
+        assert_eq!(buffer.cursor_col, 5); // Clamped to "short".len()
+    }
+
+    #[test]
     fn request_buffer_scroll_half_page_up_should_scroll_and_move_cursor() {
         let mut buffer = RequestBuffer::new();
         buffer.lines = vec![
@@ -648,6 +840,78 @@ mod tests {
     }
 
     #[test]
+    fn request_buffer_scroll_half_page_down_should_scroll_and_move_cursor() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+            "line 4".to_string(),
+            "line 5".to_string(),
+        ];
+        buffer.cursor_line = 1;
+        buffer.cursor_col = 2;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(2);
+
+        assert_eq!(buffer.scroll_offset, 2);
+        assert_eq!(buffer.cursor_line, 2); // Cursor moves to top of newly visible area
+        assert_eq!(buffer.cursor_col, 2);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_down_should_handle_insufficient_content() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(5); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // No scroll possible with short content
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_down_should_limit_scroll_to_available_space() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+        ];
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(3); // Page height would be 6, request scroll 3
+
+        assert_eq!(buffer.scroll_offset, 0); // No scroll possible: 4 lines - 6 page height = max scroll of 0
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_down_should_clamp_cursor_column_to_line_bounds() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "long line here".to_string(),
+            "short".to_string(),
+            "another long line here".to_string(),
+        ];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 10; // Valid for first line
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(1);
+
+        assert_eq!(buffer.scroll_offset, 1);
+        assert_eq!(buffer.cursor_line, 1); // Move to top of visible area
+        assert_eq!(buffer.cursor_col, 5); // Clamped to "short".len()
+    }
+
+    #[test]
     fn response_buffer_new_should_create_buffer_from_content() {
         let content = "HTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"result\": true}";
         let buffer = ResponseBuffer::new(content.to_string());
@@ -710,6 +974,66 @@ mod tests {
     }
 
     #[test]
+    fn response_buffer_scroll_should_handle_zero_lines() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1".to_string());
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(0, 10); // No scroll
+
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 1);
+    }
+
+    #[test]
+    fn response_buffer_scroll_should_scroll_down_and_move_cursor_to_top() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1\nline 2\nline 3\nline 4\nline 5".to_string());
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(2, 4); // Scroll down 2 lines with page height 4
+
+        assert_eq!(buffer.scroll_offset, 2);
+        assert_eq!(buffer.cursor_line, 2); // Cursor moves to top of visible area
+    }
+
+    #[test]
+    fn response_buffer_scroll_should_scroll_up_and_move_cursor_to_top() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1\nline 2\nline 3\nline 4\nline 5".to_string());
+        buffer.cursor_line = 4;
+        buffer.scroll_offset = 3;
+
+        buffer.scroll(-2, 4); // Scroll up 2 lines with page height 4
+
+        assert_eq!(buffer.scroll_offset, 1);
+        assert_eq!(buffer.cursor_line, 1); // Cursor moves to top of visible area
+    }
+
+    #[test]
+    fn response_buffer_scroll_should_limit_scroll_down_to_available_space() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1\nline 2".to_string());
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(10, 2); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 1); // Limited to max available (3 lines - 2 page height)
+        assert_eq!(buffer.cursor_line, 1);
+    }
+
+    #[test]
+    fn response_buffer_scroll_should_limit_scroll_up_to_available_offset() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1\nline 2".to_string());
+        buffer.cursor_line = 2;
+        buffer.scroll_offset = 1;
+
+        buffer.scroll(-10, 2); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // Limited to available offset
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
     fn response_buffer_scroll_half_page_up_should_scroll_and_move_cursor() {
         let mut buffer =
             ResponseBuffer::new("line 0\nline 1\nline 2\nline 3\nline 4\nline 5".to_string());
@@ -735,6 +1059,32 @@ mod tests {
         // Should not change anything when already at top
         assert_eq!(buffer.scroll_offset, 0);
         assert_eq!(buffer.cursor_line, 1); // Cursor should remain unchanged
+    }
+
+    #[test]
+    fn response_buffer_scroll_half_page_down_should_scroll_and_move_cursor() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1\nline 2\nline 3\nline 4\nline 5".to_string());
+        buffer.cursor_line = 1;
+        buffer.cursor_col = 2;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(2);
+
+        assert_eq!(buffer.scroll_offset, 2);
+        assert_eq!(buffer.cursor_line, 2); // Cursor moves to top of newly visible area
+        assert_eq!(buffer.cursor_col, 2);
+    }
+
+    #[test]
+    fn response_buffer_scroll_half_page_down_should_handle_insufficient_content() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1".to_string());
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(5); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // No scroll possible with short content
+        assert_eq!(buffer.cursor_line, 0);
     }
 
     #[test]

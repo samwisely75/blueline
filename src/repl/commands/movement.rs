@@ -501,6 +501,47 @@ impl Command for ScrollHalfPageUpCommand {
     }
 }
 
+/// Command for scrolling down half a page (Ctrl+D)
+pub struct ScrollHalfPageDownCommand;
+
+impl ScrollHalfPageDownCommand {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Command for ScrollHalfPageDownCommand {
+    fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
+        // Only relevant in Normal mode and for Ctrl+D
+        matches!(state.mode, EditorMode::Normal)
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && matches!(event.code, KeyCode::Char('d'))
+    }
+
+    fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        match state.current_pane {
+            Pane::Request => {
+                let half_page_size = state.get_request_pane_height() / 2;
+                state.request_buffer.scroll_half_page_down(half_page_size);
+                Ok(true)
+            }
+            Pane::Response => {
+                let half_page_size = state.get_response_pane_height() / 2;
+                if let Some(ref mut buffer) = state.response_buffer {
+                    buffer.scroll_half_page_down(half_page_size);
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "ScrollHalfPageDown"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -938,6 +979,73 @@ mod tests {
         if let Some(ref buffer) = state.response_buffer {
             assert_eq!(buffer.scroll_offset, 0);
             assert_eq!(buffer.cursor_line, 0); // Cursor moves to top of visible area (vim behavior)
+        }
+    }
+
+    #[test]
+    fn scroll_half_page_down_command_should_be_relevant_for_ctrl_d_in_normal_mode() {
+        let command = ScrollHalfPageDownCommand::new();
+        let state = AppState::new((80, 24), true);
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+
+        assert!(command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_down_command_should_not_be_relevant_in_insert_mode() {
+        let command = ScrollHalfPageDownCommand::new();
+        let mut state = AppState::new((80, 24), true);
+        state.mode = EditorMode::Insert;
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+
+        assert!(!command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_down_command_should_not_be_relevant_without_ctrl() {
+        let command = ScrollHalfPageDownCommand::new();
+        let state = AppState::new((80, 24), true);
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE);
+
+        assert!(!command.is_relevant(&state, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_down_command_should_scroll_request_buffer() {
+        let command = ScrollHalfPageDownCommand::new();
+        let mut state = AppState::new((80, 24), true);
+        // Create enough content to allow scrolling (more than page height of 22)
+        state.request_buffer.lines = (0..30).map(|i| format!("line {}", i)).collect();
+        state.request_buffer.cursor_line = 1;
+        state.request_buffer.scroll_offset = 0;
+
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        // With 30 lines and page height 22, max scroll is 30-22=8
+        // Requested scroll is 11 but limited to available space of 8
+        assert_eq!(state.request_buffer.scroll_offset, 8);
+        assert_eq!(state.request_buffer.cursor_line, 8);
+    }
+
+    #[test]
+    fn scroll_half_page_down_command_should_scroll_response_buffer() {
+        let command = ScrollHalfPageDownCommand::new();
+        let mut state = AppState::new((80, 24), true);
+        state.current_pane = Pane::Response;
+        // Create enough content to allow scrolling (more than response pane height)
+        let content = (0..30).map(|i| format!("line {}", i)).collect::<Vec<_>>().join("\n");
+        state.response_buffer = Some(ResponseBuffer::new(content));
+
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+        let result = command.process(event, &mut state).unwrap();
+
+        assert!(result);
+        if let Some(ref buffer) = state.response_buffer {
+            let expected_scroll = state.get_response_pane_height() / 2;
+            assert_eq!(buffer.scroll_offset, expected_scroll);
+            assert_eq!(buffer.cursor_line, expected_scroll);
         }
     }
 }
