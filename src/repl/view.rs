@@ -94,6 +94,8 @@ impl ViewManager {
         for observer in &mut self.observers {
             observer.render_content_update(state)?;
         }
+        // Update cursor style in case mode changed
+        self.update_cursor_style(state)?;
         self.last_render_type = RenderType::ContentUpdate;
         io::stdout().flush()?;
         Ok(())
@@ -104,18 +106,20 @@ impl ViewManager {
         for observer in &mut self.observers {
             observer.render_full(state)?;
         }
+        // Update cursor style for full renders
+        self.update_cursor_style(state)?;
         self.last_render_type = RenderType::Full;
         io::stdout().flush()?;
         Ok(())
     }
 
     /// Initialize the terminal for rendering
-    pub fn initialize_terminal(&self) -> Result<()> {
+    pub fn initialize_terminal(&self, state: &AppState) -> Result<()> {
         // Clear screen once at startup and move cursor to top
         execute!(io::stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))?;
 
-        // Set initial cursor style for insert mode
-        execute!(io::stdout(), SetCursorStyle::BlinkingBar)?;
+        // Set initial cursor style based on current mode
+        self.update_cursor_style(state)?;
 
         Ok(())
     }
@@ -124,6 +128,21 @@ impl ViewManager {
     pub fn cleanup_terminal(&self) -> Result<()> {
         // Restore default cursor
         execute!(io::stdout(), SetCursorStyle::DefaultUserShape)?;
+        Ok(())
+    }
+
+    /// Update cursor style based on current editor mode
+    pub fn update_cursor_style(&self, state: &AppState) -> Result<()> {
+        use super::model::EditorMode;
+
+        let cursor_style = match state.mode {
+            EditorMode::Normal => SetCursorStyle::SteadyBlock,
+            EditorMode::Insert => SetCursorStyle::BlinkingBar,
+            EditorMode::Command => SetCursorStyle::BlinkingUnderScore,
+            EditorMode::Visual | EditorMode::VisualLine => SetCursorStyle::SteadyBlock,
+        };
+
+        execute!(io::stdout(), cursor_style)?;
         Ok(())
     }
 }

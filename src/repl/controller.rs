@@ -92,7 +92,7 @@ impl ReplController {
         terminal::enable_raw_mode()?;
         execute!(io::stdout(), EnterAlternateScreen)?;
 
-        self.view_manager.initialize_terminal()?;
+        self.view_manager.initialize_terminal(&self.state)?;
 
         // Initial render
         self.view_manager.render_full(&self.state)?;

@@ -221,7 +221,7 @@ impl AppState {
         let initial_request_pane_height = total_content_height / 2;
 
         Self {
-            mode: EditorMode::Insert, // Start in insert mode like original
+            mode: EditorMode::Normal, // Start in normal mode for vim-like behavior
             current_pane: Pane::Request,
             visual_selection: None,
             request_buffer: RequestBuffer::new(),
