@@ -284,11 +284,11 @@ impl RequestPaneRenderer {
                 // TODO: Add syntax highlighting for HTTP requests
                 print!("{}", line);
             } else {
-                // Show tilda for non-existing lines (like vi) with dimmed style
+                // Show tilda for non-existing lines (like vi) with darker gray color
                 // Place tilda in the first column, followed by spaces to match line number width
-                execute!(io::stdout(), SetAttribute(Attribute::Dim))?;
+                execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
                 print!("~{} ", " ".repeat(line_num_width.saturating_sub(1)));
-                execute!(io::stdout(), SetAttribute(Attribute::Reset))?;
+                execute!(io::stdout(), ResetColor)?;
             }
 
             // Clear rest of line
@@ -300,9 +300,9 @@ impl RequestPaneRenderer {
             (end - start).min(state.request_buffer.line_count().saturating_sub(start));
         for row in visible_content_lines..pane_height {
             execute!(io::stdout(), cursor::MoveTo(0, row as u16))?;
-            execute!(io::stdout(), SetAttribute(Attribute::Dim))?;
+            execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
             print!("~{} ", " ".repeat(line_num_width.saturating_sub(1)));
-            execute!(io::stdout(), SetAttribute(Attribute::Reset))?;
+            execute!(io::stdout(), ResetColor)?;
             execute!(io::stdout(), Clear(ClearType::UntilNewLine))?;
         }
 

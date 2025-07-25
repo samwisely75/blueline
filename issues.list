@@ -1,5 +1,7 @@
-- The last HTTP status code, message, and turn around time must be retained and aligned to the right in the status bar.
-- initial width for the line number must be 3. The tilda should be placed in the first column.
-- src/repl/command.rs can be renamed as commands.rs. we can then migrate mod declaration from repl.rs to this.
-- integration tests must incorporate the check for the screen refresh. This could be done by a mock framework that hooks the invocation of a refresh method and maintain its call count. 
-- SwitchPaneCommand in the movement.rs must be pushed out to window.rs.
+# Issues List
+
+[x] The last HTTP status code, message, and turn around time must be retained and aligned to the right in the status bar.
+[x] initial width for the line number must be 3. The tilda should be placed in the first column.
+[] src/repl/command.rs can be renamed as commands.rs and we can then migrate mod declaration from repl.rs to this.
+[] integration tests must incorporate the check for the screen refresh. This could be done by a mock framework that hooks the invocation of a refresh method and maintain its call count. 
+[] SwitchPaneCommand in the movement.rs must be pushed out to window.rs.
