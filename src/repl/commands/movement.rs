@@ -1,35 +1,93 @@
 /// Move cursor to the start of the next word in the current line or next line
-fn move_to_next_word<T: MovementBuffer>(buffer: &mut T) -> Result<CommandResult> {
-    let line_idx = buffer.cursor_line();
-    let col_idx = *buffer.cursor_col_mut();
+/// Handles auto-scrolling when moving to a line outside the visible area
+fn move_to_next_word<T: MovementBuffer>(
+    buffer: &mut T,
+    visible_height: usize,
+) -> Result<CommandResult> {
+    let mut line_idx = buffer.cursor_line();
+    let mut col_idx = *buffer.cursor_col_mut();
     let lines = buffer.lines();
-    if let Some(line) = lines.get(line_idx) {
+    let mut first = true;
+    let mut scroll_occurred = false;
+
+    loop {
+        if line_idx >= lines.len() {
+            break;
+        }
+        let line = &lines[line_idx];
         let chars: Vec<char> = line.chars().collect();
-        let mut i = col_idx;
         let len = chars.len();
-        // Skip current non-word chars
-        while i < len && !chars[i].is_alphanumeric() {
+        let mut i = col_idx;
+
+        // On first iteration, always move at least one character forward if possible
+        if first && i < len {
             i += 1;
         }
-        // Skip current word chars
+
+        // If we're in a word, skip to the end of it
         while i < len && chars[i].is_alphanumeric() {
             i += 1;
         }
-        // Skip spaces/non-word to next word
+
+        // Skip non-word characters
         while i < len && !chars[i].is_alphanumeric() {
             i += 1;
         }
-        if i < len {
+
+        // If we found a word character, we're at the start of the next word
+        if i < len && chars[i].is_alphanumeric() {
+            *buffer.cursor_line_mut() = line_idx;
             *buffer.cursor_col_mut() = i;
-            return Ok(CommandResult::cursor_moved());
-        } else if line_idx + 1 < lines.len() {
-            *buffer.cursor_line_mut() += 1;
-            *buffer.cursor_col_mut() = 0;
-            // Recursively move to next word in next line
-            return move_to_next_word(buffer);
+
+            // Auto-scroll if cursor moved outside visible area
+            if line_idx < *buffer.scroll_offset_mut() {
+                *buffer.scroll_offset_mut() = line_idx;
+                scroll_occurred = true;
+            } else if line_idx >= *buffer.scroll_offset_mut() + visible_height {
+                *buffer.scroll_offset_mut() = line_idx - visible_height + 1;
+                scroll_occurred = true;
+            }
+
+            let mut result = CommandResult::cursor_moved();
+            if scroll_occurred {
+                result = result.with_scroll();
+            }
+            return Ok(result);
+        } else {
+            // Go to next line and start from beginning
+            line_idx += 1;
+            col_idx = 0;
+
+            // Check if next line exists and starts with a word
+            if line_idx < lines.len() {
+                let next_line = &lines[line_idx];
+                let next_chars: Vec<char> = next_line.chars().collect();
+                if !next_chars.is_empty() && next_chars[0].is_alphanumeric() {
+                    // Found a word at the start of the next line
+                    *buffer.cursor_line_mut() = line_idx;
+                    *buffer.cursor_col_mut() = 0;
+
+                    // Auto-scroll if cursor moved outside visible area
+                    if line_idx < *buffer.scroll_offset_mut() {
+                        *buffer.scroll_offset_mut() = line_idx;
+                        scroll_occurred = true;
+                    } else if line_idx >= *buffer.scroll_offset_mut() + visible_height {
+                        *buffer.scroll_offset_mut() = line_idx - visible_height + 1;
+                        scroll_occurred = true;
+                    }
+
+                    let mut result = CommandResult::cursor_moved();
+                    if scroll_occurred {
+                        result = result.with_scroll();
+                    }
+                    return Ok(result);
+                }
+            }
+            first = false; // Don't move forward on subsequent lines
         }
     }
-    Ok(CommandResult::not_handled())
+
+    Ok(CommandResult::cursor_moved()) // Always return cursor_moved for feedback
 }
 /// Command for moving cursor to next word (w)
 pub struct MoveToNextWordCommand;
@@ -41,17 +99,22 @@ impl Command for MoveToNextWordCommand {
         matches!(state.mode, EditorMode::Normal)
             && matches!(event.code, KeyCode::Char('w'))
             && event.modifiers == KeyModifiers::NONE
+            && !state.pending_ctrl_w // Don't intercept 'w' when Ctrl+W is pending
     }
 
     fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Get visible heights before mutable borrows
+        let request_visible_height = state.get_request_pane_height();
+        let response_visible_height = state.get_response_pane_height();
+
         match state.current_pane {
             Pane::Request => {
-                move_to_next_word(&mut state.request_buffer)?;
+                move_to_next_word(&mut state.request_buffer, request_visible_height)?;
                 Ok(true)
             }
             Pane::Response => {
                 if let Some(ref mut buffer) = state.response_buffer {
-                    move_to_next_word(buffer)?;
+                    move_to_next_word(buffer, response_visible_height)?;
                     Ok(true)
                 } else {
                     Ok(false)
@@ -1788,5 +1851,113 @@ mod tests {
         assert_eq!(state.request_buffer.cursor_line, 0); // Should stay at line 0
         assert_eq!(state.request_buffer.cursor_col, 0); // Should go to column 0
         assert_eq!(state.request_buffer.scroll_offset, 0); // Should not scroll
+    }
+
+    #[test]
+    fn move_to_next_word_should_advance_from_start_of_word() {
+        let mut buffer = create_test_request_buffer();
+        buffer.lines = vec!["hello world test".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 0; // At start of "hello"
+
+        move_to_next_word(&mut buffer, 10).unwrap();
+
+        assert_eq!(buffer.cursor_col, 6); // Should move to start of "world"
+    }
+
+    #[test]
+    fn move_to_next_word_should_advance_from_middle_of_word() {
+        let mut buffer = create_test_request_buffer();
+        buffer.lines = vec!["hello world test".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 2; // In middle of "hello"
+
+        move_to_next_word(&mut buffer, 10).unwrap();
+
+        assert_eq!(buffer.cursor_col, 6); // Should move to start of "world"
+    }
+
+    #[test]
+    fn move_to_next_word_should_skip_multiple_spaces() {
+        let mut buffer = create_test_request_buffer();
+        buffer.lines = vec!["hello    world".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 5; // At first space after "hello"
+
+        move_to_next_word(&mut buffer, 10).unwrap();
+
+        assert_eq!(buffer.cursor_col, 9); // Should move to start of "world"
+    }
+
+    #[test]
+    fn move_to_next_word_should_move_to_next_line_when_at_end() {
+        let mut buffer = create_test_request_buffer();
+        buffer.lines = vec!["hello".to_string(), "world".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 5; // At end of first line
+
+        move_to_next_word(&mut buffer, 10).unwrap();
+
+        assert_eq!(buffer.cursor_line, 1); // Should move to next line
+        assert_eq!(buffer.cursor_col, 0); // Should be at start of "world"
+    }
+
+    #[test]
+    fn move_to_next_word_should_handle_punctuation() {
+        let mut buffer = create_test_request_buffer();
+        buffer.lines = vec!["hello, world!".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 0; // At start of "hello"
+
+        move_to_next_word(&mut buffer, 10).unwrap();
+
+        assert_eq!(buffer.cursor_col, 7); // Should move to start of "world"
+    }
+
+    #[test]
+    fn move_to_next_word_should_stop_at_last_position_when_no_more_words() {
+        let mut buffer = create_test_request_buffer();
+        buffer.lines = vec!["hello".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 5; // At end of line
+
+        move_to_next_word(&mut buffer, 10).unwrap();
+
+        assert_eq!(buffer.cursor_line, 0);
+        assert_eq!(buffer.cursor_col, 5); // Should stay at end
+    }
+
+    #[test]
+    fn move_to_next_word_should_auto_scroll_when_moving_beyond_visible_area() {
+        let mut buffer = create_test_request_buffer();
+        // Create enough content to require scrolling (more than visible height of 3)
+        buffer.lines = vec![
+            "line0 word".to_string(),
+            "line1 word".to_string(),
+            "line2 word".to_string(),
+            "line3 word".to_string(),
+            "line4 word".to_string(),
+        ];
+        buffer.cursor_line = 2;
+        buffer.cursor_col = 0; // At start of "line2"
+        buffer.scroll_offset = 0;
+
+        // With visible height of 3, lines 0-2 are visible, line 3+ are not
+        let result = move_to_next_word(&mut buffer, 3).unwrap();
+
+        assert_eq!(buffer.cursor_line, 2); // Should move to "word" on same line
+        assert_eq!(buffer.cursor_col, 6); // Should be at start of "word"
+        assert_eq!(buffer.scroll_offset, 0); // No scroll needed for same line
+        assert!(result.cursor_moved);
+        assert!(!result.scroll_occurred);
+
+        // Now move to next word which should be on line 3 (beyond visible area)
+        let result = move_to_next_word(&mut buffer, 3).unwrap();
+
+        assert_eq!(buffer.cursor_line, 3); // Should move to line 3
+        assert_eq!(buffer.cursor_col, 0); // Should be at start of "line3"
+        assert_eq!(buffer.scroll_offset, 1); // Should scroll down to show line 3
+        assert!(result.cursor_moved);
+        assert!(result.scroll_occurred);
     }
 }

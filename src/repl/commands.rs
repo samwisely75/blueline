@@ -13,8 +13,15 @@
 //!
 //! ## Example Usage
 //!
-//! ```rust
+//! ```rust,no_run
+//! use blueline::repl::commands::movement::MoveCursorLeftCommand;
+//! use blueline::repl::commands::Command;
+//! use blueline::repl::model::AppState;
+//! use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
+//!
 //! let command = MoveCursorLeftCommand;
+//! let key_event = KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE);
+//! let mut app_state = AppState::new((80, 24), false);
 //! let result = command.process(key_event, &mut app_state);
 //! ```
 

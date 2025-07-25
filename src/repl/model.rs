@@ -352,7 +352,7 @@ impl AppState {
             response_pane_visible: true, // Default to visible when response exists
             terminal_size,
             request_pane_height: initial_request_pane_height,
-            status_message: "-- INSERT --".to_string(),
+            status_message: "".to_string(), // Empty for normal mode
             command_buffer: String::new(),
             session_headers: HashMap::new(),
             clipboard: String::new(),
@@ -1356,7 +1356,7 @@ mod tests {
         assert_eq!(state.request_buffer.lines.len(), 1);
         assert!(state.response_buffer.is_none());
         assert_eq!(state.terminal_size, (80, 24));
-        assert_eq!(state.status_message, "-- INSERT --");
+        assert_eq!(state.status_message, "");
         assert_eq!(state.command_buffer, "");
         assert!(state.session_headers.is_empty());
         assert_eq!(state.clipboard, "");

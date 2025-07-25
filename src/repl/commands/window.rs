@@ -31,6 +31,7 @@ impl Command for SwitchPaneCommand {
             && matches!(event.code, KeyCode::Char('w'))
         {
             state.pending_ctrl_w = true;
+            state.status_message = "Waiting for window command".to_string();
             return Ok(true);
         }
 
@@ -39,16 +40,19 @@ impl Command for SwitchPaneCommand {
             match event.code {
                 KeyCode::Char('w') => {
                     // Ctrl+W w - switch to next window
-                    state.current_pane = match state.current_pane {
+                    let target_pane = match state.current_pane {
                         Pane::Request => Pane::Response,
                         Pane::Response => Pane::Request,
                     };
+                    state.current_pane = target_pane;
                     state.pending_ctrl_w = false;
+                    state.status_message = format!("Switch pane to {:?}", target_pane);
                     return Ok(true);
                 }
                 KeyCode::Esc => {
                     // Cancel Ctrl+W command
                     state.pending_ctrl_w = false;
+                    state.status_message = "".to_string(); // Clear status message
                     return Ok(true);
                 }
                 _ => {
@@ -159,6 +163,7 @@ mod tests {
 
         assert!(result);
         assert!(state.pending_ctrl_w);
+        assert_eq!(state.status_message, "Waiting for window command");
     }
 
     #[test]
@@ -167,6 +172,7 @@ mod tests {
         state.mode = EditorMode::Normal;
         state.current_pane = Pane::Request;
         state.pending_ctrl_w = true;
+        state.status_message = "Waiting for window command".to_string(); // Set initial status
         let command = SwitchPaneCommand;
         let event = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE);
 
@@ -175,6 +181,7 @@ mod tests {
         assert!(result);
         assert_eq!(state.current_pane, Pane::Response);
         assert!(!state.pending_ctrl_w);
+        assert_eq!(state.status_message, "Switch pane to Response"); // Should show target pane
     }
 
     #[test]
@@ -191,6 +198,7 @@ mod tests {
         assert!(result);
         assert_eq!(state.current_pane, Pane::Request);
         assert!(!state.pending_ctrl_w);
+        assert_eq!(state.status_message, "Switch pane to Request"); // Should show target pane
     }
 
     #[test]
@@ -198,6 +206,7 @@ mod tests {
         let mut state = create_test_app_state();
         state.mode = EditorMode::Normal;
         state.pending_ctrl_w = true;
+        state.status_message = "Waiting for window command".to_string(); // Set initial status
         let command = SwitchPaneCommand;
         let event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
 
@@ -205,6 +214,7 @@ mod tests {
 
         assert!(result);
         assert!(!state.pending_ctrl_w);
+        assert_eq!(state.status_message, ""); // Should be cleared
     }
 
     #[test]
