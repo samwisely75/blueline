@@ -1,8 +1,23 @@
-//! # Mock View Renderer for Testing
+//! # Mock View Renderer for Screen Refresh Tracking Tests
 //!
-//! This module provides a mock implementation of ViewRenderer that tracks
-//! method calls for integration testing. It allows tests to verify that
-//! the correct rendering methods are called with the expected parameters.
+//! This module provides MockViewRenderer, a test implementation of ViewRenderer that tracks
+//! all method calls for BDD integration testing. It enables verification that the REPL
+//! controller calls the correct rendering methods at the appropriate times.
+//!
+//! ## Critical Testing Architecture Notes
+//!
+//! **Thread-Safe Design**: Uses Arc<Mutex<Vec<RenderCallRecord>>> for call tracking to ensure
+//! thread safety across async test scenarios.
+//!
+//! **BDD Integration Challenge**: Originally designed for single-file BDD scenarios, but
+//! thread_local storage caused state persistence between scenarios in the same thread.
+//! This led to false test failures with accumulated call counts.
+//!
+//! **Solution**: Each BDD scenario must run in its own feature file to ensure complete
+//! isolation. See tests/integration_tests.rs for the architectural decision documentation.
+//!
+//! **State Capture**: Records both the type of render call and a snapshot of the AppState
+//! at the time of the call, enabling comprehensive verification of rendering behavior.
 
 use anyhow::Result;
 use std::sync::{Arc, Mutex};

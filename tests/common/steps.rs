@@ -443,7 +443,27 @@ async fn post_request_executed_with_json_final(world: &mut BluelineWorld) {
 use super::mock_view::{MockViewRenderer, RenderCall};
 use blueline::ViewRenderer; // Import the trait so methods are available
 
-// Storage for mock renderer during test execution - use a counter to avoid conflicts
+// Mock renderer storage for screen refresh tracking tests
+//
+// ## Critical Design Decision: thread_local Storage and Individual Feature Files
+//
+// Originally, all screen refresh scenarios were in one `screen_refresh.feature` file,
+// but this caused test failures due to thread_local state persistence across scenarios.
+//
+// **The Problem**: When multiple BDD scenarios run in the same feature file, Cucumber
+// executes them sequentially within the same thread. This means `thread_local!` storage
+// persists between scenarios, causing call counts to accumulate incorrectly:
+// - Scenario 1: Expected 1 render_full call ✓
+// - Scenario 2: Expected 1 render_full call ✗ (got 2, including previous scenario)
+// - Scenario 3: Expected 1 render_cursor_only call ✗ (got 0, wrong accumulation)
+//
+// **The Solution**: Each scenario must run in its own feature file to ensure complete
+// isolation. Even with explicit state clearing (below), thread_local storage cannot
+// be fully reset between scenarios in the same thread execution.
+//
+// **Files Required**: See individual files in features/screen_refresh_*.feature
+// Each file contains exactly one @mock scenario to prevent state interference.
+//
 thread_local! {
     static MOCK_RENDERER: std::cell::RefCell<Option<MockViewRenderer>> = const { std::cell::RefCell::new(None) };
     static SCENARIO_COUNTER: std::cell::RefCell<usize> = const { std::cell::RefCell::new(0) };
@@ -457,6 +477,8 @@ async fn given_repl_controller_with_mock(world: &mut BluelineWorld) {
     });
 
     // Completely clear any existing renderer to ensure total isolation
+    // NOTE: This explicit clearing is necessary but not sufficient for complete isolation
+    // when multiple scenarios run in the same thread. See thread_local! comments above.
     MOCK_RENDERER.with(|m| {
         *m.borrow_mut() = None;
     });
