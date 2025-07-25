@@ -84,6 +84,8 @@ impl ViewManager {
         for observer in &mut self.observers {
             observer.render_cursor_only(state)?;
         }
+        // Position cursor correctly after all rendering
+        self.position_cursor_after_render(state)?;
         self.last_render_type = RenderType::CursorOnly;
         io::stdout().flush()?;
         Ok(())
@@ -96,6 +98,8 @@ impl ViewManager {
         }
         // Update cursor style in case mode changed
         self.update_cursor_style(state)?;
+        // Position cursor correctly after all rendering
+        self.position_cursor_after_render(state)?;
         self.last_render_type = RenderType::ContentUpdate;
         io::stdout().flush()?;
         Ok(())
@@ -108,6 +112,8 @@ impl ViewManager {
         }
         // Update cursor style for full renders
         self.update_cursor_style(state)?;
+        // Position cursor correctly after all rendering
+        self.position_cursor_after_render(state)?;
         self.last_render_type = RenderType::Full;
         io::stdout().flush()?;
         Ok(())
@@ -145,6 +151,44 @@ impl ViewManager {
         execute!(io::stdout(), cursor_style)?;
         Ok(())
     }
+
+    /// Position cursor correctly based on current pane and mode
+    fn position_cursor_after_render(&self, state: &AppState) -> Result<()> {
+        use super::model::Pane;
+
+        match state.current_pane {
+            Pane::Request => {
+                let cursor_row =
+                    state.request_buffer.cursor_line - state.request_buffer.scroll_offset;
+                let cursor_col = state.request_buffer.cursor_col;
+
+                // Calculate line number width to offset cursor position
+                let max_line_num = state.request_buffer.line_count();
+                let line_num_width = max_line_num.to_string().len().max(3);
+                let line_num_offset = line_num_width + 1; // +1 for space after line number
+
+                execute!(
+                    io::stdout(),
+                    cursor::MoveTo((cursor_col + line_num_offset) as u16, cursor_row as u16)
+                )?;
+            }
+            Pane::Response => {
+                if let Some(ref response_buffer) = state.response_buffer {
+                    let cursor_row = response_buffer.cursor_line - response_buffer.scroll_offset;
+                    let cursor_col = response_buffer.cursor_col;
+
+                    // Offset by request pane height + separator
+                    let actual_row = cursor_row + state.get_request_pane_height() + 1;
+                    execute!(
+                        io::stdout(),
+                        cursor::MoveTo(cursor_col as u16, actual_row as u16)
+                    )?;
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for ViewManager {
@@ -166,18 +210,12 @@ impl RequestPaneRenderer {
 
 impl RenderObserver for RequestPaneRenderer {
     fn render_cursor_only(&mut self, state: &AppState) -> Result<()> {
-        // Calculate cursor position in request pane and move cursor there
-        let cursor_row = state.request_buffer.cursor_line - state.request_buffer.scroll_offset;
-        let cursor_col = state.request_buffer.cursor_col;
-
-        // Only move cursor if we're in the request pane
+        // Cursor positioning is now handled centrally by ViewManager
+        // This renderer doesn't need to do anything for cursor-only updates
         if state.current_pane == super::model::Pane::Request {
-            execute!(
-                io::stdout(),
-                cursor::MoveTo(cursor_col as u16, cursor_row as u16)
-            )?;
+            // Only signal that we're ready for cursor positioning
+            // The actual positioning will be done by ViewManager.position_cursor_after_render
         }
-
         Ok(())
     }
 
@@ -200,16 +238,22 @@ impl RenderObserver for RequestPaneRenderer {
 
 impl RequestPaneRenderer {
     fn render_request_pane_content(&self, state: &AppState) -> Result<()> {
-        // Implement request pane content rendering
-        // This would be similar to the current render_pane_update logic
-        // for the request pane only
+        // Implement request pane content rendering with line numbers like vim
 
         let pane_height = state.get_request_pane_height();
         let (start, end) = state.request_buffer.visible_range(pane_height);
 
+        // Calculate width needed for line numbers (minimum 3 characters)
+        let max_line_num = state.request_buffer.line_count();
+        let line_num_width = max_line_num.to_string().len().max(3);
+
         // Move to start of request pane and render visible lines
         for (row, line_idx) in (start..end).enumerate() {
             execute!(io::stdout(), cursor::MoveTo(0, row as u16))?;
+
+            // Render line number with right alignment
+            let line_num = line_idx + 1; // Line numbers start from 1
+            print!("{:>width$} ", line_num, width = line_num_width);
 
             if let Some(line) = state.request_buffer.lines.get(line_idx) {
                 // TODO: Add syntax highlighting for HTTP requests
@@ -225,17 +269,8 @@ impl RequestPaneRenderer {
 
     fn render_request_pane_full(&self, state: &AppState) -> Result<()> {
         // Render with full decorations (borders, focus indicators, etc.)
-
-        // Add focus highlighting if this pane is active
-        if state.current_pane == super::model::Pane::Request {
-            execute!(io::stdout(), SetBackgroundColor(Color::DarkBlue))?;
-        }
-
+        // Don't apply background color here to avoid inversion issues
         self.render_request_pane_content(state)?;
-
-        // Reset colors
-        execute!(io::stdout(), ResetColor)?;
-
         Ok(())
     }
 }
@@ -253,18 +288,12 @@ impl ResponsePaneRenderer {
 
 impl RenderObserver for ResponsePaneRenderer {
     fn render_cursor_only(&mut self, state: &AppState) -> Result<()> {
-        // Only render cursor if we have a response and we're in response pane
-        if let Some(ref response_buffer) = state.response_buffer {
+        // Cursor positioning is now handled centrally by ViewManager
+        // This renderer doesn't need to do anything for cursor-only updates
+        if let Some(ref _response_buffer) = state.response_buffer {
             if state.current_pane == super::model::Pane::Response {
-                let cursor_row = response_buffer.cursor_line - response_buffer.scroll_offset;
-                let cursor_col = response_buffer.cursor_col;
-
-                // Offset by request pane height + separator
-                let actual_row = cursor_row + state.get_request_pane_height() + 1;
-                execute!(
-                    io::stdout(),
-                    cursor::MoveTo(cursor_col as u16, actual_row as u16)
-                )?;
+                // Only signal that we're ready for cursor positioning
+                // The actual positioning will be done by ViewManager.position_cursor_after_render
             }
         }
 
@@ -345,13 +374,15 @@ impl StatusLineRenderer {
 }
 
 impl RenderObserver for StatusLineRenderer {
-    fn render_cursor_only(&mut self, _state: &AppState) -> Result<()> {
-        // Status line doesn't change on cursor-only moves
+    fn render_cursor_only(&mut self, state: &AppState) -> Result<()> {
+        // Status line should update to show cursor position changes
+        self.render_status_line(state)?;
         Ok(())
     }
 
-    fn render_content_update(&mut self, _state: &AppState) -> Result<()> {
-        // Status line typically doesn't change on content updates
+    fn render_content_update(&mut self, state: &AppState) -> Result<()> {
+        // Status line should update on mode changes and content updates
+        self.render_status_line(state)?;
         Ok(())
     }
 

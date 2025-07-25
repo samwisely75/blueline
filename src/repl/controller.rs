@@ -36,10 +36,11 @@ use bluenote::{HttpClient, IniProfile};
 use super::{
     command::{Command, CommandResult},
     commands::{
-        DeleteCharCommand, EnterCommandModeCommand, EnterInsertModeCommand, ExitInsertModeCommand,
-        InsertCharCommand, InsertNewLineCommand, MoveCursorDownCommand, MoveCursorLeftCommand,
-        MoveCursorLineEndCommand, MoveCursorLineStartCommand, MoveCursorRightCommand,
-        MoveCursorUpCommand, SwitchPaneCommand,
+        CancelCommandModeCommand, CommandModeInputCommand, DeleteCharCommand,
+        EnterCommandModeCommand, EnterInsertModeCommand, ExecuteCommandCommand,
+        ExitInsertModeCommand, InsertCharCommand, InsertNewLineCommand, MoveCursorDownCommand,
+        MoveCursorLeftCommand, MoveCursorLineEndCommand, MoveCursorLineStartCommand,
+        MoveCursorRightCommand, MoveCursorUpCommand, SwitchPaneCommand,
     },
     model::AppState,
     view::{create_default_view_manager, ViewManager},
@@ -148,16 +149,26 @@ impl ReplController {
                 continue;
             }
 
+            // Store state before processing to detect changes
+            let old_request_content = self.state.request_buffer.get_text();
+            let old_cursor_line = self.state.request_buffer.cursor_line;
+            let old_cursor_col = self.state.request_buffer.cursor_col;
+
             let handled = command.process(key, &mut self.state)?;
             if handled {
-                // Create a basic result for all commands
+                // Detect what actually changed by comparing before/after state
+                let new_request_content = self.state.request_buffer.get_text();
+                let content_changed = old_request_content != new_request_content;
+                let cursor_moved = old_cursor_line != self.state.request_buffer.cursor_line
+                    || old_cursor_col != self.state.request_buffer.cursor_col;
+
                 command_results.push(CommandResult {
                     handled: true,
-                    content_changed: false, // Conservative assumption
-                    cursor_moved: true,     // Conservative assumption
-                    mode_changed: false,
-                    pane_changed: false,
-                    scroll_occurred: false,
+                    content_changed,
+                    cursor_moved,
+                    mode_changed: false, // Will be detected by comparing old_mode
+                    pane_changed: false, // Will be detected by comparing old_pane
+                    scroll_occurred: false, // Will be detected by comparing scroll offsets
                     status_message: None,
                 });
                 any_handled = true;
@@ -259,7 +270,13 @@ impl ReplController {
         self.commands.push(Box::new(InsertCharCommand::new()));
         self.commands.push(Box::new(InsertNewLineCommand::new()));
         self.commands.push(Box::new(DeleteCharCommand::new()));
+
+        // Command mode commands
         self.commands.push(Box::new(EnterCommandModeCommand::new()));
+        self.commands.push(Box::new(CommandModeInputCommand::new()));
+        self.commands.push(Box::new(ExecuteCommandCommand::new()));
+        self.commands
+            .push(Box::new(CancelCommandModeCommand::new()));
 
         // Note: Commands are processed in order, so put more specific commands first
         // and more general commands (like InsertCharCommand) later

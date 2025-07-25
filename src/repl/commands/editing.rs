@@ -272,3 +272,135 @@ impl Command for EnterCommandModeCommand {
         "EnterCommandMode"
     }
 }
+
+/// Command for typing characters in command mode
+pub struct CommandModeInputCommand;
+
+impl CommandModeInputCommand {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Command for CommandModeInputCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Command mode
+        matches!(state.mode, EditorMode::Command)
+    }
+
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        match event.code {
+            KeyCode::Char(ch) if event.modifiers == KeyModifiers::NONE => {
+                // Add character to command buffer
+                state.command_buffer.push(ch);
+                state.status_message = format!(":{}", state.command_buffer);
+                Ok(true)
+            }
+            KeyCode::Backspace => {
+                // Remove last character from command buffer
+                if !state.command_buffer.is_empty() {
+                    state.command_buffer.pop();
+                    state.status_message = format!(":{}", state.command_buffer);
+                } else {
+                    // If buffer is empty, exit command mode
+                    state.mode = EditorMode::Normal;
+                    state.status_message = "".to_string();
+                }
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "CommandModeInput"
+    }
+}
+
+/// Command for executing commands in command mode (Enter)
+pub struct ExecuteCommandCommand;
+
+impl ExecuteCommandCommand {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Command for ExecuteCommandCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Command mode
+        matches!(state.mode, EditorMode::Command)
+    }
+
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        if matches!(event.code, KeyCode::Enter) {
+            let command = state.command_buffer.trim();
+
+            // Handle basic vim commands
+            match command {
+                "q" | "quit" => {
+                    // TODO: Set quit flag or exit mechanism
+                    state.status_message = "Use Ctrl+C to quit".to_string();
+                }
+                "w" | "write" => {
+                    // TODO: Save functionality
+                    state.status_message = "Save not implemented yet".to_string();
+                }
+                "wq" => {
+                    // TODO: Save and quit
+                    state.status_message = "Save and quit not implemented yet".to_string();
+                }
+                "" => {
+                    // Empty command, just exit command mode
+                    state.status_message = "".to_string();
+                }
+                _ => {
+                    state.status_message = format!("Unknown command: {}", command);
+                }
+            }
+
+            // Exit command mode
+            state.mode = EditorMode::Normal;
+            state.command_buffer.clear();
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "ExecuteCommand"
+    }
+}
+
+/// Command for canceling command mode (Esc)
+pub struct CancelCommandModeCommand;
+
+impl CancelCommandModeCommand {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Command for CancelCommandModeCommand {
+    fn is_relevant(&self, state: &AppState) -> bool {
+        // Only relevant in Command mode
+        matches!(state.mode, EditorMode::Command)
+    }
+
+    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        if matches!(event.code, KeyCode::Esc) {
+            // Cancel command mode and return to normal mode
+            state.mode = EditorMode::Normal;
+            state.command_buffer.clear();
+            state.status_message = "".to_string();
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "CancelCommandMode"
+    }
+}
