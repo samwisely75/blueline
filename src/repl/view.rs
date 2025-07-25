@@ -382,13 +382,6 @@ impl StatusLineRenderer {
             print!("{}", timing_info);
         }
 
-        // Add current pane indicator
-        let pane_indicator = match state.current_pane {
-            super::model::Pane::Request => " [REQ]",
-            super::model::Pane::Response => " [RES]",
-        };
-        print!("{}", pane_indicator);
-
         Ok(())
     }
 }
