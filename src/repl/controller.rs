@@ -38,11 +38,12 @@ use super::{
     commands::{
         CancelCommandModeCommand, Command, CommandModeInputCommand, CommandResult,
         DeleteCharCommand, EnterCommandModeCommand, EnterInsertModeCommand, ExecuteCommandCommand,
-        ExitInsertModeCommand, ExpandResponsePaneCommand, InsertCharCommand, InsertNewLineCommand,
-        MoveCursorDownCommand, MoveCursorLeftCommand, MoveCursorLineEndCommand,
-        MoveCursorLineStartCommand, MoveCursorRightCommand, MoveCursorUpCommand,
-        ScrollFullPageDownCommand, ScrollFullPageUpCommand, ScrollHalfPageDownCommand,
-        ScrollHalfPageUpCommand, ShrinkResponsePaneCommand, SwitchPaneCommand,
+        ExitInsertModeCommand, ExpandResponsePaneCommand, GoToBottomCommand, GoToTopCommand,
+        InsertCharCommand, InsertNewLineCommand, MoveCursorDownCommand, MoveCursorLeftCommand,
+        MoveCursorLineEndCommand, MoveCursorLineStartCommand, MoveCursorRightCommand,
+        MoveCursorUpCommand, ScrollFullPageDownCommand, ScrollFullPageUpCommand,
+        ScrollHalfPageDownCommand, ScrollHalfPageUpCommand, SetPendingGCommand,
+        ShrinkResponsePaneCommand, SwitchPaneCommand,
     },
     model::{AppState, ResponseBuffer},
     view::{create_default_view_manager, ViewManager},
@@ -225,6 +226,12 @@ impl<V: ViewRenderer> ReplController<V> {
             }
         }
 
+        // Clear pending states if no command handled the event (invalid key sequence)
+        if !any_handled {
+            self.state.pending_g = false;
+            self.state.pending_ctrl_w = false;
+        }
+
         // Handle special quit commands
         if matches!(key.code, crossterm::event::KeyCode::Char('c'))
             && key
@@ -322,6 +329,12 @@ impl<V: ViewRenderer> ReplController<V> {
         self.commands.push(Box::new(MoveCursorDownCommand));
         self.commands.push(Box::new(MoveCursorLineStartCommand));
         self.commands.push(Box::new(MoveCursorLineEndCommand));
+
+        // Navigation commands (order matters: SetPendingG must come before GoToTop)
+        self.commands.push(Box::new(SetPendingGCommand));
+        self.commands.push(Box::new(GoToTopCommand));
+        self.commands.push(Box::new(GoToBottomCommand));
+
         self.commands.push(Box::new(SwitchPaneCommand));
         self.commands.push(Box::new(ExpandResponsePaneCommand));
         self.commands.push(Box::new(ShrinkResponsePaneCommand));
