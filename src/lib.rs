@@ -1,15 +1,33 @@
-//! # Blueline HTTP Client Library
+//! # BlueLine - Terminal HTTP Client with Vim-like Interface
 //!
-//! This library provides the core components of the blueline HTTP client,
-//! including the REPL interface, MVC architecture, and command processing.
+//! A modern REPL for testing HTTP APIs with vim-style key bindings.
+//! Built with clean MVVM architecture for maintainability and testability.
+//!
+//! ## Architecture
+//!
+//! This application follows the Model-View-ViewModel (MVVM) pattern:
+//!
+//! ```text
+//! ┌─────────────┐    Events    ┌──────────────┐    Updates   ┌─────────┐
+//! │    View     │◄─────────────│  ViewModel   │◄─────────────│ Models  │
+//! │             │              │              │              │         │
+//! │ - Terminal  │              │ - Business   │              │ - Data  │
+//! │ - Rendering │              │   Logic      │              │ - State │
+//! │ - Input     │              │ - Coordination│              │         │
+//! └─────────────┘              └──────────────┘              └─────────┘
+//!                                      ▲
+//!                                      │ Commands
+//!                                      ▼
+//!                               ┌──────────────┐
+//!                               │  Controller  │
+//!                               │              │
+//!                               │ - Input      │
+//!                               │   Mapping    │
+//!                               │ - Event Loop │
+//!                               └──────────────┘
+//! ```
 
-pub mod repl;
+pub mod mvvm;
 
-// Re-export main types for convenience
-pub use repl::{
-    commands::Command,
-    controller::ReplController,
-    model::{AppState, EditorMode, Pane, RequestBuffer, ResponseBuffer},
-    view::{create_default_view_manager, ViewManager},
-    view_trait::ViewRenderer,
-};
+// Re-export main types for easy access
+pub use mvvm::*;

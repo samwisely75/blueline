@@ -136,9 +136,11 @@ impl Command for MoveToNextWordCommand {
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use crate::repl::commands::MvvmCommand;
 use crate::repl::{
     commands::{Command, CommandResult},
     model::{AppState, EditorMode, Pane, RequestBuffer, ResponseBuffer},
+    view_model::ViewModel,
 };
 
 /// Helper trait to provide common movement operations for both buffer types
@@ -675,6 +677,30 @@ impl Command for MoveCursorLeftCommand {
                 Ok(true)
             }
         }
+    }
+
+    fn name(&self) -> &'static str {
+        "MoveCursorLeft"
+    }
+}
+
+// MVVM Implementation - NEW!
+impl MvvmCommand for MoveCursorLeftCommand {
+    fn is_relevant(&self, view_model: &ViewModel, event: &KeyEvent) -> bool {
+        // Allow Left arrow in any mode, but 'h' only in Normal mode
+        match event.code {
+            KeyCode::Char('h') => {
+                matches!(view_model.editor.mode, EditorMode::Normal) && event.modifiers == KeyModifiers::NONE
+            }
+            KeyCode::Left => true,
+            _ => false,
+        }
+    }
+
+    fn execute(&self, _event: KeyEvent, view_model: &mut ViewModel) -> Result<bool> {
+        // Delegate to ViewModel - all the complex logic is already implemented!
+        view_model.move_cursor_left()?;
+        Ok(true)
     }
 
     fn name(&self) -> &'static str {
@@ -1362,6 +1388,41 @@ mod tests {
     }
 
     #[test]
+    fn mvvm_move_cursor_left_command_should_work() {
+        use crate::repl::commands::MvvmCommand;
+        use crate::repl::view_model::ViewModel;
+        
+        let command = MoveCursorLeftCommand;
+        let mut view_model = ViewModel::new();
+        
+        // Add some content to move within
+        let _ = view_model.request_buffer.content_mut().insert_text(
+            Pane::Request,
+            crate::repl::events::LogicalPosition { line: 0, column: 0 },
+            "test content",
+        );
+        
+        // Move cursor to position 5
+        let _ = view_model.editor.set_cursor(
+            Pane::Request, 
+            crate::repl::events::LogicalPosition { line: 0, column: 5 }
+        );
+        
+        // Test that command is relevant for 'h' key in Normal mode
+        let event = KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE);
+        assert!(MvvmCommand::is_relevant(&command, &view_model, &event));
+        
+        // Execute the command
+        let result = MvvmCommand::execute(&command, event, &mut view_model);
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+        
+        // Verify cursor moved left
+        let cursor_pos = view_model.get_cursor_position();
+        assert_eq!(cursor_pos.column, 4); // Should have moved from 5 to 4
+    }
+
+    #[test]
     fn move_cursor_left_should_not_move_when_at_start_of_line() {
         let mut buffer = create_test_request_buffer();
         buffer.cursor_col = 0;
@@ -1483,8 +1544,8 @@ mod tests {
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
-        assert_eq!(command.name(), "MoveCursorLeft");
+        assert!(Command::is_relevant(&command, &state, &event));
+        assert_eq!(Command::name(&command), "MoveCursorLeft");
     }
 
     #[test]
@@ -1493,7 +1554,7 @@ mod tests {
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Left, KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1503,7 +1564,7 @@ mod tests {
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1512,7 +1573,7 @@ mod tests {
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
         assert_eq!(command.name(), "MoveCursorRight");
     }
 
@@ -1522,7 +1583,7 @@ mod tests {
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
         assert_eq!(command.name(), "MoveCursorUp");
     }
 
@@ -1532,7 +1593,7 @@ mod tests {
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
         assert_eq!(command.name(), "MoveCursorDown");
     }
 
@@ -1542,7 +1603,7 @@ mod tests {
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
         assert_eq!(command.name(), "MoveCursorLineStart");
     }
 
@@ -1552,7 +1613,7 @@ mod tests {
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('$'), KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
         assert_eq!(command.name(), "MoveCursorLineEnd");
     }
 
@@ -1562,7 +1623,7 @@ mod tests {
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
         assert_eq!(command.name(), "ScrollHalfPageUp");
     }
 
@@ -1573,7 +1634,7 @@ mod tests {
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1582,7 +1643,7 @@ mod tests {
         let state = create_test_app_state();
         let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::NONE);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1639,7 +1700,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1649,7 +1710,7 @@ mod tests {
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1658,7 +1719,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1709,7 +1770,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
         assert_eq!(command.name(), "ScrollFullPageDown");
     }
 
@@ -1720,7 +1781,7 @@ mod tests {
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1729,7 +1790,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1798,7 +1859,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
         assert_eq!(command.name(), "ScrollFullPageUp");
     }
 
@@ -1809,7 +1870,7 @@ mod tests {
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1818,7 +1879,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1910,7 +1971,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1920,7 +1981,7 @@ mod tests {
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1947,7 +2008,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1957,7 +2018,7 @@ mod tests {
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1985,7 +2046,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -1995,7 +2056,7 @@ mod tests {
         state.pending_g = true;
         let event = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -2005,7 +2066,7 @@ mod tests {
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -2028,7 +2089,7 @@ mod tests {
         state.pending_g = true;
         let event = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -2037,7 +2098,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -2048,7 +2109,7 @@ mod tests {
         state.pending_g = true;
         let event = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -2132,7 +2193,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('G'), KeyModifiers::NONE);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -2141,7 +2202,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('G'), KeyModifiers::SHIFT);
 
-        assert!(command.is_relevant(&state, &event));
+        assert!(Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -2151,7 +2212,7 @@ mod tests {
         state.mode = EditorMode::Insert;
         let event = KeyEvent::new(KeyCode::Char('G'), KeyModifiers::NONE);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]
@@ -2160,7 +2221,7 @@ mod tests {
         let state = AppState::new((80, 24), true);
         let event = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(!Command::is_relevant(&command, &state, &event));
     }
 
     #[test]

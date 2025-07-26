@@ -246,6 +246,40 @@ impl ViewModel {
         Ok(())
     }
 
+    /// Insert a character at the current cursor position
+    pub fn insert_char(&mut self, ch: char) -> Result<()> {
+        let current_pane = self.editor.current_pane;
+        let current_pos = self.editor.get_cursor(current_pane);
+        let buffer = self.get_buffer_mut(current_pane);
+
+        // Use insert_text with single character
+        let event = buffer.content_mut().insert_text(current_pane, current_pos, &ch.to_string());
+
+        // Calculate new cursor position (moved one column right)
+        let new_pos = LogicalPosition {
+            line: current_pos.line,
+            column: current_pos.column + 1,
+        };
+
+        // Update editor cursor
+        self.editor.set_cursor(current_pane, new_pos);
+
+        // Update display cache since content changed
+        let display_cache = self.get_display_cache_mut(current_pane);
+        display_cache.invalidate(); // Simple approach - invalidate cache on content change
+
+        // Handle auto-scrolling if needed
+        self.ensure_cursor_visible(current_pane, new_pos);
+
+        // Emit model event for content change
+        self.emit_model_event(event);
+
+        // Emit view event for pane redraw (content changed)
+        self.emit_view_event(ViewModelEvent::PaneRedrawRequired { pane: current_pane });
+
+        Ok(())
+    }
+
     /// Get buffer for the specified pane
     fn get_buffer(&self, pane: Pane) -> &BufferModel {
         match pane {
