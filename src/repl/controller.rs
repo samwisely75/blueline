@@ -39,9 +39,10 @@ use super::{
         CancelCommandModeCommand, Command, CommandModeInputCommand, CommandResult,
         DeleteCharCommand, EnterCommandModeCommand, EnterInsertModeCommand, ExecuteCommandCommand,
         ExitInsertModeCommand, ExpandResponsePaneCommand, GoToBottomCommand, GoToTopCommand,
-        InsertCharCommand, InsertNewLineCommand, MoveCursorDownCommand, MoveCursorLeftCommand,
-        MoveCursorLineEndCommand, MoveCursorLineStartCommand, MoveCursorRightCommand,
-        MoveCursorUpCommand, MoveToNextWordCommand, ScrollFullPageDownCommand,
+        InsertCharCommand, InsertNewLineCommand, MoveCursorDownCommand,
+        MoveCursorDownDisplayCommand, MoveCursorLeftCommand, MoveCursorLineEndCommand,
+        MoveCursorLineStartCommand, MoveCursorRightCommand, MoveCursorUpCommand,
+        MoveCursorUpDisplayCommand, MoveToNextWordCommand, ScrollFullPageDownCommand,
         ScrollFullPageUpCommand, ScrollHalfPageDownCommand, ScrollHalfPageUpCommand,
         SetPendingGCommand, ShrinkResponsePaneCommand, SwitchPaneCommand,
     },
@@ -331,6 +332,10 @@ impl<V: ViewRenderer> ReplController<V> {
         self.commands.push(Box::new(MoveCursorLineEndCommand));
         self.commands.push(Box::new(MoveToNextWordCommand));
 
+        // Display line movement commands (cache-based, vim-style gj/gk)
+        self.commands.push(Box::new(MoveCursorUpDisplayCommand));
+        self.commands.push(Box::new(MoveCursorDownDisplayCommand));
+
         // Navigation commands (order matters: SetPendingG must come before GoToTop)
         self.commands.push(Box::new(SetPendingGCommand));
         self.commands.push(Box::new(GoToTopCommand));
@@ -524,7 +529,8 @@ impl<V: ViewRenderer> ReplController<V> {
                     response_text.push_str(&processed_body);
                 }
 
-                self.state.response_buffer = Some(ResponseBuffer::new(response_text));
+                // Use set_response to ensure cache is updated
+                self.state.set_response(response_text);
 
                 // Update status message
                 self.state.status_message = "".to_string();

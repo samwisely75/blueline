@@ -131,7 +131,8 @@ impl Command for MoveToNextWordCommand {
 /// # Movement Commands
 ///
 /// This module contains command implementations for cursor movement in both
-/// the Request and Response panes. These commands follow vim-style navigation.
+/// the Request and Response panes. These commands follow vim-style navigation
+/// with display-line-aware movement for wrapped text.
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -185,91 +186,459 @@ impl MovementBuffer for ResponseBuffer {
     }
 }
 
-/// Move cursor up by one line, handling scroll and column adjustment
-fn move_cursor_up<T: MovementBuffer>(buffer: &mut T) -> Result<CommandResult> {
-    let cursor_line = buffer.cursor_line();
-    if cursor_line > 0 {
-        *buffer.cursor_line_mut() -= 1;
-        let new_cursor_line = cursor_line - 1;
-        let line_len = buffer.lines().get(new_cursor_line).map_or(0, |l| l.len());
-        *buffer.cursor_col_mut() = (*buffer.cursor_col_mut()).min(line_len);
+/// Move cursor up by one display line, handling scroll and column adjustment
+/// Uses display cache for proper wrapped text navigation
+fn move_cursor_up_display_aware(state: &mut AppState) -> Result<CommandResult> {
+    let cache = match state.current_pane {
+        Pane::Request => state.cache_manager.get_request_cache(),
+        Pane::Response => state.cache_manager.get_response_cache(),
+    };
 
-        // Auto-scroll up if cursor goes above visible area
-        let mut scroll_occurred = false;
-        if new_cursor_line < *buffer.scroll_offset_mut() {
-            *buffer.scroll_offset_mut() = new_cursor_line;
-            scroll_occurred = true;
+    // Get current logical position
+    let (current_logical_line, current_logical_col) = match state.current_pane {
+        Pane::Request => (
+            state.request_buffer.cursor_line,
+            state.request_buffer.cursor_col,
+        ),
+        Pane::Response => {
+            if let Some(ref buffer) = state.response_buffer {
+                (buffer.cursor_line, buffer.cursor_col)
+            } else {
+                return Ok(CommandResult::not_handled());
+            }
         }
+    };
 
-        let mut result = CommandResult::cursor_moved();
-        if scroll_occurred {
-            result = result.with_scroll();
+    // Convert to display position
+    if let Some((current_display_line, current_display_col)) =
+        cache.logical_to_display_position(current_logical_line, current_logical_col)
+    {
+        // Try to move up one display line
+        if let Some((new_display_line, new_display_col)) =
+            cache.move_up(current_display_line, current_display_col)
+        {
+            // Convert back to logical position
+            if let Some((new_logical_line, new_logical_col)) =
+                cache.display_to_logical_position(new_display_line, new_display_col)
+            {
+                // Update cursor position and handle display-line-aware scrolling
+                match state.current_pane {
+                    Pane::Request => {
+                        state.request_buffer.cursor_line = new_logical_line;
+                        state.request_buffer.cursor_col = new_logical_col;
+
+                        // Auto-scroll up if new display line goes above visible area
+                        let scroll_offset_display = if let Some((scroll_display_line, _)) =
+                            cache.logical_to_display_position(state.request_buffer.scroll_offset, 0)
+                        {
+                            scroll_display_line
+                        } else {
+                            state.request_buffer.scroll_offset
+                        };
+
+                        if new_display_line < scroll_offset_display {
+                            // Find logical line that contains the target display line
+                            if let Some((target_logical_line, _)) =
+                                cache.display_to_logical_position(new_display_line, 0)
+                            {
+                                state.request_buffer.scroll_offset = target_logical_line;
+                            }
+                            return Ok(CommandResult::cursor_moved().with_scroll());
+                        }
+                    }
+                    Pane::Response => {
+                        if let Some(ref mut buffer) = state.response_buffer {
+                            buffer.cursor_line = new_logical_line;
+                            buffer.cursor_col = new_logical_col;
+
+                            // Auto-scroll up if new display line goes above visible area
+                            let scroll_offset_display = if let Some((scroll_display_line, _)) =
+                                cache.logical_to_display_position(buffer.scroll_offset, 0)
+                            {
+                                scroll_display_line
+                            } else {
+                                buffer.scroll_offset
+                            };
+
+                            if new_display_line < scroll_offset_display {
+                                // Find logical line that contains the target display line
+                                if let Some((target_logical_line, _)) =
+                                    cache.display_to_logical_position(new_display_line, 0)
+                                {
+                                    buffer.scroll_offset = target_logical_line;
+                                }
+                                return Ok(CommandResult::cursor_moved().with_scroll());
+                            }
+                        }
+                    }
+                }
+                return Ok(CommandResult::cursor_moved());
+            }
         }
-        Ok(result)
-    } else {
-        Ok(CommandResult::not_handled())
+    }
+
+    // Fallback to logical line movement if cache is not available
+    move_cursor_up_fallback(state)
+}
+
+/// Fallback movement when display cache is not available
+fn move_cursor_up_fallback(state: &mut AppState) -> Result<CommandResult> {
+    match state.current_pane {
+        Pane::Request => {
+            let buffer = &mut state.request_buffer;
+            if buffer.cursor_line > 0 {
+                buffer.cursor_line -= 1;
+                let line_len = buffer.lines.get(buffer.cursor_line).map_or(0, |l| l.len());
+                buffer.cursor_col = buffer.cursor_col.min(line_len);
+
+                if buffer.cursor_line < buffer.scroll_offset {
+                    buffer.scroll_offset = buffer.cursor_line;
+                    return Ok(CommandResult::cursor_moved().with_scroll());
+                }
+                Ok(CommandResult::cursor_moved())
+            } else {
+                Ok(CommandResult::not_handled())
+            }
+        }
+        Pane::Response => {
+            if let Some(ref mut buffer) = state.response_buffer {
+                if buffer.cursor_line > 0 {
+                    buffer.cursor_line -= 1;
+                    let line_len = buffer.lines.get(buffer.cursor_line).map_or(0, |l| l.len());
+                    buffer.cursor_col = buffer.cursor_col.min(line_len);
+
+                    if buffer.cursor_line < buffer.scroll_offset {
+                        buffer.scroll_offset = buffer.cursor_line;
+                        return Ok(CommandResult::cursor_moved().with_scroll());
+                    }
+                    Ok(CommandResult::cursor_moved())
+                } else {
+                    Ok(CommandResult::not_handled())
+                }
+            } else {
+                Ok(CommandResult::not_handled())
+            }
+        }
     }
 }
 
-/// Move cursor down by one line, handling scroll and column adjustment
-fn move_cursor_down<T: MovementBuffer>(
-    buffer: &mut T,
+/// Move cursor down by one display line, handling scroll and column adjustment
+/// Works purely in display space - tells buffer about segments to display and cursor position
+fn move_cursor_down_display_aware(
+    state: &mut AppState,
     visible_height: usize,
 ) -> Result<CommandResult> {
-    let cursor_line = buffer.cursor_line();
-    if cursor_line < buffer.lines().len().saturating_sub(1) {
-        *buffer.cursor_line_mut() += 1;
-        let new_cursor_line = cursor_line + 1;
-        let line_len = buffer.lines().get(new_cursor_line).map_or(0, |l| l.len());
-        *buffer.cursor_col_mut() = (*buffer.cursor_col_mut()).min(line_len);
+    let cache = match state.current_pane {
+        Pane::Request => state.cache_manager.get_request_cache(),
+        Pane::Response => state.cache_manager.get_response_cache(),
+    };
 
-        // Auto-scroll down if cursor goes below visible area
-        let mut scroll_occurred = false;
-        if new_cursor_line >= *buffer.scroll_offset_mut() + visible_height {
-            *buffer.scroll_offset_mut() = new_cursor_line - visible_height + 1;
-            scroll_occurred = true;
+    // Work purely in display space
+    let (current_display_cursor, current_display_scroll) = match state.current_pane {
+        Pane::Request => (
+            (
+                state.request_buffer.display_cursor_line,
+                state.request_buffer.display_cursor_col,
+            ),
+            state.request_buffer.display_scroll_offset,
+        ),
+        Pane::Response => {
+            if let Some(ref buffer) = state.response_buffer {
+                (
+                    (buffer.display_cursor_line, buffer.display_cursor_col),
+                    buffer.display_scroll_offset,
+                )
+            } else {
+                return Ok(CommandResult::not_handled());
+            }
+        }
+    };
+
+    let (current_display_line, current_display_col) = current_display_cursor;
+
+    // Try to move down one display line in display space
+    if let Some((new_display_line, new_display_col)) =
+        cache.move_down(current_display_line, current_display_col)
+    {
+        // Calculate where cursor would be positioned in terminal coordinates
+        let cursor_terminal_position = new_display_line - current_display_scroll;
+
+        // Determine if scrolling is needed
+        let (final_display_scroll, scroll_occurred) = if cursor_terminal_position >= visible_height
+        {
+            // Cursor would go beyond visible area - scroll down to keep it visible
+            let new_scroll = new_display_line - visible_height + 1;
+            (new_scroll, true)
+        } else {
+            // No scrolling needed
+            (current_display_scroll, false)
+        };
+
+        // Update buffer with new display positions (logical positions derived automatically)
+        match state.current_pane {
+            Pane::Request => {
+                state
+                    .request_buffer
+                    .set_display_cursor(new_display_line, new_display_col, &cache);
+                state
+                    .request_buffer
+                    .set_display_scroll(final_display_scroll, &cache);
+            }
+            Pane::Response => {
+                if let Some(ref mut buffer) = state.response_buffer {
+                    buffer.set_display_cursor(new_display_line, new_display_col, &cache);
+                    buffer.set_display_scroll(final_display_scroll, &cache);
+                }
+            }
         }
 
-        let mut result = CommandResult::cursor_moved();
+        // Return result indicating movement with optional scroll
         if scroll_occurred {
-            result = result.with_scroll();
+            Ok(CommandResult::cursor_moved().with_scroll())
+        } else {
+            Ok(CommandResult::cursor_moved())
         }
-        Ok(result)
     } else {
-        Ok(CommandResult::not_handled())
-    }
-}
+        // At last display line - check if we can scroll to reveal more content
+        let total_display_lines = cache.display_lines.len();
+        let last_visible_display = current_display_scroll + visible_height - 1;
 
-/// Move cursor left by one column
-fn move_cursor_left<T: MovementBuffer>(buffer: &mut T) -> Result<CommandResult> {
-    if *buffer.cursor_col_mut() > 0 {
-        *buffer.cursor_col_mut() -= 1;
-        Ok(CommandResult::cursor_moved())
-    } else {
-        Ok(CommandResult::not_handled())
-    }
-}
+        if last_visible_display < total_display_lines.saturating_sub(1) {
+            // There are more display lines below - scroll down
+            let new_display_scroll = current_display_scroll + 1;
 
-/// Move cursor right by one column
-fn move_cursor_right<T: MovementBuffer>(buffer: &mut T) -> Result<CommandResult> {
-    let cursor_line = buffer.cursor_line();
-    let cursor_col = *buffer.cursor_col_mut();
-    if let Some(line) = buffer.lines().get(cursor_line) {
-        if cursor_col < line.len() {
-            *buffer.cursor_col_mut() += 1;
-            return Ok(CommandResult::cursor_moved());
+            // Update buffer with new scroll position
+            match state.current_pane {
+                Pane::Request => {
+                    state
+                        .request_buffer
+                        .set_display_scroll(new_display_scroll, &cache);
+                }
+                Pane::Response => {
+                    if let Some(ref mut buffer) = state.response_buffer {
+                        buffer.set_display_scroll(new_display_scroll, &cache);
+                    }
+                }
+            }
+
+            Ok(CommandResult::cursor_moved().with_scroll())
+        } else {
+            // No more content to scroll - no movement
+            Ok(CommandResult::not_handled())
         }
     }
-    Ok(CommandResult::not_handled())
 }
 
-/// Move cursor to start of line
+/// Fallback movement when display cache is not available
+fn move_cursor_down_fallback(state: &mut AppState, visible_height: usize) -> Result<CommandResult> {
+    match state.current_pane {
+        Pane::Request => {
+            let buffer = &mut state.request_buffer;
+            if buffer.cursor_line < buffer.lines.len().saturating_sub(1) {
+                buffer.cursor_line += 1;
+                let line_len = buffer.lines.get(buffer.cursor_line).map_or(0, |l| l.len());
+                buffer.cursor_col = buffer.cursor_col.min(line_len);
+
+                if buffer.cursor_line >= buffer.scroll_offset + visible_height {
+                    buffer.scroll_offset = buffer.cursor_line - visible_height + 1;
+
+                    // Additional bounds check: ensure cursor position in terminal is valid
+                    let cursor_pos_in_terminal = buffer.cursor_line - buffer.scroll_offset;
+                    if cursor_pos_in_terminal >= visible_height {
+                        // Cursor would be beyond terminal bounds - adjust scroll
+                        buffer.scroll_offset =
+                            buffer.cursor_line.saturating_sub(visible_height - 1);
+                    }
+
+                    return Ok(CommandResult::cursor_moved().with_scroll());
+                }
+                Ok(CommandResult::cursor_moved())
+            } else {
+                Ok(CommandResult::not_handled())
+            }
+        }
+        Pane::Response => {
+            if let Some(ref mut buffer) = state.response_buffer {
+                if buffer.cursor_line < buffer.lines.len().saturating_sub(1) {
+                    buffer.cursor_line += 1;
+                    let line_len = buffer.lines.get(buffer.cursor_line).map_or(0, |l| l.len());
+                    buffer.cursor_col = buffer.cursor_col.min(line_len);
+
+                    if buffer.cursor_line >= buffer.scroll_offset + visible_height {
+                        buffer.scroll_offset = buffer.cursor_line - visible_height + 1;
+
+                        // Additional bounds check: ensure cursor position in terminal is valid
+                        let cursor_pos_in_terminal = buffer.cursor_line - buffer.scroll_offset;
+                        if cursor_pos_in_terminal >= visible_height {
+                            // Cursor would be beyond terminal bounds - adjust scroll
+                            buffer.scroll_offset =
+                                buffer.cursor_line.saturating_sub(visible_height - 1);
+                        }
+
+                        return Ok(CommandResult::cursor_moved().with_scroll());
+                    }
+                    Ok(CommandResult::cursor_moved())
+                } else {
+                    Ok(CommandResult::not_handled())
+                }
+            } else {
+                Ok(CommandResult::not_handled())
+            }
+        }
+    }
+}
+
+/// Move cursor left by one column with display-line wrapping awareness
+/// Moves to previous display line when at beginning of wrapped segment
+fn move_cursor_left_display_aware(state: &mut AppState) -> Result<CommandResult> {
+    match state.current_pane {
+        Pane::Request => {
+            let buffer = &mut state.request_buffer;
+            if buffer.cursor_col > 0 {
+                buffer.cursor_col -= 1;
+                Ok(CommandResult::cursor_moved())
+            } else {
+                // At beginning of line - try to wrap to previous display line
+                let cache = state.cache_manager.get_request_cache();
+                if let Some((current_display_line, _)) =
+                    cache.logical_to_display_position(buffer.cursor_line, buffer.cursor_col)
+                {
+                    if current_display_line > 0 {
+                        // Move to end of previous display line
+                        let prev_display_line = current_display_line - 1;
+                        if let Some(display_info) = cache.get_display_line(prev_display_line) {
+                            if let Some((new_logical_line, new_logical_col)) = cache
+                                .display_to_logical_position(
+                                    prev_display_line,
+                                    display_info.content.chars().count(),
+                                )
+                            {
+                                buffer.cursor_line = new_logical_line;
+                                buffer.cursor_col = new_logical_col;
+                                return Ok(CommandResult::cursor_moved());
+                            }
+                        }
+                    }
+                }
+                Ok(CommandResult::not_handled())
+            }
+        }
+        Pane::Response => {
+            if let Some(ref mut buffer) = state.response_buffer {
+                if buffer.cursor_col > 0 {
+                    buffer.cursor_col -= 1;
+                    Ok(CommandResult::cursor_moved())
+                } else {
+                    // At beginning of line - try to wrap to previous display line
+                    let cache = state.cache_manager.get_response_cache();
+                    if let Some((current_display_line, _)) =
+                        cache.logical_to_display_position(buffer.cursor_line, buffer.cursor_col)
+                    {
+                        if current_display_line > 0 {
+                            // Move to end of previous display line
+                            let prev_display_line = current_display_line - 1;
+                            if let Some(display_info) = cache.get_display_line(prev_display_line) {
+                                if let Some((new_logical_line, new_logical_col)) = cache
+                                    .display_to_logical_position(
+                                        prev_display_line,
+                                        display_info.content.chars().count(),
+                                    )
+                                {
+                                    buffer.cursor_line = new_logical_line;
+                                    buffer.cursor_col = new_logical_col;
+                                    return Ok(CommandResult::cursor_moved());
+                                }
+                            }
+                        }
+                    }
+                    Ok(CommandResult::not_handled())
+                }
+            } else {
+                Ok(CommandResult::not_handled())
+            }
+        }
+    }
+}
+
+/// Move cursor right by one column with display-line wrapping awareness
+/// Moves to next display line when at end of wrapped segment
+fn move_cursor_right_display_aware(state: &mut AppState) -> Result<CommandResult> {
+    match state.current_pane {
+        Pane::Request => {
+            let buffer = &mut state.request_buffer;
+            let current_line = buffer.lines.get(buffer.cursor_line);
+            if let Some(line) = current_line {
+                if buffer.cursor_col < line.len() {
+                    buffer.cursor_col += 1;
+                    Ok(CommandResult::cursor_moved())
+                } else {
+                    // At end of logical line - try to wrap to next display line
+                    let cache = state.cache_manager.get_request_cache();
+                    if let Some((current_display_line, _)) =
+                        cache.logical_to_display_position(buffer.cursor_line, buffer.cursor_col)
+                    {
+                        if current_display_line < cache.display_lines.len().saturating_sub(1) {
+                            // Move to beginning of next display line
+                            let next_display_line = current_display_line + 1;
+                            if let Some((new_logical_line, new_logical_col)) =
+                                cache.display_to_logical_position(next_display_line, 0)
+                            {
+                                buffer.cursor_line = new_logical_line;
+                                buffer.cursor_col = new_logical_col;
+                                return Ok(CommandResult::cursor_moved());
+                            }
+                        }
+                    }
+                    Ok(CommandResult::not_handled())
+                }
+            } else {
+                Ok(CommandResult::not_handled())
+            }
+        }
+        Pane::Response => {
+            if let Some(ref mut buffer) = state.response_buffer {
+                let current_line = buffer.lines.get(buffer.cursor_line);
+                if let Some(line) = current_line {
+                    if buffer.cursor_col < line.len() {
+                        buffer.cursor_col += 1;
+                        Ok(CommandResult::cursor_moved())
+                    } else {
+                        // At end of logical line - try to wrap to next display line
+                        let cache = state.cache_manager.get_response_cache();
+                        if let Some((current_display_line, _)) =
+                            cache.logical_to_display_position(buffer.cursor_line, buffer.cursor_col)
+                        {
+                            if current_display_line < cache.display_lines.len().saturating_sub(1) {
+                                // Move to beginning of next display line
+                                let next_display_line = current_display_line + 1;
+                                if let Some((new_logical_line, new_logical_col)) =
+                                    cache.display_to_logical_position(next_display_line, 0)
+                                {
+                                    buffer.cursor_line = new_logical_line;
+                                    buffer.cursor_col = new_logical_col;
+                                    return Ok(CommandResult::cursor_moved());
+                                }
+                            }
+                        }
+                        Ok(CommandResult::not_handled())
+                    }
+                } else {
+                    Ok(CommandResult::not_handled())
+                }
+            } else {
+                Ok(CommandResult::not_handled())
+            }
+        }
+    }
+}
+
+/// Move cursor to start of current display line (vim-style 0)
 fn move_cursor_line_start<T: MovementBuffer>(buffer: &mut T) -> Result<CommandResult> {
     *buffer.cursor_col_mut() = 0;
     Ok(CommandResult::cursor_moved())
 }
 
-/// Move cursor to end of line
+/// Move cursor to end of current display line (vim-style $)
 fn move_cursor_line_end<T: MovementBuffer>(buffer: &mut T) -> Result<CommandResult> {
     let cursor_line = buffer.cursor_line();
     if let Some(line) = buffer.lines().get(cursor_line) {
@@ -298,16 +667,12 @@ impl Command for MoveCursorLeftCommand {
     fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
         match state.current_pane {
             Pane::Request => {
-                move_cursor_left(&mut state.request_buffer)?;
+                move_cursor_left_display_aware(state)?;
                 Ok(true)
             }
             Pane::Response => {
-                if let Some(ref mut buffer) = state.response_buffer {
-                    move_cursor_left(buffer)?;
-                    Ok(true)
-                } else {
-                    Ok(false)
-                }
+                move_cursor_left_display_aware(state)?;
+                Ok(true)
             }
         }
     }
@@ -337,16 +702,12 @@ impl Command for MoveCursorRightCommand {
     fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
         match state.current_pane {
             Pane::Request => {
-                move_cursor_right(&mut state.request_buffer)?;
+                move_cursor_right_display_aware(state)?;
                 Ok(true)
             }
             Pane::Response => {
-                if let Some(ref mut buffer) = state.response_buffer {
-                    move_cursor_right(buffer)?;
-                    Ok(true)
-                } else {
-                    Ok(false)
-                }
+                move_cursor_right_display_aware(state)?;
+                Ok(true)
             }
         }
     }
@@ -374,20 +735,8 @@ impl Command for MoveCursorUpCommand {
     }
 
     fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        match state.current_pane {
-            Pane::Request => {
-                move_cursor_up(&mut state.request_buffer)?;
-                Ok(true)
-            }
-            Pane::Response => {
-                if let Some(ref mut buffer) = state.response_buffer {
-                    move_cursor_up(buffer)?;
-                    Ok(true)
-                } else {
-                    Ok(false)
-                }
-            }
-        }
+        move_cursor_up_display_aware(state)?;
+        Ok(true)
     }
 
     fn name(&self) -> &'static str {
@@ -417,20 +766,13 @@ impl Command for MoveCursorDownCommand {
         let request_visible_height = state.get_request_pane_height();
         let response_visible_height = state.get_response_pane_height();
 
-        match state.current_pane {
-            Pane::Request => {
-                move_cursor_down(&mut state.request_buffer, request_visible_height)?;
-                Ok(true)
-            }
-            Pane::Response => {
-                if let Some(ref mut buffer) = state.response_buffer {
-                    move_cursor_down(buffer, response_visible_height)?;
-                    Ok(true)
-                } else {
-                    Ok(false)
-                }
-            }
-        }
+        let visible_height = match state.current_pane {
+            Pane::Request => request_visible_height,
+            Pane::Response => response_visible_height,
+        };
+
+        let result = move_cursor_down_display_aware(state, visible_height)?;
+        Ok(result.handled)
     }
 
     fn name(&self) -> &'static str {
@@ -789,6 +1131,85 @@ fn go_to_bottom<T: MovementBuffer>(buffer: &mut T, pane_height: usize) {
     }
 }
 
+// Legacy movement functions for backward compatibility with tests
+#[cfg(test)]
+fn move_cursor_up<T: MovementBuffer>(buffer: &mut T) -> Result<CommandResult> {
+    let cursor_line = buffer.cursor_line();
+    if cursor_line > 0 {
+        *buffer.cursor_line_mut() -= 1;
+        let new_cursor_line = cursor_line - 1;
+        let line_len = buffer.lines().get(new_cursor_line).map_or(0, |l| l.len());
+        *buffer.cursor_col_mut() = (*buffer.cursor_col_mut()).min(line_len);
+
+        // Auto-scroll up if cursor goes above visible area
+        let mut scroll_occurred = false;
+        if new_cursor_line < *buffer.scroll_offset_mut() {
+            *buffer.scroll_offset_mut() = new_cursor_line;
+            scroll_occurred = true;
+        }
+
+        let mut result = CommandResult::cursor_moved();
+        if scroll_occurred {
+            result = result.with_scroll();
+        }
+        Ok(result)
+    } else {
+        Ok(CommandResult::not_handled())
+    }
+}
+
+#[cfg(test)]
+fn move_cursor_down<T: MovementBuffer>(
+    buffer: &mut T,
+    visible_height: usize,
+) -> Result<CommandResult> {
+    let cursor_line = buffer.cursor_line();
+    if cursor_line < buffer.lines().len().saturating_sub(1) {
+        *buffer.cursor_line_mut() += 1;
+        let new_cursor_line = cursor_line + 1;
+        let line_len = buffer.lines().get(new_cursor_line).map_or(0, |l| l.len());
+        *buffer.cursor_col_mut() = (*buffer.cursor_col_mut()).min(line_len);
+
+        // Auto-scroll down if cursor goes below visible area
+        let mut scroll_occurred = false;
+        if new_cursor_line >= *buffer.scroll_offset_mut() + visible_height {
+            *buffer.scroll_offset_mut() = new_cursor_line - visible_height + 1;
+            scroll_occurred = true;
+        }
+
+        let mut result = CommandResult::cursor_moved();
+        if scroll_occurred {
+            result = result.with_scroll();
+        }
+        Ok(result)
+    } else {
+        Ok(CommandResult::not_handled())
+    }
+}
+
+#[cfg(test)]
+fn move_cursor_left<T: MovementBuffer>(buffer: &mut T) -> Result<CommandResult> {
+    if *buffer.cursor_col_mut() > 0 {
+        *buffer.cursor_col_mut() -= 1;
+        Ok(CommandResult::cursor_moved())
+    } else {
+        Ok(CommandResult::not_handled())
+    }
+}
+
+#[cfg(test)]
+fn move_cursor_right<T: MovementBuffer>(buffer: &mut T) -> Result<CommandResult> {
+    let cursor_line = buffer.cursor_line();
+    let cursor_col = *buffer.cursor_col_mut();
+    if let Some(line) = buffer.lines().get(cursor_line) {
+        if cursor_col < line.len() {
+            *buffer.cursor_col_mut() += 1;
+            return Ok(CommandResult::cursor_moved());
+        }
+    }
+    Ok(CommandResult::not_handled())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -806,6 +1227,9 @@ mod tests {
             cursor_line: 0,
             cursor_col: 0,
             scroll_offset: 0,
+            display_cursor_line: 0,
+            display_cursor_col: 0,
+            display_scroll_offset: 0,
         }
     }
 
@@ -1959,5 +2383,248 @@ mod tests {
         assert_eq!(buffer.scroll_offset, 1); // Should scroll down to show line 3
         assert!(result.cursor_moved);
         assert!(result.scroll_occurred);
+    }
+}
+
+// DISPLAY LINE MOVEMENT COMMANDS USING CACHE
+// These new commands provide visual line movement (vim-style)
+
+/// Command for moving cursor up by display line (cache-based, handles word wrapping)
+pub struct MoveCursorUpDisplayCommand;
+
+impl Command for MoveCursorUpDisplayCommand {
+    fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
+        // Allow gk in Normal mode for display line movement
+        match event.code {
+            KeyCode::Char('k') => {
+                matches!(state.mode, EditorMode::Normal)
+                    && event.modifiers == KeyModifiers::NONE
+                    && state.pending_g // Only when 'g' was pressed first
+            }
+            _ => false,
+        }
+    }
+
+    fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Clear pending g flag
+        state.pending_g = false;
+
+        // Get current pane width for cache update
+        let content_width = match state.current_pane {
+            Pane::Request => {
+                let total_width = state.terminal_size.0 as usize;
+                total_width.saturating_sub(4) // Account for borders and padding
+            }
+            Pane::Response => {
+                let total_width = state.terminal_size.0 as usize;
+                total_width.saturating_sub(4) // Account for borders and padding
+            }
+        };
+
+        // Update cache for current pane
+        if let Err(e) = state.update_display_cache(content_width) {
+            eprintln!("Warning: Failed to update display cache: {}", e);
+            return Ok(false);
+        }
+
+        // Get current cursor position and desired column
+        let current_buffer = state.current_buffer();
+        let desired_col = current_buffer.cursor_col();
+
+        // Try to move up one display line
+        if let Some((new_logical_line, new_logical_col)) =
+            state.move_cursor_up_display_line(desired_col)
+        {
+            // Update cursor position in the buffer
+            match state.current_pane {
+                Pane::Request => {
+                    state.request_buffer.cursor_line = new_logical_line;
+                    state.request_buffer.cursor_col = new_logical_col;
+                    state.request_buffer.clamp_cursor();
+                }
+                Pane::Response => {
+                    if let Some(ref mut buffer) = state.response_buffer {
+                        buffer.cursor_line = new_logical_line;
+                        buffer.cursor_col = new_logical_col;
+                        buffer.clamp_cursor();
+                    }
+                }
+            }
+            Ok(true)
+        } else {
+            Ok(false) // Movement not possible
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "MoveCursorUpDisplay"
+    }
+}
+
+/// Command for moving cursor down by display line (cache-based, handles word wrapping)
+pub struct MoveCursorDownDisplayCommand;
+
+impl Command for MoveCursorDownDisplayCommand {
+    fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
+        // Allow gj in Normal mode for display line movement
+        match event.code {
+            KeyCode::Char('j') => {
+                matches!(state.mode, EditorMode::Normal)
+                    && event.modifiers == KeyModifiers::NONE
+                    && state.pending_g // Only when 'g' was pressed first
+            }
+            _ => false,
+        }
+    }
+
+    fn process(&self, _event: KeyEvent, state: &mut AppState) -> Result<bool> {
+        // Clear pending g flag
+        state.pending_g = false;
+
+        // Get current pane width for cache update
+        let content_width = match state.current_pane {
+            Pane::Request => {
+                let total_width = state.terminal_size.0 as usize;
+                total_width.saturating_sub(4) // Account for borders and padding
+            }
+            Pane::Response => {
+                let total_width = state.terminal_size.0 as usize;
+                total_width.saturating_sub(4) // Account for borders and padding
+            }
+        };
+
+        // Update cache for current pane
+        if let Err(e) = state.update_display_cache(content_width) {
+            eprintln!("Warning: Failed to update display cache: {}", e);
+            return Ok(false);
+        }
+
+        // Get current cursor position and desired column
+        let current_buffer = state.current_buffer();
+        let desired_col = current_buffer.cursor_col();
+
+        // Try to move down one display line
+        if let Some((new_logical_line, new_logical_col)) =
+            state.move_cursor_down_display_line(desired_col)
+        {
+            // Update cursor position in the buffer
+            match state.current_pane {
+                Pane::Request => {
+                    state.request_buffer.cursor_line = new_logical_line;
+                    state.request_buffer.cursor_col = new_logical_col;
+                    state.request_buffer.clamp_cursor();
+                }
+                Pane::Response => {
+                    if let Some(ref mut buffer) = state.response_buffer {
+                        buffer.cursor_line = new_logical_line;
+                        buffer.cursor_col = new_logical_col;
+                        buffer.clamp_cursor();
+                    }
+                }
+            }
+            Ok(true)
+        } else {
+            Ok(false) // Movement not possible
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "MoveCursorDownDisplay"
+    }
+}
+
+#[cfg(test)]
+mod display_line_movement_tests {
+    use super::*;
+
+    #[test]
+    fn move_cursor_up_display_command_should_work_with_wrapped_lines() {
+        let mut state = AppState::new((80, 24), false);
+
+        // Create wrapped content in response buffer (synchronous cache updates)
+        let wrapped_content = "This is a very long line that should wrap across multiple display lines when displayed\nShort line".to_string();
+        state.set_response(wrapped_content);
+        state.current_pane = crate::repl::model::Pane::Response;
+
+        // Position cursor at second line in response buffer
+        if let Some(ref mut response) = state.response_buffer {
+            response.cursor_line = 1;
+            response.cursor_col = 0;
+        }
+
+        // Set up pending g flag
+        state.pending_g = true;
+
+        // Pre-populate the cache by calling update_display_cache
+        let content_width = 76; // 80 - 4 for borders
+        state.update_display_cache(content_width).unwrap();
+
+        let command = MoveCursorUpDisplayCommand;
+        let event = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE);
+
+        // Should move to the last display line of the wrapped first line
+        let result = command.process(event, &mut state).unwrap();
+        assert!(result);
+        assert!(!state.pending_g); // Flag should be cleared
+
+        // Check cursor moved to wrapped first line
+        if let Some(ref response) = state.response_buffer {
+            assert_eq!(response.cursor_line, 0);
+            // Column should be positioned in the wrapped segment
+            assert!(response.cursor_col > 0);
+        }
+    }
+
+    #[test]
+    fn move_cursor_down_display_command_should_work_with_wrapped_lines() {
+        let mut state = AppState::new((80, 24), false);
+
+        // Create wrapped content in response buffer (synchronous cache updates)
+        let wrapped_content = "This is a very long line that should wrap across multiple display lines when displayed\nSecond line".to_string();
+        state.set_response(wrapped_content);
+        state.current_pane = crate::repl::model::Pane::Response;
+
+        // Position cursor at beginning of first line in response buffer
+        if let Some(ref mut response) = state.response_buffer {
+            response.cursor_line = 0;
+            response.cursor_col = 0;
+        }
+
+        // Set up pending g flag
+        state.pending_g = true;
+
+        // Pre-populate the cache by calling update_display_cache
+        let content_width = 76; // 80 - 4 for borders
+        state.update_display_cache(content_width).unwrap();
+
+        let command = MoveCursorDownDisplayCommand;
+        let event = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE);
+
+        // Should move to the next display line within the wrapped first line
+        let result = command.process(event, &mut state).unwrap();
+        assert!(result);
+        assert!(!state.pending_g); // Flag should be cleared
+
+        // Check cursor is still on first logical line but in wrapped segment
+        if let Some(ref response) = state.response_buffer {
+            assert_eq!(response.cursor_line, 0);
+            // Column should be positioned in the wrapped segment
+            assert!(response.cursor_col > 0);
+        }
+    }
+
+    #[test]
+    fn display_commands_should_not_be_relevant_without_pending_g() {
+        let state = AppState::new((80, 24), false);
+
+        let up_command = MoveCursorUpDisplayCommand;
+        let down_command = MoveCursorDownDisplayCommand;
+
+        let k_event = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE);
+        let j_event = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE);
+
+        // Without pending_g, these commands should not be relevant
+        assert!(!up_command.is_relevant(&state, &k_event));
+        assert!(!down_command.is_relevant(&state, &j_event));
     }
 }

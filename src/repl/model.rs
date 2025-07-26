@@ -10,6 +10,7 @@
 //! - **Immutable Methods**: Prefer methods that return new states over mutation
 //! - **Clear Ownership**: Each piece of state has a clear owner
 
+use crate::repl::display_cache::{CacheManager, Position};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -46,9 +47,14 @@ pub struct VisualSelection {
 #[derive(Debug, Clone)]
 pub struct RequestBuffer {
     pub lines: Vec<String>,
+    // Logical position (for line numbers and internal consistency)
     pub cursor_line: usize,
     pub cursor_col: usize,
     pub scroll_offset: usize,
+    // Display position (for cursor rendering and movement)
+    pub display_cursor_line: usize,
+    pub display_cursor_col: usize,
+    pub display_scroll_offset: usize,
 }
 
 impl RequestBuffer {
@@ -59,6 +65,9 @@ impl RequestBuffer {
             cursor_line: 0,
             cursor_col: 0,
             scroll_offset: 0,
+            display_cursor_line: 0,
+            display_cursor_col: 0,
+            display_scroll_offset: 0,
         }
     }
 
@@ -93,6 +102,56 @@ impl RequestBuffer {
             if self.cursor_col > line.len() {
                 self.cursor_col = line.len();
             }
+        }
+    }
+
+    /// Update display cursor position and derive logical position from display cache
+    pub fn set_display_cursor(
+        &mut self,
+        display_line: usize,
+        display_col: usize,
+        cache: &crate::repl::display_cache::DisplayCache,
+    ) {
+        self.display_cursor_line = display_line;
+        self.display_cursor_col = display_col;
+
+        // Derive logical position from display position
+        if let Some((logical_line, logical_col)) =
+            cache.display_to_logical_position(display_line, display_col)
+        {
+            self.cursor_line = logical_line;
+            self.cursor_col = logical_col;
+        }
+    }
+
+    /// Update display scroll offset and derive logical scroll offset from display cache
+    pub fn set_display_scroll(
+        &mut self,
+        display_scroll: usize,
+        cache: &crate::repl::display_cache::DisplayCache,
+    ) {
+        self.display_scroll_offset = display_scroll;
+
+        // Derive logical scroll offset from display position
+        if let Some((logical_scroll, _)) = cache.display_to_logical_position(display_scroll, 0) {
+            self.scroll_offset = logical_scroll;
+        }
+    }
+
+    /// Sync display positions from logical positions using cache
+    pub fn sync_display_from_logical(&mut self, cache: &crate::repl::display_cache::DisplayCache) {
+        // Update display cursor from logical cursor
+        if let Some((display_line, display_col)) =
+            cache.logical_to_display_position(self.cursor_line, self.cursor_col)
+        {
+            self.display_cursor_line = display_line;
+            self.display_cursor_col = display_col;
+        }
+
+        // Update display scroll from logical scroll
+        if let Some((display_scroll, _)) = cache.logical_to_display_position(self.scroll_offset, 0)
+        {
+            self.display_scroll_offset = display_scroll;
         }
     }
 
@@ -177,9 +236,14 @@ pub struct ResponseBuffer {
     #[allow(dead_code)]
     content: String,
     pub lines: Vec<String>,
+    // Logical position (for line numbers and internal consistency)
     pub scroll_offset: usize,
     pub cursor_line: usize,
     pub cursor_col: usize,
+    // Display position (for cursor rendering and movement)
+    pub display_cursor_line: usize,
+    pub display_cursor_col: usize,
+    pub display_scroll_offset: usize,
 }
 
 impl ResponseBuffer {
@@ -192,6 +256,9 @@ impl ResponseBuffer {
             scroll_offset: 0,
             cursor_line: 0,
             cursor_col: 0,
+            display_cursor_line: 0,
+            display_cursor_col: 0,
+            display_scroll_offset: 0,
         }
     }
 
@@ -228,6 +295,56 @@ impl ResponseBuffer {
             if self.cursor_col > line.len() {
                 self.cursor_col = line.len();
             }
+        }
+    }
+
+    /// Update display cursor position and derive logical position from display cache
+    pub fn set_display_cursor(
+        &mut self,
+        display_line: usize,
+        display_col: usize,
+        cache: &crate::repl::display_cache::DisplayCache,
+    ) {
+        self.display_cursor_line = display_line;
+        self.display_cursor_col = display_col;
+
+        // Derive logical position from display position
+        if let Some((logical_line, logical_col)) =
+            cache.display_to_logical_position(display_line, display_col)
+        {
+            self.cursor_line = logical_line;
+            self.cursor_col = logical_col;
+        }
+    }
+
+    /// Update display scroll offset and derive logical scroll offset from display cache
+    pub fn set_display_scroll(
+        &mut self,
+        display_scroll: usize,
+        cache: &crate::repl::display_cache::DisplayCache,
+    ) {
+        self.display_scroll_offset = display_scroll;
+
+        // Derive logical scroll offset from display position
+        if let Some((logical_scroll, _)) = cache.display_to_logical_position(display_scroll, 0) {
+            self.scroll_offset = logical_scroll;
+        }
+    }
+
+    /// Sync display positions from logical positions using cache
+    pub fn sync_display_from_logical(&mut self, cache: &crate::repl::display_cache::DisplayCache) {
+        // Update display cursor from logical cursor
+        if let Some((display_line, display_col)) =
+            cache.logical_to_display_position(self.cursor_line, self.cursor_col)
+        {
+            self.display_cursor_line = display_line;
+            self.display_cursor_col = display_col;
+        }
+
+        // Update display scroll from logical scroll
+        if let Some((display_scroll, _)) = cache.logical_to_display_position(self.scroll_offset, 0)
+        {
+            self.display_scroll_offset = display_scroll;
         }
     }
 
@@ -307,6 +424,9 @@ pub struct AppState {
     pub response_buffer: Option<ResponseBuffer>,
     pub response_pane_visible: bool, // Controls whether response pane is shown even when response_buffer exists
 
+    // Display cache for high-performance word wrapping
+    pub cache_manager: CacheManager,
+
     // UI state
     pub terminal_size: (u16, u16),
     pub request_pane_height: usize,
@@ -350,6 +470,7 @@ impl AppState {
             request_buffer: RequestBuffer::new(),
             response_buffer: None,
             response_pane_visible: true, // Default to visible when response exists
+            cache_manager: CacheManager::new(),
             terminal_size,
             request_pane_height: initial_request_pane_height,
             status_message: "".to_string(), // Empty for normal mode
@@ -364,6 +485,20 @@ impl AppState {
             execute_request_flag: false,
             should_quit: false,
             verbose,
+        }
+    }
+
+    /// Sync display positions from logical positions for all buffers
+    pub fn sync_display_positions(&mut self) {
+        // Sync request buffer display positions
+        let request_cache = self.cache_manager.get_request_cache();
+        self.request_buffer
+            .sync_display_from_logical(&request_cache);
+
+        // Sync response buffer display positions if it exists
+        if let Some(ref mut response_buffer) = self.response_buffer {
+            let response_cache = self.cache_manager.get_response_cache();
+            response_buffer.sync_display_from_logical(&response_cache);
         }
     }
 
@@ -414,6 +549,18 @@ impl AppState {
     pub fn set_response(&mut self, content: String) {
         self.response_buffer = Some(ResponseBuffer::new(content));
         self.response_pane_visible = true; // Ensure response pane is visible when setting new response
+
+        // Update response cache for proper wrapping
+        if let Some(ref mut response_buffer) = self.response_buffer {
+            let content_width = self.terminal_size.0 as usize - 4; // Account for borders
+            let _ = self
+                .cache_manager
+                .update_response_cache(&response_buffer.lines, content_width);
+
+            // Sync display positions from logical positions after cache update
+            let cache = self.cache_manager.get_response_cache();
+            response_buffer.sync_display_from_logical(&cache);
+        }
     }
 
     /// Clear response buffer
@@ -504,6 +651,141 @@ impl AppState {
                 }
             }
         }
+    }
+
+    /// Update display cache for current pane's content and return cache
+    /// This ensures the cache is fresh before cursor positioning operations
+    pub fn update_display_cache(&mut self, content_width: usize) -> anyhow::Result<()> {
+        match self.current_pane {
+            Pane::Request => {
+                // Sync update for request content to avoid rendering lag
+                self.cache_manager
+                    .update_request_cache_sync(&self.request_buffer.lines, content_width)?;
+            }
+            Pane::Response => {
+                // Sync update for infrequently-changing response content
+                if let Some(ref response_buffer) = self.response_buffer {
+                    self.cache_manager
+                        .update_response_cache(&response_buffer.lines, content_width)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Convert logical cursor position to display position using cache
+    /// Returns None if cache is not ready or position is invalid
+    pub fn logical_to_display_position(
+        &self,
+        logical_line: usize,
+        logical_col: usize,
+    ) -> Option<Position> {
+        match self.current_pane {
+            Pane::Request => {
+                let cache = self.cache_manager.get_request_cache();
+                cache.logical_to_display_position(logical_line, logical_col)
+            }
+            Pane::Response => {
+                let cache = self.cache_manager.get_response_cache();
+                cache.logical_to_display_position(logical_line, logical_col)
+            }
+        }
+    }
+
+    /// Convert display position to logical position using cache
+    /// Returns None if cache is not ready or position is invalid
+    pub fn display_to_logical_position(
+        &self,
+        display_line: usize,
+        display_col: usize,
+    ) -> Option<Position> {
+        match self.current_pane {
+            Pane::Request => {
+                let cache = self.cache_manager.get_request_cache();
+                cache.display_to_logical_position(display_line, display_col)
+            }
+            Pane::Response => {
+                let cache = self.cache_manager.get_response_cache();
+                cache.display_to_logical_position(display_line, display_col)
+            }
+        }
+    }
+
+    /// Move cursor up one display line using cache for accurate positioning
+    /// Returns new logical position or None if movement isn't possible
+    pub fn move_cursor_up_display_line(&self, desired_col: usize) -> Option<Position> {
+        let current_buffer = self.current_buffer();
+        let logical_line = current_buffer.cursor_line();
+        let logical_col = current_buffer.cursor_col();
+
+        // Convert current logical position to display position
+        let (current_display_line, _) =
+            self.logical_to_display_position(logical_line, logical_col)?;
+
+        // Move up one display line
+        let cache = match self.current_pane {
+            Pane::Request => self.cache_manager.get_request_cache(),
+            Pane::Response => self.cache_manager.get_response_cache(),
+        };
+
+        let (new_display_line, new_display_col) =
+            cache.move_up(current_display_line, desired_col)?;
+
+        // Convert back to logical position
+        self.display_to_logical_position(new_display_line, new_display_col)
+    }
+
+    /// Move cursor down one display line using cache for accurate positioning
+    /// Returns new logical position or None if movement isn't possible
+    pub fn move_cursor_down_display_line(&self, desired_col: usize) -> Option<Position> {
+        let current_buffer = self.current_buffer();
+        let logical_line = current_buffer.cursor_line();
+        let logical_col = current_buffer.cursor_col();
+
+        // Convert current logical position to display position
+        let (current_display_line, _) =
+            self.logical_to_display_position(logical_line, logical_col)?;
+
+        // Move down one display line
+        let cache = match self.current_pane {
+            Pane::Request => self.cache_manager.get_request_cache(),
+            Pane::Response => self.cache_manager.get_response_cache(),
+        };
+
+        let (new_display_line, new_display_col) =
+            cache.move_down(current_display_line, desired_col)?;
+
+        // Convert back to logical position
+        self.display_to_logical_position(new_display_line, new_display_col)
+    }
+
+    /// Invalidate all display caches (e.g., on window resize)
+    pub fn invalidate_display_caches(&mut self) {
+        self.cache_manager.invalidate_all();
+    }
+
+    /// Calculate content width for the current pane (accounting for borders)
+    pub fn calculate_content_width(&self) -> usize {
+        let total_width = self.terminal_size.0 as usize;
+        total_width.saturating_sub(4) // Account for borders and padding
+    }
+
+    /// Update display cache with proper content width calculation
+    pub fn update_display_cache_auto(&mut self) -> anyhow::Result<()> {
+        let content_width = self.calculate_content_width();
+        self.update_display_cache(content_width)
+    }
+
+    /// Debug function to dump cache state to files
+    pub fn debug_dump_caches(&self) -> anyhow::Result<()> {
+        let request_cache = self.cache_manager.get_request_cache();
+        let response_cache = self.cache_manager.get_response_cache();
+
+        request_cache.debug_dump("debug_request_cache.txt")?;
+        response_cache.debug_dump("debug_response_cache.txt")?;
+
+        println!("Cache debug dumps saved to debug_request_cache.txt and debug_response_cache.txt");
+        Ok(())
     }
 }
 
@@ -1739,5 +2021,37 @@ mod tests {
 
         let debug_str = format!("{:?}", pane);
         assert!(debug_str.contains("Request"));
+    }
+
+    #[test]
+    fn test_response_cache_updated_on_set_response() {
+        let mut state = AppState::new((80, 24), false);
+
+        // Set a response with a very long line that should wrap
+        let long_response = "HTTP/1.1 200 OK\nContent-Type: application/json\n\nThis is a very long line that should definitely wrap across multiple display lines when the terminal width is narrow and should properly demonstrate the wrapping functionality";
+        state.set_response(long_response.to_string());
+
+        // Verify that response buffer was created
+        assert!(state.response_buffer.is_some());
+
+        // Check that cache manager has response cache available
+        let cache = state.cache_manager.get_response_cache();
+
+        // The cache should be valid now since set_response calls update_response_cache
+        assert!(
+            cache.is_valid,
+            "Response cache should be valid after set_response"
+        );
+
+        // Should have more display lines than logical lines due to wrapping
+        if let Some(ref response_buffer) = state.response_buffer {
+            let logical_lines = response_buffer.lines.len();
+            assert!(
+                cache.total_display_lines >= logical_lines,
+                "Display lines ({}) should be >= logical lines ({})",
+                cache.total_display_lines,
+                logical_lines
+            );
+        }
     }
 }

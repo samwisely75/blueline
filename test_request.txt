@@ -1,0 +1,17 @@
+GET /api/users HTTP/1.1
+Host: example.com
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36
+
+{
+  "name": "John Doe",
+  "email": "john.doe@example.com",
+  "age": 30,
+  "address": {
+    "street": "123 Main Street",
+    "city": "New York",
+    "state": "NY",
+    "zipcode": "10001"
+  }
+}

@@ -117,6 +117,20 @@ pub struct CommandResult {
     pub status_message: Option<String>,
 }
 
+// Future display-space architecture (commented out for now)
+// /// Display state for a single pane (Request or Response)
+// #[derive(Debug, Clone, PartialEq)]
+// pub struct PaneDisplayState {
+//     /// Display line offset (top visible display line)
+//     pub display_scroll_offset: usize,
+//     /// Logical line offset (primarily for line numbers)
+//     pub logical_scroll_offset: usize,
+//     /// Cursor position in display coordinates
+//     pub display_cursor: (usize, usize), // (display_line, display_col)
+//     /// Cursor position in logical coordinates (derived from display)
+//     pub logical_cursor: (usize, usize), // (logical_line, logical_col)
+// }
+
 impl CommandResult {
     /// Create a result indicating the event was not handled
     pub fn not_handled() -> Self {
@@ -187,6 +201,8 @@ pub mod command_line;
 pub mod editing;
 pub mod mode;
 pub mod movement;
+#[cfg(test)]
+pub mod movement_display_bounds_test;
 pub mod window;
 
 // Re-export commonly used commands

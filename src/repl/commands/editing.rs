@@ -35,6 +35,12 @@ impl Command for InsertCharCommand {
                 if state.request_buffer.cursor_col <= line.len() {
                     line.insert(state.request_buffer.cursor_col, ch);
                     state.request_buffer.cursor_col += 1;
+
+                    // Update display cache after content change
+                    if let Err(e) = state.update_display_cache_auto() {
+                        eprintln!("Failed to update display cache: {}", e);
+                    }
+
                     return Ok(true);
                 }
             }
@@ -75,6 +81,11 @@ impl Command for InsertNewLineCommand {
                 .insert(state.request_buffer.cursor_line, remainder);
             state.request_buffer.cursor_col = 0;
 
+            // Update display cache after content change
+            if let Err(e) = state.update_display_cache_auto() {
+                eprintln!("Failed to update display cache: {}", e);
+            }
+
             // Auto-scroll down if cursor goes below visible area
             let visible_height = state.get_request_pane_height();
             if state.request_buffer.cursor_line
@@ -112,12 +123,13 @@ impl Command for DeleteCharCommand {
                 return Ok(false);
             }
 
+            let mut content_changed = false;
             let line = &mut state.request_buffer.lines[state.request_buffer.cursor_line];
             if state.request_buffer.cursor_col > 0 && state.request_buffer.cursor_col <= line.len()
             {
                 line.remove(state.request_buffer.cursor_col - 1);
                 state.request_buffer.cursor_col -= 1;
-                Ok(true)
+                content_changed = true;
             } else if state.request_buffer.cursor_col == 0 && state.request_buffer.cursor_line > 0 {
                 // At beginning of line, join with previous line
                 let current_line = state
@@ -129,6 +141,14 @@ impl Command for DeleteCharCommand {
                     state.request_buffer.lines[state.request_buffer.cursor_line].len();
                 state.request_buffer.lines[state.request_buffer.cursor_line]
                     .push_str(&current_line);
+                content_changed = true;
+            }
+
+            if content_changed {
+                // Update display cache after content change
+                if let Err(e) = state.update_display_cache_auto() {
+                    eprintln!("Failed to update display cache: {}", e);
+                }
                 Ok(true)
             } else {
                 Ok(false)

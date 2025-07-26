@@ -26,6 +26,7 @@
 
 pub mod commands;
 pub mod controller;
+pub mod display_cache;
 pub mod model;
 pub mod view;
 pub mod view_trait;
