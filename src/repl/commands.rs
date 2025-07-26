@@ -201,8 +201,6 @@ pub mod command_line;
 pub mod editing;
 pub mod mode;
 pub mod movement;
-#[cfg(test)]
-pub mod movement_display_bounds_test;
 pub mod window;
 
 // Re-export commonly used commands
