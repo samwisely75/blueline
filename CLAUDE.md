@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Blueline is a lightweight HTTP client with a REPL interface featuring vim-style navigation. It's built with Rust and uses a clean MVC architecture with a command pattern for user interactions.
+This project is a Rust-based HTTP client named `blueline`, previously known as `httpc` and `webly`. It is designed to be lightweight and profile-based, allowing users to manage HTTP requests easily. The project has been recently renamed and restructured, with a focus on REPL.
+
+The goal of this project is to mimic vi as closely as possible while providing an easy way to interact with HTTP endpoints in a terminal environment.
+
+## Documentations
+
+All documents except `README.md` and `CLAUDE.md` are managed under `docs/` directory.
 
 ## Essential Commands
 
@@ -104,12 +110,6 @@ Profiles are stored in `~/.blueline/profile` as INI files:
 - Uses `anyhow::Result` for error propagation
 - Commands return `Result<()>` and errors are displayed in status bar
 - Network errors show detailed connection information in verbose mode
-
-## Project Context
-
-This project is a Rust-based HTTP client named `blueline`, previously known as `httpc` and `webly`. It is designed to be lightweight and profile-based, allowing users to manage HTTP requests easily. The project has been recently renamed and restructured, with a focus on REPL.
-
-The goal of this project is to mimic vi as closely as possible while providing an easy way to interact with HTTP endpoints in a terminal environment.
 
 ## Development Guidelines
 
