@@ -41,7 +41,10 @@ pub use controller::ReplController;
 pub use event_bus::SimpleEventBus;
 pub use events::{EventBus, InputEvent, LogicalPosition, LogicalRange, ModelEvent, ViewModelEvent};
 pub use model::{AppState, RequestBuffer, ResponseBuffer};
-pub use models::{BufferContent, BufferModel, EditorModel, HttpMethod, RequestModel, ResponseModel, ResponseStatus, ResponseTiming};
+pub use models::{
+    BufferContent, BufferModel, EditorModel, HttpMethod, RequestModel, ResponseModel,
+    ResponseStatus, ResponseTiming,
+};
 pub use view::{RenderObserver, ViewManager};
 pub use view_model::{DisplayPosition, ScrollState, ViewModel};
 pub use view_trait::ViewRenderer;

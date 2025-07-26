@@ -28,57 +28,39 @@ pub struct LogicalRange {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModelEvent {
     /// Cursor position changed in logical coordinates
-    CursorMoved { 
-        pane: Pane, 
-        old_pos: LogicalPosition, 
-        new_pos: LogicalPosition 
+    CursorMoved {
+        pane: Pane,
+        old_pos: LogicalPosition,
+        new_pos: LogicalPosition,
     },
-    
+
     /// Text was inserted at a specific position
-    TextInserted { 
-        pane: Pane, 
-        position: LogicalPosition, 
-        text: String 
+    TextInserted {
+        pane: Pane,
+        position: LogicalPosition,
+        text: String,
     },
-    
+
     /// Text was deleted from a range
-    TextDeleted { 
-        pane: Pane, 
-        range: LogicalRange 
-    },
-    
+    TextDeleted { pane: Pane, range: LogicalRange },
+
     /// A new line was inserted
-    LineInserted { 
-        pane: Pane, 
-        line: usize 
-    },
-    
+    LineInserted { pane: Pane, line: usize },
+
     /// A line was deleted
-    LineDeleted { 
-        pane: Pane, 
-        line: usize 
-    },
-    
+    LineDeleted { pane: Pane, line: usize },
+
     /// Editor mode changed (Normal, Insert, Command, etc.)
-    ModeChanged { 
-        from: EditorMode, 
-        to: EditorMode 
-    },
-    
+    ModeChanged { from: EditorMode, to: EditorMode },
+
     /// Active pane switched
-    PaneSwitched { 
-        from: Pane, 
-        to: Pane 
-    },
-    
+    PaneSwitched { from: Pane, to: Pane },
+
     /// HTTP request was executed
     RequestExecuted,
-    
+
     /// HTTP response was received
-    ResponseReceived { 
-        status: String, 
-        body: String 
-    },
+    ResponseReceived { status: String, body: String },
 }
 
 /// Events emitted by the ViewModel when display state changes
@@ -89,23 +71,23 @@ pub enum ModelEvent {
 pub enum ViewModelEvent {
     /// Display cache was updated for a pane
     DisplayCacheUpdated { pane: Pane },
-    
+
     /// Scroll position changed in display coordinates
-    ScrollPositionChanged { 
-        pane: Pane, 
-        old_offset: usize, 
-        new_offset: usize 
+    ScrollPositionChanged {
+        pane: Pane,
+        old_offset: usize,
+        new_offset: usize,
     },
-    
+
     /// Full screen redraw is required
     FullRedrawRequired,
-    
+
     /// Specific pane needs redrawing
     PaneRedrawRequired { pane: Pane },
-    
+
     /// Status bar needs updating
     StatusBarUpdateRequired,
-    
+
     /// Cursor needs repositioning on screen
     CursorRepositionRequired,
 }
@@ -118,10 +100,16 @@ pub enum ViewModelEvent {
 pub enum InputEvent {
     /// Key was pressed
     KeyPress(KeyEvent),
-    
+
     /// Terminal was resized
     Resize { width: u16, height: u16 },
 }
+
+/// Type alias for model event handlers to reduce complexity
+pub type ModelEventHandler = Box<dyn Fn(&ModelEvent)>;
+
+/// Type alias for view model event handlers to reduce complexity
+pub type ViewModelEventHandler = Box<dyn Fn(&ViewModelEvent)>;
 
 /// Event bus trait for publishing and subscribing to events
 ///
@@ -130,13 +118,13 @@ pub enum InputEvent {
 pub trait EventBus {
     /// Publish a model event to all subscribers
     fn publish_model(&mut self, event: ModelEvent);
-    
+
     /// Publish a view model event to all subscribers  
     fn publish_view(&mut self, event: ViewModelEvent);
-    
+
     /// Subscribe to model events with a callback
-    fn subscribe_model(&mut self, handler: Box<dyn Fn(&ModelEvent)>);
-    
+    fn subscribe_model(&mut self, handler: ModelEventHandler);
+
     /// Subscribe to view model events with a callback
-    fn subscribe_view(&mut self, handler: Box<dyn Fn(&ViewModelEvent)>);
+    fn subscribe_view(&mut self, handler: ViewModelEventHandler);
 }

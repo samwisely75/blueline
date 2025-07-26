@@ -19,22 +19,22 @@ impl ResponseStatus {
     pub fn new(code: u16, reason: String) -> Self {
         Self { code, reason }
     }
-    
+
     /// Check if the status indicates success (2xx)
     pub fn is_success(&self) -> bool {
         (200..300).contains(&self.code)
     }
-    
+
     /// Check if the status indicates client error (4xx)
     pub fn is_client_error(&self) -> bool {
         (400..500).contains(&self.code)
     }
-    
+
     /// Check if the status indicates server error (5xx)
     pub fn is_server_error(&self) -> bool {
         (500..600).contains(&self.code)
     }
-    
+
     /// Get status as string (e.g., "200 OK")
     pub fn as_string(&self) -> String {
         format!("{} {}", self.code, self.reason)
@@ -58,14 +58,14 @@ impl ResponseTiming {
             duration: None,
         }
     }
-    
+
     /// Mark the start of the request
     pub fn start(&mut self) {
         self.start_time = Some(Instant::now());
         self.end_time = None;
         self.duration = None;
     }
-    
+
     /// Mark the end of the request and calculate duration
     pub fn finish(&mut self) {
         self.end_time = Some(Instant::now());
@@ -73,7 +73,7 @@ impl ResponseTiming {
             self.duration = Some(start.elapsed());
         }
     }
-    
+
     /// Get duration in milliseconds
     pub fn duration_ms(&self) -> Option<u64> {
         self.duration.map(|d| d.as_millis() as u64)
@@ -115,7 +115,7 @@ impl ResponseModel {
             error: None,
         }
     }
-    
+
     /// Clear the response data for a new request
     pub fn clear(&mut self) {
         self.status = None;
@@ -125,35 +125,35 @@ impl ResponseModel {
         self.is_receiving = false;
         self.error = None;
     }
-    
+
     /// Start receiving a response
     pub fn start_receiving(&mut self) {
         self.clear();
         self.is_receiving = true;
         self.timing.start();
     }
-    
+
     /// Set the response status
     pub fn set_status(&mut self, status: ResponseStatus) {
         self.status = Some(status);
     }
-    
+
     /// Add or update a response header
     pub fn set_header(&mut self, key: String, value: String) {
         self.headers.insert(key, value);
     }
-    
+
     /// Set the response body
     pub fn set_body(&mut self, body: String) {
         self.body = body;
     }
-    
+
     /// Complete the response and return event
     pub fn finish_receiving(&mut self) -> Option<ModelEvent> {
         if self.is_receiving {
             self.is_receiving = false;
             self.timing.finish();
-            
+
             if let Some(status) = &self.status {
                 Some(ModelEvent::ResponseReceived {
                     status: status.as_string(),
@@ -166,65 +166,66 @@ impl ResponseModel {
             None
         }
     }
-    
+
     /// Set an error that occurred during the request
     pub fn set_error(&mut self, error: String) {
         self.error = Some(error);
         self.is_receiving = false;
         self.timing.finish();
     }
-    
+
     /// Get content type from response headers
     pub fn content_type(&self) -> Option<&String> {
-        self.headers.get("Content-Type")
+        self.headers
+            .get("Content-Type")
             .or_else(|| self.headers.get("content-type"))
     }
-    
+
     /// Check if the response has any data
     pub fn has_data(&self) -> bool {
         self.status.is_some() || !self.body.is_empty() || self.error.is_some()
     }
-    
+
     /// Check if the response was successful
     pub fn is_success(&self) -> bool {
-        self.error.is_none() && 
-        self.status.as_ref().map_or(false, |s| s.is_success())
+        self.error.is_none() && self.status.as_ref().is_some_and(|s| s.is_success())
     }
-    
+
     /// Get response size in bytes
     pub fn content_length(&self) -> usize {
         self.body.len()
     }
-    
+
     /// Parse response from HTTP text format
     pub fn parse_from_text(text: &str) -> Result<Self, String> {
         let lines: Vec<&str> = text.lines().collect();
         if lines.is_empty() {
             return Err("Empty response text".to_string());
         }
-        
+
         // Parse status line (HTTP/1.1 200 OK)
         let status_line = lines[0];
         let parts: Vec<&str> = status_line.split_whitespace().collect();
         if parts.len() < 3 {
             return Err("Invalid status line format".to_string());
         }
-        
-        let code: u16 = parts[1].parse()
+
+        let code: u16 = parts[1]
+            .parse()
             .map_err(|_| format!("Invalid status code: {}", parts[1]))?;
         let reason = parts[2..].join(" ");
-        
+
         let status = ResponseStatus::new(code, reason);
         let mut headers = HashMap::new();
         let mut body_start = lines.len();
-        
+
         // Parse headers
         for (i, line) in lines.iter().enumerate().skip(1) {
             if line.trim().is_empty() {
                 body_start = i + 1;
                 break;
             }
-            
+
             if let Some(colon_pos) = line.find(':') {
                 let key = line[..colon_pos].trim().to_string();
                 let value = line[colon_pos + 1..].trim().to_string();
@@ -233,14 +234,14 @@ impl ResponseModel {
                 return Err(format!("Invalid header format: {}", line));
             }
         }
-        
+
         // Parse body (everything after empty line)
         let body = if body_start < lines.len() {
             lines[body_start..].join("\n")
         } else {
             String::new()
         };
-        
+
         Ok(Self {
             status: Some(status),
             headers,
@@ -250,38 +251,45 @@ impl ResponseModel {
             error: None,
         })
     }
-    
+
     /// Convert response to HTTP text format
     pub fn to_http_text(&self) -> String {
         let mut result = String::new();
-        
+
         // Add status line
         if let Some(status) = &self.status {
             result.push_str(&format!("HTTP/1.1 {}\n", status.as_string()));
         }
-        
+
         // Add headers
         for (key, value) in &self.headers {
             result.push_str(&format!("{}: {}\n", key, value));
         }
-        
+
         // Add empty line before body
         if !self.body.is_empty() {
             result.push('\n');
             result.push_str(&self.body);
         }
-        
+
         result
     }
-    
+
     /// Get a formatted summary of the response
     pub fn summary(&self) -> String {
         match (&self.status, &self.error) {
             (Some(status), None) => {
-                let duration = self.timing.duration_ms()
+                let duration = self
+                    .timing
+                    .duration_ms()
                     .map(|ms| format!(" ({}ms)", ms))
                     .unwrap_or_default();
-                format!("{} - {} bytes{}", status.as_string(), self.content_length(), duration)
+                format!(
+                    "{} - {} bytes{}",
+                    status.as_string(),
+                    self.content_length(),
+                    duration
+                )
             }
             (None, Some(error)) => format!("Error: {}", error),
             (Some(status), Some(error)) => format!("{} - Error: {}", status.as_string(), error),
@@ -303,7 +311,7 @@ mod tests {
     #[test]
     fn response_model_should_create_with_defaults() {
         let model = ResponseModel::new();
-        
+
         assert!(model.status.is_none());
         assert!(model.headers.is_empty());
         assert_eq!(model.body, "");
@@ -318,12 +326,12 @@ mod tests {
         assert!(success.is_success());
         assert!(!success.is_client_error());
         assert!(!success.is_server_error());
-        
+
         let client_error = ResponseStatus::new(404, "Not Found".to_string());
         assert!(!client_error.is_success());
         assert!(client_error.is_client_error());
         assert!(!client_error.is_server_error());
-        
+
         let server_error = ResponseStatus::new(500, "Internal Server Error".to_string());
         assert!(!server_error.is_success());
         assert!(!server_error.is_client_error());
@@ -333,14 +341,14 @@ mod tests {
     #[test]
     fn response_timing_should_track_duration() {
         let mut timing = ResponseTiming::new();
-        
+
         timing.start();
         assert!(timing.start_time.is_some());
         assert!(timing.end_time.is_none());
-        
+
         // Small delay to ensure measurable duration
         std::thread::sleep(Duration::from_millis(1));
-        
+
         timing.finish();
         assert!(timing.end_time.is_some());
         assert!(timing.duration.is_some());
@@ -350,18 +358,18 @@ mod tests {
     #[test]
     fn response_model_should_handle_lifecycle() {
         let mut model = ResponseModel::new();
-        
+
         model.start_receiving();
         assert!(model.is_receiving);
         assert!(model.timing.start_time.is_some());
-        
+
         model.set_status(ResponseStatus::new(200, "OK".to_string()));
         model.set_body("response body".to_string());
-        
+
         let event = model.finish_receiving().unwrap();
         assert!(!model.is_receiving);
         assert!(model.timing.duration.is_some());
-        
+
         match event {
             ModelEvent::ResponseReceived { status, body } => {
                 assert_eq!(status, "200 OK");
@@ -374,10 +382,10 @@ mod tests {
     #[test]
     fn response_model_should_handle_errors() {
         let mut model = ResponseModel::new();
-        
+
         model.start_receiving();
         model.set_error("Connection timeout".to_string());
-        
+
         assert!(!model.is_receiving);
         assert_eq!(model.error, Some("Connection timeout".to_string()));
         assert!(!model.is_success());
@@ -385,12 +393,16 @@ mod tests {
 
     #[test]
     fn response_model_should_parse_http_text() {
-        let http_text = "HTTP/1.1 200 OK\nContent-Type: application/json\nContent-Length: 13\n\n{\"ok\": true}";
-        
+        let http_text =
+            "HTTP/1.1 200 OK\nContent-Type: application/json\nContent-Length: 13\n\n{\"ok\": true}";
+
         let model = ResponseModel::parse_from_text(http_text).unwrap();
-        
+
         assert_eq!(model.status.unwrap().code, 200);
-        assert_eq!(model.headers.get("Content-Type"), Some(&"application/json".to_string()));
+        assert_eq!(
+            model.headers.get("Content-Type"),
+            Some(&"application/json".to_string())
+        );
         assert_eq!(model.body, "{\"ok\": true}");
     }
 
@@ -400,9 +412,9 @@ mod tests {
         model.set_status(ResponseStatus::new(200, "OK".to_string()));
         model.set_header("Content-Type".to_string(), "application/json".to_string());
         model.set_body("{\"ok\": true}".to_string());
-        
+
         let http_text = model.to_http_text();
-        
+
         assert!(http_text.contains("HTTP/1.1 200 OK"));
         assert!(http_text.contains("Content-Type: application/json"));
         assert!(http_text.contains("{\"ok\": true}"));
@@ -411,14 +423,14 @@ mod tests {
     #[test]
     fn response_model_should_provide_summary() {
         let mut model = ResponseModel::new();
-        
+
         // Test successful response
         model.set_status(ResponseStatus::new(200, "OK".to_string()));
         model.set_body("test".to_string());
         let summary = model.summary();
         assert!(summary.contains("200 OK"));
         assert!(summary.contains("4 bytes"));
-        
+
         // Test error response
         model.set_error("Connection failed".to_string());
         let summary = model.summary();

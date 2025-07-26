@@ -35,7 +35,7 @@ impl EditorModel {
             command_buffer: String::new(),
         }
     }
-    
+
     /// Get cursor position for the specified pane
     pub fn get_cursor(&self, pane: Pane) -> LogicalPosition {
         match pane {
@@ -43,7 +43,7 @@ impl EditorModel {
             Pane::Response => self.response_cursor,
         }
     }
-    
+
     /// Set cursor position for the specified pane
     /// Returns event if cursor position changed
     pub fn set_cursor(&mut self, pane: Pane, new_pos: LogicalPosition) -> Option<ModelEvent> {
@@ -51,7 +51,7 @@ impl EditorModel {
             Pane::Request => &mut self.request_cursor,
             Pane::Response => &mut self.response_cursor,
         };
-        
+
         if *cursor != new_pos {
             let old_pos = *cursor;
             *cursor = new_pos;
@@ -64,7 +64,7 @@ impl EditorModel {
             None
         }
     }
-    
+
     /// Switch to different pane
     pub fn switch_pane(&mut self, new_pane: Pane) -> Option<ModelEvent> {
         if self.current_pane != new_pane {
@@ -78,7 +78,7 @@ impl EditorModel {
             None
         }
     }
-    
+
     /// Change editor mode
     pub fn change_mode(&mut self, new_mode: EditorMode) -> Option<ModelEvent> {
         if self.mode != new_mode {
@@ -92,12 +92,12 @@ impl EditorModel {
             None
         }
     }
-    
+
     /// Update command buffer (for command mode)
     pub fn set_command_buffer(&mut self, buffer: String) {
         self.command_buffer = buffer;
     }
-    
+
     /// Clear command buffer
     pub fn clear_command_buffer(&mut self) {
         self.command_buffer.clear();
@@ -117,11 +117,14 @@ mod tests {
     #[test]
     fn editor_model_should_create_with_default_state() {
         let model = EditorModel::new();
-        
+
         assert_eq!(model.current_pane, Pane::Request);
         assert_eq!(model.mode, EditorMode::Normal);
         assert_eq!(model.request_cursor, LogicalPosition { line: 0, column: 0 });
-        assert_eq!(model.response_cursor, LogicalPosition { line: 0, column: 0 });
+        assert_eq!(
+            model.response_cursor,
+            LogicalPosition { line: 0, column: 0 }
+        );
         assert_eq!(model.command_buffer, "");
     }
 
@@ -129,12 +132,16 @@ mod tests {
     fn set_cursor_should_emit_event_when_position_changes() {
         let mut model = EditorModel::new();
         let new_pos = LogicalPosition { line: 1, column: 5 };
-        
+
         let event = model.set_cursor(Pane::Request, new_pos).unwrap();
-        
+
         assert_eq!(model.request_cursor, new_pos);
         match event {
-            ModelEvent::CursorMoved { pane, old_pos, new_pos: event_new_pos } => {
+            ModelEvent::CursorMoved {
+                pane,
+                old_pos,
+                new_pos: event_new_pos,
+            } => {
                 assert_eq!(pane, Pane::Request);
                 assert_eq!(old_pos, LogicalPosition { line: 0, column: 0 });
                 assert_eq!(event_new_pos, new_pos);
@@ -147,9 +154,9 @@ mod tests {
     fn set_cursor_should_return_none_when_position_unchanged() {
         let mut model = EditorModel::new();
         let same_pos = LogicalPosition { line: 0, column: 0 };
-        
+
         let event = model.set_cursor(Pane::Request, same_pos);
-        
+
         assert!(event.is_none());
         assert_eq!(model.request_cursor, same_pos);
     }
@@ -157,9 +164,9 @@ mod tests {
     #[test]
     fn switch_pane_should_emit_event() {
         let mut model = EditorModel::new();
-        
+
         let event = model.switch_pane(Pane::Response).unwrap();
-        
+
         assert_eq!(model.current_pane, Pane::Response);
         match event {
             ModelEvent::PaneSwitched { from, to } => {
@@ -173,9 +180,9 @@ mod tests {
     #[test]
     fn switch_pane_should_return_none_when_same() {
         let mut model = EditorModel::new();
-        
+
         let event = model.switch_pane(Pane::Request);
-        
+
         assert!(event.is_none());
         assert_eq!(model.current_pane, Pane::Request);
     }
@@ -183,9 +190,9 @@ mod tests {
     #[test]
     fn change_mode_should_emit_event() {
         let mut model = EditorModel::new();
-        
+
         let event = model.change_mode(EditorMode::Insert).unwrap();
-        
+
         assert_eq!(model.mode, EditorMode::Insert);
         match event {
             ModelEvent::ModeChanged { from, to } => {
@@ -199,9 +206,9 @@ mod tests {
     #[test]
     fn change_mode_should_return_none_when_same() {
         let mut model = EditorModel::new();
-        
+
         let event = model.change_mode(EditorMode::Normal);
-        
+
         assert!(event.is_none());
         assert_eq!(model.mode, EditorMode::Normal);
     }
@@ -209,10 +216,10 @@ mod tests {
     #[test]
     fn command_buffer_operations_should_work() {
         let mut model = EditorModel::new();
-        
+
         model.set_command_buffer("test command".to_string());
         assert_eq!(model.command_buffer, "test command");
-        
+
         model.clear_command_buffer();
         assert_eq!(model.command_buffer, "");
     }
