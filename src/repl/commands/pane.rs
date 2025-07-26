@@ -1,0 +1,71 @@
+//! # Pane Management Commands
+//!
+//! Commands for switching between request and response panes
+
+use crate::repl::events::Pane;
+use crate::repl::view_models::ViewModel;
+use anyhow::Result;
+use crossterm::event::{KeyCode, KeyEvent};
+
+use super::Command;
+
+/// Switch between panes (Tab key)
+pub struct SwitchPaneCommand;
+
+impl Command for SwitchPaneCommand {
+    fn is_relevant(&self, _view_model: &ViewModel, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Tab)
+    }
+
+    fn execute(&self, _event: KeyEvent, view_model: &mut ViewModel) -> Result<bool> {
+        let new_pane = match view_model.get_current_pane() {
+            Pane::Request => Pane::Response,
+            Pane::Response => Pane::Request,
+        };
+        view_model.switch_pane(new_pane)?;
+        Ok(true)
+    }
+
+    fn name(&self) -> &'static str {
+        "SwitchPane"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repl::events::Pane;
+    use crossterm::event::KeyModifiers;
+
+    fn create_test_key_event(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::empty())
+    }
+
+    #[test]
+    fn switch_pane_should_be_relevant_for_tab() {
+        let vm = ViewModel::new();
+        let cmd = SwitchPaneCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        assert!(cmd.is_relevant(&vm, &event));
+    }
+
+    #[test]
+    fn switch_pane_should_toggle_between_panes() {
+        let mut vm = ViewModel::new();
+        let cmd = SwitchPaneCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        // Should start in Request pane
+        assert_eq!(vm.get_current_pane(), Pane::Request);
+
+        // Execute command to switch to Response
+        cmd.execute(event, &mut vm).unwrap();
+        assert_eq!(vm.get_current_pane(), Pane::Response);
+
+        // Execute again to switch back to Request
+        let event = create_test_key_event(KeyCode::Tab);
+        cmd.execute(event, &mut vm).unwrap();
+        assert_eq!(vm.get_current_pane(), Pane::Request);
+    }
+}

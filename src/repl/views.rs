@@ -1,10 +1,10 @@
-//! # View Layer for MVVM Architecture
+//! # View Layer for REPL Architecture
 //!
 //! Views are responsible for rendering and handling terminal display.
 //! They subscribe to view events and update the display accordingly.
 
-use crate::mvvm::events::{EditorMode, Pane, ViewEvent};
-use crate::mvvm::view_models::ViewModel;
+use crate::repl::events::{EditorMode, Pane, ViewEvent};
+use crate::repl::view_models::ViewModel;
 use anyhow::Result;
 
 /// Type alias for pane boundary tuple to reduce complexity

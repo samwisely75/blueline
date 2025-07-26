@@ -27,7 +27,7 @@
 //!                               └──────────────┘
 //! ```
 
-pub mod mvvm;
+pub mod repl;
 
 // Re-export main types for easy access
-pub use mvvm::*;
+pub use repl::*;

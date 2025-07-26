@@ -1,9 +1,9 @@
-//! # MVVM Application Controller
+//! # REPL Application Controller
 //!
-//! The controller orchestrates the MVVM components and manages the event loop.
+//! The controller orchestrates the REPL components and manages the event loop.
 //! It's responsible for connecting user input to commands and coordinating view updates.
 
-use crate::mvvm::{
+use crate::repl::{
     commands::CommandRegistry,
     events::SimpleEventBus,
     view_models::ViewModel,
@@ -121,7 +121,7 @@ impl Default for AppController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mvvm::events::{EditorMode, Pane};
+    use crate::repl::events::{EditorMode, Pane};
 
     #[test]
     fn app_controller_should_create() {

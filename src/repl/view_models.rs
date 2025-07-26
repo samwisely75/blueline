@@ -3,8 +3,8 @@
 //! The ViewModel contains all business logic and coordinates between models.
 //! It's the central component that commands delegate to and that emits events.
 
-use crate::mvvm::events::{EditorMode, EventBus, LogicalPosition, ModelEvent, Pane, ViewEvent};
-use crate::mvvm::models::{BufferModel, EditorModel, RequestModel, ResponseModel};
+use crate::repl::events::{EditorMode, EventBus, LogicalPosition, ModelEvent, Pane, ViewEvent};
+use crate::repl::models::{BufferModel, EditorModel, RequestModel, ResponseModel};
 use anyhow::Result;
 
 /// Type alias for event bus option to reduce complexity
@@ -193,7 +193,7 @@ impl ViewModel {
         if current_pos.column > 0 {
             // Delete character in current line
             let delete_pos = LogicalPosition::new(current_pos.line, current_pos.column - 1);
-            let range = crate::mvvm::events::LogicalRange::single_char(delete_pos);
+            let range = crate::repl::events::LogicalRange::single_char(delete_pos);
 
             if let Some(event) = self
                 .request_buffer
@@ -221,7 +221,7 @@ impl ViewModel {
                 let current_line_content = current_line.clone();
 
                 // Delete current line and append to previous
-                let range = crate::mvvm::events::LogicalRange::new(
+                let range = crate::repl::events::LogicalRange::new(
                     LogicalPosition::new(current_pos.line - 1, prev_line_length),
                     LogicalPosition::new(current_pos.line + 1, 0),
                 );

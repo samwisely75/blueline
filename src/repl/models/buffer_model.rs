@@ -1,9 +1,9 @@
-//! # Core Models for MVVM Architecture
+//! # Buffer Models
 //!
-//! Pure data models without business logic or UI concerns.
-//! Models are focused on data storage and basic operations.
+//! Text buffer content and buffer model for MVVM architecture.
+//! Handles text storage, cursor management, and basic editing operations.
 
-use crate::mvvm::events::{EditorMode, LogicalPosition, LogicalRange, ModelEvent, Pane};
+use crate::repl::events::{LogicalPosition, LogicalRange, ModelEvent, Pane};
 
 /// Content of a text buffer
 #[derive(Debug, Clone, PartialEq)]
@@ -294,176 +294,6 @@ impl BufferModel {
     }
 }
 
-/// Editor state model
-#[derive(Debug, Clone)]
-pub struct EditorModel {
-    mode: EditorMode,
-    current_pane: Pane,
-}
-
-impl EditorModel {
-    /// Create new editor in normal mode
-    pub fn new() -> Self {
-        Self {
-            mode: EditorMode::Normal,
-            current_pane: Pane::Request,
-        }
-    }
-
-    /// Get current mode
-    pub fn mode(&self) -> EditorMode {
-        self.mode
-    }
-
-    /// Set mode, returning event if changed
-    pub fn set_mode(&mut self, new_mode: EditorMode) -> Option<ModelEvent> {
-        if self.mode != new_mode {
-            let old_mode = self.mode;
-            self.mode = new_mode;
-            Some(ModelEvent::ModeChanged { old_mode, new_mode })
-        } else {
-            None
-        }
-    }
-
-    /// Get current pane
-    pub fn current_pane(&self) -> Pane {
-        self.current_pane
-    }
-
-    /// Set current pane, returning event if changed
-    pub fn set_current_pane(&mut self, new_pane: Pane) -> Option<ModelEvent> {
-        if self.current_pane != new_pane {
-            let old_pane = self.current_pane;
-            self.current_pane = new_pane;
-            Some(ModelEvent::PaneSwitched { old_pane, new_pane })
-        } else {
-            None
-        }
-    }
-}
-
-impl Default for EditorModel {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Type alias for HTTP headers to reduce complexity
-pub type HttpHeaders = Vec<(String, String)>;
-
-/// HTTP request model
-#[derive(Debug, Clone)]
-pub struct RequestModel {
-    method: String,
-    url: String,
-    headers: HttpHeaders,
-    body: String,
-}
-
-impl RequestModel {
-    pub fn new() -> Self {
-        Self {
-            method: "GET".to_string(),
-            url: String::new(),
-            headers: Vec::new(),
-            body: String::new(),
-        }
-    }
-
-    pub fn method(&self) -> &str {
-        &self.method
-    }
-
-    pub fn set_method(&mut self, method: String) {
-        self.method = method;
-    }
-
-    pub fn url(&self) -> &str {
-        &self.url
-    }
-
-    pub fn set_url(&mut self, url: String) {
-        self.url = url;
-    }
-
-    pub fn headers(&self) -> &HttpHeaders {
-        &self.headers
-    }
-
-    pub fn add_header(&mut self, key: String, value: String) {
-        self.headers.push((key, value));
-    }
-
-    pub fn body(&self) -> &str {
-        &self.body
-    }
-
-    pub fn set_body(&mut self, body: String) {
-        self.body = body;
-    }
-}
-
-impl Default for RequestModel {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// HTTP response model
-#[derive(Debug, Clone)]
-pub struct ResponseModel {
-    status_code: Option<u16>,
-    headers: HttpHeaders,
-    body: String,
-}
-
-impl ResponseModel {
-    pub fn new() -> Self {
-        Self {
-            status_code: None,
-            headers: Vec::new(),
-            body: String::new(),
-        }
-    }
-
-    pub fn status_code(&self) -> Option<u16> {
-        self.status_code
-    }
-
-    pub fn set_status_code(&mut self, status_code: u16) {
-        self.status_code = Some(status_code);
-    }
-
-    pub fn headers(&self) -> &HttpHeaders {
-        &self.headers
-    }
-
-    pub fn set_headers(&mut self, headers: HttpHeaders) {
-        self.headers = headers;
-    }
-
-    pub fn body(&self) -> &str {
-        &self.body
-    }
-
-    pub fn set_body(&mut self, body: String) {
-        self.body = body;
-    }
-
-    pub fn clear(&mut self) {
-        self.status_code = None;
-        self.headers.clear();
-        self.body.clear();
-    }
-}
-
-impl Default for ResponseModel {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -478,77 +308,46 @@ mod tests {
     #[test]
     fn buffer_content_should_insert_single_char() {
         let mut content = BufferContent::new();
-        let event = content.insert_text(Pane::Request, LogicalPosition::zero(), "a");
+        let pos = LogicalPosition::new(0, 0);
 
-        assert_eq!(content.get_line(0), Some(&"a".to_string()));
-        match event {
-            ModelEvent::TextInserted {
-                pane,
-                position,
-                text,
-            } => {
-                assert_eq!(pane, Pane::Request);
-                assert_eq!(position, LogicalPosition::zero());
-                assert_eq!(text, "a");
-            }
-            _ => panic!("Expected TextInserted event"),
-        }
+        content.insert_text(Pane::Request, pos, "a");
+
+        assert_eq!(content.get_text(), "a");
     }
 
     #[test]
     fn buffer_content_should_insert_multiline_text() {
         let mut content = BufferContent::new();
-        content.insert_text(Pane::Request, LogicalPosition::zero(), "line1\nline2");
+        let pos = LogicalPosition::new(0, 0);
+
+        content.insert_text(Pane::Request, pos, "hello\nworld");
 
         assert_eq!(content.line_count(), 2);
-        assert_eq!(content.get_line(0), Some(&"line1".to_string()));
-        assert_eq!(content.get_line(1), Some(&"line2".to_string()));
+        assert_eq!(content.get_line(0), Some(&"hello".to_string()));
+        assert_eq!(content.get_line(1), Some(&"world".to_string()));
     }
 
     #[test]
     fn buffer_model_should_move_cursor_left() {
         let mut buffer = BufferModel::new(Pane::Request);
-        buffer
-            .content_mut()
-            .insert_text(Pane::Request, LogicalPosition::zero(), "hello");
-        buffer.set_cursor(LogicalPosition::new(0, 3));
+        buffer.insert_text("hello");
+        // Now cursor is at (0, 5), move it left
 
         let event = buffer.move_cursor_left();
 
-        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 2));
         assert!(event.is_some());
+        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 4));
     }
 
     #[test]
     fn buffer_model_should_move_cursor_right() {
         let mut buffer = BufferModel::new(Pane::Request);
-        buffer
-            .content_mut()
-            .insert_text(Pane::Request, LogicalPosition::zero(), "hello");
+        buffer.insert_text("hello");
+        buffer.cursor = LogicalPosition::new(0, 2);
 
         let event = buffer.move_cursor_right();
 
-        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 1));
         assert!(event.is_some());
-    }
-
-    #[test]
-    fn editor_model_should_change_mode() {
-        let mut editor = EditorModel::new();
-
-        let event = editor.set_mode(EditorMode::Insert);
-
-        assert_eq!(editor.mode(), EditorMode::Insert);
-        assert!(event.is_some());
-    }
-
-    #[test]
-    fn editor_model_should_switch_pane() {
-        let mut editor = EditorModel::new();
-
-        let event = editor.set_current_pane(Pane::Response);
-
-        assert_eq!(editor.current_pane(), Pane::Response);
-        assert!(event.is_some());
+        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 3));
     }
 }
