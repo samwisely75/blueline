@@ -93,6 +93,35 @@ impl Command for AppendAtEndOfLineCommand {
     }
 }
 
+/// Insert at beginning of line (Shift+I)
+pub struct InsertAtBeginningOfLineCommand;
+
+impl Command for InsertAtBeginningOfLineCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && (
+                // Case 1: Uppercase 'I' without modifiers
+                (matches!(event.code, KeyCode::Char('I')) && event.modifiers.is_empty())
+                // Case 2: Lowercase 'i' with SHIFT modifier
+                || (matches!(event.code, KeyCode::Char('i')) && event.modifiers.contains(KeyModifiers::SHIFT))
+                // Case 3: Uppercase 'I' with SHIFT modifier (some terminals send this)
+                || (matches!(event.code, KeyCode::Char('I')) && event.modifiers.contains(KeyModifiers::SHIFT))
+            )
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![
+            CommandEvent::cursor_move(MovementDirection::LineStart),
+            CommandEvent::mode_change(EditorMode::Insert),
+        ])
+    }
+
+    fn name(&self) -> &'static str {
+        "InsertAtBeginningOfLine"
+    }
+}
+
 /// Handle all ex command mode input (typing, backspace, execute)
 pub struct ExCommandModeCommand;
 
@@ -273,5 +302,66 @@ mod tests {
                 new_mode: EditorMode::Normal
             }
         );
+    }
+
+    #[test]
+    fn insert_at_beginning_of_line_should_be_relevant_for_uppercase_i_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('I'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_at_beginning_of_line_should_be_relevant_for_shift_i_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = KeyEvent::new(KeyCode::Char('i'), KeyModifiers::SHIFT);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_at_beginning_of_line_should_be_relevant_for_uppercase_i_with_shift_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::SHIFT);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_at_beginning_of_line_should_not_be_relevant_for_lowercase_i() {
+        let context = create_test_context();
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('i'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_at_beginning_of_line_should_not_be_relevant_in_insert_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('I'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_at_beginning_of_line_should_execute_cursor_move_and_mode_change() {
+        let context = create_test_context();
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('I'));
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(
+            result[0],
+            CommandEvent::cursor_move(MovementDirection::LineStart)
+        );
+        assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
     }
 }

@@ -150,6 +150,9 @@ impl AppController {
                         MovementDirection::LineEnd => {
                             self.view_model.move_cursor_to_end_of_line()?
                         }
+                        MovementDirection::LineStart => {
+                            self.view_model.move_cursor_to_start_of_line()?
+                        }
                         _ => {
                             tracing::warn!("Unsupported movement direction: {:?}", direction);
                         }

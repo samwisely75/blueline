@@ -162,6 +162,19 @@ impl ViewModel {
         Ok(())
     }
 
+    /// Move cursor to start of current line
+    pub fn move_cursor_to_start_of_line(&mut self) -> Result<()> {
+        let current_pane = self.editor.current_pane();
+        let buffer = self.get_buffer_mut(current_pane);
+        let current_pos = buffer.cursor();
+        let new_pos = LogicalPosition::new(current_pos.line, 0);
+        if let Some(event) = buffer.set_cursor(new_pos) {
+            self.emit_model_event(event);
+            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+        }
+        Ok(())
+    }
+
     /// Set cursor position in current pane
     pub fn set_cursor_position(&mut self, position: LogicalPosition) -> Result<()> {
         let current_pane = self.editor.current_pane();
@@ -659,6 +672,31 @@ mod tests {
         let cursor = vm.get_cursor_position();
         assert_eq!(cursor.column, 18); // Should be at end of "line two is longer"
         assert_eq!(cursor.line, 1);
+    }
+
+    #[test]
+    fn view_model_should_move_cursor_to_start_of_line() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello world").unwrap();
+        // Move cursor to middle of line
+        vm.request_buffer.set_cursor(LogicalPosition::new(0, 6));
+
+        // Test move to start of line
+        vm.move_cursor_to_start_of_line().unwrap();
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.column, 0); // Should be at start of line
+        assert_eq!(cursor.line, 0);
+    }
+
+    #[test]
+    fn view_model_should_move_cursor_to_start_of_empty_line() {
+        let mut vm = ViewModel::new();
+        // Start with empty buffer
+        vm.move_cursor_to_start_of_line().unwrap();
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.column, 0); // Should stay at 0 for empty line
+        assert_eq!(cursor.line, 0);
     }
 
     #[test]

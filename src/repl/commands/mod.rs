@@ -52,7 +52,7 @@ pub use app::AppTerminateCommand;
 pub use editing::{DeleteCharCommand, InsertCharCommand, InsertNewLineCommand};
 pub use mode::{
     AppendAtEndOfLineCommand, EnterCommandModeCommand, EnterInsertModeCommand,
-    ExCommandModeCommand, ExitInsertModeCommand,
+    ExCommandModeCommand, ExitInsertModeCommand, InsertAtBeginningOfLineCommand,
 };
 pub use movement::{
     MoveCursorDownCommand, MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand,
@@ -82,6 +82,7 @@ impl CommandRegistry {
             // Mode commands
             Box::new(EnterInsertModeCommand),
             Box::new(AppendAtEndOfLineCommand),
+            Box::new(InsertAtBeginningOfLineCommand),
             Box::new(ExitInsertModeCommand),
             Box::new(EnterCommandModeCommand),
             Box::new(ExCommandModeCommand),
