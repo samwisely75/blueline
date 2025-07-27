@@ -1,0 +1,5 @@
+# Claude Code Instructions
+
+PLEASE READ `docs/DEVELOPER_GUIDE.md` BEFORE YOU DO ANYTHING.
+
+

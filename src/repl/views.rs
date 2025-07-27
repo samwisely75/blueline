@@ -19,7 +19,7 @@ macro_rules! execute_term {
 use crossterm::{
     cursor::{MoveTo, Show},
     execute,
-    style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
+    style::{Color, Print, ResetColor, SetForegroundColor},
     terminal::{Clear, ClearType},
 };
 use std::io::{self, Write};
@@ -70,12 +70,8 @@ impl TerminalRenderer {
     }
 
     /// Render a single line of text at position
-    fn render_line(&mut self, row: u16, text: &str, is_current_line: bool) -> Result<()> {
+    fn render_line(&mut self, row: u16, text: &str, _is_current_line: bool) -> Result<()> {
         execute_term!(self.stdout, MoveTo(0, row))?;
-
-        if is_current_line {
-            execute_term!(self.stdout, SetBackgroundColor(Color::DarkGrey))?;
-        }
 
         // Truncate text if too long for terminal
         let max_width = self.terminal_size.0 as usize;
@@ -86,18 +82,6 @@ impl TerminalRenderer {
         };
 
         execute_term!(self.stdout, Print(display_text))?;
-
-        // Fill rest of line with spaces for highlight
-        if is_current_line {
-            let remaining = max_width.saturating_sub(display_text.len());
-            if remaining > 0 {
-                execute_term!(self.stdout, Print(" ".repeat(remaining)))?;
-            }
-        }
-
-        if is_current_line {
-            execute_term!(self.stdout, ResetColor)?;
-        }
 
         Ok(())
     }
@@ -268,14 +252,11 @@ impl ViewRenderer for TerminalRenderer {
         execute_term!(
             self.stdout,
             MoveTo(0, status_row),
-            SetBackgroundColor(Color::Blue),
-            SetForegroundColor(Color::White),
             Print(format!(
                 "{:<width$}",
                 status_text,
                 width = self.terminal_size.0 as usize
-            )),
-            ResetColor
+            ))
         )?;
 
         Ok(())
