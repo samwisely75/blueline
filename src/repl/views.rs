@@ -17,7 +17,7 @@ macro_rules! execute_term {
     };
 }
 use crossterm::{
-    cursor::{MoveTo, Show},
+    cursor::{Hide, MoveTo, SetCursorStyle, Show},
     execute,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
     terminal::{Clear, ClearType},
@@ -276,6 +276,15 @@ impl ViewRenderer for TerminalRenderer {
     }
 
     fn render_cursor(&mut self, view_model: &ViewModel) -> Result<()> {
+        let current_mode = view_model.get_mode();
+
+        // Handle command mode: hide cursor completely
+        if current_mode == EditorMode::Command {
+            execute_term!(self.stdout, Hide)?;
+            self.stdout.flush().map_err(anyhow::Error::from)?;
+            return Ok(());
+        }
+
         let current_pane = view_model.get_current_pane();
 
         // Get cursor position in display coordinates (relative to pane)
@@ -297,15 +306,45 @@ impl ViewRenderer for TerminalRenderer {
         let terminal_col = cursor_col as u16 + line_num_offset as u16;
 
         tracing::debug!(
-            "render_cursor: pane={:?}, display_coords=({}, {}), terminal_pos=({}, {})",
+            "render_cursor: pane={:?}, display_coords=({}, {}), terminal_pos=({}, {}), mode={:?}",
             current_pane,
             cursor_row,
             cursor_col,
             terminal_col,
-            terminal_row
+            terminal_row,
+            current_mode
         );
 
-        execute_term!(self.stdout, MoveTo(terminal_col, terminal_row), Show)?;
+        // Set cursor shape and position based on mode
+        match current_mode {
+            EditorMode::Normal => {
+                // Block cursor for normal mode
+                execute_term!(
+                    self.stdout,
+                    MoveTo(terminal_col, terminal_row),
+                    SetCursorStyle::DefaultUserShape,
+                    Show
+                )?;
+            }
+            EditorMode::Insert => {
+                // Bar cursor for insert mode
+                execute_term!(
+                    self.stdout,
+                    MoveTo(terminal_col, terminal_row),
+                    SetCursorStyle::BlinkingBar,
+                    Show
+                )?;
+            }
+            EditorMode::Command => {
+                // Should not reach here since we handle command mode above
+                execute_term!(
+                    self.stdout,
+                    MoveTo(terminal_col, terminal_row),
+                    SetCursorStyle::BlinkingUnderScore,
+                    Show
+                )?;
+            }
+        }
 
         self.stdout.flush().map_err(anyhow::Error::from)?;
         Ok(())

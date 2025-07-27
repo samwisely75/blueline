@@ -2,8 +2,6 @@
 
 ## Ready to Develop
 
-- [ ] Change cursor shape when switching between normal (block), command (underline), and insert (bar) modes.
-- [ ] Hide cursor when it is switched to the command mode. Restore the cursor when it is switched back to the normal mode.
 - [ ] Support horizontal scrolling in the request/response pane.
 - [ ] Reduce flickering. It's happening all over. The scope of rendering must be limited to the area that has changed, not the whole screen. Hide cursor before the screen refresh and restore it after the refresh to avoid flickering.
 
@@ -44,6 +42,8 @@
 
 ## Done
 
+- [x] Change cursor shape when switching between normal (block), command (underline), and insert (bar) modes.
+- [x] Hide cursor when it is switched to the command mode. Restore the cursor when it is switched back to the normal mode.
 - [x] Support word wrap by `:set wrap` and `:set nowrap` in both request and response pane. The wrap setting is effective in both simultaneously. Allow navigation keys to scrolling up and down the pages. Update all commands to respect the word wrap setting.
 - [x] Restore the logical line number in the request/response buffer. Minimal width for the line number should be 3. The tilda should be placed in the first column. Refer to the MVC code for the details.
 - [x] Support `:q` and `:q!` to quit the application.
