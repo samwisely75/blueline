@@ -56,11 +56,18 @@ fn init_tracing_subscriber() {
         // Leak the guard to ensure logs are flushed on exit
         Box::leak(Box::new(_guard));
     } else {
-        // Use stderr logging (default)
+        // In REPL mode, avoid stderr to prevent background scrolling
+        // Default to file logging to prevent terminal interference
+        let file_appender = tracing_appender::rolling::never(".", "blueline.log");
+        let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
         tracing_subscriber::fmt()
             .with_env_filter(env_filter)
-            .with_writer(std::io::stderr)
+            .with_writer(non_blocking)
             .with_timer(ChronoLocal::rfc_3339())
             .init();
+
+        // Leak the guard to ensure logs are flushed on exit
+        Box::leak(Box::new(_guard));
     }
 }
