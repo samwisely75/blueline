@@ -122,6 +122,29 @@ impl Command for InsertAtBeginningOfLineCommand {
     }
 }
 
+/// Append after cursor (a key)
+pub struct AppendAfterCursorCommand;
+
+impl Command for AppendAfterCursorCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('a'))
+            && context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![
+            CommandEvent::cursor_move(MovementDirection::Right),
+            CommandEvent::mode_change(EditorMode::Insert),
+        ])
+    }
+
+    fn name(&self) -> &'static str {
+        "AppendAfterCursor"
+    }
+}
+
 /// Handle all ex command mode input (typing, backspace, execute)
 pub struct ExCommandModeCommand;
 
@@ -361,6 +384,59 @@ mod tests {
         assert_eq!(
             result[0],
             CommandEvent::cursor_move(MovementDirection::LineStart)
+        );
+        assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
+    }
+
+    #[test]
+    fn append_after_cursor_should_be_relevant_for_lowercase_a_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = AppendAfterCursorCommand;
+        let event = create_test_key_event(KeyCode::Char('a'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn append_after_cursor_should_not_be_relevant_for_uppercase_a() {
+        let context = create_test_context();
+        let cmd = AppendAfterCursorCommand;
+        let event = create_test_key_event(KeyCode::Char('A'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn append_after_cursor_should_not_be_relevant_in_insert_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
+        let cmd = AppendAfterCursorCommand;
+        let event = create_test_key_event(KeyCode::Char('a'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn append_after_cursor_should_not_be_relevant_in_response_pane() {
+        let mut context = create_test_context();
+        context.state.current_pane = Pane::Response;
+        let cmd = AppendAfterCursorCommand;
+        let event = create_test_key_event(KeyCode::Char('a'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn append_after_cursor_should_execute_cursor_move_and_mode_change() {
+        let context = create_test_context();
+        let cmd = AppendAfterCursorCommand;
+        let event = create_test_key_event(KeyCode::Char('a'));
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(
+            result[0],
+            CommandEvent::cursor_move(MovementDirection::Right)
         );
         assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
     }

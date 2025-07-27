@@ -51,8 +51,9 @@ pub mod request;
 pub use app::AppTerminateCommand;
 pub use editing::{DeleteCharCommand, InsertCharCommand, InsertNewLineCommand};
 pub use mode::{
-    AppendAtEndOfLineCommand, EnterCommandModeCommand, EnterInsertModeCommand,
-    ExCommandModeCommand, ExitInsertModeCommand, InsertAtBeginningOfLineCommand,
+    AppendAfterCursorCommand, AppendAtEndOfLineCommand, EnterCommandModeCommand,
+    EnterInsertModeCommand, ExCommandModeCommand, ExitInsertModeCommand,
+    InsertAtBeginningOfLineCommand,
 };
 pub use movement::{
     MoveCursorDownCommand, MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand,
@@ -81,6 +82,7 @@ impl CommandRegistry {
             Box::new(MoveCursorDownCommand),
             // Mode commands
             Box::new(EnterInsertModeCommand),
+            Box::new(AppendAfterCursorCommand),
             Box::new(AppendAtEndOfLineCommand),
             Box::new(InsertAtBeginningOfLineCommand),
             Box::new(ExitInsertModeCommand),
