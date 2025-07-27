@@ -52,7 +52,7 @@ pub use app::AppTerminateCommand;
 pub use editing::{DeleteCharCommand, InsertCharCommand, InsertNewLineCommand};
 pub use mode::{
     AppendAtEndOfLineCommand, EnterCommandModeCommand, EnterInsertModeCommand,
-    ExitInsertModeCommand,
+    ExCommandModeCommand, ExitInsertModeCommand,
 };
 pub use movement::{
     MoveCursorDownCommand, MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand,
@@ -84,6 +84,7 @@ impl CommandRegistry {
             Box::new(AppendAtEndOfLineCommand),
             Box::new(ExitInsertModeCommand),
             Box::new(EnterCommandModeCommand),
+            Box::new(ExCommandModeCommand),
             // Pane commands
             Box::new(SwitchPaneCommand),
             // Editing commands

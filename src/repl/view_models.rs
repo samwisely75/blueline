@@ -26,6 +26,9 @@ pub struct ViewModel {
     terminal_height: u16,
     request_pane_height: u16,
 
+    // Ex command mode state (for :q, :w, etc.)
+    ex_command_buffer: String,
+
     // HTTP client and configuration
     http_client: Option<HttpClient>,
     session_headers: HashMap<String, String>,
@@ -50,6 +53,7 @@ impl ViewModel {
             terminal_width: 80,
             terminal_height: 24,
             request_pane_height: 12,
+            ex_command_buffer: String::new(),
             http_client,
             session_headers: HashMap::new(),
             verbose: false,
@@ -390,6 +394,61 @@ impl ViewModel {
     /// Get HTTP client reference
     pub fn http_client(&self) -> Option<&HttpClient> {
         self.http_client.as_ref()
+    }
+
+    /// Add character to ex command buffer
+    pub fn add_ex_command_char(&mut self, ch: char) -> Result<()> {
+        self.ex_command_buffer.push(ch);
+        self.emit_view_event(ViewEvent::StatusBarUpdateRequired);
+        Ok(())
+    }
+
+    /// Remove character from ex command buffer (backspace)
+    pub fn backspace_ex_command(&mut self) -> Result<()> {
+        if !self.ex_command_buffer.is_empty() {
+            self.ex_command_buffer.pop();
+            self.emit_view_event(ViewEvent::StatusBarUpdateRequired);
+        } else {
+            // If buffer is empty, exit command mode
+            self.change_mode(EditorMode::Normal)?;
+        }
+        Ok(())
+    }
+
+    /// Execute ex command and clear buffer
+    pub fn execute_ex_command(&mut self) -> Result<Vec<crate::repl::commands::CommandEvent>> {
+        let command = self.ex_command_buffer.trim();
+        let mut events = Vec::new();
+
+        // Handle ex commands
+        match command {
+            "q" => {
+                // Quit the application
+                events.push(crate::repl::commands::CommandEvent::QuitRequested);
+            }
+            "q!" => {
+                // Force quit the application
+                events.push(crate::repl::commands::CommandEvent::QuitRequested);
+            }
+            "" => {
+                // Empty command, just exit command mode
+            }
+            _ => {
+                // Unknown command - could emit an error event in future
+                tracing::warn!("Unknown ex command: {}", command);
+            }
+        }
+
+        // Clear buffer and exit command mode
+        self.ex_command_buffer.clear();
+        self.change_mode(EditorMode::Normal)?;
+
+        Ok(events)
+    }
+
+    /// Get ex command buffer for display
+    pub fn get_ex_command_buffer(&self) -> &str {
+        &self.ex_command_buffer
     }
 
     // =================================================================

@@ -93,6 +93,33 @@ impl Command for AppendAtEndOfLineCommand {
     }
 }
 
+/// Handle all ex command mode input (typing, backspace, execute)
+pub struct ExCommandModeCommand;
+
+impl Command for ExCommandModeCommand {
+    fn is_relevant(&self, context: &CommandContext, _event: &KeyEvent) -> bool {
+        matches!(context.state.current_mode, EditorMode::Command)
+    }
+
+    fn execute(&self, event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        match event.code {
+            KeyCode::Char(ch) if event.modifiers == KeyModifiers::NONE => {
+                Ok(vec![CommandEvent::ExCommandCharRequested { ch }])
+            }
+            KeyCode::Backspace => Ok(vec![CommandEvent::ExCommandBackspaceRequested]),
+            KeyCode::Enter => Ok(vec![CommandEvent::ExCommandExecuteRequested]),
+            KeyCode::Esc => Ok(vec![CommandEvent::ModeChangeRequested {
+                new_mode: EditorMode::Normal,
+            }]),
+            _ => Ok(vec![]),
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "ExCommandMode"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,5 +205,73 @@ mod tests {
             CommandEvent::cursor_move(MovementDirection::LineEnd)
         );
         assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
+    }
+
+    #[test]
+    fn ex_command_mode_should_be_relevant_in_command_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Command;
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Char('q'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn ex_command_mode_should_not_be_relevant_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Char('q'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn ex_command_mode_should_handle_character_input() {
+        let context = create_test_context();
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Char('q'));
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::ExCommandCharRequested { ch: 'q' });
+    }
+
+    #[test]
+    fn ex_command_mode_should_handle_backspace() {
+        let context = create_test_context();
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Backspace);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::ExCommandBackspaceRequested);
+    }
+
+    #[test]
+    fn ex_command_mode_should_handle_enter() {
+        let context = create_test_context();
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Enter);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::ExCommandExecuteRequested);
+    }
+
+    #[test]
+    fn ex_command_mode_should_handle_escape() {
+        let context = create_test_context();
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Esc);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0],
+            CommandEvent::ModeChangeRequested {
+                new_mode: EditorMode::Normal
+            }
+        );
     }
 }

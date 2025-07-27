@@ -4,12 +4,15 @@
 
 - [x] Stop using different color in the current line and status bar. Use the same color as the rest of the text in the request/response buffer. Refer to the MVC code for the details.
 - [x] Align The mode, pane, and position indicators in the status bar to the right.
-- [ ] Implement `:q` and `:q!` to quit the application.
-- [ ] Restore the HTTP status code with signal light, message, turn around time in the status bar. Refer to the MVC code for the details.
+- [x] Implement `:q` and `:q!` to quit the application.
+- [ ] Support `i` command to insert text at the current cursor position in the request buffer.
+- [ ] Support `a` command to insert text next to the current cursor position in the request buffer.
+- [ ] Restore the HTTP status code with signal light, message, turn around time in the status bar. Show it before the mode indicator. Refer to the MVC code for the details.
 - [ ] Show the logical line number in the request/response buffer. Minimal width for the line number should be 3. The tilda should be placed in the first column. Refer to the MVC code for the details.
 
 ## Backlog
 
+- [ ] Rename command terminology for clarity: h/j/k/l as "motions", i/a/A as "editing commands", :q/:w as "ex commands", Ctrl+C as "application commands"
 - [ ] Implement `b` to skip to the previous word in the request/response buffer.
 - [ ] Implement `0` and `Home` to go to the beginning of the current line in the request/response buffer.
 - [ ] Implement `$` and `End` to go to the end of the current line in the request/response buffer.

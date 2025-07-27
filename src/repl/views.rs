@@ -229,35 +229,50 @@ impl ViewRenderer for TerminalRenderer {
 
     fn render_status_bar(&mut self, view_model: &ViewModel) -> Result<()> {
         let status_row = self.terminal_size.1 - 1;
-        let mode_text = match view_model.get_mode() {
-            EditorMode::Normal => "NORMAL",
-            EditorMode::Insert => "INSERT",
-            EditorMode::Command => "COMMAND",
-        };
 
-        let pane_text = match view_model.get_current_pane() {
-            Pane::Request => "REQUEST",
-            Pane::Response => "RESPONSE",
-        };
-
-        let cursor = view_model.get_cursor_position();
-        let status_text = format!(
-            "{} | {} | {}:{}",
-            mode_text,
-            pane_text,
-            cursor.line + 1,
-            cursor.column + 1
-        );
-
+        // Clear the status bar first
         execute_term!(
             self.stdout,
             MoveTo(0, status_row),
-            Print(format!(
-                "{:>width$}",
-                status_text,
-                width = self.terminal_size.0 as usize
-            ))
+            Print(" ".repeat(self.terminal_size.0 as usize))
         )?;
+
+        // Check if we're in command mode and need to show ex command buffer
+        if view_model.get_mode() == EditorMode::Command {
+            let ex_command_text = format!(":{}", view_model.get_ex_command_buffer());
+            execute_term!(self.stdout, MoveTo(0, status_row), Print(&ex_command_text))?;
+        } else {
+            // Show normal status information
+            let mode_text = match view_model.get_mode() {
+                EditorMode::Normal => "NORMAL",
+                EditorMode::Insert => "INSERT",
+                EditorMode::Command => "COMMAND", // Shouldn't reach here
+            };
+
+            let pane_text = match view_model.get_current_pane() {
+                Pane::Request => "REQUEST",
+                Pane::Response => "RESPONSE",
+            };
+
+            let cursor = view_model.get_cursor_position();
+            let status_text = format!(
+                "{} | {} | {}:{}",
+                mode_text,
+                pane_text,
+                cursor.line + 1,
+                cursor.column + 1
+            );
+
+            execute_term!(
+                self.stdout,
+                MoveTo(0, status_row),
+                Print(format!(
+                    "{:>width$}",
+                    status_text,
+                    width = self.terminal_size.0 as usize
+                ))
+            )?;
+        }
 
         Ok(())
     }

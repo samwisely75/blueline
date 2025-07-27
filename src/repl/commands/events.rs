@@ -54,6 +54,15 @@ pub enum CommandEvent {
     /// Request to quit application
     QuitRequested,
 
+    /// Request to add character to ex command buffer
+    ExCommandCharRequested { ch: char },
+
+    /// Request to backspace in ex command buffer
+    ExCommandBackspaceRequested,
+
+    /// Request to execute ex command in buffer
+    ExCommandExecuteRequested,
+
     /// No action needed (for commands that only query state)
     NoAction,
 }

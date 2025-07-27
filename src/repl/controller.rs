@@ -198,6 +198,29 @@ impl AppController {
             CommandEvent::QuitRequested => {
                 self.should_quit = true;
             }
+            CommandEvent::ExCommandCharRequested { ch } => {
+                self.view_model.add_ex_command_char(ch)?;
+            }
+            CommandEvent::ExCommandBackspaceRequested => {
+                self.view_model.backspace_ex_command()?;
+            }
+            CommandEvent::ExCommandExecuteRequested => {
+                let events = self.view_model.execute_ex_command()?;
+                // Handle events directly to avoid recursion
+                for event in events {
+                    match event {
+                        CommandEvent::QuitRequested => {
+                            self.should_quit = true;
+                        }
+                        _ => {
+                            tracing::warn!(
+                                "Unhandled event from ex command execution: {:?}",
+                                event
+                            );
+                        }
+                    }
+                }
+            }
             CommandEvent::NoAction => {
                 // Do nothing
             }
