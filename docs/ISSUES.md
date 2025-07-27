@@ -2,37 +2,56 @@
 
 ## Ready to Develop
 
-- [x] Restore the logical line number in the request/response buffer. Minimal width for the line number should be 3. The tilda should be placed in the first column. Refer to the MVC code for the details.
-- [ ] Implement `gg` to go to the top of the current pane.
-- [ ] Implement `G` to go to the bottom of the current pane.
-- [ ] Support word wrap by `:set wrap` and `:set nowrap`. Update all commands to respect the word wrap setting.
+- [ ] Change cursor shape when switching between normal (block), command (underline), and insert (bar) modes.
+- [ ] Hide cursor when it is switched to the command mode. Restore the cursor when it is switched back to the normal mode.
+- [ ] Support horizontal scrolling in the request/response pane.
+- [ ] Reduce flickering. It's happening all over. The scope of rendering must be limited to the area that has changed, not the whole screen. Hide cursor before the screen refresh and restore it after the refresh to avoid flickering.
 
 ## Backlog
 
-- [ ] Implement `w` to skip to the next word in the request/response buffer.
+- [ ] Allow ex commands in resonse pane.
+- [ ] Support `gg` to go to the top of the current pane.
+- [ ] Support `G` to go to the bottom of the current pane.
+- [ ] Support `Ctrl + f` to scroll down one page in the request/response pane.
+- [ ] Support `Ctrl + b` to scroll up one page in the request/response pane.
+- [ ] Support `Ctrl + d` to scroll down half a page in the request/response pane.
+- [ ] Support `Ctrl + u` to scroll up half a page in the request/response pane.
+- [ ] Show "Executing..." in the status bar when the request is being processed. The response pane should be cleared and the request pane should be disabled until the response is received.
+- [ ] Revert the HTTP status icon to the original design in the MVC code.
+- [ ] Dim the Status Bar when it's not in focus to reduce visual clutter.
+- [ ] Support `w` to skip to the next word in the request/response buffer.
 - [ ] Rename command terminology for clarity: h/j/k/l as "motions", i/a/A as "editing commands", :q/:w as "ex commands", Ctrl+C as "application commands"
-- [ ] Implement `b` to skip to the previous word in the request/response buffer.
-- [ ] Implement `0` and `Home` to go to the beginning of the current line in the request/response buffer.
-- [ ] Implement `$` and `End` to go to the end of the current line in the request/response buffer.
-- [ ] Implement `Shift + a` to append text to the end of the current line in the request buffer.
-- [ ] Implement `Shift + i` to insert text at the beginning of the current line in the request buffer.
-- [ ] Implement `Ctrl + r` to refresh the current pane.
-- [ ] Implement `Ctrl + l` to clear the current pane.
-- [ ] Implement `v` to enter visual mode in the request/response buffer.
-- [ ] Implement `y` to copy the selected text in the request/response buffer to the clipboard.
-- [ ] Implement `yy` to copy the current line in the request/response buffer to the clipboard.
-- [ ] Implement `dd` to cut the current line in the request/response buffer to the clipboard.
-- [ ] Implement `x` to delete the current character in the request buffer.
-- [ ] Implement `p` to paste the text in the clipboard in the request buffer.
-- [ ] Implement `Shift + p` to paste the copied line before the current line in the request buffer.
-- [ ] Implement `Shift + d` to cut the current character to the end of the line in the request buffer.
-- [ ] Implement syntax highlighting for HTTP requests in the request buffer.
-- [ ] Implement `Ctrl + j` to expand the response pane for one line. It goes up to the request pane shrinks to three lines.
-- [ ] Implement `Ctrl + k` to shrink the response pane for one line. It goes down to the response pane shrinks to three lines.
-- [ ] Implement `:r` to show/hide the response pane.
+- [ ] Support `b` to skip to the previous word in the request/response buffer.
+- [ ] Support `e` to skip to the end of the current word in the request/response buffer.
+- [ ] Support `0` and `Home` to go to the beginning of the current line in the request/response buffer.
+- [ ] Support `$` and `End` to go to the end of the current line in the request/response buffer.
+- [ ] Support `Shift + a` to append text to the end of the current line in the request buffer.
+- [ ] Support `Shift + i` to insert text at the beginning of the current line in the request buffer.
+- [ ] Support `Ctrl + r` to refresh the current pane.
+- [ ] Support `Ctrl + l` to clear the current pane.
+- [ ] Support `v` to enter visual mode in the request/response buffer.
+- [ ] Support `y` to copy the selected text in the request/response buffer to the clipboard.
+- [ ] Support `yy` to copy the current line in the request/response buffer to the clipboard.
+- [ ] Support `dd` to cut the current line in the request/response buffer to the clipboard.
+- [ ] Support `x` to delete the current character in the request buffer.
+- [ ] Support `p` to paste the text in the clipboard in the request buffer.
+- [ ] Support `Shift + p` to paste the copied line before the current line in the request buffer.
+- [ ] Support `Shift + d` to cut the current character to the end of the line in the request buffer.
+- [ ] Support syntax highlighting for HTTP requests in the request buffer.
+- [ ] Support `Ctrl + j` to expand the response pane for one line. It goes up to the request pane shrinks to three lines.
+- [ ] Support `Ctrl + k` to shrink the response pane for one line. It goes down to the response pane shrinks to three lines.
+- [ ] Support `:r` to show/hide the response pane.
 
 ## Done
 
+- [x] Support word wrap by `:set wrap` and `:set nowrap` in both request and response pane. The wrap setting is effective in both simultaneously. Allow navigation keys to scrolling up and down the pages. Update all commands to respect the word wrap setting.
+- [x] Restore the logical line number in the request/response buffer. Minimal width for the line number should be 3. The tilda should be placed in the first column. Refer to the MVC code for the details.
+- [x] Support `:q` and `:q!` to quit the application.
+- [x] Support `I` command to insert text at the current cursor position in the request buffer.
+- [x] Support `a` command to insert text next to the current cursor position in the request buffer.
+- [x] Support `Delete` to delete the current character in the request buffer.
+- [x] Stop using different color in the current line and status bar. Use the same color as the rest of the text in the request/response buffer. Refer to the MVC code for the details.
+- [x] Align The mode, pane, and position indicators in the status bar to the right.
 - [x] Restore the HTTP status code with signal light, message, turn around time in the status bar. Show it before the mode indicator. Refer to the MVC code for the details.
 - [x] The last HTTP status code, message, and turn around time must be retained and aligned to the right in the status bar.
 - [x] initial width for the line number must be 3. The tilda should be placed in the first column.
@@ -42,9 +61,3 @@
 - [x] Fix the flicking issue when the cursor is moved in the request pane. It only happens in the request pane, regardless of the response pane being shown or not.
 - [x] Hide the cursor when it is switched to the command mode. Restore the cursor when it is switched back to the normal mode.
 - [x] Make arrow keys work in the request/response pane, regardless of the mode.
-- [x] Implement `:q` and `:q!` to quit the application.
-- [x] Support `I` command to insert text at the current cursor position in the request buffer.
-- [x] Support `a` command to insert text next to the current cursor position in the request buffer.
-- [x] Support `Delete` to delete the current character in the request buffer.
-- [x] Stop using different color in the current line and status bar. Use the same color as the rest of the text in the request/response buffer. Refer to the MVC code for the details.
-- [x] Align The mode, pane, and position indicators in the status bar to the right.

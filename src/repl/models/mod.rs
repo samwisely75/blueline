@@ -6,12 +6,14 @@
 
 // Import model modules
 pub mod buffer_model;
+pub mod display_cache;
 pub mod editor_model;
 pub mod request_model;
 pub mod response_model;
 
 // Re-export all models for easy access
 pub use buffer_model::{BufferContent, BufferModel};
+pub use display_cache::{build_display_cache, DisplayCache, DisplayLine, DisplayPosition};
 pub use editor_model::EditorModel;
 pub use request_model::{HttpHeaders, RequestModel};
 pub use response_model::ResponseModel;

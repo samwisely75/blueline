@@ -5,13 +5,18 @@
 
 use crate::repl::events::{EditorMode, EventBus, LogicalPosition, ModelEvent, Pane, ViewEvent};
 use crate::repl::http::create_default_profile;
-use crate::repl::models::{BufferModel, EditorModel, ResponseModel};
+use crate::repl::models::{
+    build_display_cache, BufferModel, DisplayCache, DisplayPosition, EditorModel, ResponseModel,
+};
 use anyhow::Result;
 use bluenote::{HttpClient, HttpConnectionProfile};
 use std::collections::HashMap;
 
 /// Type alias for event bus option to reduce complexity
 type EventBusOption = Option<Box<dyn EventBus>>;
+
+/// Type alias for display line rendering data: (content, line_number, is_continuation)
+pub type DisplayLineData = (String, Option<usize>, bool);
 
 /// The central ViewModel that coordinates all business logic
 pub struct ViewModel {
@@ -20,6 +25,15 @@ pub struct ViewModel {
     request_buffer: BufferModel,
     response_buffer: BufferModel,
     response: ResponseModel,
+
+    // Display coordination (word wrap support)
+    request_display_cache: DisplayCache,
+    response_display_cache: DisplayCache,
+    wrap_enabled: bool,
+    request_display_cursor: DisplayPosition,
+    response_display_cursor: DisplayPosition,
+    request_display_scroll_offset: usize,
+    response_display_scroll_offset: usize,
 
     // Display state
     terminal_width: u16,
@@ -45,11 +59,31 @@ impl ViewModel {
         let profile = create_default_profile();
         let http_client = HttpClient::new(&profile).ok();
 
-        Self {
+        // Initialize display caches
+        let mut request_display_cache = DisplayCache::new();
+        let mut response_display_cache = DisplayCache::new();
+
+        // Build initial caches with empty content
+        let empty_lines: Vec<String> = vec![String::new()];
+        if let Ok(cache) = build_display_cache(&empty_lines, 80, false) {
+            request_display_cache = cache;
+        }
+        if let Ok(cache) = build_display_cache(&empty_lines, 80, false) {
+            response_display_cache = cache;
+        }
+
+        let mut instance = Self {
             editor: EditorModel::new(),
             request_buffer: BufferModel::new(Pane::Request),
             response_buffer: BufferModel::new(Pane::Response),
             response: ResponseModel::new(),
+            request_display_cache,
+            response_display_cache,
+            wrap_enabled: false,
+            request_display_cursor: (0, 0),
+            response_display_cursor: (0, 0),
+            request_display_scroll_offset: 0,
+            response_display_scroll_offset: 0,
             terminal_width: 80,
             terminal_height: 24,
             request_pane_height: 12,
@@ -58,7 +92,12 @@ impl ViewModel {
             session_headers: HashMap::new(),
             verbose: false,
             event_bus: None,
-        }
+        };
+
+        // Ensure display cursors are synced with logical cursors at startup
+        instance.sync_display_cursors();
+
+        instance
     }
 
     /// Set the event bus for communication
@@ -88,90 +127,181 @@ impl ViewModel {
         }
     }
 
-    /// Move cursor left in current pane
+    /// Move cursor left in current pane (display coordinate based)
     pub fn move_cursor_left(&mut self) -> Result<()> {
         let current_pane = self.editor.current_pane();
-        let buffer = self.get_buffer_mut(current_pane);
 
-        if let Some(event) = buffer.move_cursor_left() {
-            self.emit_model_event(event);
+        // Sync display cursor with current logical cursor position
+        self.sync_display_cursor_with_logical(current_pane)?;
+
+        let current_display_pos = self.get_display_cursor(current_pane);
+        let display_cache = self.get_display_cache(current_pane);
+
+        tracing::debug!(
+            "move_cursor_left: pane={:?}, current_pos={:?}",
+            current_pane,
+            current_display_pos
+        );
+
+        // Check if we can move left within current display line
+        if current_display_pos.1 > 0 {
+            let new_display_pos = (current_display_pos.0, current_display_pos.1 - 1);
+            tracing::debug!(
+                "move_cursor_left: moving within line to {:?}",
+                new_display_pos
+            );
+            self.set_display_cursor(current_pane, new_display_pos)?;
             self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+        } else if current_display_pos.0 > 0 {
+            // Move to end of previous display line
+            let prev_display_line = current_display_pos.0 - 1;
+            if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
+                let new_col = prev_line.content.chars().count();
+                let new_display_pos = (prev_display_line, new_col);
+                tracing::debug!(
+                    "move_cursor_left: moving to end of previous line {:?}",
+                    new_display_pos
+                );
+                self.set_display_cursor(current_pane, new_display_pos)?;
+                self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+            }
+        } else {
+            tracing::debug!("move_cursor_left: already at beginning, no movement");
         }
 
         Ok(())
     }
 
-    /// Move cursor right in current pane
+    /// Move cursor right in current pane (display coordinate based)
     pub fn move_cursor_right(&mut self) -> Result<()> {
         let current_pane = self.editor.current_pane();
-        let buffer = self.get_buffer_mut(current_pane);
 
-        if let Some(event) = buffer.move_cursor_right() {
-            self.emit_model_event(event);
-            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+        // Sync display cursor with current logical cursor position
+        self.sync_display_cursor_with_logical(current_pane)?;
+
+        let current_display_pos = self.get_display_cursor(current_pane);
+        let display_cache = self.get_display_cache(current_pane);
+
+        tracing::debug!(
+            "move_cursor_right: pane={:?}, current_pos={:?}",
+            current_pane,
+            current_display_pos
+        );
+
+        // Get current display line info
+        if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
+            let line_length = current_line.content.chars().count();
+
+            // Check if we can move right within current display line
+            if current_display_pos.1 < line_length {
+                let new_display_pos = (current_display_pos.0, current_display_pos.1 + 1);
+                tracing::debug!(
+                    "move_cursor_right: moving within line to {:?}",
+                    new_display_pos
+                );
+                self.set_display_cursor(current_pane, new_display_pos)?;
+                self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+            } else if current_display_pos.0 + 1 < display_cache.display_line_count() {
+                // Move to beginning of next display line
+                let new_display_pos = (current_display_pos.0 + 1, 0);
+                tracing::debug!(
+                    "move_cursor_right: moving to next line {:?}",
+                    new_display_pos
+                );
+                self.set_display_cursor(current_pane, new_display_pos)?;
+                self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+            } else {
+                tracing::debug!("move_cursor_right: already at end, no movement");
+            }
+        } else {
+            tracing::debug!("move_cursor_right: invalid display line, no movement");
         }
 
         Ok(())
     }
 
-    /// Move cursor up in current pane
+    /// Move cursor up in current pane (display line based)
     pub fn move_cursor_up(&mut self) -> Result<()> {
         let current_pane = self.editor.current_pane();
-        let buffer = self.get_buffer_mut(current_pane);
-        let current_pos = buffer.cursor();
+        let current_display_pos = self.get_display_cursor(current_pane);
+        let display_cache = self.get_display_cache(current_pane);
 
-        if current_pos.line > 0 {
-            let new_pos = LogicalPosition::new(current_pos.line - 1, current_pos.column);
-            if let Some(event) = buffer.set_cursor(new_pos) {
-                self.emit_model_event(event);
-                self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-            }
+        if let Some(new_display_pos) =
+            display_cache.move_up(current_display_pos.0, current_display_pos.1)
+        {
+            self.set_display_cursor(current_pane, new_display_pos)?;
+            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
         }
 
         Ok(())
     }
 
-    /// Move cursor down in current pane
+    /// Move cursor down in current pane (display line based)
     pub fn move_cursor_down(&mut self) -> Result<()> {
         let current_pane = self.editor.current_pane();
-        let buffer = self.get_buffer_mut(current_pane);
-        let current_pos = buffer.cursor();
+        let current_display_pos = self.get_display_cursor(current_pane);
+        let display_cache = self.get_display_cache(current_pane);
 
-        if current_pos.line + 1 < buffer.content().line_count() {
-            let new_pos = LogicalPosition::new(current_pos.line + 1, current_pos.column);
-            if let Some(event) = buffer.set_cursor(new_pos) {
-                self.emit_model_event(event);
-                self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-            }
+        tracing::debug!(
+            "move_cursor_down: pane={:?}, current_pos={:?}, cache_lines={}, cache_valid={}",
+            current_pane,
+            current_display_pos,
+            display_cache.display_lines.len(),
+            display_cache.is_valid
+        );
+
+        if let Some(new_display_pos) =
+            display_cache.move_down(current_display_pos.0, current_display_pos.1)
+        {
+            tracing::debug!(
+                "move_cursor_down: move_down succeeded, new_pos={:?}",
+                new_display_pos
+            );
+
+            self.set_display_cursor(current_pane, new_display_pos)?;
+
+            let final_display_pos = self.get_display_cursor(current_pane);
+            let logical_pos = self.get_cursor_position();
+            tracing::debug!(
+                "move_cursor_down: after set - display={:?}, logical=({}, {})",
+                final_display_pos,
+                logical_pos.line,
+                logical_pos.column
+            );
+
+            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+        } else {
+            tracing::debug!("move_cursor_down: move_down FAILED - no new position available");
         }
 
         Ok(())
     }
 
-    /// Move cursor to end of current line
+    /// Move cursor to end of current display line
     pub fn move_cursor_to_end_of_line(&mut self) -> Result<()> {
         let current_pane = self.editor.current_pane();
-        let buffer = self.get_buffer_mut(current_pane);
-        let current_pos = buffer.cursor();
-        let line_length = buffer.content().line_length(current_pos.line);
-        let new_pos = LogicalPosition::new(current_pos.line, line_length);
-        if let Some(event) = buffer.set_cursor(new_pos) {
-            self.emit_model_event(event);
+        let current_display_pos = self.get_display_cursor(current_pane);
+        let display_cache = self.get_display_cache(current_pane);
+
+        if let Some(display_line) = display_cache.get_display_line(current_display_pos.0) {
+            let line_length = display_line.content.chars().count();
+            let new_display_pos = (current_display_pos.0, line_length);
+            self.set_display_cursor(current_pane, new_display_pos)?;
             self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
         }
+
         Ok(())
     }
 
-    /// Move cursor to start of current line
+    /// Move cursor to start of current display line
     pub fn move_cursor_to_start_of_line(&mut self) -> Result<()> {
         let current_pane = self.editor.current_pane();
-        let buffer = self.get_buffer_mut(current_pane);
-        let current_pos = buffer.cursor();
-        let new_pos = LogicalPosition::new(current_pos.line, 0);
-        if let Some(event) = buffer.set_cursor(new_pos) {
-            self.emit_model_event(event);
-            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-        }
+        let current_display_pos = self.get_display_cursor(current_pane);
+        let new_display_pos = (current_display_pos.0, 0);
+
+        self.set_display_cursor(current_pane, new_display_pos)?;
+        self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+
         Ok(())
     }
 
@@ -185,6 +315,27 @@ impl ViewModel {
 
         if let Some(event) = buffer.set_cursor(position) {
             self.emit_model_event(event);
+
+            // Synchronize display cursor with the new logical position
+            let display_cache = self.get_display_cache(current_pane);
+            if let Some(display_pos) =
+                display_cache.logical_to_display_position(position.line, position.column)
+            {
+                match current_pane {
+                    Pane::Request => self.request_display_cursor = display_pos,
+                    Pane::Response => self.response_display_cursor = display_pos,
+                }
+
+                // Ensure cursor is visible after position change
+                self.ensure_cursor_visible(current_pane);
+            } else {
+                tracing::warn!(
+                    "Failed to map logical position {:?} to display position in pane {:?}",
+                    position,
+                    current_pane
+                );
+            }
+
             self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
         }
 
@@ -218,6 +369,17 @@ impl ViewModel {
 
         let event = self.request_buffer.insert_char(ch);
         self.emit_model_event(event);
+
+        // Rebuild request display cache after content change
+        let content_width = self.get_content_width();
+        let request_lines = self.request_buffer.content().lines().to_vec();
+        if let Ok(cache) = build_display_cache(&request_lines, content_width, self.wrap_enabled) {
+            self.request_display_cache = cache;
+        }
+
+        // Sync display cursor with logical cursor
+        self.sync_display_cursors();
+
         self.emit_view_event(ViewEvent::PaneRedrawRequired {
             pane: Pane::Request,
         });
@@ -234,6 +396,17 @@ impl ViewModel {
 
         let event = self.request_buffer.insert_text(text);
         self.emit_model_event(event);
+
+        // Rebuild request display cache after content change
+        let content_width = self.get_content_width();
+        let request_lines = self.request_buffer.content().lines().to_vec();
+        if let Ok(cache) = build_display_cache(&request_lines, content_width, self.wrap_enabled) {
+            self.request_display_cache = cache;
+        }
+
+        // Sync display cursor with logical cursor
+        self.sync_display_cursors();
+
         self.emit_view_event(ViewEvent::PaneRedrawRequired {
             pane: Pane::Request,
         });
@@ -264,6 +437,17 @@ impl ViewModel {
                 self.request_buffer.set_cursor(delete_pos);
 
                 self.emit_model_event(event);
+
+                // Rebuild request display cache after content change
+                let content_width = self.get_content_width();
+                let request_lines = self.request_buffer.content().lines().to_vec();
+                if let Ok(cache) =
+                    build_display_cache(&request_lines, content_width, self.wrap_enabled)
+                {
+                    self.request_display_cache = cache;
+                }
+                self.sync_display_cursors();
+
                 self.emit_view_event(ViewEvent::PaneRedrawRequired {
                     pane: Pane::Request,
                 });
@@ -300,6 +484,17 @@ impl ViewModel {
                     );
 
                     self.request_buffer.set_cursor(new_cursor);
+
+                    // Rebuild request display cache after content change
+                    let content_width = self.get_content_width();
+                    let request_lines = self.request_buffer.content().lines().to_vec();
+                    if let Ok(cache) =
+                        build_display_cache(&request_lines, content_width, self.wrap_enabled)
+                    {
+                        self.request_display_cache = cache;
+                    }
+                    self.sync_display_cursors();
+
                     self.emit_view_event(ViewEvent::PaneRedrawRequired {
                         pane: Pane::Request,
                     });
@@ -330,6 +525,17 @@ impl ViewModel {
                 .delete_range(Pane::Request, range)
             {
                 self.emit_model_event(event);
+
+                // Rebuild request display cache after content change
+                let content_width = self.get_content_width();
+                let request_lines = self.request_buffer.content().lines().to_vec();
+                if let Ok(cache) =
+                    build_display_cache(&request_lines, content_width, self.wrap_enabled)
+                {
+                    self.request_display_cache = cache;
+                }
+                self.sync_display_cursors();
+
                 self.emit_view_event(ViewEvent::PaneRedrawRequired {
                     pane: Pane::Request,
                 });
@@ -347,6 +553,14 @@ impl ViewModel {
             self.terminal_width = width;
             self.terminal_height = height;
             self.request_pane_height = height / 2; // Split screen in half
+
+            // Rebuild display caches if width changed (affects wrapping)
+            if let Err(e) = self.rebuild_display_caches() {
+                tracing::warn!(
+                    "Failed to rebuild display caches after terminal resize: {}",
+                    e
+                );
+            }
 
             self.emit_view_event(ViewEvent::FullRedrawRequired);
         }
@@ -370,6 +584,17 @@ impl ViewModel {
         // Update response buffer content
         self.response_buffer.content_mut().set_text(&body);
         self.response_buffer.set_cursor(LogicalPosition::zero());
+
+        // Rebuild response display cache
+        let content_width = self.get_content_width();
+        let response_lines = self.response_buffer.content().lines().to_vec();
+        if let Ok(cache) = build_display_cache(&response_lines, content_width, self.wrap_enabled) {
+            self.response_display_cache = cache;
+        }
+
+        // Reset response display cursor and scroll
+        self.response_display_cursor = (0, 0);
+        self.response_display_scroll_offset = 0;
 
         let event = ModelEvent::ResponseReceived { status_code, body };
         self.emit_model_event(event);
@@ -397,6 +622,17 @@ impl ViewModel {
         // Update response buffer content
         self.response_buffer.content_mut().set_text(&body);
         self.response_buffer.set_cursor(LogicalPosition::zero());
+
+        // Rebuild response display cache
+        let content_width = self.get_content_width();
+        let response_lines = self.response_buffer.content().lines().to_vec();
+        if let Ok(cache) = build_display_cache(&response_lines, content_width, self.wrap_enabled) {
+            self.response_display_cache = cache;
+        }
+
+        // Reset response display cursor and scroll
+        self.response_display_cursor = (0, 0);
+        self.response_display_scroll_offset = 0;
 
         let event = ModelEvent::ResponseReceived { status_code, body };
         self.emit_model_event(event);
@@ -470,6 +706,18 @@ impl ViewModel {
                 // Force quit the application
                 events.push(crate::repl::commands::CommandEvent::QuitRequested);
             }
+            "set wrap" => {
+                // Enable word wrap
+                if let Err(e) = self.set_wrap_enabled(true) {
+                    tracing::warn!("Failed to enable word wrap: {}", e);
+                }
+            }
+            "set nowrap" => {
+                // Disable word wrap
+                if let Err(e) = self.set_wrap_enabled(false) {
+                    tracing::warn!("Failed to disable word wrap: {}", e);
+                }
+            }
             "" => {
                 // Empty command, just exit command mode
             }
@@ -507,10 +755,177 @@ impl ViewModel {
     }
 
     // =================================================================
+    // Display Cache and Word Wrap Management
+    // =================================================================
+
+    /// Get wrap enabled state
+    pub fn is_wrap_enabled(&self) -> bool {
+        self.wrap_enabled
+    }
+
+    /// Set wrap enabled state and rebuild caches
+    pub fn set_wrap_enabled(&mut self, enabled: bool) -> Result<()> {
+        if self.wrap_enabled != enabled {
+            self.wrap_enabled = enabled;
+            self.rebuild_display_caches()?;
+            self.emit_view_event(ViewEvent::FullRedrawRequired);
+        }
+        Ok(())
+    }
+
+    /// Rebuild display caches for both panes
+    fn rebuild_display_caches(&mut self) -> Result<()> {
+        let content_width = self.get_content_width();
+
+        // Rebuild request cache
+        let request_lines = self.request_buffer.content().lines().to_vec();
+        self.request_display_cache =
+            build_display_cache(&request_lines, content_width, self.wrap_enabled)?;
+
+        // Rebuild response cache
+        let response_lines = self.response_buffer.content().lines().to_vec();
+        self.response_display_cache =
+            build_display_cache(&response_lines, content_width, self.wrap_enabled)?;
+
+        // Update display cursors to match logical positions
+        self.sync_display_cursors();
+
+        Ok(())
+    }
+
+    /// Calculate content width (terminal width minus line number space)
+    fn get_content_width(&self) -> usize {
+        // Reserve space for line numbers (minimum 3 digits + 1 space)
+        let line_num_width = 4;
+        (self.terminal_width as usize).saturating_sub(line_num_width)
+    }
+
+    /// Sync display cursors with logical buffer cursors
+    fn sync_display_cursors(&mut self) {
+        // Update request display cursor
+        let request_logical = self.request_buffer.cursor();
+        if let Some(display_pos) = self
+            .request_display_cache
+            .logical_to_display_position(request_logical.line, request_logical.column)
+        {
+            self.request_display_cursor = display_pos;
+        }
+
+        // Update response display cursor
+        let response_logical = self.response_buffer.cursor();
+        if let Some(display_pos) = self
+            .response_display_cache
+            .logical_to_display_position(response_logical.line, response_logical.column)
+        {
+            self.response_display_cursor = display_pos;
+        }
+    }
+
+    /// Get display cursor for a pane
+    pub fn get_display_cursor(&self, pane: Pane) -> DisplayPosition {
+        match pane {
+            Pane::Request => self.request_display_cursor,
+            Pane::Response => self.response_display_cursor,
+        }
+    }
+
+    /// Get display cache for a pane
+    pub fn get_display_cache(&self, pane: Pane) -> &DisplayCache {
+        match pane {
+            Pane::Request => &self.request_display_cache,
+            Pane::Response => &self.response_display_cache,
+        }
+    }
+
+    /// Set display cursor and sync logical cursor
+    fn set_display_cursor(&mut self, pane: Pane, display_pos: DisplayPosition) -> Result<()> {
+        match pane {
+            Pane::Request => {
+                self.request_display_cursor = display_pos;
+                if let Some((logical_line, logical_col)) = self
+                    .request_display_cache
+                    .display_to_logical_position(display_pos.0, display_pos.1)
+                {
+                    let logical_pos = LogicalPosition::new(logical_line, logical_col);
+                    self.request_buffer.set_cursor(logical_pos);
+                }
+            }
+            Pane::Response => {
+                self.response_display_cursor = display_pos;
+                if let Some((logical_line, logical_col)) = self
+                    .response_display_cache
+                    .display_to_logical_position(display_pos.0, display_pos.1)
+                {
+                    let logical_pos = LogicalPosition::new(logical_line, logical_col);
+                    self.response_buffer.set_cursor(logical_pos);
+                }
+            }
+        }
+
+        // Ensure cursor is visible after move
+        self.ensure_cursor_visible(pane);
+        Ok(())
+    }
+
+    /// Sync display cursor with current logical cursor position
+    fn sync_display_cursor_with_logical(&mut self, pane: Pane) -> Result<()> {
+        let logical_pos = self.get_cursor_for_pane(pane);
+        let display_cache = self.get_display_cache(pane);
+
+        if let Some(display_pos) =
+            display_cache.logical_to_display_position(logical_pos.line, logical_pos.column)
+        {
+            match pane {
+                Pane::Request => self.request_display_cursor = display_pos,
+                Pane::Response => self.response_display_cursor = display_pos,
+            }
+        }
+        Ok(())
+    }
+
+    /// Ensure cursor is visible in the current pane by adjusting scroll offset
+    fn ensure_cursor_visible(&mut self, pane: Pane) {
+        let cursor_display_line = match pane {
+            Pane::Request => self.request_display_cursor.0,
+            Pane::Response => self.response_display_cursor.0,
+        };
+
+        let scroll_offset = match pane {
+            Pane::Request => self.request_display_scroll_offset,
+            Pane::Response => self.response_display_scroll_offset,
+        };
+
+        let pane_height = match pane {
+            Pane::Request => self.request_pane_height() as usize,
+            Pane::Response => self.response_pane_height() as usize,
+        };
+
+        let visible_start = scroll_offset;
+        let visible_end = scroll_offset + pane_height.saturating_sub(1);
+
+        // If cursor is above visible area, scroll up
+        if cursor_display_line < visible_start {
+            match pane {
+                Pane::Request => self.request_display_scroll_offset = cursor_display_line,
+                Pane::Response => self.response_display_scroll_offset = cursor_display_line,
+            }
+        }
+        // If cursor is below visible area, scroll down
+        else if cursor_display_line > visible_end {
+            let new_offset = cursor_display_line.saturating_sub(pane_height.saturating_sub(1));
+            match pane {
+                Pane::Request => self.request_display_scroll_offset = new_offset,
+                Pane::Response => self.response_display_scroll_offset = new_offset,
+            }
+        }
+    }
+
+    // =================================================================
     // Internal helper methods
     // =================================================================
 
     /// Get mutable buffer for pane
+    #[allow(dead_code)]
     fn get_buffer_mut(&mut self, pane: Pane) -> &mut BufferModel {
         match pane {
             Pane::Request => &mut self.request_buffer,
@@ -581,12 +996,67 @@ impl ViewModel {
         }
     }
 
-    /// Get scroll offset for a pane
+    /// Get scroll offset for a pane (display line based)
     pub fn get_scroll_offset(&self, pane: Pane) -> usize {
         match pane {
-            Pane::Request => self.request_buffer.scroll_offset(),
-            Pane::Response => self.response_buffer.scroll_offset(),
+            Pane::Request => self.request_display_scroll_offset,
+            Pane::Response => self.response_display_scroll_offset,
         }
+    }
+
+    /// Get display lines for rendering (for views layer)
+    pub fn get_display_lines_for_rendering(
+        &self,
+        pane: Pane,
+        start_row: usize,
+        row_count: usize,
+    ) -> Vec<Option<DisplayLineData>> {
+        let display_cache = self.get_display_cache(pane);
+        let scroll_offset = self.get_scroll_offset(pane);
+        let mut result = Vec::new();
+
+        for row in 0..row_count {
+            let display_line_idx = scroll_offset + start_row + row;
+
+            if let Some(display_line) = display_cache.get_display_line(display_line_idx) {
+                // Show logical line number only for first segment of wrapped lines
+                let line_number = if display_line.is_continuation {
+                    None
+                } else {
+                    Some(display_line.logical_line + 1) // 1-based line numbers
+                };
+                // Third parameter indicates if this is a continuation line (true) or beyond content (false)
+                result.push(Some((
+                    display_line.content.clone(),
+                    line_number,
+                    display_line.is_continuation,
+                )));
+            } else {
+                // Beyond content - show tilde (false indicates this is beyond content, not continuation)
+                result.push(None);
+            }
+        }
+
+        result
+    }
+
+    /// Get cursor position for rendering (display coordinates)
+    pub fn get_cursor_for_rendering(&self, pane: Pane) -> (usize, usize) {
+        let display_cursor = self.get_display_cursor(pane);
+        let scroll_offset = self.get_scroll_offset(pane);
+
+        // Return relative position within visible area
+        let visible_row = display_cursor.0.saturating_sub(scroll_offset);
+        (visible_row, display_cursor.1)
+    }
+
+    /// Get line number width for consistent formatting
+    pub fn get_line_number_width(&self, pane: Pane) -> usize {
+        let logical_lines = match pane {
+            Pane::Request => self.request_buffer.content().line_count(),
+            Pane::Response => self.response_buffer.content().line_count(),
+        };
+        logical_lines.to_string().len().max(3)
     }
 }
 
@@ -722,11 +1192,12 @@ mod tests {
         vm.insert_text("line one\nline two is longer\nline three")
             .unwrap();
         // Move to middle line, middle position
-        vm.request_buffer.set_cursor(LogicalPosition::new(1, 5));
+        vm.set_cursor_position(LogicalPosition::new(1, 5)).unwrap();
 
         // Test move to end of middle line
         vm.move_cursor_to_end_of_line().unwrap();
         let cursor = vm.get_cursor_position();
+
         assert_eq!(cursor.column, 18); // Should be at end of "line two is longer"
         assert_eq!(cursor.line, 1);
     }

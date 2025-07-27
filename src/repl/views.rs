@@ -81,6 +81,7 @@ impl TerminalRenderer {
         line_number: Option<usize>,
         text: &str,
         line_num_width: usize,
+        is_continuation: bool,
     ) -> Result<()> {
         execute_term!(self.stdout, MoveTo(0, row))?;
 
@@ -92,8 +93,14 @@ impl TerminalRenderer {
                 Print(format!("{:>width$} ", num, width = line_num_width))
             )?;
             execute_term!(self.stdout, SetAttribute(Attribute::Reset))?;
+        } else if is_continuation {
+            // Continuation line of wrapped text - show blank space
+            execute_term!(
+                self.stdout,
+                Print(format!("{} ", " ".repeat(line_num_width)))
+            )?;
         } else {
-            // Show tilda for empty lines (vim-style) with darker gray color
+            // Show tilda for empty lines beyond content (vim-style) with darker gray color
             execute_term!(self.stdout, SetForegroundColor(Color::DarkGrey))?;
             execute_term!(
                 self.stdout,
@@ -123,7 +130,7 @@ impl TerminalRenderer {
         Ok(())
     }
 
-    /// Render buffer content in a pane area
+    /// Render buffer content in a pane area using display lines
     fn render_buffer_content(
         &mut self,
         view_model: &ViewModel,
@@ -131,57 +138,28 @@ impl TerminalRenderer {
         start_row: u16,
         height: u16,
     ) -> Result<()> {
-        let content = view_model.get_buffer_content(pane);
-        let lines: Vec<&str> = content.lines().collect();
-        let scroll_offset = view_model.get_scroll_offset(pane);
+        // Get display lines for rendering from ViewModel
+        let display_lines = view_model.get_display_lines_for_rendering(pane, 0, height as usize);
+        let line_num_width = view_model.get_line_number_width(pane);
 
-        // Get cursor position to determine the extent of "real" lines
-        let cursor_pos = view_model.get_cursor_for_pane(pane);
-        let max_cursor_line = cursor_pos.line;
+        for (row, display_data) in display_lines.iter().enumerate() {
+            let terminal_row = start_row + row as u16;
 
-        // Calculate the maximum line that should show a line number
-        // This includes all lines in the buffer content plus the cursor line if beyond content
-        let max_line_with_number = if lines.is_empty() {
-            max_cursor_line.max(0) // If buffer is empty, at least show line numbers up to cursor
-        } else {
-            lines.len().saturating_sub(1).max(max_cursor_line)
-        };
-
-        // Calculate line number width (minimum 3 characters)
-        let display_max_line = match pane {
-            Pane::Request => (max_line_with_number + 1).max(1), // Always at least line 1 for request pane
-            Pane::Response => {
-                if lines.is_empty() {
-                    1 // For empty response pane, we need minimum width for tildes
-                } else {
-                    max_line_with_number + 1
+            match display_data {
+                Some((content, line_number, is_continuation)) => {
+                    // Render content with optional line number
+                    self.render_line_with_number(
+                        terminal_row,
+                        *line_number,
+                        content,
+                        line_num_width,
+                        *is_continuation,
+                    )?;
                 }
-            }
-        };
-        let line_num_width = display_max_line.to_string().len().max(3);
-
-        for row in 0..height {
-            let line_index = scroll_offset + row as usize;
-            let terminal_row = start_row + row;
-
-            let should_show_line_number =
-                line_index <= max_line_with_number || (line_index == 0 && pane == Pane::Request);
-
-            if should_show_line_number {
-                // Show line number for:
-                // 1. Lines that exist in buffer content
-                // 2. Lines up to and including cursor position (even if empty)
-                // 3. Always show line 1 for request pane even if completely empty
-                let line_text = if line_index < lines.len() {
-                    lines[line_index]
-                } else {
-                    "" // Empty line beyond content but within cursor range
-                };
-                let line_number = Some(line_index + 1); // 1-based line numbers
-                self.render_line_with_number(terminal_row, line_number, line_text, line_num_width)?;
-            } else {
-                // Beyond actual content and cursor - show tilda
-                self.render_line_with_number(terminal_row, None, "", line_num_width)?;
+                None => {
+                    // Beyond content - show tilde
+                    self.render_line_with_number(terminal_row, None, "", line_num_width, false)?;
+                }
             }
         }
 
@@ -299,26 +277,33 @@ impl ViewRenderer for TerminalRenderer {
 
     fn render_cursor(&mut self, view_model: &ViewModel) -> Result<()> {
         let current_pane = view_model.get_current_pane();
-        let cursor_pos = view_model.get_cursor_for_pane(current_pane);
-        let scroll_offset = view_model.get_scroll_offset(current_pane);
 
-        // Calculate line number width for cursor offset
-        let content = view_model.get_buffer_content(current_pane);
-        let lines: Vec<&str> = content.lines().collect();
-        let max_line_num = lines.len();
-        let line_num_width = max_line_num.to_string().len().max(3);
+        // Get cursor position in display coordinates (relative to pane)
+        let (cursor_row, cursor_col) = view_model.get_cursor_for_rendering(current_pane);
+
+        // Get line number width for cursor offset
+        let line_num_width = view_model.get_line_number_width(current_pane);
         let line_num_offset = line_num_width + 1; // +1 for space after line number
 
         // Calculate terminal position
         let terminal_row = match current_pane {
-            Pane::Request => cursor_pos.line.saturating_sub(scroll_offset) as u16,
+            Pane::Request => cursor_row as u16,
             Pane::Response => {
                 let (_, response_start, _) = self.get_pane_boundaries(view_model);
-                response_start + cursor_pos.line.saturating_sub(scroll_offset) as u16
+                response_start + cursor_row as u16
             }
         };
 
-        let terminal_col = cursor_pos.column as u16 + line_num_offset as u16;
+        let terminal_col = cursor_col as u16 + line_num_offset as u16;
+
+        tracing::debug!(
+            "render_cursor: pane={:?}, display_coords=({}, {}), terminal_pos=({}, {})",
+            current_pane,
+            cursor_row,
+            cursor_col,
+            terminal_col,
+            terminal_row
+        );
 
         execute_term!(self.stdout, MoveTo(terminal_col, terminal_row), Show)?;
 
