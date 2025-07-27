@@ -34,6 +34,10 @@ impl AppController {
         let command_registry = CommandRegistry::new();
         let event_bus = SimpleEventBus::new();
 
+        // Synchronize view model with actual terminal size
+        let (width, height) = view_renderer.terminal_size();
+        view_model.update_terminal_size(width, height);
+
         // Load profile from INI file by name specified in --profile argument
         let profile_name = cmd_args.profile();
 

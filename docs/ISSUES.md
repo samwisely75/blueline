@@ -2,9 +2,10 @@
 
 ## Ready to Develop
 
-- [ ] Restore the logical line number in the request/response buffer. Minimal width for the line number should be 3. The tilda should be placed in the first column. Refer to the MVC code for the details.
+- [x] Restore the logical line number in the request/response buffer. Minimal width for the line number should be 3. The tilda should be placed in the first column. Refer to the MVC code for the details.
 - [ ] Implement `gg` to go to the top of the current pane.
 - [ ] Implement `G` to go to the bottom of the current pane.
+- [ ] Support word wrap by `:set wrap` and `:set nowrap`. Update all commands to respect the word wrap setting.
 
 ## Backlog
 

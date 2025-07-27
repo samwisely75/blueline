@@ -543,12 +543,26 @@ impl ViewModel {
 
     /// Get request pane height
     pub fn request_pane_height(&self) -> u16 {
-        self.request_pane_height
+        // If response pane is hidden, request pane uses full available space
+        if self.response.status_code().is_some() {
+            // When response exists, use configured split height
+            self.request_pane_height
+        } else {
+            // When no response, request pane uses full available space
+            self.terminal_height - 1 // -1 for status bar, no separator needed
+        }
     }
 
     /// Get response pane height
     pub fn response_pane_height(&self) -> u16 {
-        self.terminal_height - self.request_pane_height
+        // Hide response pane until there's an actual HTTP response
+        if self.response.status_code().is_some() {
+            // When response exists, calculate remaining space after request pane, separator, and status bar
+            self.terminal_height
+                .saturating_sub(self.request_pane_height + 2) // configured split height + separator + status bar
+        } else {
+            0 // Hidden when no response
+        }
     }
 
     /// Get buffer content for a pane
@@ -672,7 +686,8 @@ mod tests {
         let (width, height) = vm.terminal_size();
         assert_eq!(width, 120);
         assert_eq!(height, 40);
-        assert_eq!(vm.request_pane_height(), 20); // Half of 40
+        // When no response, request pane takes full available space (height - 1 for status bar)
+        assert_eq!(vm.request_pane_height(), 39);
     }
 
     #[test]
