@@ -5,7 +5,7 @@
 
 use crate::repl::events::EditorMode;
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::{Command, CommandContext, CommandEvent, MovementDirection};
 
@@ -18,7 +18,10 @@ impl Command for MoveCursorLeftCommand {
             KeyCode::Char('h') => {
                 context.state.current_mode == EditorMode::Normal && event.modifiers.is_empty()
             }
-            KeyCode::Left => true,
+            KeyCode::Left => {
+                !event.modifiers.contains(KeyModifiers::SHIFT)
+                    && !event.modifiers.contains(KeyModifiers::CONTROL)
+            }
             _ => false,
         }
     }
@@ -41,7 +44,10 @@ impl Command for MoveCursorRightCommand {
             KeyCode::Char('l') => {
                 context.state.current_mode == EditorMode::Normal && event.modifiers.is_empty()
             }
-            KeyCode::Right => true,
+            KeyCode::Right => {
+                !event.modifiers.contains(KeyModifiers::SHIFT)
+                    && !event.modifiers.contains(KeyModifiers::CONTROL)
+            }
             _ => false,
         }
     }
@@ -98,6 +104,58 @@ impl Command for MoveCursorDownCommand {
 
     fn name(&self) -> &'static str {
         "MoveCursorDown"
+    }
+}
+
+/// Scroll left horizontally (Shift+Left or Ctrl+Left)
+pub struct ScrollLeftCommand;
+
+impl Command for ScrollLeftCommand {
+    fn is_relevant(&self, _context: &CommandContext, event: &KeyEvent) -> bool {
+        let relevant = matches!(event.code, KeyCode::Left)
+            && (event.modifiers.contains(KeyModifiers::SHIFT)
+                || event.modifiers.contains(KeyModifiers::CONTROL));
+        if relevant {
+            tracing::debug!("ScrollLeftCommand is relevant for event: {:?}", event);
+        }
+        relevant
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move_by(
+            MovementDirection::ScrollLeft,
+            5,
+        )])
+    }
+
+    fn name(&self) -> &'static str {
+        "ScrollLeft"
+    }
+}
+
+/// Scroll right horizontally (Shift+Right or Ctrl+Right)
+pub struct ScrollRightCommand;
+
+impl Command for ScrollRightCommand {
+    fn is_relevant(&self, _context: &CommandContext, event: &KeyEvent) -> bool {
+        let relevant = matches!(event.code, KeyCode::Right)
+            && (event.modifiers.contains(KeyModifiers::SHIFT)
+                || event.modifiers.contains(KeyModifiers::CONTROL));
+        if relevant {
+            tracing::debug!("ScrollRightCommand is relevant for event: {:?}", event);
+        }
+        relevant
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move_by(
+            MovementDirection::ScrollRight,
+            5,
+        )])
+    }
+
+    fn name(&self) -> &'static str {
+        "ScrollRight"
     }
 }
 

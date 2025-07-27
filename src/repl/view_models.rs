@@ -32,8 +32,8 @@ pub struct ViewModel {
     wrap_enabled: bool,
     request_display_cursor: DisplayPosition,
     response_display_cursor: DisplayPosition,
-    request_display_scroll_offset: usize,
-    response_display_scroll_offset: usize,
+    request_scroll_offset: (usize, usize), // (vertical, horizontal)
+    response_scroll_offset: (usize, usize), // (vertical, horizontal)
 
     // Display state
     terminal_width: u16,
@@ -82,8 +82,8 @@ impl ViewModel {
             wrap_enabled: false,
             request_display_cursor: (0, 0),
             response_display_cursor: (0, 0),
-            request_display_scroll_offset: 0,
-            response_display_scroll_offset: 0,
+            request_scroll_offset: (0, 0),
+            response_scroll_offset: (0, 0),
             terminal_width: 80,
             terminal_height: 24,
             request_pane_height: 12,
@@ -380,6 +380,9 @@ impl ViewModel {
         // Sync display cursor with logical cursor
         self.sync_display_cursors();
 
+        // Ensure cursor is visible after insertion (enables auto-horizontal scroll)
+        self.ensure_cursor_visible(Pane::Request);
+
         self.emit_view_event(ViewEvent::PaneRedrawRequired {
             pane: Pane::Request,
         });
@@ -406,6 +409,9 @@ impl ViewModel {
 
         // Sync display cursor with logical cursor
         self.sync_display_cursors();
+
+        // Ensure cursor is visible after insertion (enables auto-horizontal scroll)
+        self.ensure_cursor_visible(Pane::Request);
 
         self.emit_view_event(ViewEvent::PaneRedrawRequired {
             pane: Pane::Request,
@@ -547,6 +553,39 @@ impl ViewModel {
         Ok(())
     }
 
+    /// Scroll horizontally in current pane
+    pub fn scroll_horizontally(&mut self, direction: i32, amount: usize) -> Result<()> {
+        let current_pane = self.editor.current_pane();
+
+        match current_pane {
+            Pane::Request => {
+                if direction > 0 {
+                    // Scroll right
+                    self.request_scroll_offset.1 =
+                        self.request_scroll_offset.1.saturating_add(amount);
+                } else {
+                    // Scroll left
+                    self.request_scroll_offset.1 =
+                        self.request_scroll_offset.1.saturating_sub(amount);
+                }
+            }
+            Pane::Response => {
+                if direction > 0 {
+                    // Scroll right
+                    self.response_scroll_offset.1 =
+                        self.response_scroll_offset.1.saturating_add(amount);
+                } else {
+                    // Scroll left
+                    self.response_scroll_offset.1 =
+                        self.response_scroll_offset.1.saturating_sub(amount);
+                }
+            }
+        }
+
+        self.emit_view_event(ViewEvent::PaneRedrawRequired { pane: current_pane });
+        Ok(())
+    }
+
     /// Update terminal size
     pub fn update_terminal_size(&mut self, width: u16, height: u16) {
         if self.terminal_width != width || self.terminal_height != height {
@@ -594,7 +633,7 @@ impl ViewModel {
 
         // Reset response display cursor and scroll
         self.response_display_cursor = (0, 0);
-        self.response_display_scroll_offset = 0;
+        self.response_scroll_offset = (0, 0);
 
         let event = ModelEvent::ResponseReceived { status_code, body };
         self.emit_model_event(event);
@@ -632,7 +671,7 @@ impl ViewModel {
 
         // Reset response display cursor and scroll
         self.response_display_cursor = (0, 0);
-        self.response_display_scroll_offset = 0;
+        self.response_scroll_offset = (0, 0);
 
         let event = ModelEvent::ResponseReceived { status_code, body };
         self.emit_model_event(event);
@@ -885,14 +924,20 @@ impl ViewModel {
 
     /// Ensure cursor is visible in the current pane by adjusting scroll offset
     fn ensure_cursor_visible(&mut self, pane: Pane) {
+        self.ensure_cursor_vertically_visible(pane);
+        self.ensure_cursor_horizontally_visible(pane);
+    }
+
+    /// Ensure cursor is vertically visible by adjusting vertical scroll offset
+    fn ensure_cursor_vertically_visible(&mut self, pane: Pane) {
         let cursor_display_line = match pane {
             Pane::Request => self.request_display_cursor.0,
             Pane::Response => self.response_display_cursor.0,
         };
 
-        let scroll_offset = match pane {
-            Pane::Request => self.request_display_scroll_offset,
-            Pane::Response => self.response_display_scroll_offset,
+        let vertical_scroll_offset = match pane {
+            Pane::Request => self.request_scroll_offset.0,
+            Pane::Response => self.response_scroll_offset.0,
         };
 
         let pane_height = match pane {
@@ -900,22 +945,55 @@ impl ViewModel {
             Pane::Response => self.response_pane_height() as usize,
         };
 
-        let visible_start = scroll_offset;
-        let visible_end = scroll_offset + pane_height.saturating_sub(1);
+        let visible_start = vertical_scroll_offset;
+        let visible_end = vertical_scroll_offset + pane_height.saturating_sub(1);
 
         // If cursor is above visible area, scroll up
         if cursor_display_line < visible_start {
             match pane {
-                Pane::Request => self.request_display_scroll_offset = cursor_display_line,
-                Pane::Response => self.response_display_scroll_offset = cursor_display_line,
+                Pane::Request => self.request_scroll_offset.0 = cursor_display_line,
+                Pane::Response => self.response_scroll_offset.0 = cursor_display_line,
             }
         }
         // If cursor is below visible area, scroll down
         else if cursor_display_line > visible_end {
             let new_offset = cursor_display_line.saturating_sub(pane_height.saturating_sub(1));
             match pane {
-                Pane::Request => self.request_display_scroll_offset = new_offset,
-                Pane::Response => self.response_display_scroll_offset = new_offset,
+                Pane::Request => self.request_scroll_offset.0 = new_offset,
+                Pane::Response => self.response_scroll_offset.0 = new_offset,
+            }
+        }
+    }
+
+    /// Ensure cursor is horizontally visible by adjusting horizontal scroll offset
+    fn ensure_cursor_horizontally_visible(&mut self, pane: Pane) {
+        let cursor_display_col = match pane {
+            Pane::Request => self.request_display_cursor.1,
+            Pane::Response => self.response_display_cursor.1,
+        };
+
+        let horizontal_scroll_offset = match pane {
+            Pane::Request => self.request_scroll_offset.1,
+            Pane::Response => self.response_scroll_offset.1,
+        };
+
+        let content_width = self.get_content_width();
+        let visible_start = horizontal_scroll_offset;
+        let visible_end = horizontal_scroll_offset + content_width.saturating_sub(1);
+
+        // If cursor is to the left of visible area, scroll left
+        if cursor_display_col < visible_start {
+            match pane {
+                Pane::Request => self.request_scroll_offset.1 = cursor_display_col,
+                Pane::Response => self.response_scroll_offset.1 = cursor_display_col,
+            }
+        }
+        // If cursor is to the right of visible area, scroll right
+        else if cursor_display_col > visible_end {
+            let new_offset = cursor_display_col.saturating_sub(content_width.saturating_sub(1));
+            match pane {
+                Pane::Request => self.request_scroll_offset.1 = new_offset,
+                Pane::Response => self.response_scroll_offset.1 = new_offset,
             }
         }
     }
@@ -996,11 +1074,19 @@ impl ViewModel {
         }
     }
 
-    /// Get scroll offset for a pane (display line based)
+    /// Get vertical scroll offset for a pane (display line based)
     pub fn get_scroll_offset(&self, pane: Pane) -> usize {
         match pane {
-            Pane::Request => self.request_display_scroll_offset,
-            Pane::Response => self.response_display_scroll_offset,
+            Pane::Request => self.request_scroll_offset.0,
+            Pane::Response => self.response_scroll_offset.0,
+        }
+    }
+
+    /// Get horizontal scroll offset for a pane (character based)
+    pub fn get_horizontal_scroll_offset(&self, pane: Pane) -> usize {
+        match pane {
+            Pane::Request => self.request_scroll_offset.1,
+            Pane::Response => self.response_scroll_offset.1,
         }
     }
 
@@ -1012,13 +1098,24 @@ impl ViewModel {
         row_count: usize,
     ) -> Vec<Option<DisplayLineData>> {
         let display_cache = self.get_display_cache(pane);
-        let scroll_offset = self.get_scroll_offset(pane);
+        let vertical_scroll_offset = self.get_scroll_offset(pane);
+        let horizontal_scroll_offset = self.get_horizontal_scroll_offset(pane);
+        let content_width = self.get_content_width();
         let mut result = Vec::new();
 
         for row in 0..row_count {
-            let display_line_idx = scroll_offset + start_row + row;
+            let display_line_idx = vertical_scroll_offset + start_row + row;
 
             if let Some(display_line) = display_cache.get_display_line(display_line_idx) {
+                // Apply horizontal scrolling to content
+                let visible_content = if horizontal_scroll_offset < display_line.content.len() {
+                    let end_pos =
+                        (horizontal_scroll_offset + content_width).min(display_line.content.len());
+                    display_line.content[horizontal_scroll_offset..end_pos].to_string()
+                } else {
+                    String::new()
+                };
+
                 // Show logical line number only for first segment of wrapped lines
                 let line_number = if display_line.is_continuation {
                     None
@@ -1027,7 +1124,7 @@ impl ViewModel {
                 };
                 // Third parameter indicates if this is a continuation line (true) or beyond content (false)
                 result.push(Some((
-                    display_line.content.clone(),
+                    visible_content,
                     line_number,
                     display_line.is_continuation,
                 )));
@@ -1043,11 +1140,13 @@ impl ViewModel {
     /// Get cursor position for rendering (display coordinates)
     pub fn get_cursor_for_rendering(&self, pane: Pane) -> (usize, usize) {
         let display_cursor = self.get_display_cursor(pane);
-        let scroll_offset = self.get_scroll_offset(pane);
+        let vertical_scroll_offset = self.get_scroll_offset(pane);
+        let horizontal_scroll_offset = self.get_horizontal_scroll_offset(pane);
 
         // Return relative position within visible area
-        let visible_row = display_cursor.0.saturating_sub(scroll_offset);
-        (visible_row, display_cursor.1)
+        let visible_row = display_cursor.0.saturating_sub(vertical_scroll_offset);
+        let visible_col = display_cursor.1.saturating_sub(horizontal_scroll_offset);
+        (visible_row, visible_col)
     }
 
     /// Get line number width for consistent formatting

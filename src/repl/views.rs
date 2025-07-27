@@ -112,17 +112,8 @@ impl TerminalRenderer {
             execute_term!(self.stdout, ResetColor)?;
         }
 
-        // Calculate available width for content after line numbers
-        let content_width = self.terminal_size.0 as usize - line_num_width - 1; // -1 for space after line number
-
-        // Truncate text if too long for remaining terminal width
-        let display_text = if text.len() > content_width {
-            &text[..content_width]
-        } else {
-            text
-        };
-
-        execute_term!(self.stdout, Print(display_text))?;
+        // The ViewModel now handles horizontal scrolling, so we can display the text as-is
+        execute_term!(self.stdout, Print(text))?;
 
         // Clear rest of line
         execute_term!(self.stdout, Clear(ClearType::UntilNewLine))?;

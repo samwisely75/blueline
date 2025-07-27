@@ -80,6 +80,8 @@ pub enum MovementDirection {
     DocumentEnd,
     WordForward,
     WordBackward,
+    ScrollLeft,
+    ScrollRight,
 }
 
 impl CommandEvent {

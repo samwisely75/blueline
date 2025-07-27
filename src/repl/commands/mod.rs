@@ -59,6 +59,7 @@ pub use mode::{
 };
 pub use movement::{
     MoveCursorDownCommand, MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand,
+    ScrollLeftCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -77,6 +78,9 @@ impl CommandRegistry {
         let commands: CommandCollection = vec![
             // App control commands (highest priority - process first)
             Box::new(AppTerminateCommand),
+            // Scroll commands (higher priority than regular movement)
+            Box::new(ScrollLeftCommand),
+            Box::new(ScrollRightCommand),
             // Movement commands
             Box::new(MoveCursorLeftCommand),
             Box::new(MoveCursorRightCommand),

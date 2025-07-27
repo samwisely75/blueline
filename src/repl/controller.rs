@@ -166,6 +166,12 @@ impl AppController {
                         MovementDirection::LineStart => {
                             self.view_model.move_cursor_to_start_of_line()?
                         }
+                        MovementDirection::ScrollLeft => {
+                            self.view_model.scroll_horizontally(-1, amount)?
+                        }
+                        MovementDirection::ScrollRight => {
+                            self.view_model.scroll_horizontally(1, amount)?
+                        }
                         _ => {
                             tracing::warn!("Unsupported movement direction: {:?}", direction);
                         }

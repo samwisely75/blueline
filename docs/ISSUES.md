@@ -2,13 +2,14 @@
 
 ## Ready to Develop
 
-- [ ] Fix background scrolling issue - still occurring despite terminal configuration and alternate screen buffer setup.
-- [ ] Support horizontal scrolling in the request/response pane.
 - [ ] Reduce flickering. It's happening all over. The scope of rendering must be limited to the area that has changed, not the whole screen. Hide cursor before the screen refresh and restore it after the refresh to avoid flickering.
+- [ ] Allow ex commands in response pane.
+- [ ] Refactor the view_model.rs. It's too large and too monolithic. Break it down into smaller components for better maintainability.
+- [ ] Restore the Cucumber test capability. It's in the `test_archived` directory. Put it back as integration test and calibrate it to the current codebase.
 
 ## Backlog
 
-- [ ] Allow ex commands in resonse pane.
+- [ ] Fix background scrolling issue - still occurring despite terminal configuration and alternate screen buffer setup.
 - [ ] Support `gg` to go to the top of the current pane.
 - [ ] Support `G` to go to the bottom of the current pane.
 - [ ] Support `Ctrl + f` to scroll down one page in the request/response pane.
@@ -40,9 +41,12 @@
 - [ ] Support `Ctrl + j` to expand the response pane for one line. It goes up to the request pane shrinks to three lines.
 - [ ] Support `Ctrl + k` to shrink the response pane for one line. It goes down to the response pane shrinks to three lines.
 - [ ] Support `:r` to show/hide the response pane.
+- [ ] Optimize memory usage for large response content (>10MB). Implement lazy display cache building and virtual scrolling to prevent memory duplication in display cache.
+- [ ] Implement streaming/chunked response handling for very large HTTP responses to avoid loading entire content into memory.
 
 ## Done
 
+- [x] Support horizontal scrolling in the request/response pane. Use Shift+Left/Right or Ctrl+Left/Right arrow keys to scroll horizontally by 5 characters. Cursor automatically scrolls into view when moving beyond visible area.
 - [x] Change cursor shape when switching between normal (block), command (underline), and insert (bar) modes.
 - [x] Hide cursor when it is switched to the command mode. Restore the cursor when it is switched back to the normal mode.
 - [x] Support word wrap by `:set wrap` and `:set nowrap` in both request and response pane. The wrap setting is effective in both simultaneously. Allow navigation keys to scrolling up and down the pages. Update all commands to respect the word wrap setting.
