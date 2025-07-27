@@ -85,55 +85,120 @@ impl Command for DeleteCharCommand {
     }
 }
 
-// TODO: Update tests for new event-driven API
-/*
+/// Delete character at cursor (Delete key)
+pub struct DeleteCharAtCursorCommand;
+
+impl Command for DeleteCharAtCursorCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Delete)
+            && context.state.current_mode == EditorMode::Insert
+            && context.state.current_pane == Pane::Request
+    }
+
+    fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        use super::MovementDirection;
+        let delete_event = CommandEvent::TextDeleteRequested {
+            position: context.state.cursor_position,
+            amount: 1,
+            direction: MovementDirection::Right,
+        };
+        Ok(vec![delete_event])
+    }
+
+    fn name(&self) -> &'static str {
+        "DeleteCharAtCursor"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::EditorMode;
+    use crate::repl::commands::{CommandContext, MovementDirection, ViewModelSnapshot};
+    use crate::repl::events::{EditorMode, LogicalPosition, Pane};
     use crossterm::event::KeyModifiers;
 
     fn create_test_key_event(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::empty())
     }
 
+    fn create_test_context() -> CommandContext {
+        CommandContext {
+            state: ViewModelSnapshot {
+                current_mode: EditorMode::Insert,
+                current_pane: Pane::Request,
+                cursor_position: LogicalPosition { line: 0, column: 0 },
+                request_text: String::new(),
+                response_text: String::new(),
+                terminal_width: 80,
+                terminal_height: 24,
+                verbose: false,
+            },
+        }
+    }
+
     #[test]
     fn insert_char_should_be_relevant_for_printable_chars_in_insert_mode() {
-        let mut vm = ViewModel::new();
-        vm.change_mode(EditorMode::Insert).unwrap();
+        let context = create_test_context();
         let cmd = InsertCharCommand;
         let event = create_test_key_event(KeyCode::Char('a'));
 
-        assert!(cmd.is_relevant(&vm, &event));
+        assert!(cmd.is_relevant(&context, &event));
     }
 
     #[test]
     fn insert_char_should_not_be_relevant_in_normal_mode() {
-        let vm = ViewModel::new(); // Starts in Normal mode
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Normal;
         let cmd = InsertCharCommand;
         let event = create_test_key_event(KeyCode::Char('a'));
 
-        assert!(!cmd.is_relevant(&vm, &event));
-    }
-
-    #[test]
-    fn insert_newline_should_be_relevant_for_enter_in_insert_mode() {
-        let mut vm = ViewModel::new();
-        vm.change_mode(EditorMode::Insert).unwrap();
-        let cmd = InsertNewLineCommand;
-        let event = create_test_key_event(KeyCode::Enter);
-
-        assert!(cmd.is_relevant(&vm, &event));
+        assert!(!cmd.is_relevant(&context, &event));
     }
 
     #[test]
     fn delete_char_should_be_relevant_for_backspace_in_insert_mode() {
-        let mut vm = ViewModel::new();
-        vm.change_mode(EditorMode::Insert).unwrap();
+        let context = create_test_context();
         let cmd = DeleteCharCommand;
         let event = create_test_key_event(KeyCode::Backspace);
 
-        assert!(cmd.is_relevant(&vm, &event));
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn delete_char_at_cursor_should_be_relevant_for_delete_key() {
+        let context = create_test_context();
+        let cmd = DeleteCharAtCursorCommand;
+        let event = create_test_key_event(KeyCode::Delete);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn delete_char_at_cursor_should_not_be_relevant_in_normal_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Normal;
+        let cmd = DeleteCharAtCursorCommand;
+        let event = create_test_key_event(KeyCode::Delete);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn delete_char_at_cursor_should_execute_right_deletion() {
+        let context = create_test_context();
+        let cmd = DeleteCharAtCursorCommand;
+        let event = create_test_key_event(KeyCode::Delete);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        if let CommandEvent::TextDeleteRequested {
+            direction, amount, ..
+        } = &result[0]
+        {
+            assert_eq!(*direction, MovementDirection::Right);
+            assert_eq!(*amount, 1);
+        } else {
+            panic!("Expected TextDeleteRequested event");
+        }
     }
 }
-*/

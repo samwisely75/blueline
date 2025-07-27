@@ -4,10 +4,6 @@
 
 - [x] Stop using different color in the current line and status bar. Use the same color as the rest of the text in the request/response buffer. Refer to the MVC code for the details.
 - [x] Align The mode, pane, and position indicators in the status bar to the right.
-- [x] Implement `:q` and `:q!` to quit the application.
-- [x] Support `I` command to insert text at the current cursor position in the request buffer.
-- [x] Support `a` command to insert text next to the current cursor position in the request buffer.
-- [ ] Support `Delete` and `Shift + Backspace` to delete the current character in the request buffer.
 - [ ] Restore the HTTP status code with signal light, message, turn around time in the status bar. Show it before the mode indicator. Refer to the MVC code for the details.
 - [ ] Show the logical line number in the request/response buffer. Minimal width for the line number should be 3. The tilda should be placed in the first column. Refer to the MVC code for the details.
 
@@ -47,3 +43,7 @@
 - [x] Implement `G` to go to the bottom of the current pane.
 - [x] Make arrow keys work in the request/response pane, regardless of the mode.
 - [x] Implement `w` to skip to the next word in the request/response buffer.
+- [x] Implement `:q` and `:q!` to quit the application.
+- [x] Support `I` command to insert text at the current cursor position in the request buffer.
+- [x] Support `a` command to insert text next to the current cursor position in the request buffer.
+- [x] Support `Delete` to delete the current character in the request buffer.

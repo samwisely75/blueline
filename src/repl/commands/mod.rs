@@ -49,7 +49,9 @@ pub mod request;
 
 // Re-export all commands for easy access
 pub use app::AppTerminateCommand;
-pub use editing::{DeleteCharCommand, InsertCharCommand, InsertNewLineCommand};
+pub use editing::{
+    DeleteCharAtCursorCommand, DeleteCharCommand, InsertCharCommand, InsertNewLineCommand,
+};
 pub use mode::{
     AppendAfterCursorCommand, AppendAtEndOfLineCommand, EnterCommandModeCommand,
     EnterInsertModeCommand, ExCommandModeCommand, ExitInsertModeCommand,
@@ -94,6 +96,7 @@ impl CommandRegistry {
             Box::new(InsertCharCommand),
             Box::new(InsertNewLineCommand),
             Box::new(DeleteCharCommand),
+            Box::new(DeleteCharAtCursorCommand),
             // Request commands
             Box::new(ExecuteRequestCommand),
         ];
