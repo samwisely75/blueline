@@ -12,10 +12,14 @@ pub mod view_models;
 pub mod views;
 
 // Re-export core types
-pub use commands::*;
 pub use controller::AppController;
 pub use events::*;
 pub use http::*;
-pub use models::*;
 pub use view_models::*;
 pub use views::*;
+
+// Re-export specific items from commands to avoid conflicts
+pub use commands::{Command, CommandContext, CommandEvent, CommandRegistry, ViewModelSnapshot};
+
+// Re-export specific items from models to avoid conflicts
+pub use models::{BufferModel, EditorModel, HttpHeaders, RequestModel, ResponseModel};

@@ -5,7 +5,7 @@
 
 use crate::repl::events::{EditorMode, EventBus, LogicalPosition, ModelEvent, Pane, ViewEvent};
 use crate::repl::http::create_default_profile;
-use crate::repl::models::{BufferModel, EditorModel, RequestModel, ResponseModel};
+use crate::repl::models::{BufferModel, EditorModel, ResponseModel};
 use anyhow::Result;
 use bluenote::{HttpClient, HttpConnectionProfile};
 use std::collections::HashMap;
@@ -19,7 +19,6 @@ pub struct ViewModel {
     editor: EditorModel,
     request_buffer: BufferModel,
     response_buffer: BufferModel,
-    request: RequestModel,
     response: ResponseModel,
 
     // Display state
@@ -47,7 +46,6 @@ impl ViewModel {
             editor: EditorModel::new(),
             request_buffer: BufferModel::new(Pane::Request),
             response_buffer: BufferModel::new(Pane::Response),
-            request: RequestModel::new(),
             response: ResponseModel::new(),
             terminal_width: 80,
             terminal_height: 24,
