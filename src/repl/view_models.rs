@@ -4,8 +4,11 @@
 //! It's the central component that commands delegate to and that emits events.
 
 use crate::repl::events::{EditorMode, EventBus, LogicalPosition, ModelEvent, Pane, ViewEvent};
+use crate::repl::http::create_default_profile;
 use crate::repl::models::{BufferModel, EditorModel, RequestModel, ResponseModel};
 use anyhow::Result;
+use bluenote::{HttpClient, HttpConnectionProfile};
+use std::collections::HashMap;
 
 /// Type alias for event bus option to reduce complexity
 type EventBusOption = Option<Box<dyn EventBus>>;
@@ -24,6 +27,11 @@ pub struct ViewModel {
     terminal_height: u16,
     request_pane_height: u16,
 
+    // HTTP client and configuration
+    http_client: Option<HttpClient>,
+    session_headers: HashMap<String, String>,
+    verbose: bool,
+
     // Event bus for communication
     event_bus: EventBusOption,
 }
@@ -31,6 +39,10 @@ pub struct ViewModel {
 impl ViewModel {
     /// Create new ViewModel with default state
     pub fn new() -> Self {
+        // Try to create HTTP client with default profile
+        let profile = create_default_profile();
+        let http_client = HttpClient::new(&profile).ok();
+
         Self {
             editor: EditorModel::new(),
             request_buffer: BufferModel::new(Pane::Request),
@@ -40,6 +52,9 @@ impl ViewModel {
             terminal_width: 80,
             terminal_height: 24,
             request_pane_height: 12,
+            http_client,
+            session_headers: HashMap::new(),
+            verbose: false,
             event_bus: None,
         }
     }
@@ -126,6 +141,22 @@ impl ViewModel {
                 self.emit_model_event(event);
                 self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
             }
+        }
+
+        Ok(())
+    }
+
+    /// Set cursor position in current pane
+    pub fn set_cursor_position(&mut self, position: LogicalPosition) -> Result<()> {
+        let current_pane = self.editor.current_pane();
+        let buffer = match current_pane {
+            Pane::Request => &mut self.request_buffer,
+            Pane::Response => &mut self.response_buffer,
+        };
+
+        if let Some(event) = buffer.set_cursor(position) {
+            self.emit_model_event(event);
+            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
         }
 
         Ok(())
@@ -250,6 +281,37 @@ impl ViewModel {
         Ok(())
     }
 
+    /// Delete character after cursor (delete key)
+    pub fn delete_char_after_cursor(&mut self) -> Result<()> {
+        // Only allow deletion in request pane and insert mode
+        if self.editor.current_pane() != Pane::Request || self.editor.mode() != EditorMode::Insert {
+            return Ok(());
+        }
+
+        let current_pos = self.request_buffer.cursor();
+        let current_line_length = self.request_buffer.content().line_length(current_pos.line);
+
+        if current_pos.column < current_line_length {
+            // Delete character in current line
+            let range = crate::repl::events::LogicalRange::single_char(current_pos);
+
+            if let Some(event) = self
+                .request_buffer
+                .content_mut()
+                .delete_range(Pane::Request, range)
+            {
+                self.emit_model_event(event);
+                self.emit_view_event(ViewEvent::PaneRedrawRequired {
+                    pane: Pane::Request,
+                });
+            }
+        }
+        // Note: We don't handle joining with next line for simplicity
+        // That would be a more complex operation
+
+        Ok(())
+    }
+
     /// Update terminal size
     pub fn update_terminal_size(&mut self, width: u16, height: u16) {
         if self.terminal_width != width || self.terminal_height != height {
@@ -287,30 +349,35 @@ impl ViewModel {
         });
     }
 
-    /// Execute HTTP request (placeholder - would integrate with HTTP client)
-    pub fn execute_request(&mut self) -> Result<()> {
-        let request_text = self.get_request_text();
-
-        // Parse request (simplified)
-        let lines: Vec<&str> = request_text.lines().collect();
-        if let Some(first_line) = lines.first() {
-            let parts: Vec<&str> = first_line.split_whitespace().collect();
-            if parts.len() >= 2 {
-                let method = parts[0].to_string();
-                let url = parts[1].to_string();
-
-                self.request.set_method(method.clone());
-                self.request.set_url(url.clone());
-
-                let event = ModelEvent::RequestExecuted { method, url };
-                self.emit_model_event(event);
-
-                // Simulate response (in real implementation, this would be async HTTP call)
-                self.set_response(200, "{ \"message\": \"Hello, World!\" }".to_string());
-            }
-        }
-
+    /// Set HTTP client with custom profile
+    pub fn set_http_client(&mut self, profile: &impl HttpConnectionProfile) -> Result<()> {
+        self.http_client = Some(HttpClient::new(profile)?);
         Ok(())
+    }
+
+    /// Add session header
+    pub fn add_session_header(&mut self, key: String, value: String) {
+        self.session_headers.insert(key, value);
+    }
+
+    /// Remove session header
+    pub fn remove_session_header(&mut self, key: &str) {
+        self.session_headers.remove(key);
+    }
+
+    /// Set verbose mode
+    pub fn set_verbose(&mut self, verbose: bool) {
+        self.verbose = verbose;
+    }
+
+    /// Get verbose mode
+    pub fn is_verbose(&self) -> bool {
+        self.verbose
+    }
+
+    /// Get HTTP client reference
+    pub fn http_client(&self) -> Option<&HttpClient> {
+        self.http_client.as_ref()
     }
 
     // =================================================================

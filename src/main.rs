@@ -3,28 +3,47 @@
 //! Clean MVVM HTTP client with vim-style interface.
 
 use anyhow::Result;
-use blueline::AppController;
+use blueline::{cmd_args::CommandLineArgs, AppController};
+use std::env;
+use tracing_subscriber::{fmt::time::ChronoLocal, EnvFilter};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Create and run the application controller
-    let mut app = AppController::new()?;
+    init_tracing_subscriber();
 
-    // Print welcome message before starting
-    println!("🔵 BlueLine HTTP Client");
-    println!("Press 'i' to enter insert mode, 'Esc' to exit insert mode");
-    println!("Use 'h', 'j', 'k', 'l' or arrow keys to move cursor");
-    println!("Press 'Tab' to switch between panes");
-    println!("Press 'Enter' in normal mode to execute HTTP request");
-    println!("Press 'Ctrl+C' to quit");
-    println!("Starting application...\n");
-
-    // Small delay to let user read the instructions
-    tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
-
-    // Run the application
+    let cmd_args = CommandLineArgs::parse();
+    let mut app = AppController::new(cmd_args)?;
     app.run().await?;
-
-    println!("\n👋 Thanks for using BlueLine!");
     Ok(())
+}
+
+fn init_tracing_subscriber() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::from_env(format!(
+                "{}_LOG_LEVEL",
+                env!("CARGO_PKG_NAME").to_uppercase()
+            ))
+            .add_directive("reqwest=warn".parse().unwrap())
+            .add_directive("hyper=warn".parse().unwrap())
+            .add_directive("tokio=warn".parse().unwrap())
+            .add_directive("tracing=warn".parse().unwrap())
+            .add_directive("tracing_subscriber=warn".parse().unwrap())
+            .add_directive("tower_http=warn".parse().unwrap())
+            .add_directive("tower=warn".parse().unwrap())
+            .add_directive("tokio_util=warn".parse().unwrap())
+            .add_directive("tokio_rustls=warn".parse().unwrap())
+            .add_directive("rustls=warn".parse().unwrap())
+            .add_directive("rustls_pemfile=warn".parse().unwrap())
+            .add_directive("native_tls=warn".parse().unwrap())
+            .add_directive("tokio_stream=warn".parse().unwrap())
+            .add_directive("tokio_io=warn".parse().unwrap())
+            .add_directive("tokio_timer=warn".parse().unwrap())
+            .add_directive("tokio_sync=warn".parse().unwrap())
+            .add_directive("tokio_task=warn".parse().unwrap())
+            .add_directive("tokio_reactor=warn".parse().unwrap()),
+        )
+        .with_writer(std::io::stderr)
+        .with_timer(ChronoLocal::rfc_3339())
+        .init();
 }

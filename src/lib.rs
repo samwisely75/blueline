@@ -27,6 +27,7 @@
 //!                               └──────────────┘
 //! ```
 
+pub mod cmd_args;
 pub mod repl;
 
 // Re-export main types for easy access

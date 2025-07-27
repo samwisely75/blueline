@@ -6,6 +6,7 @@
 pub mod commands;
 pub mod controller;
 pub mod events;
+pub mod http;
 pub mod models;
 pub mod view_models;
 pub mod views;
@@ -14,6 +15,7 @@ pub mod views;
 pub use commands::*;
 pub use controller::AppController;
 pub use events::*;
+pub use http::*;
 pub use models::*;
 pub use view_models::*;
 pub use views::*;
