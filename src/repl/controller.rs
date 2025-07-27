@@ -13,8 +13,12 @@ use crate::repl::{
 };
 use anyhow::Result;
 use bluenote::{get_blank_profile, HttpConnectionProfile, IniProfileStore, DEFAULT_INI_FILE_PATH};
-use crossterm::event::{self, Event};
-use std::time::Duration;
+use crossterm::{
+    event::{self, Event},
+    execute,
+    terminal,
+};
+use std::{io, time::Duration};
 
 /// The main application controller that orchestrates the MVVM pattern
 pub struct AppController {
@@ -84,7 +88,11 @@ impl AppController {
 
     /// Run the main application loop
     pub async fn run(&mut self) -> Result<()> {
-        // Initialize terminal
+        // Initialize terminal explicitly (matching MVC pattern)
+        terminal::enable_raw_mode().map_err(anyhow::Error::from)?;
+        execute!(io::stdout(), terminal::EnterAlternateScreen)?;
+        
+        // Initialize view renderer (this will clear screen and set initial cursor)
         self.view_renderer.initialize()?;
 
         // Initial render
@@ -133,8 +141,10 @@ impl AppController {
             }
         }
 
-        // Cleanup
+        // Cleanup (matching MVC pattern)
         self.view_renderer.cleanup()?;
+        execute!(io::stdout(), terminal::LeaveAlternateScreen)?;
+        terminal::disable_raw_mode().map_err(anyhow::Error::from)?;
 
         Ok(())
     }

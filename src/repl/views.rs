@@ -206,10 +206,10 @@ impl Default for TerminalRenderer {
 
 impl ViewRenderer for TerminalRenderer {
     fn initialize(&mut self) -> Result<()> {
-        crossterm::terminal::enable_raw_mode().map_err(anyhow::Error::from)?;
+        // Controller handles raw mode and alternate screen
+        // We just need to clear screen and set initial cursor state
         execute_term!(
             self.stdout,
-            crossterm::terminal::EnterAlternateScreen,
             Clear(ClearType::All),
             crossterm::cursor::Hide
         )?;
@@ -467,8 +467,9 @@ impl ViewRenderer for TerminalRenderer {
     }
 
     fn cleanup(&mut self) -> Result<()> {
-        execute_term!(self.stdout, Show, crossterm::terminal::LeaveAlternateScreen)?;
-        crossterm::terminal::disable_raw_mode().map_err(anyhow::Error::from)?;
+        // Controller handles alternate screen and raw mode cleanup
+        // We just need to show cursor before exit
+        execute_term!(self.stdout, Show)?;
         Ok(())
     }
 }

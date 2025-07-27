@@ -56,13 +56,30 @@ fn init_tracing_subscriber() {
         // Leak the guard to ensure logs are flushed on exit
         Box::leak(Box::new(_guard));
     } else {
-        // In REPL mode, avoid stderr to prevent background scrolling
-        // Default to file logging to prevent terminal interference
+        // In REPL mode, minimize logging to prevent any potential background scrolling
+        // Use the most restrictive filter and file output only
+        let minimal_filter = EnvFilter::try_from_env("BLUELINE_LOG_LEVEL")
+            .unwrap_or_else(|_| EnvFilter::new("off")) // Default to no logging
+            .add_directive("blueline=warn".parse().unwrap()) // Only warnings and errors from our code
+            .add_directive("reqwest=off".parse().unwrap())
+            .add_directive("hyper=off".parse().unwrap())
+            .add_directive("tokio=off".parse().unwrap())
+            .add_directive("tracing=off".parse().unwrap())
+            .add_directive("tracing_subscriber=off".parse().unwrap())
+            .add_directive("tower_http=off".parse().unwrap())
+            .add_directive("tower=off".parse().unwrap())
+            .add_directive("tokio_util=off".parse().unwrap())
+            .add_directive("tokio_rustls=off".parse().unwrap())
+            .add_directive("rustls=off".parse().unwrap())
+            .add_directive("rustls_pemfile=off".parse().unwrap())
+            .add_directive("native_tls=off".parse().unwrap())
+            .add_directive("tokio_stream=off".parse().unwrap());
+
         let file_appender = tracing_appender::rolling::never(".", "blueline.log");
         let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
         tracing_subscriber::fmt()
-            .with_env_filter(env_filter)
+            .with_env_filter(minimal_filter)
             .with_writer(non_blocking)
             .with_timer(ChronoLocal::rfc_3339())
             .init();
