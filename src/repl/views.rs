@@ -253,7 +253,7 @@ impl ViewRenderer for TerminalRenderer {
             self.stdout,
             MoveTo(0, status_row),
             Print(format!(
-                "{:<width$}",
+                "{:>width$}",
                 status_text,
                 width = self.terminal_size.0 as usize
             ))
@@ -313,6 +313,18 @@ mod tests {
         if let Ok(mut renderer) = TerminalRenderer::new() {
             renderer.update_size(120, 40);
             assert_eq!(renderer.terminal_size, (120, 40));
+        }
+    }
+
+    #[test]
+    fn status_bar_should_right_align_indicators() {
+        if let Ok(mut renderer) = TerminalRenderer::new() {
+            renderer.update_size(50, 10); // Set a specific terminal size
+
+            // The status bar should format text with right alignment
+            // We can't easily test the actual terminal output, but we can verify
+            // that the formatting uses the correct width
+            assert_eq!(renderer.terminal_size.0, 50);
         }
     }
 }

@@ -2,8 +2,8 @@
 
 ## Ready to Develop
 
-- [ ] Stop using different color in the current line and status bar. Use the same color as the rest of the text in the request/response buffer. Refer to the MVC code for the details.
-- [ ] Align The mode, pane, and position indicators in the status bar to the right.
+- [x] Stop using different color in the current line and status bar. Use the same color as the rest of the text in the request/response buffer. Refer to the MVC code for the details.
+- [x] Align The mode, pane, and position indicators in the status bar to the right.
 - [ ] Implement `:q` and `:q!` to quit the application.
 - [ ] Restore the HTTP status code with signal light, message, turn around time in the status bar. Refer to the MVC code for the details.
 - [ ] Show the logical line number in the request/response buffer. Minimal width for the line number should be 3. The tilda should be placed in the first column. Refer to the MVC code for the details.
