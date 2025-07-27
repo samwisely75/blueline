@@ -208,11 +208,7 @@ impl ViewRenderer for TerminalRenderer {
     fn initialize(&mut self) -> Result<()> {
         // Controller handles raw mode and alternate screen
         // We just need to clear screen and set initial cursor state
-        execute_term!(
-            self.stdout,
-            Clear(ClearType::All),
-            crossterm::cursor::Hide
-        )?;
+        execute_term!(self.stdout, Clear(ClearType::All), crossterm::cursor::Hide)?;
         Ok(())
     }
 

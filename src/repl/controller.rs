@@ -15,8 +15,7 @@ use anyhow::Result;
 use bluenote::{get_blank_profile, HttpConnectionProfile, IniProfileStore, DEFAULT_INI_FILE_PATH};
 use crossterm::{
     event::{self, Event},
-    execute,
-    terminal,
+    execute, terminal,
 };
 use std::{io, time::Duration};
 
@@ -91,7 +90,7 @@ impl AppController {
         // Initialize terminal explicitly (matching MVC pattern)
         terminal::enable_raw_mode().map_err(anyhow::Error::from)?;
         execute!(io::stdout(), terminal::EnterAlternateScreen)?;
-        
+
         // Initialize view renderer (this will clear screen and set initial cursor)
         self.view_renderer.initialize()?;
 

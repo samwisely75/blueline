@@ -2,6 +2,7 @@
 
 ## Ready to Develop
 
+- [ ] Fix background scrolling issue - still occurring despite terminal configuration and alternate screen buffer setup.
 - [ ] Support horizontal scrolling in the request/response pane.
 - [ ] Reduce flickering. It's happening all over. The scope of rendering must be limited to the area that has changed, not the whole screen. Hide cursor before the screen refresh and restore it after the refresh to avoid flickering.
 
@@ -42,7 +43,6 @@
 
 ## Done
 
-- [x] Fix background scrolling issue by redirecting logging output away from stderr to prevent terminal interference.
 - [x] Change cursor shape when switching between normal (block), command (underline), and insert (bar) modes.
 - [x] Hide cursor when it is switched to the command mode. Restore the cursor when it is switched back to the normal mode.
 - [x] Support word wrap by `:set wrap` and `:set nowrap` in both request and response pane. The wrap setting is effective in both simultaneously. Allow navigation keys to scrolling up and down the pages. Update all commands to respect the word wrap setting.
