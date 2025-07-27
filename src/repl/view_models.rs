@@ -144,6 +144,20 @@ impl ViewModel {
         Ok(())
     }
 
+    /// Move cursor to end of current line
+    pub fn move_cursor_to_end_of_line(&mut self) -> Result<()> {
+        let current_pane = self.editor.current_pane();
+        let buffer = self.get_buffer_mut(current_pane);
+        let current_pos = buffer.cursor();
+        let line_length = buffer.content().line_length(current_pos.line);
+        let new_pos = LogicalPosition::new(current_pos.line, line_length);
+        if let Some(event) = buffer.set_cursor(new_pos) {
+            self.emit_model_event(event);
+            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+        }
+        Ok(())
+    }
+
     /// Set cursor position in current pane
     pub fn set_cursor_position(&mut self, position: LogicalPosition) -> Result<()> {
         let current_pane = self.editor.current_pane();
@@ -545,6 +559,47 @@ mod tests {
         assert_eq!(width, 120);
         assert_eq!(height, 40);
         assert_eq!(vm.request_pane_height(), 20); // Half of 40
+    }
+
+    #[test]
+    fn view_model_should_move_cursor_to_end_of_line() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello world").unwrap();
+        // Move cursor to middle of line
+        vm.request_buffer.set_cursor(LogicalPosition::new(0, 5));
+
+        // Test move to end of line
+        vm.move_cursor_to_end_of_line().unwrap();
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.column, 11); // Should be at end of "hello world"
+        assert_eq!(cursor.line, 0);
+    }
+
+    #[test]
+    fn view_model_should_move_cursor_to_end_of_empty_line() {
+        let mut vm = ViewModel::new();
+        // Start with empty buffer
+        vm.move_cursor_to_end_of_line().unwrap();
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.column, 0); // Should stay at 0 for empty line
+        assert_eq!(cursor.line, 0);
+    }
+
+    #[test]
+    fn view_model_should_move_cursor_to_end_of_multiline_text() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("line one\nline two is longer\nline three")
+            .unwrap();
+        // Move to middle line, middle position
+        vm.request_buffer.set_cursor(LogicalPosition::new(1, 5));
+
+        // Test move to end of middle line
+        vm.move_cursor_to_end_of_line().unwrap();
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.column, 18); // Should be at end of "line two is longer"
+        assert_eq!(cursor.line, 1);
     }
 
     #[test]

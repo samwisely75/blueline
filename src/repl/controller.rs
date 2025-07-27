@@ -92,6 +92,9 @@ impl AppController {
             if event::poll(Duration::from_millis(100))? {
                 match event::read()? {
                     Event::Key(key_event) => {
+                        // Debug log the key event
+                        tracing::debug!("Received key event: {:?}", key_event);
+
                         // Create command context from current state
                         let context = CommandContext::new(ViewModelSnapshot::from_view_model(
                             &self.view_model,
@@ -100,6 +103,7 @@ impl AppController {
                         // Process through command registry
                         if let Ok(events) = self.command_registry.process_event(key_event, &context)
                         {
+                            tracing::debug!("Command events generated: {:?}", events);
                             if !events.is_empty() {
                                 // Apply events to view model
                                 for event in events {
@@ -143,6 +147,9 @@ impl AppController {
                         MovementDirection::Right => self.view_model.move_cursor_right()?,
                         MovementDirection::Up => self.view_model.move_cursor_up()?,
                         MovementDirection::Down => self.view_model.move_cursor_down()?,
+                        MovementDirection::LineEnd => {
+                            self.view_model.move_cursor_to_end_of_line()?
+                        }
                         _ => {
                             tracing::warn!("Unsupported movement direction: {:?}", direction);
                         }

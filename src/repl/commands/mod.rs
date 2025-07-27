@@ -50,7 +50,10 @@ pub mod request;
 // Re-export all commands for easy access
 pub use app::AppTerminateCommand;
 pub use editing::{DeleteCharCommand, InsertCharCommand, InsertNewLineCommand};
-pub use mode::{EnterCommandModeCommand, EnterInsertModeCommand, ExitInsertModeCommand};
+pub use mode::{
+    AppendAtEndOfLineCommand, EnterCommandModeCommand, EnterInsertModeCommand,
+    ExitInsertModeCommand,
+};
 pub use movement::{
     MoveCursorDownCommand, MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand,
 };
@@ -78,6 +81,7 @@ impl CommandRegistry {
             Box::new(MoveCursorDownCommand),
             // Mode commands
             Box::new(EnterInsertModeCommand),
+            Box::new(AppendAtEndOfLineCommand),
             Box::new(ExitInsertModeCommand),
             Box::new(EnterCommandModeCommand),
             // Pane commands
@@ -100,11 +104,14 @@ impl CommandRegistry {
         event: KeyEvent,
         context: &CommandContext,
     ) -> Result<Vec<CommandEvent>> {
+        tracing::debug!("Processing key event in registry: {:?}", event);
         for command in &self.commands {
             if command.is_relevant(context, &event) {
+                tracing::debug!("Found relevant command: {}", command.name());
                 return command.execute(event, context);
             }
         }
+        tracing::debug!("No relevant command found for event: {:?}", event);
         Ok(vec![])
     }
 
