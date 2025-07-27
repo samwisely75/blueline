@@ -8,6 +8,8 @@ use super::request_model::HttpHeaders;
 #[derive(Debug, Clone)]
 pub struct ResponseModel {
     status_code: Option<u16>,
+    status_message: Option<String>,
+    duration_ms: Option<u64>,
     headers: HttpHeaders,
     body: String,
 }
@@ -16,6 +18,8 @@ impl ResponseModel {
     pub fn new() -> Self {
         Self {
             status_code: None,
+            status_message: None,
+            duration_ms: None,
             headers: Vec::new(),
             body: String::new(),
         }
@@ -27,6 +31,22 @@ impl ResponseModel {
 
     pub fn set_status_code(&mut self, status_code: u16) {
         self.status_code = Some(status_code);
+    }
+
+    pub fn status_message(&self) -> Option<&String> {
+        self.status_message.as_ref()
+    }
+
+    pub fn set_status_message(&mut self, status_message: String) {
+        self.status_message = Some(status_message);
+    }
+
+    pub fn duration_ms(&self) -> Option<u64> {
+        self.duration_ms
+    }
+
+    pub fn set_duration_ms(&mut self, duration_ms: u64) {
+        self.duration_ms = Some(duration_ms);
     }
 
     pub fn headers(&self) -> &HttpHeaders {
@@ -47,6 +67,8 @@ impl ResponseModel {
 
     pub fn clear(&mut self) {
         self.status_code = None;
+        self.status_message = None;
+        self.duration_ms = None;
         self.headers.clear();
         self.body.clear();
     }

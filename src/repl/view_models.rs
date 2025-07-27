@@ -378,6 +378,33 @@ impl ViewModel {
         });
     }
 
+    /// Set response from HttpResponse object
+    pub fn set_response_from_http(&mut self, response: &bluenote::HttpResponse) {
+        let status_code = response.status().as_u16();
+        let status_message = response
+            .status()
+            .canonical_reason()
+            .unwrap_or("")
+            .to_string();
+        let duration_ms = response.duration_ms();
+        let body = response.body().to_string();
+
+        self.response.set_status_code(status_code);
+        self.response.set_status_message(status_message);
+        self.response.set_duration_ms(duration_ms);
+        self.response.set_body(body.clone());
+
+        // Update response buffer content
+        self.response_buffer.content_mut().set_text(&body);
+        self.response_buffer.set_cursor(LogicalPosition::zero());
+
+        let event = ModelEvent::ResponseReceived { status_code, body };
+        self.emit_model_event(event);
+        self.emit_view_event(ViewEvent::PaneRedrawRequired {
+            pane: Pane::Response,
+        });
+    }
+
     /// Set HTTP client with custom profile
     pub fn set_http_client(&mut self, profile: &impl HttpConnectionProfile) -> Result<()> {
         self.http_client = Some(HttpClient::new(profile)?);
@@ -462,6 +489,21 @@ impl ViewModel {
     /// Get ex command buffer for display
     pub fn get_ex_command_buffer(&self) -> &str {
         &self.ex_command_buffer
+    }
+
+    /// Get HTTP response status code for display
+    pub fn get_response_status_code(&self) -> Option<u16> {
+        self.response.status_code()
+    }
+
+    /// Get HTTP response status message for display
+    pub fn get_response_status_message(&self) -> Option<&String> {
+        self.response.status_message()
+    }
+
+    /// Get HTTP response duration in milliseconds for display
+    pub fn get_response_duration_ms(&self) -> Option<u64> {
+        self.response.duration_ms()
     }
 
     // =================================================================

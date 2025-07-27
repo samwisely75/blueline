@@ -255,21 +255,64 @@ impl ViewRenderer for TerminalRenderer {
             };
 
             let cursor = view_model.get_cursor_position();
-            let status_text = format!(
-                "{} | {} | {}:{}",
-                mode_text,
-                pane_text,
-                cursor.line + 1,
-                cursor.column + 1
-            );
+
+            // Build status parts in order: HTTP response | TAT | Mode | Pane | Position
+            let mut status_parts = Vec::new();
+
+            // 1. HTTP response (ephemeral)
+            if let Some(status_code) = view_model.get_response_status_code() {
+                let signal = match status_code {
+                    200..=299 => "🟢", // Green for success
+                    400..=599 => "🔴", // Red for both client and server errors
+                    _ => "⚪",         // White for unknown
+                };
+
+                let status_message = view_model
+                    .get_response_status_message()
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+
+                status_parts.push(format!("{} {} {}", signal, status_code, status_message));
+
+                // 2. TAT (ephemeral)
+                if let Some(duration_ms) = view_model.get_response_duration_ms() {
+                    let duration = std::time::Duration::from_millis(duration_ms);
+                    let duration_text = humantime::format_duration(duration).to_string();
+                    status_parts.push(duration_text);
+                }
+            }
+
+            // 3. Mode (persistent)
+            status_parts.push(mode_text.to_string());
+
+            // 4. Pane (persistent)
+            status_parts.push(pane_text.to_string());
+
+            // 5. Position (persistent)
+            status_parts.push(format!("{}:{}", cursor.line + 1, cursor.column + 1));
+
+            let status_text = status_parts.join(" | ");
+
+            // Account for emoji display width - emojis take 2 terminal columns but count as 1 char
+            let emoji_count = status_text.chars().filter(|c| *c as u32 > 0x1F000).count();
+            let display_width = status_text.len() + emoji_count;
+            let available_width = self.terminal_size.0 as usize;
+
+            // Truncate if too long
+            let final_text = if display_width > available_width {
+                let max_chars = available_width.saturating_sub(emoji_count);
+                status_text.chars().take(max_chars).collect::<String>()
+            } else {
+                status_text
+            };
 
             execute_term!(
                 self.stdout,
                 MoveTo(0, status_row),
                 Print(format!(
                     "{:>width$}",
-                    status_text,
-                    width = self.terminal_size.0 as usize
+                    final_text,
+                    width = available_width.saturating_sub(emoji_count)
                 ))
             )?;
         }

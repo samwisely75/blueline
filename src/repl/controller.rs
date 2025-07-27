@@ -7,7 +7,7 @@ use crate::cmd_args::CommandLineArgs;
 use crate::repl::{
     commands::{CommandContext, CommandEvent, CommandRegistry, HttpHeaders, ViewModelSnapshot},
     events::SimpleEventBus,
-    http::{execute_http_request, parse_request_from_text},
+    http::parse_request_from_text,
     view_models::ViewModel,
     views::{TerminalRenderer, ViewRenderer},
 };
@@ -243,25 +243,24 @@ impl AppController {
         // Get request text and session headers from view model
         let request_text = self.view_model.get_request_text();
         let session_headers = std::collections::HashMap::new(); // TODO: Get from view model
-        let verbose = self.view_model.is_verbose();
 
         // Parse request from buffer content
-        let (request_args, url_str) = match parse_request_from_text(&request_text, &session_headers)
-        {
-            Ok(result) => result,
-            Err(error_message) => {
-                self.view_model
-                    .set_response(0, format!("Error: {}", error_message));
-                return Ok(());
-            }
-        };
+        let (request_args, _url_str) =
+            match parse_request_from_text(&request_text, &session_headers) {
+                Ok(result) => result,
+                Err(error_message) => {
+                    self.view_model
+                        .set_response(0, format!("Error: {}", error_message));
+                    return Ok(());
+                }
+            };
 
         // Check if HTTP client is available
         if let Some(client) = self.view_model.http_client() {
-            // Execute the HTTP request
-            match execute_http_request(client, &request_args, &url_str, verbose).await {
-                Ok((response_text, status_code, _duration)) => {
-                    self.view_model.set_response(status_code, response_text);
+            // Execute the HTTP request directly using bluenote
+            match client.request(&request_args).await {
+                Ok(response) => {
+                    self.view_model.set_response_from_http(&response);
                 }
                 Err(error) => {
                     self.view_model
