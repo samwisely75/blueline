@@ -43,7 +43,7 @@ pub trait HttpCommand {
 pub mod app;
 pub mod editing;
 pub mod mode;
-pub mod movement;
+pub mod navigation;
 pub mod pane;
 pub mod request;
 
@@ -57,7 +57,7 @@ pub use mode::{
     EnterInsertModeCommand, ExCommandModeCommand, ExitInsertModeCommand,
     InsertAtBeginningOfLineCommand,
 };
-pub use movement::{
+pub use navigation::{
     MoveCursorDownCommand, MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand,
     ScrollLeftCommand, ScrollRightCommand,
 };

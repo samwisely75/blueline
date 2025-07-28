@@ -4,7 +4,6 @@
 
 ## Backlog
 
-- [ ] Rename command terminology for clarity and alignment to the Vim terminologies: h/j/k/l as "navigation commands", i/a/A as "editing commands", :q/:set as "ex commands", Ctrl+C as "application commands"
 - [ ] Support `gg` to go to the top of the current pane.
 - [ ] Support `G` to go to the bottom of the current pane.
 - [ ] Support `Ctrl + f` to scroll down one page in the request/response pane.
@@ -41,6 +40,7 @@
 
 ## Done
 
+- [x] Rename command terminology for clarity and alignment to the Vim terminologies: h/j/k/l as "navigation commands", i/a/A as "editing commands", :q/:set as "ex commands", Ctrl+C as "application commands"
 - [x] Revert the HTTP status icon to the original design in the MVC code.
 - [x] Make a list of supported commands and their descriptions in docs/COMMANDS.md.
 - [x] Restore the Cucumber test capability. It's in the `test_archived` directory. Put it back as integration test and calibrate it to the current codebase.
