@@ -4,7 +4,20 @@
 
 ## Backlog
 
-- [ ] Support `G` to go to the bottom of the current pane.
+- [ ] Remove headers instruction from the request buffer. For example, the following lines should be removed:
+
+  ```bash
+  GET /api/users
+  Host: example.com                   <= this line
+  Content-Type: application/json      <= this line
+                                      <= this line
+  {"line": 5}
+  {"line": 6}
+  {"line": 7}
+  ```
+
+  from the example of the request written in the `movement.feature` file. This is an extra imaginary feature that the AI came up which I didn't authorize.
+  
 - [ ] Support `Ctrl + f` to scroll down one page in the request/response pane.
 - [ ] Support `Ctrl + b` to scroll up one page in the request/response pane.
 - [ ] Support `Ctrl + d` to scroll down half a page in the request/response pane.
@@ -39,6 +52,7 @@
 
 ## Done
 
+- [x] Support `G` to go to the bottom of the current pane.
 - [x] Support `gg` to go to the top of the current pane.
 - [x] Rename command terminology for clarity and alignment to the Vim terminologies: h/j/k/l as "navigation commands", i/a/A as "editing commands", :q/:set as "ex commands", Ctrl+C as "application commands"
 - [x] Revert the HTTP status icon to the original design in the MVC code.
