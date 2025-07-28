@@ -3,7 +3,7 @@
 //! Commands for executing HTTP requests and related operations
 
 use crate::repl::events::{EditorMode, Pane};
-use crate::repl::http::parse_request_from_text;
+use crate::repl::utils::parse_request_from_text;
 use anyhow::Result;
 use bluenote::HttpRequestArgs;
 use crossterm::event::{KeyCode, KeyEvent};

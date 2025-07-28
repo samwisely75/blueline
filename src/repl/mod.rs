@@ -4,17 +4,17 @@
 //! All components are designed with clear separation of concerns and testability.
 
 pub mod commands;
-pub mod controller;
+pub mod controllers;
 pub mod events;
-pub mod http;
 pub mod models;
+pub mod utils;
 pub mod view_models;
 pub mod views;
 
 // Re-export core types
-pub use controller::AppController;
+pub use controllers::AppController;
 pub use events::*;
-pub use http::*;
+pub use utils::*;
 pub use view_models::*;
 pub use views::*;
 

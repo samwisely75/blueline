@@ -7,7 +7,7 @@ use crate::cmd_args::CommandLineArgs;
 use crate::repl::{
     commands::{CommandContext, CommandEvent, CommandRegistry, HttpHeaders, ViewModelSnapshot},
     events::{Pane, SimpleEventBus},
-    http::parse_request_from_text,
+    utils::parse_request_from_text,
     view_models::ViewModel,
     views::{TerminalRenderer, ViewRenderer},
 };
