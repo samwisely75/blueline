@@ -200,8 +200,14 @@ impl AppController {
                         MovementDirection::PageUp => {
                             self.view_model.scroll_vertically_by_page(-1)?
                         }
-                        _ => {
-                            tracing::warn!("Unsupported movement direction: {:?}", direction);
+                        MovementDirection::HalfPageDown => {
+                            self.view_model.scroll_vertically_by_half_page(1)?
+                        }
+                        MovementDirection::HalfPageUp => {
+                            self.view_model.scroll_vertically_by_half_page(-1)?
+                        }
+                        MovementDirection::WordForward | MovementDirection::WordBackward => {
+                            tracing::warn!("Word movement not yet implemented: {:?}", direction);
                         }
                     }
                 }

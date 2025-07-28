@@ -178,6 +178,67 @@ impl Command for ScrollPageDownCommand {
     }
 }
 
+/// Scroll up one page (Ctrl+b)
+pub struct ScrollPageUpCommand;
+
+impl Command for ScrollPageUpCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('b'))
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && context.state.current_mode == EditorMode::Normal
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(MovementDirection::PageUp)])
+    }
+
+    fn name(&self) -> &'static str {
+        "ScrollPageUp"
+    }
+}
+
+/// Scroll down half a page (Ctrl+d)
+pub struct ScrollHalfPageDownCommand;
+
+impl Command for ScrollHalfPageDownCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('d'))
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && context.state.current_mode == EditorMode::Normal
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(
+            MovementDirection::HalfPageDown,
+        )])
+    }
+
+    fn name(&self) -> &'static str {
+        "ScrollHalfPageDown"
+    }
+}
+
+/// Scroll up half a page (Ctrl+u)
+pub struct ScrollHalfPageUpCommand;
+
+impl Command for ScrollHalfPageUpCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('u'))
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && context.state.current_mode == EditorMode::Normal
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(
+            MovementDirection::HalfPageUp,
+        )])
+    }
+
+    fn name(&self) -> &'static str {
+        "ScrollHalfPageUp"
+    }
+}
+
 /// Enter G prefix mode on first 'g' press
 pub struct EnterGPrefixCommand;
 
@@ -479,6 +540,132 @@ mod tests {
         assert_eq!(
             events[0],
             CommandEvent::cursor_move(MovementDirection::PageDown)
+        );
+    }
+
+    // Tests for ScrollPageUpCommand (Ctrl+b)
+    #[test]
+    fn scroll_page_up_should_be_relevant_for_ctrl_b_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollPageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_page_up_should_not_be_relevant_for_b_without_ctrl() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollPageUpCommand;
+        let event = create_test_key_event(KeyCode::Char('b'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_page_up_should_not_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = ScrollPageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_page_up_should_produce_page_up_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollPageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::PageUp)
+        );
+    }
+
+    // Tests for ScrollHalfPageDownCommand (Ctrl+d)
+    #[test]
+    fn scroll_half_page_down_should_be_relevant_for_ctrl_d_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollHalfPageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_down_should_not_be_relevant_for_d_without_ctrl() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollHalfPageDownCommand;
+        let event = create_test_key_event(KeyCode::Char('d'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_down_should_not_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = ScrollHalfPageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_down_should_produce_half_page_down_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollHalfPageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::HalfPageDown)
+        );
+    }
+
+    // Tests for ScrollHalfPageUpCommand (Ctrl+u)
+    #[test]
+    fn scroll_half_page_up_should_be_relevant_for_ctrl_u_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollHalfPageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_up_should_not_be_relevant_for_u_without_ctrl() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollHalfPageUpCommand;
+        let event = create_test_key_event(KeyCode::Char('u'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_up_should_not_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = ScrollHalfPageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_up_should_produce_half_page_up_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollHalfPageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::HalfPageUp)
         );
     }
 }

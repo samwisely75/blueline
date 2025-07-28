@@ -285,8 +285,20 @@ impl BluelineWorld {
                         MovementDirection::DocumentEnd => {
                             self.view_model.move_cursor_to_document_end()?
                         }
-                        _ => {
-                            // Other movements not implemented yet
+                        MovementDirection::PageDown => {
+                            self.view_model.scroll_vertically_by_page(1)?
+                        }
+                        MovementDirection::PageUp => {
+                            self.view_model.scroll_vertically_by_page(-1)?
+                        }
+                        MovementDirection::HalfPageDown => {
+                            self.view_model.scroll_vertically_by_half_page(1)?
+                        }
+                        MovementDirection::HalfPageUp => {
+                            self.view_model.scroll_vertically_by_half_page(-1)?
+                        }
+                        MovementDirection::WordForward | MovementDirection::WordBackward => {
+                            // Word movements not implemented yet
                         }
                     }
                 }

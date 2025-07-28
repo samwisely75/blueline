@@ -189,4 +189,76 @@ impl ViewModel {
 
         Ok(())
     }
+
+    /// Handle vertical half-page scrolling (Ctrl+d, Ctrl+u)
+    pub fn scroll_vertically_by_half_page(
+        &mut self,
+        direction: i32, // 1 for down (Ctrl+d), -1 for up (Ctrl+u)
+    ) -> Result<(), anyhow::Error> {
+        let current_pane = self.editor.current_pane();
+        let (vertical_offset, horizontal_offset) = self.get_scroll_offset(current_pane);
+
+        // Calculate half page size based on pane height
+        let page_size = match current_pane {
+            Pane::Request => self.request_pane_height() as usize,
+            Pane::Response => self.response_pane_height() as usize,
+        };
+
+        // Half page scrolling is typically page_size / 2
+        let scroll_amount = (page_size / 2).max(1);
+
+        let new_vertical_offset = if direction > 0 {
+            vertical_offset + scroll_amount
+        } else {
+            vertical_offset.saturating_sub(scroll_amount)
+        };
+
+        let old_offset = vertical_offset;
+        self.set_scroll_offset(current_pane, (new_vertical_offset, horizontal_offset));
+
+        // Move logical cursor to match the new scroll position like full page scrolling
+        // This ensures consistency with page scrolling behavior and prevents navigation issues
+        let display_cache = self.get_display_cache(current_pane);
+        let cursor_column = horizontal_offset; // Position at first visible column
+        if let Some(logical_pos) =
+            display_cache.display_to_logical_position(new_vertical_offset, cursor_column)
+        {
+            use crate::repl::events::LogicalPosition;
+            let cursor_position = LogicalPosition::new(logical_pos.0, logical_pos.1);
+
+            // Update logical cursor in appropriate buffer
+            match current_pane {
+                Pane::Request => {
+                    let clamped_position = self
+                        .request_buffer
+                        .content()
+                        .clamp_position(cursor_position);
+                    self.request_buffer.set_cursor(clamped_position);
+                }
+                Pane::Response => {
+                    let clamped_position = self
+                        .response_buffer
+                        .content()
+                        .clamp_position(cursor_position);
+                    self.response_buffer.set_cursor(clamped_position);
+                }
+            }
+
+            // Sync display cursor with the new logical position
+            self.sync_display_cursor_with_logical(current_pane)?;
+        }
+
+        // Emit scroll changed event
+        self.emit_view_event(ViewEvent::ScrollChanged {
+            pane: current_pane,
+            old_offset,
+            new_offset: new_vertical_offset,
+        });
+
+        // Emit cursor update events
+        self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+        self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+
+        Ok(())
+    }
 }

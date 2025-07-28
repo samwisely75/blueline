@@ -1,11 +1,6 @@
 # Issues
 
 ## Ready to Develop
-
-- [x] Support `Ctrl + f` to scroll down one page in the request/response pane.
-- [ ] Support `Ctrl + b` to scroll up one page in the request/response pane.
-- [ ] Support `Ctrl + d` to scroll down half a page in the request/response pane.
-- [ ] Support `Ctrl + u` to scroll up half a page in the request/response pane.
 - [ ] Show "Executing..." in the status bar when the request is being processed. The response pane should be cleared and another request submission should be ignored until the response is received.
 - [ ] When in the Command mode, please keep the cursor visible in the request pane and change the shape to underline. The cusror should be back to block shape when it exists the Command mode. Change the cursor shape in the Status Bar to I-beam when it is in the Command mode.
 - [ ] The command buffer should be cleared when the user exits the Command mode by pressing `Esc` or `Ctrl + c`.
@@ -39,6 +34,10 @@
 
 ## Done
 
+- [x] Support `Ctrl + b` to scroll up one page in the request/response pane.
+- [x] Support `Ctrl + d` to scroll down half a page in the request/response pane.
+- [x] Support `Ctrl + u` to scroll up half a page in the request/response pane.
+- [x] Support `Ctrl + f` to scroll down one page in the request/response pane.
 - [x] Optimize memory usage for large response content (>1GB). Implement lazy display cache building and virtual scrolling to prevent memory duplication in display cache.
 - [x] Remove header instruction examples of the request from all files. Cleaned up unauthorized headers and blank lines from movement.feature, editing.feature, cursor_flicker_fix.feature, and integration.feature files that contained examples like "Host: example.com", "Content-Type: application/json", and "Authorization: Bearer token" that were not part of legitimate test functionality.
 - [x] Support `G` to go to the bottom of the current pane.
