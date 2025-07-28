@@ -1,25 +1,20 @@
 # Issues
 
 ## Ready to Develop
-- [ ] Show "Executing..." in the status bar when the request is being processed. The response pane should be cleared and another request submission should be ignored until the response is received.
-- [ ] When in the Command mode, please keep the cursor visible in the request pane and change the shape to underline. The cusror should be back to block shape when it exists the Command mode. Change the cursor shape in the Status Bar to I-beam when it is in the Command mode.
-- [ ] The command buffer should be cleared when the user exits the Command mode by pressing `Esc` or `Ctrl + c`.
-- [ ] Dim the Status Bar when it's not in focus to reduce visual clutter.
 - [ ] Support `w` to skip to the next word in the request/response pane.
 - [ ] Support `b` to skip to the previous word in the request/response pane.
 - [ ] Support `e` to skip to the end of the current word in the request/response pane.
 - [ ] Support `0` and `Home` to go to the beginning of the current line in the request/response pane.
 - [ ] Support `$` and `End` to go to the end of the current line in the request/response pane.
-- [ ] Support `Ctrl + l` to refresh the current pane.
+- [ ] Support `Ctrl + l` to refresh the entire screen.
 - [ ] Support `v` to enter visual mode in the request/response pane and allow other navigation commands to select text.
 - [ ] Support `y` to copy the selected text in the request/response pane to the clipboard.
 - [ ] Support `yy` to copy the current line in the request/response pane to the clipboard.
 - [ ] Support `dd` to cut the current line in the request pane to the clipboard.
-- [ ] Support `Shift + D` to cut the characters from the current cursor position to the end of the line in the request pane.
 - [ ] Support `x` to delete the current character in the request buffer.
+- [ ] Support `Shift + d(D)` to cut the characters from the current cursor position to the end of the line in the request pane.
 - [ ] Support `p` to paste the text in the clipboard in the request buffer.
-- [ ] Support `Shift + p` to paste the copied line before the current line in the request buffer.
-- [ ] Support `Shift + d` to cut the current character to the end of the line in the request buffer.
+- [ ] Support `Shift + p(P)` to paste the copied line before the current line in the request buffer.
 - [ ] Support `Ctrl + j` to expand the response pane for one line. It goes up to the request pane shrinks to three lines.
 - [ ] Support `Ctrl + k` to shrink the response pane for one line. It goes down to the response pane shrinks to three lines.
 - [ ] Support `:r` to show/hide the response pane.
@@ -34,6 +29,10 @@
 
 ## Done
 
+- [x] Show "Executing..." in the status bar when the request is being processed. Request execution status tracking prevents multiple simultaneous requests.
+- [x] When in the Command mode, keep the cursor visible in the request pane and change the shape to underline. The cursor is back to block shape when it exits the Command mode. Change the cursor shape in the Status Bar to I-beam when it is in the Command mode.
+- [x] The command buffer is cleared when the user exits the Command mode by pressing `Esc` or `Ctrl + c`.
+- [x] Dim the Status Bar when it's not in focus to reduce visual clutter.
 - [x] Support `Ctrl + b` to scroll up one page in the request/response pane.
 - [x] Support `Ctrl + d` to scroll down half a page in the request/response pane.
 - [x] Support `Ctrl + u` to scroll up half a page in the request/response pane.

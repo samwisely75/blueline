@@ -30,8 +30,15 @@ impl ViewModel {
 
     /// Change editor mode
     pub fn change_mode(&mut self, mode: EditorMode) -> Result<()> {
+        let old_mode = self.editor.mode();
         let _event = self.editor.set_mode(mode);
         // TODO: self.emit_model_event(event);
+
+        // Clear command buffer when exiting Command mode (e.g., when pressing Escape)
+        if old_mode == EditorMode::Command && mode != EditorMode::Command {
+            self.ex_command_buffer.clear();
+            tracing::debug!("Cleared command buffer when exiting Command mode");
+        }
 
         // Only emit events for what actually needs updating
         self.emit_view_event(crate::repl::events::ViewEvent::StatusBarUpdateRequired);

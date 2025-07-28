@@ -18,7 +18,7 @@ macro_rules! execute_term {
 }
 
 use crossterm::{
-    cursor::{Hide, MoveTo, SetCursorStyle, Show},
+    cursor::{MoveTo, SetCursorStyle, Show},
     execute,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
     terminal::{Clear, ClearType},
@@ -438,9 +438,45 @@ impl ViewRenderer for TerminalRenderer {
 
         let current_mode = view_model.get_mode();
 
-        // Handle command mode: hide cursor completely
+        // Handle command mode: show cursor in request pane with underline shape,
+        // and I-beam cursor will be shown in status bar separately
         if current_mode == EditorMode::Command {
-            execute_term!(self.stdout, Hide)?;
+            // Show underline cursor in request pane to keep it visible
+            let current_pane = view_model.get_current_pane();
+
+            // Get cursor position in display coordinates (relative to pane)
+            let (cursor_row, cursor_col) = view_model.get_cursor_for_rendering(current_pane);
+
+            // Get line number width for cursor offset
+            let line_num_width = view_model.get_line_number_width(current_pane);
+            let line_num_offset = line_num_width + 1; // +1 for space after line number
+
+            // Calculate terminal position for request pane cursor
+            let terminal_row = match current_pane {
+                Pane::Request => cursor_row as u16,
+                Pane::Response => {
+                    let (_, response_start, _) = self.get_pane_boundaries(view_model);
+                    response_start + cursor_row as u16
+                }
+            };
+
+            let terminal_col = cursor_col as u16 + line_num_offset as u16;
+
+            tracing::debug!(
+                "render_cursor: showing underline cursor in request pane at ({}, {}) for Command mode",
+                terminal_col,
+                terminal_row
+            );
+
+            // Show underline cursor in request pane
+            execute_term!(
+                self.stdout,
+                MoveTo(terminal_col, terminal_row),
+                SetCursorStyle::BlinkingUnderScore,
+                Show
+            )?;
+
+            // Command line cursor (I-beam) is handled in status bar rendering
             self.stdout.flush().map_err(anyhow::Error::from)?;
             return Ok(());
         }
@@ -558,10 +594,17 @@ impl ViewRenderer for TerminalRenderer {
         if view_model.get_mode() == EditorMode::Command {
             let ex_command_text = format!(":{}", view_model.get_ex_command_buffer());
             execute_term!(self.stdout, MoveTo(0, status_row), Print(&ex_command_text))?;
-            // Show cursor in command mode for command line editing
-            execute_term!(self.stdout, Show)?;
+
+            // Show I-beam cursor at the end of command text for command line editing
+            let cursor_pos = ex_command_text.len() as u16;
+            execute_term!(
+                self.stdout,
+                MoveTo(cursor_pos, status_row),
+                SetCursorStyle::BlinkingBar,
+                Show
+            )?;
         } else {
-            // Show normal status information
+            // Show normal status information (dimmed when not in focus)
             let mode_text = match view_model.get_mode() {
                 EditorMode::Normal => "NORMAL",
                 EditorMode::Insert => "INSERT",
@@ -579,8 +622,12 @@ impl ViewRenderer for TerminalRenderer {
             // Build status parts
             let mut status_text = String::new();
 
-            // 1. HTTP response info (optional, when present)
-            if let Some(status_code) = view_model.get_response_status_code() {
+            // 1. Show "Executing..." when request is being processed (highest priority)
+            if view_model.is_executing_request() {
+                status_text.push_str("\x1b[33m●\x1b[0m Executing... | "); // Yellow bullet for executing
+            }
+            // 2. HTTP response info (optional, when present and not executing)
+            else if let Some(status_code) = view_model.get_response_status_code() {
                 let status_message_opt = view_model.get_response_status_message();
                 let status_message = status_message_opt.as_deref().unwrap_or("");
                 let status_full = format!("{} {}", status_code, status_message);
@@ -628,10 +675,14 @@ impl ViewRenderer for TerminalRenderer {
             // Calculate right alignment based on visual length
             let padding = available_width.saturating_sub(visual_len);
 
+            // Dim the status bar when not in focus (not in Command mode) to reduce visual clutter
+            // Use dark gray color for better visibility than ANSI dim
+            let dimmed_text = format!("\x1b[38;5;240m{}\x1b[0m", final_text); // Dark gray (240) and reset
+
             execute_term!(
                 self.stdout,
                 MoveTo(0, status_row),
-                Print(format!("{}{}", " ".repeat(padding), final_text))
+                Print(format!("{}{}", " ".repeat(padding), dimmed_text))
             )?;
         }
 

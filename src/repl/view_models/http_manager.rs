@@ -27,6 +27,23 @@ impl ViewModel {
         tracing::debug!("Verbose mode set to: {}", verbose);
     }
 
+    /// Get current request execution status
+    pub fn is_executing_request(&self) -> bool {
+        self.is_executing_request
+    }
+
+    /// Set request execution status and update status bar
+    pub fn set_executing_request(&mut self, executing: bool) {
+        self.is_executing_request = executing;
+        if executing {
+            tracing::debug!("Request execution started");
+        } else {
+            tracing::debug!("Request execution finished");
+        }
+        // Emit status bar update to reflect execution state
+        self.emit_view_event(crate::repl::events::ViewEvent::StatusBarUpdateRequired);
+    }
+
     /// Get session headers
     pub fn session_headers(&self) -> &HashMap<String, String> {
         &self.session_headers

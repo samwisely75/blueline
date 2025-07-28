@@ -293,6 +293,12 @@ impl AppController {
         _headers: HttpHeaders,
         _body: Option<String>,
     ) -> Result<()> {
+        // Set executing status to show "Executing..." in status bar
+        self.view_model.set_executing_request(true);
+
+        // Immediately refresh the status bar to show executing message
+        self.view_renderer.render_status_bar(&self.view_model)?;
+
         // Get request text and session headers from view model
         let request_text = self.view_model.get_request_text();
         let session_headers = std::collections::HashMap::new(); // TODO: Get from view model
@@ -304,6 +310,10 @@ impl AppController {
                 Err(error_message) => {
                     self.view_model
                         .set_response(0, format!("Error: {}", error_message));
+                    // Clear executing status on error
+                    self.view_model.set_executing_request(false);
+                    // Refresh status bar to show error
+                    self.view_renderer.render_status_bar(&self.view_model)?;
                     return Ok(());
                 }
             };
@@ -324,6 +334,12 @@ impl AppController {
             self.view_model
                 .set_response(0, "Error: HTTP client not configured".to_string());
         }
+
+        // Clear executing status when request completes
+        self.view_model.set_executing_request(false);
+
+        // Refresh status bar to show response status
+        self.view_renderer.render_status_bar(&self.view_model)?;
 
         Ok(())
     }

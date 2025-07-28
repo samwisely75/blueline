@@ -41,6 +41,9 @@ pub struct ViewModel {
     // Ex command mode state (for :q, :w, etc.)
     pub(super) ex_command_buffer: String,
 
+    // Request execution state
+    pub(super) is_executing_request: bool,
+
     // HTTP client and configuration
     pub(super) http_client: Option<HttpClient>,
     pub(super) session_headers: HashMap<String, String>,
@@ -95,6 +98,7 @@ impl ViewModel {
             terminal_height,
             request_pane_height: terminal_height / 2,
             ex_command_buffer: String::new(),
+            is_executing_request: false,
             http_client: None,
             session_headers: HashMap::new(),
             verbose: false,

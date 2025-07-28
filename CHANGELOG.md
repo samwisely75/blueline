@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2025-07-28
+
+### Added
+- Show "Executing..." message with yellow bullet in status bar during request processing
+- Request execution status tracking to prevent multiple simultaneous requests
+
+### Changed
+- Keep cursor visible in request pane with underline shape during Command mode
+- Show I-beam cursor in status bar command line for better command editing experience
+- Dim status bar when not in Command mode to reduce visual clutter
+- Command buffer automatically clears when exiting Command mode (Escape or Ctrl+C)
+
 ## [0.18.0] - 2025-07-28
 
 ### Added
