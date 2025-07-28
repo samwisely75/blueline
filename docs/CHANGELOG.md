@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.1] - 2025-07-28
+
+### Changed
+- **Code Organization**: Renamed `movement.rs` to `navigation.rs` to align with Vim terminology
+- **Module Structure**: Updated imports and declarations to reflect navigation command categorization
+
+### Technical
+- Maintains full backward compatibility
+- All existing navigation commands (h/j/k/l) continue to work unchanged
+- Improved code clarity through consistent terminology alignment
+
 ## [0.14.0] - 2025-07-28
 
 ### Added
