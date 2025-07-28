@@ -26,8 +26,6 @@ Feature: Blueline HTTP Client REPL - Integration Tests
     When I type:
       """
       POST /api/users
-      Content-Type: application/json
-
       {"name": "John Doe", "email": "john@example.com"}
       """
     # Mode transition: Return to normal mode

@@ -205,9 +205,15 @@ pub struct GoToBottomCommand;
 
 impl Command for GoToBottomCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Char('G'))
-            && context.state.current_mode == EditorMode::Normal
-            && event.modifiers.is_empty()
+        context.state.current_mode == EditorMode::Normal
+            && (
+                // Case 1: Uppercase 'G' without modifiers
+                (matches!(event.code, KeyCode::Char('G')) && event.modifiers.is_empty())
+                // Case 2: Lowercase 'g' with SHIFT modifier
+                || (matches!(event.code, KeyCode::Char('g')) && event.modifiers.contains(KeyModifiers::SHIFT))
+                // Case 3: Uppercase 'G' with SHIFT modifier (some terminals send this)
+                || (matches!(event.code, KeyCode::Char('G')) && event.modifiers.contains(KeyModifiers::SHIFT))
+            )
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -337,10 +343,28 @@ mod tests {
     }
 
     #[test]
-    fn go_to_bottom_should_be_relevant_for_g_in_normal_mode() {
+    fn go_to_bottom_should_be_relevant_for_uppercase_g_in_normal_mode() {
         let context = create_test_context(EditorMode::Normal);
         let cmd = GoToBottomCommand;
         let event = create_test_key_event(KeyCode::Char('G'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn go_to_bottom_should_be_relevant_for_shift_g_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = GoToBottomCommand;
+        let event = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::SHIFT);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn go_to_bottom_should_be_relevant_for_uppercase_g_with_shift_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = GoToBottomCommand;
+        let event = KeyEvent::new(KeyCode::Char('G'), KeyModifiers::SHIFT);
 
         assert!(cmd.is_relevant(&context, &event));
     }
@@ -364,7 +388,7 @@ mod tests {
     }
 
     #[test]
-    fn go_to_bottom_should_not_be_relevant_for_lowercase_g() {
+    fn go_to_bottom_should_not_be_relevant_for_lowercase_g_without_shift() {
         let context = create_test_context(EditorMode::Normal);
         let cmd = GoToBottomCommand;
         let event = create_test_key_event(KeyCode::Char('g'));

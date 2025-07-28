@@ -16,8 +16,6 @@ Feature: Cursor Flicker Fix
     And I am in the request pane with content:
       """
       GET /api/users
-      Content-Type: application/json
-      
       {"name": "test"}
       """
     When I clear the render call history
@@ -33,9 +31,6 @@ Feature: Cursor Flicker Fix
     And the request buffer contains:
       """
       GET /api/users
-      Content-Type: application/json
-      Authorization: Bearer token123
-      
       {"name": "John Doe", "email": "john@example.com"}
       """
     When I navigate using vim keys "h", "j", "k", "l" rapidly

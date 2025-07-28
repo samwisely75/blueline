@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.1] - 2025-07-28
+
+### Fixed
+- **G Command Shift Key Support**: Fixed `G` command to properly handle `Shift+g` key combination. Command now responds to uppercase G, lowercase g with SHIFT modifier, and uppercase G with SHIFT modifier to ensure compatibility across different terminals.
+- **Dynamic Line Number Width**: Fixed line number column width calculation to dynamically adjust based on document size. Previously hardcoded to 3 characters, now expands as needed (e.g., 4 characters for documents with 1000+ lines like line 1547) to prevent cursor positioning issues when jumping between documents of different sizes.
+- **Cursor Positioning**: Resolved bug where cursor would appear in invalid positions when using G command to jump from small to large documents due to inconsistent line number column width.
+
+### Technical
+- Added `MIN_LINE_NUMBER_WIDTH` constant to replace magic number 3
+- Enhanced GoToBottomCommand with comprehensive modifier key handling
+- Improved line number width calculation in DisplayManager to be content-aware
+- Added comprehensive unit tests for all Shift key combinations
+
 ## [0.17.0] - 2025-07-28
 
 ### Added

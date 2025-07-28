@@ -73,13 +73,13 @@ Feature: Text Editing Commands
     Given the request buffer contains:
       """
       GET /api/users
-      Host: example.com
+      Second line
       """
     And I am in insert mode
     And the cursor is at the beginning of the second line
     When I press Backspace
     Then the lines are joined together
-    And the text becomes "GET /api/usersHost: example.com"
+    And the text becomes "GET /api/usersSecond line"
     And the cursor position is correct
 
   Scenario: Backspace at beginning of first line should not delete

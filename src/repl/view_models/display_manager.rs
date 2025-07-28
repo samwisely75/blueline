@@ -7,6 +7,9 @@ use crate::repl::events::Pane;
 use crate::repl::models::DisplayCache;
 use crate::repl::view_models::core::{DisplayLineData, ViewModel};
 
+/// Minimum width for line number column as specified in requirements
+const MIN_LINE_NUMBER_WIDTH: usize = 3;
+
 impl ViewModel {
     /// Get display cache for a specific pane
     pub(super) fn get_display_cache(&self, pane: Pane) -> &DisplayCache {
@@ -75,13 +78,32 @@ impl ViewModel {
     }
 
     /// Get line number width for a pane
-    pub fn get_line_number_width(&self, _pane: Pane) -> usize {
-        3 // Minimum width for now
+    pub fn get_line_number_width(&self, pane: Pane) -> usize {
+        let content = match pane {
+            Pane::Request => self.get_request_text(),
+            Pane::Response => self.get_response_text(),
+        };
+
+        let line_count = if content.is_empty() {
+            1 // At least show line 1 even for empty content
+        } else {
+            content.lines().count().max(1)
+        };
+
+        // Calculate width needed for the largest line number
+        let width = line_count.to_string().len();
+
+        // Minimum width as specified in the requirements
+        width.max(MIN_LINE_NUMBER_WIDTH)
     }
 
     /// Get content width (terminal width minus line numbers and padding)
+    /// Note: This is a simplified calculation. In practice, each pane may have different line number widths.
     pub(super) fn get_content_width(&self) -> usize {
-        let line_num_width = 3; // Minimum line number width
+        // Use current pane's line number width
+        let current_pane = self.editor.current_pane();
+        let line_num_width = self.get_line_number_width(current_pane);
+
         (self.terminal_width as usize).saturating_sub(line_num_width + 1)
     }
 

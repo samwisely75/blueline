@@ -4,21 +4,6 @@
 
 ## Backlog
 
-- [ ] Remove headers instruction examples of the request from all files. For example, the following lines should be removed from the example of the request written in the `movement.feature` file:
-
-  ```bash
-  GET /api/users
-  Host: example.com                   <= this line
-  Content-Type: application/json      <= this line
-                                      <= this line
-  {"line": 5}
-  {"line": 6}
-  {"line": 7}
-  ...
-  ```
-
-  This is an imaginary feature that the AI hallucinated which I didn't authorize.
-
 - [ ] Support `Ctrl + f` to scroll down one page in the request/response pane.
 - [ ] Support `Ctrl + b` to scroll up one page in the request/response pane.
 - [ ] Support `Ctrl + d` to scroll down half a page in the request/response pane.
@@ -53,6 +38,7 @@
 
 ## Done
 
+- [x] Remove header instruction examples of the request from all files. Cleaned up unauthorized headers and blank lines from movement.feature, editing.feature, cursor_flicker_fix.feature, and integration.feature files that contained examples like "Host: example.com", "Content-Type: application/json", and "Authorization: Bearer token" that were not part of legitimate test functionality.
 - [x] Support `G` to go to the bottom of the current pane.
 - [x] Support `gg` to go to the top of the current pane.
 - [x] Rename command terminology for clarity and alignment to the Vim terminologies: h/j/k/l as "navigation commands", i/a/A as "editing commands", :q/:set as "ex commands", Ctrl+C as "application commands"

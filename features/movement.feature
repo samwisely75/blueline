@@ -55,9 +55,6 @@ Feature: Cursor Movement Commands
     Given the request buffer contains:
       """
       GET /api/users
-      Host: example.com
-      Content-Type: application/json
-
       {"line": 5}
       {"line": 6}
       {"line": 7}
@@ -281,10 +278,6 @@ Feature: Cursor Movement Commands
     Given the request buffer contains:
       """
       GET /api/users HTTP/1.1
-      Host: example.com
-      Authorization: Bearer token
-      Content-Type: application/json
-
       {"query": "search term"}
       """
     And I am in normal mode
@@ -300,10 +293,6 @@ Feature: Cursor Movement Commands
     Given the request buffer contains:
       """
       GET /api/users HTTP/1.1
-      Host: example.com
-      Authorization: Bearer token
-      Content-Type: application/json
-
       {"query": "search term"}
       Last line of content
       """
