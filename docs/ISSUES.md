@@ -2,7 +2,6 @@
 
 ## Ready to Develop
 
-- [ ] Fix the position indicator in the status bar adjusentment. I want to remove `|` between the pane and position indicators as they are related. The new look will be like `([http status code] [message] | [turn around time] |) [mode] | [pane] [line:column])`. The position indicator should be aligned to the right of the status bar.
 - [ ] Show line number 1 in the request pane at all the time.
 - [ ] Restore the Cucumber test capability. It's in the `test_archived` directory. Put it back as integration test and calibrate it to the current codebase.
 
@@ -10,7 +9,7 @@
 
 - [ ] Make a list of supported commands and their descriptions in docs/COMMANDS.md.
 - [ ] Fix background scrolling issue - still occurring despite terminal configuration and alternate screen buffer setup.
-- [ ] Print details of the request and response in the beginning of the response pane, when the verbose mode is enabled by `-v` command args. The format is detailed in the monolithic version of the code in the main.rs in the `master` branch.
+- [ ] Print details of the request and response in the beginning of the response pane, when the verbose mode is enabled by `-v` command args. The format is detailed in the monolithic version of the code in the main.rs in the `master` branch (I believe), namely `print_request` and `print_response`.
 - [ ] Support `gg` to go to the top of the current pane.
 - [ ] Support `G` to go to the bottom of the current pane.
 - [ ] Support `Ctrl + f` to scroll down one page in the request/response pane.
@@ -47,6 +46,7 @@
 
 ## Done
 
+- [x] Fix the position indicator in the status bar adjustment. I want to remove `|` between the pane and position indicators as they are related. The new look will be like `([http status code] [message] | [turn around time] |) [mode] | [pane] [line:column])`. The position indicator should be aligned to the right of the status bar.
 - [x] Allow ex commands in response pane.
 - [x] Refactor the view_model.rs. It's too large and too monolithic. Break it down into smaller components for better maintainability.
 - [x] Reduce flickering. It's happening all over. The scope of rendering must be limited to the area that has changed, not the whole screen. Hide cursor before the screen refresh and restore it after the refresh to avoid flickering.

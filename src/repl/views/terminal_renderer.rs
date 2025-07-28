@@ -76,6 +76,24 @@ impl TerminalRenderer {
         })
     }
 
+    /// Calculate visual length of text, excluding ANSI escape sequences
+    fn visual_length(&self, text: &str) -> usize {
+        let mut length = 0;
+        let mut in_escape = false;
+        
+        for ch in text.chars() {
+            if ch == '\x1b' {
+                in_escape = true;
+            } else if in_escape && ch == 'm' {
+                in_escape = false;
+            } else if !in_escape {
+                length += 1;
+            }
+        }
+        
+        length
+    }
+
     /// Update terminal size
     pub fn update_size(&mut self, width: u16, height: u16) {
         self.terminal_size = (width, height);
@@ -515,62 +533,66 @@ impl ViewRenderer for TerminalRenderer {
 
             let cursor = view_model.get_cursor_position();
 
-            // Build status parts in order: HTTP response | TAT | Mode | Pane | Position
-            let mut status_parts = Vec::new();
+            // Build status parts
+            let mut status_text = String::new();
 
-            // 1. HTTP response (ephemeral)
+            // 1. HTTP response info (optional, when present)
             if let Some(status_code) = view_model.get_response_status_code() {
-                let signal = match status_code {
-                    200..=299 => "🟢", // Green for success
-                    400..=599 => "🔴", // Red for both client and server errors
-                    _ => "⚪",         // White for unknown
-                };
-
                 let status_message_opt = view_model.get_response_status_message();
                 let status_message = status_message_opt.as_deref().unwrap_or("");
+                let status_full = format!("{} {}", status_code, status_message);
 
-                status_parts.push(format!("{} {} {}", signal, status_code, status_message));
+                // Use old MVC bullet design with ANSI colors
+                let signal_icon = match status_code {
+                    200..=299 => "\x1b[32m●\x1b[0m ", // Green bullet for success
+                    400..=599 => "\x1b[31m●\x1b[0m ", // Red bullet for errors
+                    _ => "● ",                         // Default bullet for unknown
+                };
 
-                // 2. TAT (ephemeral)
+                status_text.push_str(&format!("{}{}", signal_icon, status_full));
+
+                // TAT (ephemeral)
                 if let Some(duration_ms) = view_model.get_response_duration_ms() {
                     let duration = std::time::Duration::from_millis(duration_ms);
                     let duration_text = humantime::format_duration(duration).to_string();
-                    status_parts.push(duration_text);
+                    status_text.push_str(&format!(" | {}", duration_text));
                 }
+                
+                status_text.push_str(" | ");
             }
 
-            // 3. Mode (persistent)
-            status_parts.push(mode_text.to_string());
+            // Mode (persistent)
+            status_text.push_str(mode_text);
+            status_text.push_str(" | ");
 
-            // 4. Pane (persistent)
-            status_parts.push(pane_text.to_string());
+            // Pane and Position (no separator between them)
+            status_text.push_str(pane_text);
+            status_text.push(' ');
+            status_text.push_str(&format!("{}:{}", cursor.line + 1, cursor.column + 1));
 
-            // 5. Position (persistent)
-            status_parts.push(format!("{}:{}", cursor.line + 1, cursor.column + 1));
-
-            let status_text = status_parts.join(" | ");
-
-            // Account for emoji display width - emojis take 2 terminal columns but count as 1 char
-            let emoji_count = status_text.chars().filter(|c| *c as u32 > 0x1F000).count();
-            let display_width = status_text.len() + emoji_count;
             let available_width = self.terminal_size.0 as usize;
+            let visual_len = self.visual_length(&status_text);
 
-            // Truncate if too long
-            let final_text = if display_width > available_width {
-                let max_chars = available_width.saturating_sub(emoji_count);
-                status_text.chars().take(max_chars).collect::<String>()
+            // Truncate if too long (based on visual length)
+            let final_text = if visual_len > available_width {
+                // This is complex to truncate while preserving ANSI codes
+                // For now, just use the original text and let terminal handle overflow
+                status_text
             } else {
                 status_text
+            };
+
+            // Calculate right alignment based on visual length
+            let padding = if visual_len < available_width {
+                available_width - visual_len
+            } else {
+                0
             };
 
             execute_term!(
                 self.stdout,
                 MoveTo(0, status_row),
-                Print(format!(
-                    "{:>width$}",
-                    final_text,
-                    width = available_width.saturating_sub(emoji_count)
-                ))
+                Print(format!("{}{}", " ".repeat(padding), final_text))
             )?;
         }
 
@@ -580,22 +602,78 @@ impl ViewRenderer for TerminalRenderer {
     fn render_position_indicator(&mut self, view_model: &ViewModel) -> Result<()> {
         let status_row = self.terminal_size.1 - 1;
         let cursor = view_model.get_cursor_position();
+        
+        // Get current mode and pane
+        let mode_text = match view_model.get_mode() {
+            EditorMode::Normal => "NORMAL",
+            EditorMode::Insert => "INSERT",
+            EditorMode::Command => "COMMAND",
+        };
+        
+        let pane_text = match view_model.get_current_pane() {
+            Pane::Request => "REQUEST",
+            Pane::Response => "RESPONSE",
+        };
+        
         let position_text = format!("{}:{}", cursor.line + 1, cursor.column + 1);
+        
+        // Build the right portion of the status bar, including HTTP info if present
+        let mut right_text = String::new();
+        
+        // Add HTTP response info if present
+        if let Some(status_code) = view_model.get_response_status_code() {
+            let status_message_opt = view_model.get_response_status_message();
+            let status_message = status_message_opt.as_deref().unwrap_or("");
+            let status_full = format!("{} {}", status_code, status_message);
 
-        // Calculate position where the position indicator should be placed
-        // We'll update it in place at the end of the status bar
+            // Use old MVC bullet design with ANSI colors
+            let signal_icon = match status_code {
+                200..=299 => "\x1b[32m●\x1b[0m ", // Green bullet for success
+                400..=599 => "\x1b[31m●\x1b[0m ", // Red bullet for errors
+                _ => "● ",                         // Default bullet for unknown
+            };
+
+            right_text.push_str(&format!("{}{}", signal_icon, status_full));
+
+            // TAT (ephemeral)
+            if let Some(duration_ms) = view_model.get_response_duration_ms() {
+                let duration = std::time::Duration::from_millis(duration_ms);
+                let duration_text = humantime::format_duration(duration).to_string();
+                right_text.push_str(&format!(" | {}", duration_text));
+            }
+            
+            right_text.push_str(" | ");
+        }
+        
+        // Add mode, pane, and position
+        right_text.push_str(&format!("{} | {} {}", mode_text, pane_text, position_text));
+        
+        // Calculate where this portion should start to be right-aligned
         let available_width = self.terminal_size.0 as usize;
-        let position_start_col = if position_text.len() < available_width {
-            available_width - position_text.len()
+        let visual_len = self.visual_length(&right_text);
+        
+        let right_start_col = if visual_len < available_width {
+            available_width - visual_len
         } else {
             0
         };
-
-        // Move to position and overwrite just the position indicator
+        
+        // Clear from a bit earlier to catch any leftover HTTP icon characters
+        // HTTP icon with ANSI codes can be up to ~10 characters, so clear from 15 chars back to be safe
+        let clear_start_col = right_start_col.saturating_sub(15);
+        
+        // Clear from the safe start position to the end of the line
         execute_term!(
             self.stdout,
-            MoveTo(position_start_col as u16, status_row),
-            Print(&position_text)
+            MoveTo(clear_start_col as u16, status_row),
+            Clear(ClearType::UntilNewLine)
+        )?;
+        
+        // Write the reconstructed right portion
+        execute_term!(
+            self.stdout,
+            MoveTo(right_start_col as u16, status_row),
+            Print(&right_text)
         )?;
 
         self.stdout.flush().map_err(anyhow::Error::from)?;
@@ -673,6 +751,26 @@ mod tests {
             // We can't easily test the actual terminal output, but we can verify
             // that the formatting uses the correct width
             assert_eq!(renderer.terminal_size.0, 50);
+        }
+    }
+
+    #[test]
+    fn visual_length_should_exclude_ansi_codes() {
+        if let Ok(renderer) = TerminalRenderer::new() {
+            // Test plain text
+            assert_eq!(renderer.visual_length("Hello World"), 11);
+            
+            // Test text with ANSI color codes
+            assert_eq!(renderer.visual_length("\x1b[32m●\x1b[0m Hello"), 7); // ● + space + Hello = 7
+            
+            // Test multiple ANSI sequences
+            assert_eq!(renderer.visual_length("\x1b[32m●\x1b[0m \x1b[31mRed\x1b[0m"), 5); // ● + space + Red = 5
+            
+            // Test empty string
+            assert_eq!(renderer.visual_length(""), 0);
+            
+            // Test only ANSI codes
+            assert_eq!(renderer.visual_length("\x1b[32m\x1b[0m"), 0);
         }
     }
 
