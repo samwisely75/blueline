@@ -192,10 +192,22 @@ impl TerminalRenderer {
                 None => {
                     // Special case: always show line number 1 in request pane
                     if pane == Pane::Request && row == 0 {
-                        self.render_line_with_number(terminal_row, Some(1), "", line_num_width, false)?;
+                        self.render_line_with_number(
+                            terminal_row,
+                            Some(1),
+                            "",
+                            line_num_width,
+                            false,
+                        )?;
                     } else {
                         // Beyond content - show tilde
-                        self.render_line_with_number(terminal_row, None, "", line_num_width, false)?;
+                        self.render_line_with_number(
+                            terminal_row,
+                            None,
+                            "",
+                            line_num_width,
+                            false,
+                        )?;
                     }
                 }
             }

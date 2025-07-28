@@ -2,13 +2,8 @@
 
 ## Ready to Develop
 
-- [ ] Restore the Cucumber test capability. It's in the `test_archived` directory. Put it back as integration test and calibrate it to the current codebase.
-
 ## Backlog
 
-- [ ] Make a list of supported commands and their descriptions in docs/COMMANDS.md.
-- [ ] Fix background scrolling issue - still occurring despite terminal configuration and alternate screen buffer setup.
-- [ ] Print details of the request and response in the beginning of the response pane, when the verbose mode is enabled by `-v` command args. The format is detailed in the monolithic version of the code in the main.rs in the `master` branch (I believe), namely `print_request` and `print_response`.
 - [ ] Support `gg` to go to the top of the current pane.
 - [ ] Support `G` to go to the bottom of the current pane.
 - [ ] Support `Ctrl + f` to scroll down one page in the request/response pane.
@@ -16,7 +11,6 @@
 - [ ] Support `Ctrl + d` to scroll down half a page in the request/response pane.
 - [ ] Support `Ctrl + u` to scroll up half a page in the request/response pane.
 - [ ] Show "Executing..." in the status bar when the request is being processed. The response pane should be cleared and the request pane should be disabled until the response is received.
-- [ ] Revert the HTTP status icon to the original design in the MVC code.
 - [ ] Dim the Status Bar when it's not in focus to reduce visual clutter.
 - [ ] Support `w` to skip to the next word in the request/response buffer.
 - [ ] Rename command terminology for clarity: h/j/k/l as "motions", i/a/A as "editing commands", :q/:w as "ex commands", Ctrl+C as "application commands"
@@ -42,9 +36,14 @@
 - [ ] Support `:r` to show/hide the response pane.
 - [ ] Optimize memory usage for large response content (>10MB). Implement lazy display cache building and virtual scrolling to prevent memory duplication in display cache.
 - [ ] Implement streaming/chunked response handling for very large HTTP responses to avoid loading entire content into memory.
+- [ ] Fix background scrolling issue - still occurring despite terminal configuration and alternate screen buffer setup.
+- [ ] Print details of the request and response in the beginning of the response pane, when the verbose mode is enabled by `-v` command args. The format is detailed in the monolithic version of the code in the main.rs in the `master` branch (I believe), namely `print_request` and `print_response`.
 
 ## Done
 
+- [x] Revert the HTTP status icon to the original design in the MVC code.
+- [x] Make a list of supported commands and their descriptions in docs/COMMANDS.md.
+- [x] Restore the Cucumber test capability. It's in the `test_archived` directory. Put it back as integration test and calibrate it to the current codebase.
 - [x] Show line number 1 in the request pane at all the time.
 - [x] Fix the position indicator in the status bar adjustment. I want to remove `|` between the pane and position indicators as they are related. The new look will be like `([http status code] [message] | [turn around time] |) [mode] | [pane] [line:column])`. The position indicator should be aligned to the right of the status bar.
 - [x] Allow ex commands in response pane.
