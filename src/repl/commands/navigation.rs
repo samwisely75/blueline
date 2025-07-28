@@ -159,10 +159,10 @@ impl Command for ScrollRightCommand {
     }
 }
 
-/// Enter G micro mode on first 'g' press
-pub struct EnterGModeCommand;
+/// Enter G prefix mode on first 'g' press
+pub struct EnterGPrefixCommand;
 
-impl Command for EnterGModeCommand {
+impl Command for EnterGPrefixCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('g'))
             && context.state.current_mode == EditorMode::Normal
@@ -170,11 +170,11 @@ impl Command for EnterGModeCommand {
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::mode_change(EditorMode::GMode)])
+        Ok(vec![CommandEvent::mode_change(EditorMode::GPrefix)])
     }
 
     fn name(&self) -> &'static str {
-        "EnterGMode"
+        "EnterGPrefix"
     }
 }
 
@@ -184,7 +184,7 @@ pub struct GoToTopCommand;
 impl Command for GoToTopCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('g'))
-            && context.state.current_mode == EditorMode::GMode
+            && context.state.current_mode == EditorMode::GPrefix
             && event.modifiers.is_empty()
     }
 
@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn enter_g_mode_should_be_relevant_for_g_in_normal_mode() {
         let context = create_test_context(EditorMode::Normal);
-        let cmd = EnterGModeCommand;
+        let cmd = EnterGPrefixCommand;
         let event = create_test_key_event(KeyCode::Char('g'));
 
         assert!(cmd.is_relevant(&context, &event));
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn enter_g_mode_should_not_be_relevant_in_insert_mode() {
         let context = create_test_context(EditorMode::Insert);
-        let cmd = EnterGModeCommand;
+        let cmd = EnterGPrefixCommand;
         let event = create_test_key_event(KeyCode::Char('g'));
 
         assert!(!cmd.is_relevant(&context, &event));
@@ -267,8 +267,8 @@ mod tests {
 
     #[test]
     fn enter_g_mode_should_not_be_relevant_in_g_mode() {
-        let context = create_test_context(EditorMode::GMode);
-        let cmd = EnterGModeCommand;
+        let context = create_test_context(EditorMode::GPrefix);
+        let cmd = EnterGPrefixCommand;
         let event = create_test_key_event(KeyCode::Char('g'));
 
         assert!(!cmd.is_relevant(&context, &event));
@@ -277,17 +277,17 @@ mod tests {
     #[test]
     fn enter_g_mode_should_produce_mode_change_event() {
         let context = create_test_context(EditorMode::Normal);
-        let cmd = EnterGModeCommand;
+        let cmd = EnterGPrefixCommand;
         let event = create_test_key_event(KeyCode::Char('g'));
 
         let events = cmd.execute(event, &context).unwrap();
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0], CommandEvent::mode_change(EditorMode::GMode));
+        assert_eq!(events[0], CommandEvent::mode_change(EditorMode::GPrefix));
     }
 
     #[test]
     fn go_to_top_should_be_relevant_for_g_in_g_mode() {
-        let context = create_test_context(EditorMode::GMode);
+        let context = create_test_context(EditorMode::GPrefix);
         let cmd = GoToTopCommand;
         let event = create_test_key_event(KeyCode::Char('g'));
 
@@ -314,7 +314,7 @@ mod tests {
 
     #[test]
     fn go_to_top_should_produce_document_start_and_normal_mode_events() {
-        let context = create_test_context(EditorMode::GMode);
+        let context = create_test_context(EditorMode::GPrefix);
         let cmd = GoToTopCommand;
         let event = create_test_key_event(KeyCode::Char('g'));
 
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn go_to_bottom_should_not_be_relevant_in_g_mode() {
-        let context = create_test_context(EditorMode::GMode);
+        let context = create_test_context(EditorMode::GPrefix);
         let cmd = GoToBottomCommand;
         let event = create_test_key_event(KeyCode::Char('G'));
 

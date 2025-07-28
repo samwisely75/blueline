@@ -4,7 +4,7 @@
 
 ## Backlog
 
-- [ ] Remove headers instruction from the request buffer. For example, the following lines should be removed:
+- [ ] Remove headers instruction examples of the request from all files. For example, the following lines should be removed from the example of the request written in the `movement.feature` file:
 
   ```bash
   GET /api/users
@@ -14,10 +14,11 @@
   {"line": 5}
   {"line": 6}
   {"line": 7}
+  ...
   ```
 
-  from the example of the request written in the `movement.feature` file. This is an extra imaginary feature that the AI came up which I didn't authorize.
-  
+  This is an imaginary feature that the AI hallucinated which I didn't authorize.
+
 - [ ] Support `Ctrl + f` to scroll down one page in the request/response pane.
 - [ ] Support `Ctrl + b` to scroll up one page in the request/response pane.
 - [ ] Support `Ctrl + d` to scroll down half a page in the request/response pane.

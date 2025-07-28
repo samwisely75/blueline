@@ -53,8 +53,8 @@ pub enum EditorMode {
     Normal,
     Insert,
     Command,
-    /// G micro mode - waiting for second character after 'g' press
-    GMode,
+    /// G prefix mode - waiting for second character after 'g' press
+    GPrefix,
 }
 
 #[cfg(test)]

@@ -326,7 +326,7 @@ impl BluelineWorld {
             EditorMode::Normal => Mode::Normal,
             EditorMode::Insert => Mode::Insert,
             EditorMode::Command => Mode::Command,
-            EditorMode::GMode => Mode::Normal, // Treat G mode as normal for testing
+            EditorMode::GPrefix => Mode::Normal, // Treat G prefix mode as normal for testing
         };
 
         // Update pane

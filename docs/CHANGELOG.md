@@ -27,18 +27,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **New Navigation Command**: Implemented `gg` command to go to the top of the current pane
-- **G Micro Mode**: Added EditorMode::GMode to handle Vim-style 'g' prefix commands
+- **G Prefix Mode**: Added EditorMode::GPrefix to handle Vim-style 'g' prefix commands
 - **Document Navigation**: Added move_cursor_to_document_start() and move_cursor_to_document_end() methods
 
 ### Implementation Details
-- Two new command structs: EnterGModeCommand and GoToTopCommand
+- Two new command structs: EnterGPrefixCommand and GoToTopCommand
 - Enhanced MovementDirection enum with DocumentStart and DocumentEnd variants
 - Updated controller to handle document-level cursor movements
 - Comprehensive unit tests covering all new functionality
 - Integration test validation ensuring proper behavior
 
 ### Technical
-- Added GMode support to terminal renderer for proper cursor display
+- Added GPrefix support to terminal renderer for proper cursor display
 - Updated test framework to handle new movement directions
 - Maintains full compatibility with existing navigation commands
 

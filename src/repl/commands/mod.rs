@@ -58,7 +58,7 @@ pub use mode::{
     InsertAtBeginningOfLineCommand,
 };
 pub use navigation::{
-    EnterGModeCommand, GoToBottomCommand, GoToTopCommand, MoveCursorDownCommand,
+    EnterGPrefixCommand, GoToBottomCommand, GoToTopCommand, MoveCursorDownCommand,
     MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand, ScrollLeftCommand,
     ScrollRightCommand,
 };
@@ -82,7 +82,7 @@ impl CommandRegistry {
             // G mode commands (high priority - must be processed before regular g handling)
             Box::new(GoToTopCommand),
             Box::new(GoToBottomCommand),
-            Box::new(EnterGModeCommand),
+            Box::new(EnterGPrefixCommand),
             // Scroll commands (higher priority than regular movement)
             Box::new(ScrollLeftCommand),
             Box::new(ScrollRightCommand),
