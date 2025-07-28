@@ -35,6 +35,14 @@ pub trait ViewRenderer {
     /// Render only specific pane
     fn render_pane(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()>;
 
+    /// Render partial pane from start_line to bottom of visible area
+    fn render_pane_partial(
+        &mut self,
+        view_model: &ViewModel,
+        pane: Pane,
+        start_line: usize,
+    ) -> Result<()>;
+
     /// Update cursor position only
     fn render_cursor(&mut self, view_model: &ViewModel) -> Result<()>;
 
@@ -83,6 +91,7 @@ impl TerminalRenderer {
         line_num_width: usize,
         is_continuation: bool,
     ) -> Result<()> {
+        // Just move cursor, don't hide it here (should be hidden by caller)
         execute_term!(self.stdout, MoveTo(0, row))?;
 
         if let Some(num) = line_number {
@@ -112,8 +121,19 @@ impl TerminalRenderer {
             execute_term!(self.stdout, ResetColor)?;
         }
 
-        // The ViewModel now handles horizontal scrolling, so we can display the text as-is
-        execute_term!(self.stdout, Print(text))?;
+        // Calculate how much space is available for text after line number
+        let used_width = line_num_width + 1; // line number + space
+        let available_width = (self.terminal_size.0 as usize).saturating_sub(used_width);
+
+        // Truncate text to fit within terminal width to prevent overlap
+        let display_text = if text.chars().count() > available_width {
+            text.chars().take(available_width).collect::<String>()
+        } else {
+            text.to_string()
+        };
+
+        // Display the (possibly truncated) text
+        execute_term!(self.stdout, Print(display_text))?;
 
         // Clear rest of line
         execute_term!(self.stdout, Clear(ClearType::UntilNewLine))?;
@@ -204,6 +224,9 @@ impl ViewRenderer for TerminalRenderer {
     }
 
     fn render_full(&mut self, view_model: &ViewModel) -> Result<()> {
+        // Hide cursor before screen refresh to avoid flickering
+        execute_term!(self.stdout, crossterm::cursor::Hide)?;
+
         execute_term!(self.stdout, Clear(ClearType::All))?;
 
         let (request_height, response_start, response_height) =
@@ -229,7 +252,7 @@ impl ViewRenderer for TerminalRenderer {
         // Render status bar
         self.render_status_bar(view_model)?;
 
-        // Render cursor
+        // Render cursor (this will show cursor in correct position)
         self.render_cursor(view_model)?;
 
         self.stdout.flush().map_err(anyhow::Error::from)?;
@@ -237,6 +260,9 @@ impl ViewRenderer for TerminalRenderer {
     }
 
     fn render_pane(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()> {
+        // Hide cursor before rendering to reduce flickering
+        execute_term!(self.stdout, Hide)?;
+
         let (request_height, response_start, response_height) =
             self.get_pane_boundaries(view_model);
 
@@ -253,6 +279,101 @@ impl ViewRenderer for TerminalRenderer {
                         response_start,
                         response_height,
                     )?;
+                }
+            }
+        }
+
+        self.render_cursor(view_model)?;
+        self.stdout.flush().map_err(anyhow::Error::from)?;
+        Ok(())
+    }
+
+    fn render_pane_partial(
+        &mut self,
+        view_model: &ViewModel,
+        pane: Pane,
+        start_line: usize,
+    ) -> Result<()> {
+        // Hide cursor before rendering to reduce flickering
+        execute_term!(self.stdout, Hide)?;
+
+        let (request_height, response_start, response_height) =
+            self.get_pane_boundaries(view_model);
+
+        match pane {
+            Pane::Request => {
+                // Calculate the starting row for the partial redraw
+                let display_lines = view_model.get_display_lines_for_rendering(
+                    pane,
+                    start_line,
+                    request_height as usize - start_line,
+                );
+                let line_num_width = view_model.get_line_number_width(pane);
+
+                for (idx, display_data) in display_lines.iter().enumerate() {
+                    let terminal_row = start_line as u16 + idx as u16;
+                    if terminal_row >= request_height {
+                        break;
+                    }
+
+                    match display_data {
+                        Some((content, line_number, is_continuation)) => {
+                            self.render_line_with_number(
+                                terminal_row,
+                                *line_number,
+                                content,
+                                line_num_width,
+                                *is_continuation,
+                            )?;
+                        }
+                        None => {
+                            self.render_line_with_number(
+                                terminal_row,
+                                None,
+                                "",
+                                line_num_width,
+                                false,
+                            )?;
+                        }
+                    }
+                }
+            }
+            Pane::Response => {
+                if view_model.get_response_status_code().is_some() {
+                    let display_lines = view_model.get_display_lines_for_rendering(
+                        pane,
+                        start_line,
+                        response_height as usize - start_line,
+                    );
+                    let line_num_width = view_model.get_line_number_width(pane);
+
+                    for (idx, display_data) in display_lines.iter().enumerate() {
+                        let terminal_row = response_start + start_line as u16 + idx as u16;
+                        if terminal_row >= response_start + response_height {
+                            break;
+                        }
+
+                        match display_data {
+                            Some((content, line_number, is_continuation)) => {
+                                self.render_line_with_number(
+                                    terminal_row,
+                                    *line_number,
+                                    content,
+                                    line_num_width,
+                                    *is_continuation,
+                                )?;
+                            }
+                            None => {
+                                self.render_line_with_number(
+                                    terminal_row,
+                                    None,
+                                    "",
+                                    line_num_width,
+                                    false,
+                                )?;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -351,6 +472,8 @@ impl ViewRenderer for TerminalRenderer {
         if view_model.get_mode() == EditorMode::Command {
             let ex_command_text = format!(":{}", view_model.get_ex_command_buffer());
             execute_term!(self.stdout, MoveTo(0, status_row), Print(&ex_command_text))?;
+            // Show cursor in command mode for command line editing
+            execute_term!(self.stdout, Show)?;
         } else {
             // Show normal status information
             let mode_text = match view_model.get_mode() {
@@ -437,6 +560,9 @@ impl ViewRenderer for TerminalRenderer {
             }
             ViewEvent::PaneRedrawRequired { pane } => {
                 self.render_pane(view_model, *pane)?;
+            }
+            ViewEvent::PartialPaneRedrawRequired { pane, start_line } => {
+                self.render_pane_partial(view_model, *pane, *start_line)?;
             }
             ViewEvent::StatusBarUpdateRequired => {
                 self.render_status_bar(view_model)?;

@@ -9,16 +9,22 @@ use crossterm::event::KeyEvent;
 /// Events emitted when view updates are needed
 #[derive(Debug, Clone, PartialEq)]
 pub enum ViewEvent {
-    /// Full screen redraw required
+    /// Full screen redraw required (most expensive - terminal resize, etc)
     FullRedrawRequired,
 
-    /// Specific pane needs redrawing
+    /// Specific pane needs full redrawing (scrolling, major content change)
     PaneRedrawRequired { pane: Pane },
+
+    /// Redraw from a specific line to bottom of visible area (for wrapped line edits)
+    PartialPaneRedrawRequired {
+        pane: Pane,
+        start_line: usize, // Logical line number
+    },
 
     /// Status bar needs updating
     StatusBarUpdateRequired,
 
-    /// Cursor position needs updating
+    /// Only cursor position/style needs updating (cheapest)
     CursorUpdateRequired { pane: Pane },
 
     /// Scroll position changed

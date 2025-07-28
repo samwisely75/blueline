@@ -2,14 +2,15 @@
 
 ## Ready to Develop
 
-- [ ] Reduce flickering. It's happening all over. The scope of rendering must be limited to the area that has changed, not the whole screen. Hide cursor before the screen refresh and restore it after the refresh to avoid flickering.
 - [ ] Allow ex commands in response pane.
 - [ ] Refactor the view_model.rs. It's too large and too monolithic. Break it down into smaller components for better maintainability.
 - [ ] Restore the Cucumber test capability. It's in the `test_archived` directory. Put it back as integration test and calibrate it to the current codebase.
 
 ## Backlog
 
+- [ ] Make a list of supported commands and their descriptions in docs/COMMANDS.md.
 - [ ] Fix background scrolling issue - still occurring despite terminal configuration and alternate screen buffer setup.
+- [ ] Print details of the request and response in the beginning of the response pane, when the verbose mode is enabled by `-v` command args. The format is detailed in the monolithic version of the code in the main.rs in the `master` branch.
 - [ ] Support `gg` to go to the top of the current pane.
 - [ ] Support `G` to go to the bottom of the current pane.
 - [ ] Support `Ctrl + f` to scroll down one page in the request/response pane.
@@ -46,6 +47,7 @@
 
 ## Done
 
+- [x] Reduce flickering. It's happening all over. The scope of rendering must be limited to the area that has changed, not the whole screen. Hide cursor before the screen refresh and restore it after the refresh to avoid flickering.
 - [x] Support horizontal scrolling in the request/response pane. Use Shift+Left/Right or Ctrl+Left/Right arrow keys to scroll horizontally by 5 characters. Cursor automatically scrolls into view when moving beyond visible area.
 - [x] Change cursor shape when switching between normal (block), command (underline), and insert (bar) modes.
 - [x] Hide cursor when it is switched to the command mode. Restore the cursor when it is switched back to the normal mode.

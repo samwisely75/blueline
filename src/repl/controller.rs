@@ -6,7 +6,7 @@
 use crate::cmd_args::CommandLineArgs;
 use crate::repl::{
     commands::{CommandContext, CommandEvent, CommandRegistry, HttpHeaders, ViewModelSnapshot},
-    events::SimpleEventBus,
+    events::{Pane, SimpleEventBus},
     http::parse_request_from_text,
     view_models::ViewModel,
     views::{TerminalRenderer, ViewRenderer},
@@ -116,14 +116,15 @@ impl AppController {
                         {
                             tracing::debug!("Command events generated: {:?}", events);
                             if !events.is_empty() {
-                                // Apply events to view model
+                                // Apply events to view model (this will emit appropriate ViewEvents)
                                 for event in events {
                                     self.apply_command_event(event).await?;
                                 }
 
-                                // Render after applying events (if not quitting)
+                                // Process view events for selective rendering (if not quitting)
                                 if !self.should_quit {
-                                    self.view_renderer.render_full(&self.view_model)?;
+                                    let view_events = self.view_model.collect_pending_view_events();
+                                    self.process_view_events(view_events)?;
                                 }
                             }
                         }
@@ -302,6 +303,83 @@ impl AppController {
     /// Get mutable reference to view model (for testing)
     pub fn view_model_mut(&mut self) -> &mut ViewModel {
         &mut self.view_model
+    }
+
+    /// Process view events for selective rendering instead of always doing full redraws
+    fn process_view_events(
+        &mut self,
+        view_events: Vec<crate::repl::events::ViewEvent>,
+    ) -> Result<()> {
+        use crate::repl::events::ViewEvent;
+
+        // Group events to avoid redundant renders
+        let mut needs_full_redraw = false;
+        let mut needs_status_bar = false;
+        let mut needs_cursor_update = false;
+        let mut panes_to_redraw = std::collections::HashSet::new();
+        let mut partial_redraws: std::collections::HashMap<Pane, usize> =
+            std::collections::HashMap::new();
+
+        for event in view_events {
+            match event {
+                ViewEvent::FullRedrawRequired => {
+                    needs_full_redraw = true;
+                    // Full redraw overrides all other events
+                    break;
+                }
+                ViewEvent::PaneRedrawRequired { pane } => {
+                    panes_to_redraw.insert(pane);
+                    // Full pane redraw overrides partial redraws
+                    partial_redraws.remove(&pane);
+                }
+                ViewEvent::PartialPaneRedrawRequired { pane, start_line } => {
+                    // Only add partial redraw if we're not already doing a full pane redraw
+                    if !panes_to_redraw.contains(&pane) {
+                        partial_redraws
+                            .entry(pane)
+                            .and_modify(|line| *line = (*line).min(start_line))
+                            .or_insert(start_line);
+                    }
+                }
+                ViewEvent::StatusBarUpdateRequired => {
+                    needs_status_bar = true;
+                }
+                ViewEvent::CursorUpdateRequired { .. } => {
+                    needs_cursor_update = true;
+                }
+                ViewEvent::ScrollChanged { pane, .. } => {
+                    panes_to_redraw.insert(pane);
+                    // Scroll requires full pane redraw
+                    partial_redraws.remove(&pane);
+                }
+            }
+        }
+
+        // Process events in order of efficiency
+        if needs_full_redraw {
+            self.view_renderer.render_full(&self.view_model)?;
+        } else {
+            // Selective rendering
+            for pane in panes_to_redraw {
+                self.view_renderer.render_pane(&self.view_model, pane)?;
+            }
+
+            // Handle partial pane redraws
+            for (pane, start_line) in partial_redraws {
+                self.view_renderer
+                    .render_pane_partial(&self.view_model, pane, start_line)?;
+            }
+
+            if needs_status_bar {
+                self.view_renderer.render_status_bar(&self.view_model)?;
+            }
+
+            if needs_cursor_update {
+                self.view_renderer.render_cursor(&self.view_model)?;
+            }
+        }
+
+        Ok(())
     }
 }
 

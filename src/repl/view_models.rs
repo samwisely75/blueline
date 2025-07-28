@@ -50,6 +50,9 @@ pub struct ViewModel {
 
     // Event bus for communication
     event_bus: EventBusOption,
+
+    // Pending view events for controller to process
+    pending_view_events: Vec<ViewEvent>,
 }
 
 impl ViewModel {
@@ -92,6 +95,7 @@ impl ViewModel {
             session_headers: HashMap::new(),
             verbose: false,
             event_bus: None,
+            pending_view_events: Vec::new(),
         };
 
         // Ensure display cursors are synced with logical cursors at startup
@@ -151,6 +155,7 @@ impl ViewModel {
                 new_display_pos
             );
             self.set_display_cursor(current_pane, new_display_pos)?;
+            self.ensure_cursor_visible(current_pane);
             self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
         } else if current_display_pos.0 > 0 {
             // Move to end of previous display line
@@ -163,6 +168,7 @@ impl ViewModel {
                     new_display_pos
                 );
                 self.set_display_cursor(current_pane, new_display_pos)?;
+                self.ensure_cursor_visible(current_pane);
                 self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
             }
         } else {
@@ -200,6 +206,7 @@ impl ViewModel {
                     new_display_pos
                 );
                 self.set_display_cursor(current_pane, new_display_pos)?;
+                self.ensure_cursor_visible(current_pane);
                 self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
             } else if current_display_pos.0 + 1 < display_cache.display_line_count() {
                 // Move to beginning of next display line
@@ -209,6 +216,7 @@ impl ViewModel {
                     new_display_pos
                 );
                 self.set_display_cursor(current_pane, new_display_pos)?;
+                self.ensure_cursor_visible(current_pane);
                 self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
             } else {
                 tracing::debug!("move_cursor_right: already at end, no movement");
@@ -230,6 +238,7 @@ impl ViewModel {
             display_cache.move_up(current_display_pos.0, current_display_pos.1)
         {
             self.set_display_cursor(current_pane, new_display_pos)?;
+            self.ensure_cursor_visible(current_pane);
             self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
         }
 
@@ -269,6 +278,7 @@ impl ViewModel {
                 logical_pos.column
             );
 
+            self.ensure_cursor_visible(current_pane);
             self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
         } else {
             tracing::debug!("move_cursor_down: move_down FAILED - no new position available");
@@ -346,7 +356,9 @@ impl ViewModel {
     pub fn switch_pane(&mut self, pane: Pane) -> Result<()> {
         if let Some(event) = self.editor.set_current_pane(pane) {
             self.emit_model_event(event);
-            self.emit_view_event(ViewEvent::FullRedrawRequired);
+            // When switching panes, we only need to update cursor and status bar
+            self.emit_view_event(ViewEvent::StatusBarUpdateRequired);
+            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane });
         }
         Ok(())
     }
@@ -355,7 +367,11 @@ impl ViewModel {
     pub fn change_mode(&mut self, mode: EditorMode) -> Result<()> {
         if let Some(event) = self.editor.set_mode(mode) {
             self.emit_model_event(event);
+            // Only emit events for what actually needs updating
             self.emit_view_event(ViewEvent::StatusBarUpdateRequired);
+            self.emit_view_event(ViewEvent::CursorUpdateRequired {
+                pane: self.editor.current_pane(),
+            });
         }
         Ok(())
     }
@@ -383,8 +399,18 @@ impl ViewModel {
         // Ensure cursor is visible after insertion (enables auto-horizontal scroll)
         self.ensure_cursor_visible(Pane::Request);
 
-        self.emit_view_event(ViewEvent::PaneRedrawRequired {
+        // Determine if we need full pane redraw or just partial
+        let cursor_pos = self.request_buffer.cursor();
+        let display_line = self
+            .request_display_cache
+            .logical_to_display_position(cursor_pos.line, cursor_pos.column)
+            .map(|(display_line, _)| display_line)
+            .unwrap_or(0);
+
+        // Use partial redraw from current line to bottom
+        self.emit_view_event(ViewEvent::PartialPaneRedrawRequired {
             pane: Pane::Request,
+            start_line: display_line,
         });
 
         Ok(())
@@ -413,8 +439,18 @@ impl ViewModel {
         // Ensure cursor is visible after insertion (enables auto-horizontal scroll)
         self.ensure_cursor_visible(Pane::Request);
 
-        self.emit_view_event(ViewEvent::PaneRedrawRequired {
+        // Determine if we need full pane redraw or just partial
+        let cursor_pos = self.request_buffer.cursor();
+        let display_line = self
+            .request_display_cache
+            .logical_to_display_position(cursor_pos.line, cursor_pos.column)
+            .map(|(display_line, _)| display_line)
+            .unwrap_or(0);
+
+        // Use partial redraw from current line to bottom
+        self.emit_view_event(ViewEvent::PartialPaneRedrawRequired {
             pane: Pane::Request,
+            start_line: display_line,
         });
 
         Ok(())
@@ -637,9 +673,10 @@ impl ViewModel {
 
         let event = ModelEvent::ResponseReceived { status_code, body };
         self.emit_model_event(event);
-        self.emit_view_event(ViewEvent::PaneRedrawRequired {
-            pane: Pane::Response,
-        });
+
+        // Full redraw is needed when response first appears to draw the blue boundary
+        // This will also update the status bar, so we don't need a separate event
+        self.emit_view_event(ViewEvent::FullRedrawRequired);
     }
 
     /// Set response from HttpResponse object
@@ -675,9 +712,10 @@ impl ViewModel {
 
         let event = ModelEvent::ResponseReceived { status_code, body };
         self.emit_model_event(event);
-        self.emit_view_event(ViewEvent::PaneRedrawRequired {
-            pane: Pane::Response,
-        });
+
+        // Full redraw is needed when response first appears to draw the blue boundary
+        // This will also update the status bar, so we don't need a separate event
+        self.emit_view_event(ViewEvent::FullRedrawRequired);
     }
 
     /// Set HTTP client with custom profile
@@ -935,7 +973,7 @@ impl ViewModel {
             Pane::Response => self.response_display_cursor.0,
         };
 
-        let vertical_scroll_offset = match pane {
+        let old_vertical_scroll_offset = match pane {
             Pane::Request => self.request_scroll_offset.0,
             Pane::Response => self.response_scroll_offset.0,
         };
@@ -945,23 +983,35 @@ impl ViewModel {
             Pane::Response => self.response_pane_height() as usize,
         };
 
-        let visible_start = vertical_scroll_offset;
-        let visible_end = vertical_scroll_offset + pane_height.saturating_sub(1);
+        let visible_start = old_vertical_scroll_offset;
+        let visible_end = old_vertical_scroll_offset + pane_height.saturating_sub(1);
+
+        let mut new_offset = old_vertical_scroll_offset;
 
         // If cursor is above visible area, scroll up
         if cursor_display_line < visible_start {
-            match pane {
-                Pane::Request => self.request_scroll_offset.0 = cursor_display_line,
-                Pane::Response => self.response_scroll_offset.0 = cursor_display_line,
-            }
-        }
-        // If cursor is below visible area, scroll down
-        else if cursor_display_line > visible_end {
-            let new_offset = cursor_display_line.saturating_sub(pane_height.saturating_sub(1));
+            new_offset = cursor_display_line;
             match pane {
                 Pane::Request => self.request_scroll_offset.0 = new_offset,
                 Pane::Response => self.response_scroll_offset.0 = new_offset,
             }
+        }
+        // If cursor is below visible area, scroll down
+        else if cursor_display_line > visible_end {
+            new_offset = cursor_display_line.saturating_sub(pane_height.saturating_sub(1));
+            match pane {
+                Pane::Request => self.request_scroll_offset.0 = new_offset,
+                Pane::Response => self.response_scroll_offset.0 = new_offset,
+            }
+        }
+
+        // Emit scroll event if offset changed
+        if new_offset != old_vertical_scroll_offset {
+            self.emit_view_event(ViewEvent::ScrollChanged {
+                pane,
+                old_offset: old_vertical_scroll_offset,
+                new_offset,
+            });
         }
     }
 
@@ -972,20 +1022,21 @@ impl ViewModel {
             Pane::Response => self.response_display_cursor.1,
         };
 
-        let horizontal_scroll_offset = match pane {
+        let old_horizontal_scroll_offset = match pane {
             Pane::Request => self.request_scroll_offset.1,
             Pane::Response => self.response_scroll_offset.1,
         };
 
         let content_width = self.get_content_width();
-        let visible_start = horizontal_scroll_offset;
-        let visible_end = horizontal_scroll_offset + content_width.saturating_sub(1);
+        let visible_start = old_horizontal_scroll_offset;
+        let visible_end = old_horizontal_scroll_offset + content_width.saturating_sub(1);
 
         // If cursor is to the left of visible area, scroll left
         if cursor_display_col < visible_start {
+            let new_offset = cursor_display_col;
             match pane {
-                Pane::Request => self.request_scroll_offset.1 = cursor_display_col,
-                Pane::Response => self.response_scroll_offset.1 = cursor_display_col,
+                Pane::Request => self.request_scroll_offset.1 = new_offset,
+                Pane::Response => self.response_scroll_offset.1 = new_offset,
             }
         }
         // If cursor is to the right of visible area, scroll right
@@ -996,6 +1047,9 @@ impl ViewModel {
                 Pane::Response => self.response_scroll_offset.1 = new_offset,
             }
         }
+
+        // Note: We don't emit horizontal scroll events as they're handled differently
+        // The view will check scroll offset when rendering
     }
 
     // =================================================================
@@ -1018,11 +1072,20 @@ impl ViewModel {
         }
     }
 
-    /// Emit view event through event bus
+    /// Emit view event through event bus and collect for controller
     fn emit_view_event(&mut self, event: ViewEvent) {
+        // Add to pending events for controller to process
+        self.pending_view_events.push(event.clone());
+
+        // Also emit through event bus if available
         if let Some(event_bus) = &mut self.event_bus {
             event_bus.publish_view_event(event);
         }
+    }
+
+    /// Collect and clear pending view events for controller processing
+    pub fn collect_pending_view_events(&mut self) -> Vec<ViewEvent> {
+        std::mem::take(&mut self.pending_view_events)
     }
 
     // =================================================================
