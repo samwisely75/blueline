@@ -80,6 +80,7 @@ pub enum MovementDirection {
     DocumentEnd,
     WordForward,
     WordBackward,
+    WordEnd,
     ScrollLeft,
     ScrollRight,
     PageDown,

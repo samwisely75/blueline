@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0] - 2025-07-28
+
+### Added
+- Support `b` command to skip to the previous word in the request/response pane
+- Support `e` command to skip to the end of the current/next word in the request/response pane
+- Support `0` and `Home` keys to go to the beginning of the current line in the request/response pane
+- Support `$` and `End` keys to go to the end of the current line in the request/response pane
+- All word and line navigation commands follow Vim behavior and work in both request and response panes
+
+### Changed
+- Line navigation commands (`0`, `$`, `Home`, `End`) now work with logical lines instead of display lines, matching Vim behavior
+- Improved `e` command logic to properly handle word boundaries and cursor positioning
+
 ## [0.20.0] - 2025-07-28
 
 ### Added

@@ -210,10 +210,10 @@ impl AppController {
                             self.view_model.move_cursor_to_next_word()?
                         }
                         MovementDirection::WordBackward => {
-                            tracing::warn!(
-                                "Word backward movement not yet implemented: {:?}",
-                                direction
-                            );
+                            self.view_model.move_cursor_to_previous_word()?
+                        }
+                        MovementDirection::WordEnd => {
+                            self.view_model.move_cursor_to_end_of_word()?
                         }
                     }
                 }

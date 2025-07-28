@@ -181,16 +181,21 @@ impl ViewModel {
     /// Move cursor to end of current line
     pub fn move_cursor_to_end_of_line(&mut self) -> Result<()> {
         let current_pane = self.editor.current_pane();
-        let current_display_pos = self.get_display_cursor(current_pane);
-        let display_cache = self.get_display_cache(current_pane);
+        let current_logical_pos = self.get_cursor_position();
+        
+        // Get the text content for the current pane
+        let text = match current_pane {
+            Pane::Request => self.get_request_text(),
+            Pane::Response => self.get_response_text(),
+        };
 
-        if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
-            let line_length = current_line.content.chars().count();
-            let new_pos = (current_display_pos.0, line_length);
-            self.set_display_cursor(current_pane, new_pos)?;
-            self.ensure_cursor_visible(current_pane);
-            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-            self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+        let lines: Vec<_> = text.lines().collect();
+        
+        if current_logical_pos.line < lines.len() {
+            let line_content = lines[current_logical_pos.line];
+            let line_length = line_content.chars().count();
+            let new_position = LogicalPosition::new(current_logical_pos.line, line_length);
+            self.set_cursor_position(new_position)?;
         }
 
         Ok(())
@@ -198,13 +203,9 @@ impl ViewModel {
 
     /// Move cursor to start of current line
     pub fn move_cursor_to_start_of_line(&mut self) -> Result<()> {
-        let current_pane = self.editor.current_pane();
-        let current_display_pos = self.get_display_cursor(current_pane);
-        let new_pos = (current_display_pos.0, 0);
-        self.set_display_cursor(current_pane, new_pos)?;
-        self.ensure_cursor_visible(current_pane);
-        self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-        self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+        let current_logical_pos = self.get_cursor_position();
+        let new_position = LogicalPosition::new(current_logical_pos.line, 0);
+        self.set_cursor_position(new_position)?;
 
         Ok(())
     }
@@ -511,6 +512,230 @@ impl ViewModel {
         if !moved {
             tracing::debug!(
                 "move_cursor_to_next_word: no next word found, staying at current position"
+            );
+        }
+
+        // Emit events if we moved
+        if moved {
+            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+            self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+        }
+
+        Ok(())
+    }
+
+    /// Move cursor to the beginning of the previous word
+    pub fn move_cursor_to_previous_word(&mut self) -> Result<()> {
+        let current_pane = self.editor.current_pane();
+        let current_display_pos = self.get_display_cursor(current_pane);
+        let display_cache = self.get_display_cache(current_pane);
+
+        tracing::debug!(
+            "move_cursor_to_previous_word: pane={:?}, current_pos={:?}",
+            current_pane,
+            current_display_pos
+        );
+
+        let mut current_line = current_display_pos.0;
+        let mut current_col = current_display_pos.1;
+        let mut moved = false;
+
+        // Loop through display lines backwards to find previous word
+        // Complex control flow with multiple break conditions requires loop/if structure
+        #[allow(clippy::while_let_loop)]
+        loop {
+            if let Some(line_info) = display_cache.get_display_line(current_line) {
+                let chars: Vec<char> = line_info.content.chars().collect();
+
+                // If we're at the beginning of this line, move to previous line
+                if current_col == 0 {
+                    if current_line > 0 {
+                        current_line -= 1;
+                        if let Some(prev_line_info) = display_cache.get_display_line(current_line) {
+                            current_col = prev_line_info.content.chars().count();
+                            continue;
+                        }
+                    }
+                    break; // Already at beginning of buffer
+                }
+
+                let mut pos = current_col.saturating_sub(1);
+
+                // Skip trailing whitespace if we're starting on whitespace
+                if pos < chars.len() && chars[pos].is_whitespace() {
+                    while pos > 0 && chars[pos].is_whitespace() {
+                        pos -= 1;
+                    }
+                    if pos == 0 && chars[pos].is_whitespace() {
+                        let new_pos = (current_line, 0);
+                        tracing::debug!(
+                            "move_cursor_to_previous_word: found beginning at {:?}",
+                            new_pos
+                        );
+                        self.set_display_cursor(current_pane, new_pos)?;
+                        self.ensure_cursor_visible(current_pane);
+                        moved = true;
+                        break;
+                    }
+                }
+
+                // Now we're at the end of a word, skip to beginning
+                if pos < chars.len() && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
+                    while pos > 0 && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
+                        pos -= 1;
+                    }
+                    // If we stopped because of a non-word character, move forward one
+                    if pos < chars.len() && !chars[pos].is_alphanumeric() && chars[pos] != '_' {
+                        pos += 1;
+                    }
+                } else if pos < chars.len()
+                    && !chars[pos].is_alphanumeric()
+                    && chars[pos] != '_'
+                    && !chars[pos].is_whitespace()
+                {
+                    // Skip punctuation
+                    while pos > 0
+                        && !chars[pos].is_alphanumeric()
+                        && chars[pos] != '_'
+                        && !chars[pos].is_whitespace()
+                    {
+                        pos -= 1;
+                    }
+                    // If we stopped because of a word character, that's where we want to be
+                    if pos < chars.len() && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
+                        while pos > 0 && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
+                            pos -= 1;
+                        }
+                        if pos < chars.len() && !chars[pos].is_alphanumeric() && chars[pos] != '_' {
+                            pos += 1;
+                        }
+                    } else {
+                        pos += 1; // Move forward one from punctuation
+                    }
+                }
+
+                let new_pos = (current_line, pos);
+                tracing::debug!("move_cursor_to_previous_word: found word at {:?}", new_pos);
+                self.set_display_cursor(current_pane, new_pos)?;
+                self.ensure_cursor_visible(current_pane);
+                moved = true;
+                break;
+            } else {
+                break;
+            }
+        }
+
+        if !moved {
+            tracing::debug!(
+                "move_cursor_to_previous_word: no previous word found, staying at current position"
+            );
+        }
+
+        // Emit events if we moved
+        if moved {
+            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+            self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+        }
+
+        Ok(())
+    }
+
+    /// Move cursor to the end of the current or next word
+    pub fn move_cursor_to_end_of_word(&mut self) -> Result<()> {
+        let current_pane = self.editor.current_pane();
+        let current_display_pos = self.get_display_cursor(current_pane);
+        let display_cache = self.get_display_cache(current_pane);
+
+        tracing::debug!(
+            "move_cursor_to_end_of_word: pane={:?}, current_pos={:?}",
+            current_pane,
+            current_display_pos
+        );
+
+        let mut current_line = current_display_pos.0;
+        let mut current_col = current_display_pos.1;
+        let mut moved = false;
+
+        // Loop through display lines to find end of word
+        while current_line < display_cache.display_line_count() {
+            if let Some(line_info) = display_cache.get_display_line(current_line) {
+                let chars: Vec<char> = line_info.content.chars().collect();
+
+                // If we're at the end of this line, move to next line
+                if current_col >= chars.len() {
+                    current_line += 1;
+                    current_col = 0;
+                    continue;
+                }
+
+                let mut pos = current_col;
+
+                // If we're already at the end of a word, move forward to find the next word end
+                if pos < chars.len() {
+                    // If we're at the end of a word character, move to next word
+                    if chars[pos].is_alphanumeric() || chars[pos] == '_' {
+                        // Check if we're at the end of the current word
+                        if pos + 1 >= chars.len() || !(chars[pos + 1].is_alphanumeric() || chars[pos + 1] == '_') {
+                            // We're at the end of a word, move to the next word
+                            pos += 1;
+                        }
+                    }
+                    // If we're at the end of punctuation, move to next word  
+                    else if !chars[pos].is_whitespace() {
+                        // Check if we're at the end of punctuation sequence
+                        if pos + 1 >= chars.len() || chars[pos + 1].is_whitespace() || chars[pos + 1].is_alphanumeric() || chars[pos + 1] == '_' {
+                            // We're at the end of punctuation, move to the next word
+                            pos += 1;
+                        }
+                    }
+                }
+
+                // Skip whitespace to find next word
+                while pos < chars.len() && chars[pos].is_whitespace() {
+                    pos += 1;
+                }
+
+                // Now find the end of the current word/punctuation
+                if pos < chars.len() && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
+                    // Move to end of word
+                    while pos < chars.len() && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
+                        pos += 1;
+                    }
+                    // Move back one to be at the last character of the word
+                    pos = pos.saturating_sub(1);
+                } else if pos < chars.len() && !chars[pos].is_whitespace() {
+                    // Move to end of punctuation sequence
+                    while pos < chars.len() && !chars[pos].is_whitespace() && !chars[pos].is_alphanumeric() && chars[pos] != '_' {
+                        pos += 1;
+                    }
+                    // Move back one to be at the last punctuation character
+                    pos = pos.saturating_sub(1);
+                }
+
+                // If we found a valid position on this line and it's different from start
+                if pos < chars.len() && pos != current_col {
+                    let new_pos = (current_line, pos);
+                    tracing::debug!(
+                        "move_cursor_to_end_of_word: found word end at {:?}",
+                        new_pos
+                    );
+                    self.set_display_cursor(current_pane, new_pos)?;
+                    self.ensure_cursor_visible(current_pane);
+                    moved = true;
+                    break;
+                }
+
+                // Move to next line
+                current_line += 1;
+                current_col = 0;
+            } else {
+                break;
+            }
+        }
+
+        if !moved {
+            tracing::debug!(
+                "move_cursor_to_end_of_word: no word end found, staying at current position"
             );
         }
 

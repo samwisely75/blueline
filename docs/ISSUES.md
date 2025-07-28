@@ -1,10 +1,7 @@
 # Issues
 
 ## Ready to Develop
-- [ ] Support `b` to skip to the previous word in the request/response pane.
-- [ ] Support `e` to skip to the end of the current word in the request/response pane.
-- [ ] Support `0` and `Home` to go to the beginning of the current line in the request/response pane.
-- [ ] Support `$` and `End` to go to the end of the current line in the request/response pane.
+- [ ] Maintain the request history and allow users to navigate through it using `Ctrl + p` and `Ctrl + n` to go to the previous and next requests, respectively. The history should be stored in `~/.blueline/history`.
 - [ ] Support `Ctrl + l` to refresh the entire screen.
 - [ ] Support `v` to enter visual mode in the request/response pane and allow other navigation commands to select text.
 - [ ] Support `y` to copy the selected text in the request/response pane to the clipboard.
@@ -21,13 +18,16 @@
 ## Backlog
 
 - [ ] Support syntax highlighting for HTTP requests in the request buffer.
-- [ ] Maintain the request history and allow users to navigate through it using `Ctrl + p` and `Ctrl + n` to go to the previous and next requests, respectively. The history should be stored in `~/.blueline/history`.
 - [ ] Implement memory mapped file to support large response content (>1GB). `mapmem` crate can be used for this purpose.
 - [ ] Fix background scrolling issue - still occurring despite terminal configuration and alternate screen buffer setup.
 - [ ] Print details of the request and response in the beginning of the response pane, when the verbose mode is enabled by `-v` command args. The format is detailed in the monolithic version of the code in the main.rs in the `master` branch (I believe), namely `print_request` and `print_response`.
 
 ## Done
 
+- [x] Support `b` to skip to the previous word in the request/response pane.
+- [x] Support `e` to skip to the end of the current word in the request/response pane.
+- [x] Support `0` and `Home` to go to the beginning of the current line in the request/response pane.
+- [x] Support `$` and `End` to go to the end of the current line in the request/response pane.
 - [x] Support `w` to skip to the next word in the request/response pane.
 - [x] Show "Executing..." in the status bar when the request is being processed. Request execution status tracking prevents multiple simultaneous requests.
 - [x] When in the Command mode, keep the cursor visible in the request pane and change the shape to underline. The cursor is back to block shape when it exits the Command mode. Change the cursor shape in the Status Bar to I-beam when it is in the Command mode.

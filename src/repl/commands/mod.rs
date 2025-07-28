@@ -58,10 +58,11 @@ pub use mode::{
     InsertAtBeginningOfLineCommand,
 };
 pub use navigation::{
-    EnterGPrefixCommand, GoToBottomCommand, GoToTopCommand, MoveCursorDownCommand,
+    BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
+    GoToBottomCommand, GoToTopCommand, HomeKeyCommand, MoveCursorDownCommand,
     MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand, NextWordCommand,
-    ScrollHalfPageDownCommand, ScrollHalfPageUpCommand, ScrollLeftCommand, ScrollPageDownCommand,
-    ScrollPageUpCommand, ScrollRightCommand,
+    PreviousWordCommand, ScrollHalfPageDownCommand, ScrollHalfPageUpCommand, ScrollLeftCommand,
+    ScrollPageDownCommand, ScrollPageUpCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -97,6 +98,12 @@ impl CommandRegistry {
             Box::new(MoveCursorUpCommand),
             Box::new(MoveCursorDownCommand),
             Box::new(NextWordCommand),
+            Box::new(PreviousWordCommand),
+            Box::new(EndOfWordCommand),
+            Box::new(BeginningOfLineCommand),
+            Box::new(EndOfLineCommand),
+            Box::new(HomeKeyCommand),
+            Box::new(EndKeyCommand),
             // Mode commands
             Box::new(EnterInsertModeCommand),
             Box::new(AppendAfterCursorCommand),

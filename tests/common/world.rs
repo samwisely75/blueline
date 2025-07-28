@@ -297,7 +297,9 @@ impl BluelineWorld {
                         MovementDirection::HalfPageUp => {
                             self.view_model.scroll_vertically_by_half_page(-1)?
                         }
-                        MovementDirection::WordForward | MovementDirection::WordBackward => {
+                        MovementDirection::WordForward
+                        | MovementDirection::WordBackward
+                        | MovementDirection::WordEnd => {
                             // Word movements not implemented yet
                         }
                     }

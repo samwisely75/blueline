@@ -331,6 +331,122 @@ impl Command for NextWordCommand {
     }
 }
 
+/// Move to previous word (b command)
+pub struct PreviousWordCommand;
+
+impl Command for PreviousWordCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('b'))
+            && context.state.current_mode == EditorMode::Normal
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(
+            MovementDirection::WordBackward,
+        )])
+    }
+
+    fn name(&self) -> &'static str {
+        "PreviousWord"
+    }
+}
+
+/// Move to end of word (e command)
+pub struct EndOfWordCommand;
+
+impl Command for EndOfWordCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('e'))
+            && context.state.current_mode == EditorMode::Normal
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(MovementDirection::WordEnd)])
+    }
+
+    fn name(&self) -> &'static str {
+        "EndOfWord"
+    }
+}
+
+/// Move to beginning of line (0 command)
+pub struct BeginningOfLineCommand;
+
+impl Command for BeginningOfLineCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('0'))
+            && context.state.current_mode == EditorMode::Normal
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(
+            MovementDirection::LineStart,
+        )])
+    }
+
+    fn name(&self) -> &'static str {
+        "BeginningOfLine"
+    }
+}
+
+/// Move to end of line ($ command)
+pub struct EndOfLineCommand;
+
+impl Command for EndOfLineCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('$'))
+            && context.state.current_mode == EditorMode::Normal
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(MovementDirection::LineEnd)])
+    }
+
+    fn name(&self) -> &'static str {
+        "EndOfLine"
+    }
+}
+
+/// Move to beginning of line (Home key)
+pub struct HomeKeyCommand;
+
+impl Command for HomeKeyCommand {
+    fn is_relevant(&self, _context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Home) && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(
+            MovementDirection::LineStart,
+        )])
+    }
+
+    fn name(&self) -> &'static str {
+        "HomeKey"
+    }
+}
+
+/// Move to end of line (End key)
+pub struct EndKeyCommand;
+
+impl Command for EndKeyCommand {
+    fn is_relevant(&self, _context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::End) && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(MovementDirection::LineEnd)])
+    }
+
+    fn name(&self) -> &'static str {
+        "EndKey"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -756,6 +872,213 @@ mod tests {
         assert_eq!(
             events[0],
             CommandEvent::cursor_move(MovementDirection::WordForward)
+        );
+    }
+
+    // Tests for PreviousWordCommand (b)
+    #[test]
+    fn previous_word_should_be_relevant_for_b_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PreviousWordCommand;
+        let event = create_test_key_event(KeyCode::Char('b'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn previous_word_should_not_be_relevant_for_b_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = PreviousWordCommand;
+        let event = create_test_key_event(KeyCode::Char('b'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn previous_word_should_not_be_relevant_for_b_with_ctrl() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PreviousWordCommand;
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn previous_word_should_produce_word_backward_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PreviousWordCommand;
+        let event = create_test_key_event(KeyCode::Char('b'));
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::WordBackward)
+        );
+    }
+
+    // Tests for EndOfWordCommand (e)
+    #[test]
+    fn end_of_word_should_be_relevant_for_e_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = EndOfWordCommand;
+        let event = create_test_key_event(KeyCode::Char('e'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn end_of_word_should_not_be_relevant_for_e_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = EndOfWordCommand;
+        let event = create_test_key_event(KeyCode::Char('e'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn end_of_word_should_produce_word_end_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = EndOfWordCommand;
+        let event = create_test_key_event(KeyCode::Char('e'));
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::WordEnd)
+        );
+    }
+
+    // Tests for BeginningOfLineCommand (0)
+    #[test]
+    fn beginning_of_line_should_be_relevant_for_zero_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = BeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('0'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn beginning_of_line_should_not_be_relevant_for_zero_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = BeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('0'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn beginning_of_line_should_produce_line_start_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = BeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('0'));
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::LineStart)
+        );
+    }
+
+    // Tests for EndOfLineCommand ($)
+    #[test]
+    fn end_of_line_should_be_relevant_for_dollar_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = EndOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('$'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn end_of_line_should_not_be_relevant_for_dollar_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = EndOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('$'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn end_of_line_should_produce_line_end_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = EndOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('$'));
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::LineEnd)
+        );
+    }
+
+    // Tests for HomeKeyCommand
+    #[test]
+    fn home_key_should_be_relevant_for_home_key() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = HomeKeyCommand;
+        let event = create_test_key_event(KeyCode::Home);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn home_key_should_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = HomeKeyCommand;
+        let event = create_test_key_event(KeyCode::Home);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn home_key_should_produce_line_start_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = HomeKeyCommand;
+        let event = create_test_key_event(KeyCode::Home);
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::LineStart)
+        );
+    }
+
+    // Tests for EndKeyCommand
+    #[test]
+    fn end_key_should_be_relevant_for_end_key() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = EndKeyCommand;
+        let event = create_test_key_event(KeyCode::End);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn end_key_should_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = EndKeyCommand;
+        let event = create_test_key_event(KeyCode::End);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn end_key_should_produce_line_end_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = EndKeyCommand;
+        let event = create_test_key_event(KeyCode::End);
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::LineEnd)
         );
     }
 }
