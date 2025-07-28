@@ -2,8 +2,8 @@
 
 ## Ready to Develop
 
-- [ ] Allow ex commands in response pane.
-- [ ] Refactor the view_model.rs. It's too large and too monolithic. Break it down into smaller components for better maintainability.
+- [ ] Fix the position indicator in the status bar adjusentment. I want to remove `|` between the pane and position indicators as they are related. The new look will be like `([http status code] [message] | [turn around time] |) [mode] | [pane] [line:column])`. The position indicator should be aligned to the right of the status bar.
+- [ ] Show line number 1 in the request pane at all the time.
 - [ ] Restore the Cucumber test capability. It's in the `test_archived` directory. Put it back as integration test and calibrate it to the current codebase.
 
 ## Backlog
@@ -47,6 +47,8 @@
 
 ## Done
 
+- [x] Allow ex commands in response pane.
+- [x] Refactor the view_model.rs. It's too large and too monolithic. Break it down into smaller components for better maintainability.
 - [x] Reduce flickering. It's happening all over. The scope of rendering must be limited to the area that has changed, not the whole screen. Hide cursor before the screen refresh and restore it after the refresh to avoid flickering.
 - [x] Support horizontal scrolling in the request/response pane. Use Shift+Left/Right or Ctrl+Left/Right arrow keys to scroll horizontally by 5 characters. Cursor automatically scrolls into view when moving beyond visible area.
 - [x] Change cursor shape when switching between normal (block), command (underline), and insert (bar) modes.
