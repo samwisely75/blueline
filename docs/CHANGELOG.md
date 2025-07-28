@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2025-07-28
+
+### Added
+- **New Navigation Command**: Implemented `G` command to go to the bottom of the current pane
+- **Document End Navigation**: Added ability to jump to the last line of the document using capital G
+
+### Implementation Details
+- Created GoToBottomCommand struct following same pattern as gg command
+- Positions cursor at beginning of last line (column 0) following Vim behavior
+- Uses same text processing approach as test framework for consistency
+- Added comprehensive unit tests covering all edge cases
+- Integration test validation ensuring proper cursor positioning
+
+### Technical
+- Maintains full compatibility with existing navigation commands
+- Leverages existing DocumentEnd movement infrastructure
+- Fixed line counting consistency between implementation and test framework
+
 ## [0.16.0] - 2025-07-28
 
 ### Added

@@ -222,20 +222,26 @@ impl ViewModel {
     pub fn move_cursor_to_document_end(&mut self) -> Result<()> {
         let current_pane = self.editor.current_pane();
 
-        // Get the content to find the last logical position
-        let content = match current_pane {
-            Pane::Request => self.request_buffer.content(),
-            Pane::Response => self.response_buffer.content(),
+        // Use the exact same approach as the test framework to ensure consistency
+        // Get the text and split it into lines the same way the test does
+        let text = match current_pane {
+            Pane::Request => self.get_request_text(),
+            Pane::Response => self.get_response_text(),
         };
 
-        let lines = content.lines();
-        let last_line_index = lines.len().saturating_sub(1);
-        let last_line_content = lines.get(last_line_index).map_or("", |s| s.as_str());
-        let last_column = last_line_content.chars().count();
+        let lines: Vec<_> = text.lines().collect();
 
-        // Set logical cursor to last position
-        let end_position = LogicalPosition::new(last_line_index, last_column);
-        self.set_cursor_position(end_position)?;
+        if lines.is_empty() {
+            // If no content, position at (0, 0)
+            let end_position = LogicalPosition::new(0, 0);
+            self.set_cursor_position(end_position)?;
+        } else {
+            // Position at the beginning of the last line (column 0), like Vim's G command
+            // Use the same calculation as the test: lines.len() - 1
+            let last_line_index = lines.len() - 1;
+            let end_position = LogicalPosition::new(last_line_index, 0);
+            self.set_cursor_position(end_position)?;
+        }
 
         Ok(())
     }

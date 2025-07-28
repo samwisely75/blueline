@@ -58,8 +58,9 @@ pub use mode::{
     InsertAtBeginningOfLineCommand,
 };
 pub use navigation::{
-    EnterGModeCommand, GoToTopCommand, MoveCursorDownCommand, MoveCursorLeftCommand,
-    MoveCursorRightCommand, MoveCursorUpCommand, ScrollLeftCommand, ScrollRightCommand,
+    EnterGModeCommand, GoToBottomCommand, GoToTopCommand, MoveCursorDownCommand,
+    MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand, ScrollLeftCommand,
+    ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -80,6 +81,7 @@ impl CommandRegistry {
             Box::new(AppTerminateCommand),
             // G mode commands (high priority - must be processed before regular g handling)
             Box::new(GoToTopCommand),
+            Box::new(GoToBottomCommand),
             Box::new(EnterGModeCommand),
             // Scroll commands (higher priority than regular movement)
             Box::new(ScrollLeftCommand),

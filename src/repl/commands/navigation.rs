@@ -200,6 +200,27 @@ impl Command for GoToTopCommand {
     }
 }
 
+/// Go to bottom of current pane (G command)
+pub struct GoToBottomCommand;
+
+impl Command for GoToBottomCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('G'))
+            && context.state.current_mode == EditorMode::Normal
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(
+            MovementDirection::DocumentEnd,
+        )])
+    }
+
+    fn name(&self) -> &'static str {
+        "GoToBottom"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,5 +334,55 @@ mod tests {
         let event = create_test_key_event(KeyCode::Char('h'));
 
         assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn go_to_bottom_should_be_relevant_for_g_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = GoToBottomCommand;
+        let event = create_test_key_event(KeyCode::Char('G'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn go_to_bottom_should_not_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = GoToBottomCommand;
+        let event = create_test_key_event(KeyCode::Char('G'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn go_to_bottom_should_not_be_relevant_in_g_mode() {
+        let context = create_test_context(EditorMode::GMode);
+        let cmd = GoToBottomCommand;
+        let event = create_test_key_event(KeyCode::Char('G'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn go_to_bottom_should_not_be_relevant_for_lowercase_g() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = GoToBottomCommand;
+        let event = create_test_key_event(KeyCode::Char('g'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn go_to_bottom_should_produce_document_end_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = GoToBottomCommand;
+        let event = create_test_key_event(KeyCode::Char('G'));
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::DocumentEnd)
+        );
     }
 }

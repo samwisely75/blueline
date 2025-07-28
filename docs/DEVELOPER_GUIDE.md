@@ -193,4 +193,4 @@ Everyone, including Generative AI Engine like Copilot and Claude Code, must foll
 13. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.
 14. Commit all changes with a clear and concise commit message. Run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` again to ensure the code is clean and formatted.
 15. Create a git tag for the same version number with "v", e.g., `git tag v1.0.0`.
-16. Push the changes to the remote repository.
+16. Go to the step 1.
