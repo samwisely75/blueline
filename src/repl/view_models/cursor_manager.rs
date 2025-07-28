@@ -412,6 +412,117 @@ impl ViewModel {
         }
     }
 
+    /// Move cursor to the beginning of the next word
+    pub fn move_cursor_to_next_word(&mut self) -> Result<()> {
+        let current_pane = self.editor.current_pane();
+        let current_display_pos = self.get_display_cursor(current_pane);
+        let display_cache = self.get_display_cache(current_pane);
+
+        tracing::debug!(
+            "move_cursor_to_next_word: pane={:?}, current_pos={:?}",
+            current_pane,
+            current_display_pos
+        );
+
+        let mut current_line = current_display_pos.0;
+        let mut current_col = current_display_pos.1;
+        let mut moved = false;
+
+        // Loop through display lines to find next word
+        while current_line < display_cache.display_line_count() {
+            if let Some(line_info) = display_cache.get_display_line(current_line) {
+                let chars: Vec<char> = line_info.content.chars().collect();
+
+                // If we're not at the end of this line, look for next word on current line
+                if current_col < chars.len() {
+                    let mut pos = current_col;
+
+                    // If we're on a word character, skip to end of current word
+                    if pos < chars.len() && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
+                        while pos < chars.len()
+                            && (chars[pos].is_alphanumeric() || chars[pos] == '_')
+                        {
+                            pos += 1;
+                        }
+                    }
+                    // If we're on whitespace or punctuation, skip it
+                    else if pos < chars.len()
+                        && !chars[pos].is_alphanumeric()
+                        && chars[pos] != '_'
+                    {
+                        while pos < chars.len()
+                            && !chars[pos].is_alphanumeric()
+                            && chars[pos] != '_'
+                        {
+                            pos += 1;
+                        }
+                    }
+
+                    // Skip any whitespace after word/punctuation
+                    while pos < chars.len() && chars[pos].is_whitespace() {
+                        pos += 1;
+                    }
+
+                    // If we found a word start on this line
+                    if pos < chars.len() {
+                        let new_pos = (current_line, pos);
+                        tracing::debug!("move_cursor_to_next_word: found word at {:?}", new_pos);
+                        self.set_display_cursor(current_pane, new_pos)?;
+                        self.ensure_cursor_visible(current_pane);
+                        moved = true;
+                        break;
+                    }
+                }
+
+                // Move to next line and start at beginning
+                current_line += 1;
+                current_col = 0;
+
+                // If we moved to next line, look for first word on that line
+                if current_line < display_cache.display_line_count() {
+                    if let Some(next_line_info) = display_cache.get_display_line(current_line) {
+                        let next_chars: Vec<char> = next_line_info.content.chars().collect();
+                        let mut pos = 0;
+
+                        // Skip leading whitespace
+                        while pos < next_chars.len() && next_chars[pos].is_whitespace() {
+                            pos += 1;
+                        }
+
+                        // If there's a word on this line
+                        if pos < next_chars.len() {
+                            let new_pos = (current_line, pos);
+                            tracing::debug!(
+                                "move_cursor_to_next_word: found word on next line at {:?}",
+                                new_pos
+                            );
+                            self.set_display_cursor(current_pane, new_pos)?;
+                            self.ensure_cursor_visible(current_pane);
+                            moved = true;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        if !moved {
+            tracing::debug!(
+                "move_cursor_to_next_word: no next word found, staying at current position"
+            );
+        }
+
+        // Emit events if we moved
+        if moved {
+            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+            self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+        }
+
+        Ok(())
+    }
+
     /// Get display height for a pane
     fn get_pane_display_height(&self, pane: Pane) -> usize {
         match pane {

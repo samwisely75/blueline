@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] - 2025-07-28
+
+### Added
+- Support `w` command to skip to the next word in the request/response pane
+- Word navigation follows Vim behavior: moves to beginning of next word, skips punctuation and whitespace
+- Command works in both request and response panes in Normal mode
+
 ## [0.19.0] - 2025-07-28
 
 ### Added

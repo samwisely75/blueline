@@ -208,7 +208,7 @@ Developers and Generative AI Engines like Claude Code should strictly follow thi
 8. Run `/scripts/git-commit-precheck.sh` to see if the code passes pre-commit checks. If it fails, fix the issues and run the script again until it passes.
    - This script will run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` to ensure code quality and formatting.
    - If you are using a Generative AI Engine like Claude Code, make sure to run this script before committing any changes.
-9. Notify the Code Owner about the changes and ask for review.
+9. Pause your work and call the Code Owner for manual testing and review.
 10. Address any feedback and make necessary changes.
 11. Repeat the process until the Code Owner approves the changes.
 12. Once approved, check off the item in `docs/ISSUES.md` and update the issue status to "Done".

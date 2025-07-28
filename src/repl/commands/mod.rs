@@ -59,9 +59,9 @@ pub use mode::{
 };
 pub use navigation::{
     EnterGPrefixCommand, GoToBottomCommand, GoToTopCommand, MoveCursorDownCommand,
-    MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand, ScrollHalfPageDownCommand,
-    ScrollHalfPageUpCommand, ScrollLeftCommand, ScrollPageDownCommand, ScrollPageUpCommand,
-    ScrollRightCommand,
+    MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand, NextWordCommand,
+    ScrollHalfPageDownCommand, ScrollHalfPageUpCommand, ScrollLeftCommand, ScrollPageDownCommand,
+    ScrollPageUpCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -96,6 +96,7 @@ impl CommandRegistry {
             Box::new(MoveCursorRightCommand),
             Box::new(MoveCursorUpCommand),
             Box::new(MoveCursorDownCommand),
+            Box::new(NextWordCommand),
             // Mode commands
             Box::new(EnterInsertModeCommand),
             Box::new(AppendAfterCursorCommand),

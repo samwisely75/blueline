@@ -310,6 +310,27 @@ impl Command for GoToBottomCommand {
     }
 }
 
+/// Move to next word (w command)
+pub struct NextWordCommand;
+
+impl Command for NextWordCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('w'))
+            && context.state.current_mode == EditorMode::Normal
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(
+            MovementDirection::WordForward,
+        )])
+    }
+
+    fn name(&self) -> &'static str {
+        "NextWord"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -666,6 +687,75 @@ mod tests {
         assert_eq!(
             events[0],
             CommandEvent::cursor_move(MovementDirection::HalfPageUp)
+        );
+    }
+
+    // Tests for NextWordCommand (w)
+    #[test]
+    fn next_word_should_be_relevant_for_w_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = NextWordCommand;
+        let event = create_test_key_event(KeyCode::Char('w'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn next_word_should_not_be_relevant_for_w_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = NextWordCommand;
+        let event = create_test_key_event(KeyCode::Char('w'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn next_word_should_not_be_relevant_for_w_in_command_mode() {
+        let context = create_test_context(EditorMode::Command);
+        let cmd = NextWordCommand;
+        let event = create_test_key_event(KeyCode::Char('w'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn next_word_should_not_be_relevant_for_w_in_g_prefix_mode() {
+        let context = create_test_context(EditorMode::GPrefix);
+        let cmd = NextWordCommand;
+        let event = create_test_key_event(KeyCode::Char('w'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn next_word_should_not_be_relevant_for_w_with_modifiers() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = NextWordCommand;
+        let event = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn next_word_should_not_be_relevant_for_other_keys() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = NextWordCommand;
+        let event = create_test_key_event(KeyCode::Char('x'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn next_word_should_produce_word_forward_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = NextWordCommand;
+        let event = create_test_key_event(KeyCode::Char('w'));
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::WordForward)
         );
     }
 }

@@ -1,7 +1,6 @@
 # Issues
 
 ## Ready to Develop
-- [ ] Support `w` to skip to the next word in the request/response pane.
 - [ ] Support `b` to skip to the previous word in the request/response pane.
 - [ ] Support `e` to skip to the end of the current word in the request/response pane.
 - [ ] Support `0` and `Home` to go to the beginning of the current line in the request/response pane.
@@ -29,6 +28,7 @@
 
 ## Done
 
+- [x] Support `w` to skip to the next word in the request/response pane.
 - [x] Show "Executing..." in the status bar when the request is being processed. Request execution status tracking prevents multiple simultaneous requests.
 - [x] When in the Command mode, keep the cursor visible in the request pane and change the shape to underline. The cursor is back to block shape when it exits the Command mode. Change the cursor shape in the Status Bar to I-beam when it is in the Command mode.
 - [x] The command buffer is cleared when the user exits the Command mode by pressing `Esc` or `Ctrl + c`.

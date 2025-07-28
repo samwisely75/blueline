@@ -23,6 +23,7 @@ async fn run_basic_features_sequentially() {
         "features/application.feature",
         "features/mode_transitions.feature",
         "features/movement.feature",
+        "features/move_to_next_word.feature",
         "features/editing.feature",
         "features/command_line.feature",
         "features/integration.feature",
