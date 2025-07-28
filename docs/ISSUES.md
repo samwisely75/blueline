@@ -2,7 +2,6 @@
 
 ## Ready to Develop
 
-- [ ] Show line number 1 in the request pane at all the time.
 - [ ] Restore the Cucumber test capability. It's in the `test_archived` directory. Put it back as integration test and calibrate it to the current codebase.
 
 ## Backlog
@@ -46,6 +45,7 @@
 
 ## Done
 
+- [x] Show line number 1 in the request pane at all the time.
 - [x] Fix the position indicator in the status bar adjustment. I want to remove `|` between the pane and position indicators as they are related. The new look will be like `([http status code] [message] | [turn around time] |) [mode] | [pane] [line:column])`. The position indicator should be aligned to the right of the status bar.
 - [x] Allow ex commands in response pane.
 - [x] Refactor the view_model.rs. It's too large and too monolithic. Break it down into smaller components for better maintainability.

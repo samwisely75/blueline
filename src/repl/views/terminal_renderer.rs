@@ -80,7 +80,7 @@ impl TerminalRenderer {
     fn visual_length(&self, text: &str) -> usize {
         let mut length = 0;
         let mut in_escape = false;
-        
+
         for ch in text.chars() {
             if ch == '\x1b' {
                 in_escape = true;
@@ -90,7 +90,7 @@ impl TerminalRenderer {
                 length += 1;
             }
         }
-        
+
         length
     }
 
@@ -190,8 +190,13 @@ impl TerminalRenderer {
                     )?;
                 }
                 None => {
-                    // Beyond content - show tilde
-                    self.render_line_with_number(terminal_row, None, "", line_num_width, false)?;
+                    // Special case: always show line number 1 in request pane
+                    if pane == Pane::Request && row == 0 {
+                        self.render_line_with_number(terminal_row, Some(1), "", line_num_width, false)?;
+                    } else {
+                        // Beyond content - show tilde
+                        self.render_line_with_number(terminal_row, None, "", line_num_width, false)?;
+                    }
                 }
             }
         }
@@ -347,13 +352,24 @@ impl ViewRenderer for TerminalRenderer {
                             )?;
                         }
                         None => {
-                            self.render_line_with_number(
-                                terminal_row,
-                                None,
-                                "",
-                                line_num_width,
-                                false,
-                            )?;
+                            // Special case: always show line number 1 in request pane
+                            if pane == Pane::Request && idx == 0 && start_line == 0 {
+                                self.render_line_with_number(
+                                    terminal_row,
+                                    Some(1),
+                                    "",
+                                    line_num_width,
+                                    false,
+                                )?;
+                            } else {
+                                self.render_line_with_number(
+                                    terminal_row,
+                                    None,
+                                    "",
+                                    line_num_width,
+                                    false,
+                                )?;
+                            }
                         }
                     }
                 }
@@ -546,7 +562,7 @@ impl ViewRenderer for TerminalRenderer {
                 let signal_icon = match status_code {
                     200..=299 => "\x1b[32m●\x1b[0m ", // Green bullet for success
                     400..=599 => "\x1b[31m●\x1b[0m ", // Red bullet for errors
-                    _ => "● ",                         // Default bullet for unknown
+                    _ => "● ",                        // Default bullet for unknown
                 };
 
                 status_text.push_str(&format!("{}{}", signal_icon, status_full));
@@ -557,7 +573,7 @@ impl ViewRenderer for TerminalRenderer {
                     let duration_text = humantime::format_duration(duration).to_string();
                     status_text.push_str(&format!(" | {}", duration_text));
                 }
-                
+
                 status_text.push_str(" | ");
             }
 
@@ -583,11 +599,7 @@ impl ViewRenderer for TerminalRenderer {
             };
 
             // Calculate right alignment based on visual length
-            let padding = if visual_len < available_width {
-                available_width - visual_len
-            } else {
-                0
-            };
+            let padding = available_width.saturating_sub(visual_len);
 
             execute_term!(
                 self.stdout,
@@ -602,24 +614,24 @@ impl ViewRenderer for TerminalRenderer {
     fn render_position_indicator(&mut self, view_model: &ViewModel) -> Result<()> {
         let status_row = self.terminal_size.1 - 1;
         let cursor = view_model.get_cursor_position();
-        
+
         // Get current mode and pane
         let mode_text = match view_model.get_mode() {
             EditorMode::Normal => "NORMAL",
             EditorMode::Insert => "INSERT",
             EditorMode::Command => "COMMAND",
         };
-        
+
         let pane_text = match view_model.get_current_pane() {
             Pane::Request => "REQUEST",
             Pane::Response => "RESPONSE",
         };
-        
+
         let position_text = format!("{}:{}", cursor.line + 1, cursor.column + 1);
-        
+
         // Build the right portion of the status bar, including HTTP info if present
         let mut right_text = String::new();
-        
+
         // Add HTTP response info if present
         if let Some(status_code) = view_model.get_response_status_code() {
             let status_message_opt = view_model.get_response_status_message();
@@ -630,7 +642,7 @@ impl ViewRenderer for TerminalRenderer {
             let signal_icon = match status_code {
                 200..=299 => "\x1b[32m●\x1b[0m ", // Green bullet for success
                 400..=599 => "\x1b[31m●\x1b[0m ", // Red bullet for errors
-                _ => "● ",                         // Default bullet for unknown
+                _ => "● ",                        // Default bullet for unknown
             };
 
             right_text.push_str(&format!("{}{}", signal_icon, status_full));
@@ -641,34 +653,30 @@ impl ViewRenderer for TerminalRenderer {
                 let duration_text = humantime::format_duration(duration).to_string();
                 right_text.push_str(&format!(" | {}", duration_text));
             }
-            
+
             right_text.push_str(" | ");
         }
-        
+
         // Add mode, pane, and position
         right_text.push_str(&format!("{} | {} {}", mode_text, pane_text, position_text));
-        
+
         // Calculate where this portion should start to be right-aligned
         let available_width = self.terminal_size.0 as usize;
         let visual_len = self.visual_length(&right_text);
-        
-        let right_start_col = if visual_len < available_width {
-            available_width - visual_len
-        } else {
-            0
-        };
-        
+
+        let right_start_col = available_width.saturating_sub(visual_len);
+
         // Clear from a bit earlier to catch any leftover HTTP icon characters
         // HTTP icon with ANSI codes can be up to ~10 characters, so clear from 15 chars back to be safe
         let clear_start_col = right_start_col.saturating_sub(15);
-        
+
         // Clear from the safe start position to the end of the line
         execute_term!(
             self.stdout,
             MoveTo(clear_start_col as u16, status_row),
             Clear(ClearType::UntilNewLine)
         )?;
-        
+
         // Write the reconstructed right portion
         execute_term!(
             self.stdout,
@@ -759,16 +767,19 @@ mod tests {
         if let Ok(renderer) = TerminalRenderer::new() {
             // Test plain text
             assert_eq!(renderer.visual_length("Hello World"), 11);
-            
+
             // Test text with ANSI color codes
             assert_eq!(renderer.visual_length("\x1b[32m●\x1b[0m Hello"), 7); // ● + space + Hello = 7
-            
+
             // Test multiple ANSI sequences
-            assert_eq!(renderer.visual_length("\x1b[32m●\x1b[0m \x1b[31mRed\x1b[0m"), 5); // ● + space + Red = 5
-            
+            assert_eq!(
+                renderer.visual_length("\x1b[32m●\x1b[0m \x1b[31mRed\x1b[0m"),
+                5
+            ); // ● + space + Red = 5
+
             // Test empty string
             assert_eq!(renderer.visual_length(""), 0);
-            
+
             // Test only ANSI codes
             assert_eq!(renderer.visual_length("\x1b[32m\x1b[0m"), 0);
         }

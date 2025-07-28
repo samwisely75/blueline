@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "terminal-notifier -title \"Claude Code\" -message \"Task completed!\" -sound \"CallBell\" 2>/dev/null || osascript -e 'display alert \"Claude Code\" message \"Task completed!\"'"
+          }
+        ]
+      }
+    ]
+  }
+}
