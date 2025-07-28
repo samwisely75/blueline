@@ -82,6 +82,8 @@ pub enum MovementDirection {
     WordBackward,
     ScrollLeft,
     ScrollRight,
+    PageDown,
+    PageUp,
 }
 
 impl CommandEvent {

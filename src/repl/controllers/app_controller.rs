@@ -194,6 +194,12 @@ impl AppController {
                         MovementDirection::DocumentEnd => {
                             self.view_model.move_cursor_to_document_end()?
                         }
+                        MovementDirection::PageDown => {
+                            self.view_model.scroll_vertically_by_page(1)?
+                        }
+                        MovementDirection::PageUp => {
+                            self.view_model.scroll_vertically_by_page(-1)?
+                        }
                         _ => {
                             tracing::warn!("Unsupported movement direction: {:?}", direction);
                         }

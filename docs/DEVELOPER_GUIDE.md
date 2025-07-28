@@ -2,6 +2,31 @@
 
 This file provides guidance to human developers and Generative AI Engines when working with code in this repository.
 
+## Table of Contents
+
+- [Application Overview](#application-overview)
+- [Project](#project)
+   - [History](#history)
+   - [Where Are We Now](#where-are-we-now)
+   - [Where Are We Heading](#where-are-we-heading)
+- [Development Environment](#development-environment)
+   - [Primary Repository](#primary-repository)
+   - [IDE](#ide)
+   - [Language and Libraries](#language-and-libraries)
+   - [Coding Tools](#coding-tools)
+   - [Test Tools](#test-tools)
+   - [CI/CD Pipelines](#cicd-pipelines)
+   - [Documentations](#documentations)
+   - [Issue Tracking](#issue-tracking)
+- [Development Guidelines](#development-guidelines)
+   - [Coding Style](#coding-style)
+   - [Error Handling](#error-handling)
+   - [Build and Test](#build-and-test)
+   - [Release Process](#release-process)
+   - [Coding Guidelines](#coding-guidelines)
+- [Technical Notes](#technical-notes)
+- [Development Workflow](#development-workflow)
+
 ## Application Overview
 
 This application is a Rust-based HTTP client named `blueline`, previously known as `httpc` and `webly`. It is designed to be lightweight and profile-based, allowing users to manage HTTP requests easily. The project has been recently renamed and restructured, with a focus on REPL.
@@ -28,7 +53,7 @@ The implementation is still in progress. We are at Phase 3-4 in the documented s
 
 The reason of failure is because the refactoring approach was more in horizontally-split approach, where it split the phase by the application layer, rather than vertical split approach, where it splits the phase by feature. I wanted to implement one command at a time, but the Claude Code started to implement multiple commands at once, along with the framework transitions, which resulted in a lot of unfinished and broken code. The current state of the codebase is a mix of unfinished commands and broken display logic, which makes it difficult to test and maintain.
 
-### Where Are We Going
+### Where Are We Heading
 
 The immediate goal is to restore the visual of the REPL terminal available in MVC codebase with the new MVVM architecture and limited implementation of the commands. The current implementation is not following what MVC codebase has implemented, like `crossterm`'s raw mode, Alternate Screen Buffer (ASB), and other terminal features. It does not have the Status Bar.
 
@@ -42,14 +67,15 @@ https://github.com/samwisely75/blueline
 
 I am using Visual Studio Code with the following extensions:
 
-- Rust Analyzer
-- Copilot with Claude 4 Sonnet
+- Claude Code plugin
+- Copilot with Claude 4 Sonnet primarily
+- Rust Analyzer plugin
 
 ### Language and Libraries
 
 - **Language**: Rust (edition 2021)
 - **Build System**: Cargo
-- **Libraries**:
+- **Depending Libraries (Major Ones Only)**:
   - `crossterm`: For terminal I/O
   - `bluenote`: For HTTP requests with profiles that encapsulates `reqwest`
   - `anyhow`: For error handling
@@ -141,17 +167,13 @@ Everyone, including Generative AI Engine like Copilot and Claude Code, must foll
    - "Are you referring to removing unused interfaces or actual working features?"
    - "Do you also want me to implement Y to support a corner case Z?"
 
-   Please display your questions in a bold text with a question mark icon in the beginning.
-
-   And if you are asking multiple questions, please use a numbered list format for me to answer them by number.
-
-   If you ask questions, do not proceed any further until you receive a clear answer.
+   Please display your questions in a bold text with a question mark icon in the beginning. If you ask multiple questions, please use a numbered list for me to answer them with the number. And if you ask questions, do not proceed any further until you receive a clear answer.
 
 1. **Preserve the original functionality**: Always keep the original functionality intact unless explicitly asked to remove it. If you are unsure about what to remove, ask for clarification. Do not remove any working methods, data structures, or functionality unless it is confirmed that they are not needed.
 
 1. **Answer the question**: If you are asked a question, provide a direct answer. You don't know if that's meant to be a change request so NEVER change the code. If you see a point of improvement by the question, just suggest it and ask if I want to make the change.
 
-1. **Keep the code clean**: We do refactoring a lot during the implementations and some codes would be remained unused. Always review your changes and unused warnings, and remove any unused code, imports, or variables. Do not leave any commented-out code in the final version. If you are unsure about whether to remove something, ask for clarification. Avoid using `#[allow(unused)]` attributes unless absolutely necessary. 
+1. **Keep the code clean**: We do refactoring a lot during the implementations and some codes would be remained unused. Always review your changes and unused warnings, and remove any unused code, imports, or variables. Do not leave any commented-out code in the final version. If you are unsure about whether to remove something, ask for clarification. Avoid using `#[allow(unused)]` attributes unless absolutely necessary.
 
 1. **Test it, test it, test it**: Always write unit tests. For **all** functions, without exception. The test codes will be a specification of the app. All the instructions I give must be written somewhere as the test code. Name the test functions to dictate the expected behavior clearly, e.g., `X_should_do_Y_and_return_Z()` where X is the target function. Sometimes you may need to write multiple tests for the same function to cover different scenarios. Do not persist inputs like profile INI and test request in a file; You must create them in the test code itself.
 
@@ -162,8 +184,6 @@ Everyone, including Generative AI Engine like Copilot and Claude Code, must foll
 1. **Use embedded expressions for format! macro**: Use embedded expressions for string formatting, e.g., `format!("Hello, {name}")` instead of `format!("Hello, {}", name)`. The latter is deprecated in Rust 2021 edition.
 
 1. **Measure before claiming victory**: Run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` before you say it's complete to ensure code quality and consistency at every change you make. I.e., do not have me stuck at the pre-commit stage and ask you to run these commands again and again.
-
-1. **No mod.rs files**: Do not create `mod.rs` files. Instead, use the file name as the module name directly. For example, if you have a file named `commands.rs`, it should be declared as `pub mod commands;` in the parent module.
 
 ## Technical Notes
 
@@ -176,21 +196,24 @@ Everyone, including Generative AI Engine like Copilot and Claude Code, must foll
 
 ## Development Workflow
 
+Developers and Generative AI Engines like Claude Code should strictly follow this workflow to implement new features or fix bugs in the codebase. This process ensures that changes are made systematically, tested thoroughly, and documented properly.
+
 1. Pick up the first unresolved item from `docs/ISSUES.md`.
 2. Plan the implementation and todos. Ask for clarification if needed.
 3. Update the feature file to dictate the specification of the feature. If the feature is already implemented, update the existing test to reflect the new behavior.
 4. Implement the changes.
 5. Create or update comprehensive unit tests for the changes.
 6. Run all tests including integration tests to ensure everything works as expected.
-7. Run `/scripts/git-commit-precheck.sh` to see if the code passes pre-commit checks. If it fails, fix the issues and run the script again until it passes.
+7. Make sure to leave comments following the coding guidelines. It is particularly important to leave comments when you change the code for a bug fix.
+8. Run `/scripts/git-commit-precheck.sh` to see if the code passes pre-commit checks. If it fails, fix the issues and run the script again until it passes.
    - This script will run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` to ensure code quality and formatting.
    - If you are using a Generative AI Engine like Claude Code, make sure to run this script before committing any changes.
-8. Notify Master about the changes and ask for review.
-9. Address any feedback and make necessary changes.
-10. Repeat the process until Master approves the changes.
-11. Once approved, check off the item in `docs/ISSUES.md` and update the issue status to "Done".
-12. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If a bug is fixed, increment the patch version. If a breaking change is made, increment the major version.
-13. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.
-14. Commit all changes with a clear and concise commit message. Run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` again to ensure the code is clean and formatted.
-15. Create a git tag for the same version number with "v", e.g., `git tag v1.0.0`.
-16. Go to the step 1.
+9. Notify the Code Owner about the changes and ask for review.
+10. Address any feedback and make necessary changes.
+11. Repeat the process until the Code Owner approves the changes.
+12. Once approved, check off the item in `docs/ISSUES.md` and update the issue status to "Done".
+13. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If a bug is fixed, increment the patch version. If a breaking change is made, increment the major version.
+14. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.
+15. Commit all changes with a clear and concise commit message. Do not leave the code files you updated to fix clippy warnings and what `cargo fmt` modified.
+16. Create a git tag for the same version number with "v", e.g., `git tag v1.0.0`.
+17. Go to step 1.

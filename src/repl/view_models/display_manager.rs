@@ -78,6 +78,9 @@ impl ViewModel {
     }
 
     /// Get line number width for a pane
+    /// BUGFIX: Calculate dynamic line number width based on document size
+    /// Without this dynamic calculation, cursor positioning becomes invalid for large documents
+    /// (e.g., jumping to line 1547 with hardcoded width=3 causes cursor to appear next to "7" of "1547")
     pub fn get_line_number_width(&self, pane: Pane) -> usize {
         let content = match pane {
             Pane::Request => self.get_request_text(),
@@ -90,10 +93,10 @@ impl ViewModel {
             content.lines().count().max(1)
         };
 
-        // Calculate width needed for the largest line number
+        // Calculate width needed for the largest line number to prevent cursor positioning bugs
         let width = line_count.to_string().len();
 
-        // Minimum width as specified in the requirements
+        // Minimum width as specified in the requirements (never smaller than 3)
         width.max(MIN_LINE_NUMBER_WIDTH)
     }
 
@@ -143,14 +146,16 @@ impl ViewModel {
             .unwrap_or_else(|_| crate::repl::models::DisplayCache::new());
         }
 
-        // Synchronize display cursors after rebuilding caches
+        // Synchronize display cursors after rebuilding caches to handle coordinate system changes
         // This is critical when wrap mode changes as cursor positions may be invalid
         self.sync_display_cursors();
 
-        // Reset scroll offsets to ensure they remain valid after cache rebuild
-        // When wrap mode changes, the number of display lines can change dramatically
-        self.request_scroll_offset = (0, 0);
-        self.response_scroll_offset = (0, 0);
+        // BUGFIX: Ensure cursor remains visible after wrap mode toggle instead of resetting to (0,0)
+        // Without this fix, toggling wrap mode resets scroll to top while cursor position indicator
+        // shows the old position (e.g., "RESPONSE 56:1"), causing navigation to behave incorrectly
+        // Using ensure_cursor_visible() maintains proper cursor-scroll synchronization
+        self.ensure_cursor_visible(Pane::Request);
+        self.ensure_cursor_visible(Pane::Response);
 
         Ok(())
     }

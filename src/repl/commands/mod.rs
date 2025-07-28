@@ -60,7 +60,7 @@ pub use mode::{
 pub use navigation::{
     EnterGPrefixCommand, GoToBottomCommand, GoToTopCommand, MoveCursorDownCommand,
     MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand, ScrollLeftCommand,
-    ScrollRightCommand,
+    ScrollPageDownCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -86,6 +86,7 @@ impl CommandRegistry {
             // Scroll commands (higher priority than regular movement)
             Box::new(ScrollLeftCommand),
             Box::new(ScrollRightCommand),
+            Box::new(ScrollPageDownCommand),
             // Movement commands
             Box::new(MoveCursorLeftCommand),
             Box::new(MoveCursorRightCommand),

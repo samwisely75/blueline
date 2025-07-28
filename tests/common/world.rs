@@ -276,6 +276,9 @@ impl BluelineWorld {
                         MovementDirection::ScrollRight => {
                             self.view_model.scroll_horizontally(1, amount)?
                         }
+                        // BUGFIX: Add missing DocumentStart/DocumentEnd cases to test framework
+                        // Without these cases, gg and G command integration tests would fail
+                        // because test framework couldn't apply the movement events they generate
                         MovementDirection::DocumentStart => {
                             self.view_model.move_cursor_to_document_start()?
                         }

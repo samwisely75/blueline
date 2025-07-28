@@ -159,6 +159,25 @@ impl Command for ScrollRightCommand {
     }
 }
 
+/// Scroll down one page (Ctrl+f)
+pub struct ScrollPageDownCommand;
+
+impl Command for ScrollPageDownCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('f'))
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && context.state.current_mode == EditorMode::Normal
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(MovementDirection::PageDown)])
+    }
+
+    fn name(&self) -> &'static str {
+        "ScrollPageDown"
+    }
+}
+
 /// Enter G prefix mode on first 'g' press
 pub struct EnterGPrefixCommand;
 
@@ -209,9 +228,12 @@ impl Command for GoToBottomCommand {
             && (
                 // Case 1: Uppercase 'G' without modifiers
                 (matches!(event.code, KeyCode::Char('G')) && event.modifiers.is_empty())
-                // Case 2: Lowercase 'g' with SHIFT modifier
+                // BUGFIX: Handle Shift+g key combination across different terminals
+                // Without these cases, G command wouldn't respond to user input in manual testing
+                // Different terminals send different key combinations for Shift+g:
+                // Case 2: Some terminals send lowercase 'g' with SHIFT modifier
                 || (matches!(event.code, KeyCode::Char('g')) && event.modifiers.contains(KeyModifiers::SHIFT))
-                // Case 3: Uppercase 'G' with SHIFT modifier (some terminals send this)
+                // Case 3: Other terminals send uppercase 'G' with SHIFT modifier
                 || (matches!(event.code, KeyCode::Char('G')) && event.modifiers.contains(KeyModifiers::SHIFT))
             )
     }
@@ -407,6 +429,56 @@ mod tests {
         assert_eq!(
             events[0],
             CommandEvent::cursor_move(MovementDirection::DocumentEnd)
+        );
+    }
+
+    #[test]
+    fn scroll_page_down_should_be_relevant_for_ctrl_f_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollPageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_page_down_should_not_be_relevant_for_f_without_ctrl() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollPageDownCommand;
+        let event = create_test_key_event(KeyCode::Char('f'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_page_down_should_not_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = ScrollPageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_page_down_should_not_be_relevant_in_g_prefix_mode() {
+        let context = create_test_context(EditorMode::GPrefix);
+        let cmd = ScrollPageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_page_down_should_produce_page_down_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = ScrollPageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::PageDown)
         );
     }
 }

@@ -222,8 +222,9 @@ impl ViewModel {
     pub fn move_cursor_to_document_end(&mut self) -> Result<()> {
         let current_pane = self.editor.current_pane();
 
-        // Use the exact same approach as the test framework to ensure consistency
-        // Get the text and split it into lines the same way the test does
+        // BUGFIX: Use the exact same approach as the test framework to ensure consistency
+        // Without this matching approach, G command integration tests fail due to line counting mismatch
+        // (expected cursor at line 7 but was at line 8) because test framework counts lines differently
         let text = match current_pane {
             Pane::Request => self.get_request_text(),
             Pane::Response => self.get_response_text(),
@@ -364,11 +365,14 @@ impl ViewModel {
         let mut new_vertical_offset = vertical_offset;
         let mut new_horizontal_offset = horizontal_offset;
 
-        // Vertical scrolling
+        // Vertical scrolling to keep cursor within visible area
         if display_pos.0 < vertical_offset {
             new_vertical_offset = display_pos.0;
-        } else if display_pos.0 >= vertical_offset + pane_height {
-            new_vertical_offset = display_pos.0.saturating_sub(pane_height - 1);
+        } else if display_pos.0 >= vertical_offset + pane_height && pane_height > 0 {
+            // BUGFIX: Add pane_height > 0 check to prevent integer underflow in tests
+            // Without this check, pane_height - 1 would underflow when pane_height is 0,
+            // causing panics in test environments where terminal height is uninitialized
+            new_vertical_offset = display_pos.0.saturating_sub(pane_height.saturating_sub(1));
         }
 
         // Horizontal scrolling
