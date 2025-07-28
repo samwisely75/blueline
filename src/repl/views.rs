@@ -16,6 +16,7 @@ macro_rules! execute_term {
         execute!($($arg),*).map_err(anyhow::Error::from)
     };
 }
+
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
     execute,
@@ -48,6 +49,9 @@ pub trait ViewRenderer {
 
     /// Render status bar
     fn render_status_bar(&mut self, view_model: &ViewModel) -> Result<()>;
+
+    /// Render only position indicator in status bar (for reduced flickering)
+    fn render_position_indicator(&mut self, view_model: &ViewModel) -> Result<()>;
 
     /// Handle view events
     fn handle_view_event(&mut self, event: &ViewEvent, view_model: &ViewModel) -> Result<()>;
@@ -260,8 +264,7 @@ impl ViewRenderer for TerminalRenderer {
     }
 
     fn render_pane(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()> {
-        // Hide cursor before rendering to reduce flickering
-        execute_term!(self.stdout, Hide)?;
+        // Cursor hiding is now handled by the controller
 
         let (request_height, response_start, response_height) =
             self.get_pane_boundaries(view_model);
@@ -283,7 +286,7 @@ impl ViewRenderer for TerminalRenderer {
             }
         }
 
-        self.render_cursor(view_model)?;
+        // Don't render cursor here - let the controller handle it once at the end
         self.stdout.flush().map_err(anyhow::Error::from)?;
         Ok(())
     }
@@ -294,8 +297,7 @@ impl ViewRenderer for TerminalRenderer {
         pane: Pane,
         start_line: usize,
     ) -> Result<()> {
-        // Hide cursor before rendering to reduce flickering
-        execute_term!(self.stdout, Hide)?;
+        // Cursor hiding is now handled by the controller
 
         let (request_height, response_start, response_height) =
             self.get_pane_boundaries(view_model);
@@ -378,12 +380,16 @@ impl ViewRenderer for TerminalRenderer {
             }
         }
 
-        self.render_cursor(view_model)?;
+        // Don't render cursor here - let the controller handle it once at the end
         self.stdout.flush().map_err(anyhow::Error::from)?;
         Ok(())
     }
 
     fn render_cursor(&mut self, view_model: &ViewModel) -> Result<()> {
+        // Always hide cursor first to prevent any ghost cursor artifacts
+        tracing::debug!("render_cursor: hiding cursor before positioning");
+        execute_term!(self.stdout, crossterm::cursor::Hide)?;
+
         let current_mode = view_model.get_mode();
 
         // Handle command mode: hide cursor completely
@@ -427,6 +433,11 @@ impl ViewRenderer for TerminalRenderer {
         match current_mode {
             EditorMode::Normal => {
                 // Block cursor for normal mode
+                tracing::debug!(
+                    "render_cursor: showing cursor at ({}, {}) for Normal mode",
+                    terminal_col,
+                    terminal_row
+                );
                 execute_term!(
                     self.stdout,
                     MoveTo(terminal_col, terminal_row),
@@ -436,6 +447,11 @@ impl ViewRenderer for TerminalRenderer {
             }
             EditorMode::Insert => {
                 // Bar cursor for insert mode
+                tracing::debug!(
+                    "render_cursor: showing cursor at ({}, {}) for Insert mode",
+                    terminal_col,
+                    terminal_row
+                );
                 execute_term!(
                     self.stdout,
                     MoveTo(terminal_col, terminal_row),
@@ -445,6 +461,11 @@ impl ViewRenderer for TerminalRenderer {
             }
             EditorMode::Command => {
                 // Should not reach here since we handle command mode above
+                tracing::debug!(
+                    "render_cursor: showing cursor at ({}, {}) for Command mode",
+                    terminal_col,
+                    terminal_row
+                );
                 execute_term!(
                     self.stdout,
                     MoveTo(terminal_col, terminal_row),
@@ -455,6 +476,11 @@ impl ViewRenderer for TerminalRenderer {
         }
 
         self.stdout.flush().map_err(anyhow::Error::from)?;
+
+        // Add tiny delay after cursor show to prevent ghost cursor artifacts
+        // during rapid key repetition (especially 'j' key)
+        std::thread::sleep(std::time::Duration::from_micros(50));
+
         Ok(())
     }
 
@@ -500,10 +526,8 @@ impl ViewRenderer for TerminalRenderer {
                     _ => "⚪",         // White for unknown
                 };
 
-                let status_message = view_model
-                    .get_response_status_message()
-                    .map(|s| s.as_str())
-                    .unwrap_or("");
+                let status_message_opt = view_model.get_response_status_message();
+                let status_message = status_message_opt.as_deref().unwrap_or("");
 
                 status_parts.push(format!("{} {} {}", signal, status_code, status_message));
 
@@ -553,6 +577,31 @@ impl ViewRenderer for TerminalRenderer {
         Ok(())
     }
 
+    fn render_position_indicator(&mut self, view_model: &ViewModel) -> Result<()> {
+        let status_row = self.terminal_size.1 - 1;
+        let cursor = view_model.get_cursor_position();
+        let position_text = format!("{}:{}", cursor.line + 1, cursor.column + 1);
+
+        // Calculate position where the position indicator should be placed
+        // We'll update it in place at the end of the status bar
+        let available_width = self.terminal_size.0 as usize;
+        let position_start_col = if position_text.len() < available_width {
+            available_width - position_text.len()
+        } else {
+            0
+        };
+
+        // Move to position and overwrite just the position indicator
+        execute_term!(
+            self.stdout,
+            MoveTo(position_start_col as u16, status_row),
+            Print(&position_text)
+        )?;
+
+        self.stdout.flush().map_err(anyhow::Error::from)?;
+        Ok(())
+    }
+
     fn handle_view_event(&mut self, event: &ViewEvent, view_model: &ViewModel) -> Result<()> {
         match event {
             ViewEvent::FullRedrawRequired => {
@@ -568,6 +617,9 @@ impl ViewRenderer for TerminalRenderer {
                 self.render_status_bar(view_model)?;
                 self.render_cursor(view_model)?;
                 self.stdout.flush().map_err(anyhow::Error::from)?;
+            }
+            ViewEvent::PositionIndicatorUpdateRequired => {
+                self.render_position_indicator(view_model)?;
             }
             ViewEvent::CursorUpdateRequired { .. } => {
                 self.render_cursor(view_model)?;

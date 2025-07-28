@@ -24,6 +24,9 @@ pub enum ViewEvent {
     /// Status bar needs updating
     StatusBarUpdateRequired,
 
+    /// Only position indicator in status bar needs updating (very cheap)
+    PositionIndicatorUpdateRequired,
+
     /// Only cursor position/style needs updating (cheapest)
     CursorUpdateRequired { pane: Pane },
 

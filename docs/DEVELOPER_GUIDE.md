@@ -173,3 +173,22 @@ Everyone, including Generative AI Engine like Copilot and Claude Code, must foll
      command
      \`\`\`.
    - If the command is too long, split it into multiple lines using `\` at the end of each line.
+
+## Development Workflow
+
+1. Pickup the the first unresolved item from `docs/ISSUES.md`
+1. Plan the implementation and todos. Ask for clarification if needed.
+1. Implement the changes
+1. Create or update comprehensive unit tests for the changes
+1. Run all tests to ensure everything works as expected
+1. Run `cargo clippy --all-targets --all-features -- -D warnings` to make sure there are no warnings
+1. Run `cargo fmt` to format the code
+1. Notify the master about the changes and ask for review
+1. Address any feedback and make necessary changes
+1. Repeat the process until the master is satisfied with the changes
+1. Once approved, check off the item in `docs/ISSUES.md` and update the issue status to "Done"
+1. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If a bug is fixed, increment the patch version. If a breaking change is made, increment the major version.
+1. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.
+1. Commit all changes with a clear and concise commit message. Run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` again to ensure the code is clean and formatted.
+1. Create a git tag for the same version number with "v", e.g., `git tag v1.0.0`.
+1. Push the changes to the remote repository.

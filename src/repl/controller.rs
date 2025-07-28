@@ -17,7 +17,10 @@ use crossterm::{
     event::{self, Event},
     execute, terminal,
 };
-use std::{io, time::Duration};
+use std::{
+    io::{self, Write},
+    time::Duration,
+};
 
 /// The main application controller that orchestrates the MVVM pattern
 pub struct AppController {
@@ -27,6 +30,7 @@ pub struct AppController {
     #[allow(dead_code)]
     event_bus: SimpleEventBus,
     should_quit: bool,
+    last_render_time: std::time::Instant,
 }
 
 impl AppController {
@@ -82,6 +86,7 @@ impl AppController {
             command_registry,
             event_bus,
             should_quit: false,
+            last_render_time: std::time::Instant::now(),
         })
     }
 
@@ -123,8 +128,18 @@ impl AppController {
 
                                 // Process view events for selective rendering (if not quitting)
                                 if !self.should_quit {
-                                    let view_events = self.view_model.collect_pending_view_events();
-                                    self.process_view_events(view_events)?;
+                                    // Throttle rapid rendering to prevent ghost cursors
+                                    let now = std::time::Instant::now();
+                                    let min_render_interval = Duration::from_micros(500);
+
+                                    if now.duration_since(self.last_render_time)
+                                        >= min_render_interval
+                                    {
+                                        let view_events =
+                                            self.view_model.collect_pending_view_events();
+                                        self.process_view_events(view_events)?;
+                                        self.last_render_time = now;
+                                    }
                                 }
                             }
                         }
@@ -344,6 +359,11 @@ impl AppController {
                 ViewEvent::StatusBarUpdateRequired => {
                     needs_status_bar = true;
                 }
+                ViewEvent::PositionIndicatorUpdateRequired => {
+                    // Handle position indicator separately for minimal flickering
+                    self.view_renderer
+                        .render_position_indicator(&self.view_model)?;
+                }
                 ViewEvent::CursorUpdateRequired { .. } => {
                     needs_cursor_update = true;
                 }
@@ -351,6 +371,8 @@ impl AppController {
                     panes_to_redraw.insert(pane);
                     // Scroll requires full pane redraw
                     partial_redraws.remove(&pane);
+                    // Ensure cursor is hidden during scroll to prevent ghost cursor
+                    needs_cursor_update = true;
                 }
             }
         }
@@ -359,22 +381,39 @@ impl AppController {
         if needs_full_redraw {
             self.view_renderer.render_full(&self.view_model)?;
         } else {
-            // Selective rendering
-            for pane in panes_to_redraw {
-                self.view_renderer.render_pane(&self.view_model, pane)?;
+            // Selective rendering - hide cursor once at the beginning
+            let has_content_updates = !panes_to_redraw.is_empty() || !partial_redraws.is_empty();
+            if has_content_updates {
+                tracing::debug!(
+                    "controller: hiding cursor for content updates - panes: {:?}, partial: {:?}",
+                    panes_to_redraw,
+                    partial_redraws.keys().collect::<Vec<_>>()
+                );
+                execute!(io::stdout(), crossterm::cursor::Hide)?;
+                io::stdout().flush().map_err(anyhow::Error::from)?;
+
+                // Add a tiny delay to ensure cursor hide command is processed by terminal
+                // This prevents ghost cursors during rapid key repetition
+                std::thread::sleep(std::time::Duration::from_micros(100));
+            }
+
+            for pane in &panes_to_redraw {
+                self.view_renderer.render_pane(&self.view_model, *pane)?;
             }
 
             // Handle partial pane redraws
-            for (pane, start_line) in partial_redraws {
+            for (pane, start_line) in &partial_redraws {
                 self.view_renderer
-                    .render_pane_partial(&self.view_model, pane, start_line)?;
+                    .render_pane_partial(&self.view_model, *pane, *start_line)?;
             }
 
             if needs_status_bar {
                 self.view_renderer.render_status_bar(&self.view_model)?;
             }
 
-            if needs_cursor_update {
+            // Always render cursor after any pane redraw to prevent ghost cursors
+            if needs_cursor_update || has_content_updates {
+                tracing::debug!("controller: rendering cursor after content updates");
                 self.view_renderer.render_cursor(&self.view_model)?;
             }
         }
