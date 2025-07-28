@@ -181,13 +181,13 @@ Everyone, including Generative AI Engine like Copilot and Claude Code, must foll
 3. Update the feature file to dictate the specification of the feature. If the feature is already implemented, update the existing test to reflect the new behavior.
 4. Implement the changes.
 5. Create or update comprehensive unit tests for the changes.
-6. Run all tests to ensure everything works as expected.
+6. Run all tests including integration tests to ensure everything works as expected.
 7. Run `/scripts/git-commit-precheck.sh` to see if the code passes pre-commit checks. If it fails, fix the issues and run the script again until it passes.
    - This script will run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` to ensure code quality and formatting.
    - If you are using a Generative AI Engine like Claude Code, make sure to run this script before committing any changes.
 8. Notify Master about the changes and ask for review.
 9. Address any feedback and make necessary changes.
-10. Repeat the process until the master is satisfied with the changes.
+10. Repeat the process until Master approves the changes.
 11. Once approved, check off the item in `docs/ISSUES.md` and update the issue status to "Done".
 12. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If a bug is fixed, increment the patch version. If a breaking change is made, increment the major version.
 13. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.

@@ -276,6 +276,12 @@ impl BluelineWorld {
                         MovementDirection::ScrollRight => {
                             self.view_model.scroll_horizontally(1, amount)?
                         }
+                        MovementDirection::DocumentStart => {
+                            self.view_model.move_cursor_to_document_start()?
+                        }
+                        MovementDirection::DocumentEnd => {
+                            self.view_model.move_cursor_to_document_end()?
+                        }
                         _ => {
                             // Other movements not implemented yet
                         }
@@ -320,6 +326,7 @@ impl BluelineWorld {
             EditorMode::Normal => Mode::Normal,
             EditorMode::Insert => Mode::Insert,
             EditorMode::Command => Mode::Command,
+            EditorMode::GMode => Mode::Normal, // Treat G mode as normal for testing
         };
 
         // Update pane

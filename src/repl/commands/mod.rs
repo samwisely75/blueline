@@ -58,8 +58,8 @@ pub use mode::{
     InsertAtBeginningOfLineCommand,
 };
 pub use navigation::{
-    MoveCursorDownCommand, MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand,
-    ScrollLeftCommand, ScrollRightCommand,
+    EnterGModeCommand, GoToTopCommand, MoveCursorDownCommand, MoveCursorLeftCommand,
+    MoveCursorRightCommand, MoveCursorUpCommand, ScrollLeftCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -78,6 +78,9 @@ impl CommandRegistry {
         let commands: CommandCollection = vec![
             // App control commands (highest priority - process first)
             Box::new(AppTerminateCommand),
+            // G mode commands (high priority - must be processed before regular g handling)
+            Box::new(GoToTopCommand),
+            Box::new(EnterGModeCommand),
             // Scroll commands (higher priority than regular movement)
             Box::new(ScrollLeftCommand),
             Box::new(ScrollRightCommand),

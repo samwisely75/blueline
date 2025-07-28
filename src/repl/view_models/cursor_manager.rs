@@ -209,6 +209,37 @@ impl ViewModel {
         Ok(())
     }
 
+    /// Move cursor to start of document (gg command)
+    pub fn move_cursor_to_document_start(&mut self) -> Result<()> {
+        // Set logical cursor to (0, 0) - first line, first column
+        let start_position = LogicalPosition::new(0, 0);
+        self.set_cursor_position(start_position)?;
+
+        Ok(())
+    }
+
+    /// Move cursor to end of document (G command)
+    pub fn move_cursor_to_document_end(&mut self) -> Result<()> {
+        let current_pane = self.editor.current_pane();
+
+        // Get the content to find the last logical position
+        let content = match current_pane {
+            Pane::Request => self.request_buffer.content(),
+            Pane::Response => self.response_buffer.content(),
+        };
+
+        let lines = content.lines();
+        let last_line_index = lines.len().saturating_sub(1);
+        let last_line_content = lines.get(last_line_index).map_or("", |s| s.as_str());
+        let last_column = last_line_content.chars().count();
+
+        // Set logical cursor to last position
+        let end_position = LogicalPosition::new(last_line_index, last_column);
+        self.set_cursor_position(end_position)?;
+
+        Ok(())
+    }
+
     /// Set cursor to specific logical position
     pub fn set_cursor_position(&mut self, position: LogicalPosition) -> Result<()> {
         let current_pane = self.editor.current_pane();

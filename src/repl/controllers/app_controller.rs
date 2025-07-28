@@ -188,6 +188,12 @@ impl AppController {
                         MovementDirection::ScrollRight => {
                             self.view_model.scroll_horizontally(1, amount)?
                         }
+                        MovementDirection::DocumentStart => {
+                            self.view_model.move_cursor_to_document_start()?
+                        }
+                        MovementDirection::DocumentEnd => {
+                            self.view_model.move_cursor_to_document_end()?
+                        }
                         _ => {
                             tracing::warn!("Unsupported movement direction: {:?}", direction);
                         }

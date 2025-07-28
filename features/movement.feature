@@ -277,25 +277,24 @@ Feature: Cursor Movement Commands
     And the scroll offset is adjusted accordingly
     And I am still in normal mode
 
-  # TODO: Implement gg command - currently not implemented in CommandRegistry
-  # Scenario: Go to top with gg command
-  #   Given the request buffer contains:
-  #     """
-  #     GET /api/users HTTP/1.1
-  #     Host: example.com
-  #     Authorization: Bearer token
-  #     Content-Type: application/json
-  #
-  #     {"query": "search term"}
-  #     """
-  #   And I am in normal mode
-  #   And the cursor is at line 5
-  #   When I press "g"
-  #   And I press "g"
-  #   Then the cursor moves to the first line
-  #   And the cursor is at column 0
-  #   And the scroll offset is reset to 0
-  #   And I am still in normal mode
+  Scenario: Go to top with gg command
+    Given the request buffer contains:
+      """
+      GET /api/users HTTP/1.1
+      Host: example.com
+      Authorization: Bearer token
+      Content-Type: application/json
+
+      {"query": "search term"}
+      """
+    And I am in normal mode
+    And the cursor is at line 5
+    When I press "g"
+    And I press "g"
+    Then the cursor moves to the first line
+    And the cursor is at column 0
+    And the scroll offset is reset to 0
+    And I am still in normal mode
 
   # TODO: Implement G command - currently not implemented in CommandRegistry
   # Scenario: Go to bottom with G command

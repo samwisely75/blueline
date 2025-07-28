@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2025-07-28
+
+### Added
+- **New Navigation Command**: Implemented `gg` command to go to the top of the current pane
+- **G Micro Mode**: Added EditorMode::GMode to handle Vim-style 'g' prefix commands
+- **Document Navigation**: Added move_cursor_to_document_start() and move_cursor_to_document_end() methods
+
+### Implementation Details
+- Two new command structs: EnterGModeCommand and GoToTopCommand
+- Enhanced MovementDirection enum with DocumentStart and DocumentEnd variants
+- Updated controller to handle document-level cursor movements
+- Comprehensive unit tests covering all new functionality
+- Integration test validation ensuring proper behavior
+
+### Technical
+- Added GMode support to terminal renderer for proper cursor display
+- Updated test framework to handle new movement directions
+- Maintains full compatibility with existing navigation commands
+
 ## [0.15.1] - 2025-07-28
 
 ### Changed

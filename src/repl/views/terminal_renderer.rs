@@ -519,6 +519,20 @@ impl ViewRenderer for TerminalRenderer {
                     Show
                 )?;
             }
+            EditorMode::GMode => {
+                // Block cursor for G mode (same as normal mode)
+                tracing::debug!(
+                    "render_cursor: showing cursor at ({}, {}) for G mode",
+                    terminal_col,
+                    terminal_row
+                );
+                execute_term!(
+                    self.stdout,
+                    MoveTo(terminal_col, terminal_row),
+                    SetCursorStyle::DefaultUserShape,
+                    Show
+                )?;
+            }
         }
 
         self.stdout.flush().map_err(anyhow::Error::from)?;
@@ -552,6 +566,7 @@ impl ViewRenderer for TerminalRenderer {
                 EditorMode::Normal => "NORMAL",
                 EditorMode::Insert => "INSERT",
                 EditorMode::Command => "COMMAND", // Shouldn't reach here
+                EditorMode::GMode => "NORMAL",    // Show as NORMAL since it's a micro mode
             };
 
             let pane_text = match view_model.get_current_pane() {
@@ -632,6 +647,7 @@ impl ViewRenderer for TerminalRenderer {
             EditorMode::Normal => "NORMAL",
             EditorMode::Insert => "INSERT",
             EditorMode::Command => "COMMAND",
+            EditorMode::GMode => "NORMAL", // Show as NORMAL since it's a micro mode
         };
 
         let pane_text = match view_model.get_current_pane() {

@@ -159,11 +159,51 @@ impl Command for ScrollRightCommand {
     }
 }
 
-// TODO: Update tests for new event-driven API
-/*
+/// Enter G micro mode on first 'g' press
+pub struct EnterGModeCommand;
+
+impl Command for EnterGModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('g'))
+            && context.state.current_mode == EditorMode::Normal
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::mode_change(EditorMode::GMode)])
+    }
+
+    fn name(&self) -> &'static str {
+        "EnterGMode"
+    }
+}
+
+/// Go to top of current pane (gg command)
+pub struct GoToTopCommand;
+
+impl Command for GoToTopCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('g'))
+            && context.state.current_mode == EditorMode::GMode
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![
+            CommandEvent::cursor_move(MovementDirection::DocumentStart),
+            CommandEvent::mode_change(EditorMode::Normal),
+        ])
+    }
+
+    fn name(&self) -> &'static str {
+        "GoToTop"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::repl::commands::context::ViewModelSnapshot;
     use crate::repl::events::{EditorMode, LogicalPosition, Pane};
     use crossterm::event::KeyModifiers;
 
@@ -185,6 +225,87 @@ mod tests {
         CommandContext::new(snapshot)
     }
 
+    // Tests for G mode commands
+    #[test]
+    fn enter_g_mode_should_be_relevant_for_g_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = EnterGModeCommand;
+        let event = create_test_key_event(KeyCode::Char('g'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_g_mode_should_not_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = EnterGModeCommand;
+        let event = create_test_key_event(KeyCode::Char('g'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_g_mode_should_not_be_relevant_in_g_mode() {
+        let context = create_test_context(EditorMode::GMode);
+        let cmd = EnterGModeCommand;
+        let event = create_test_key_event(KeyCode::Char('g'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_g_mode_should_produce_mode_change_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = EnterGModeCommand;
+        let event = create_test_key_event(KeyCode::Char('g'));
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0], CommandEvent::mode_change(EditorMode::GMode));
+    }
+
+    #[test]
+    fn go_to_top_should_be_relevant_for_g_in_g_mode() {
+        let context = create_test_context(EditorMode::GMode);
+        let cmd = GoToTopCommand;
+        let event = create_test_key_event(KeyCode::Char('g'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn go_to_top_should_not_be_relevant_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = GoToTopCommand;
+        let event = create_test_key_event(KeyCode::Char('g'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn go_to_top_should_not_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = GoToTopCommand;
+        let event = create_test_key_event(KeyCode::Char('g'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn go_to_top_should_produce_document_start_and_normal_mode_events() {
+        let context = create_test_context(EditorMode::GMode);
+        let cmd = GoToTopCommand;
+        let event = create_test_key_event(KeyCode::Char('g'));
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::DocumentStart)
+        );
+        assert_eq!(events[1], CommandEvent::mode_change(EditorMode::Normal));
+    }
+
     #[test]
     fn move_cursor_left_should_be_relevant_for_h_in_normal_mode() {
         let context = create_test_context(EditorMode::Normal);
@@ -193,41 +314,4 @@ mod tests {
 
         assert!(cmd.is_relevant(&context, &event));
     }
-
-    #[test]
-    fn move_cursor_left_should_be_relevant_for_left_arrow() {
-        let context = create_test_context(EditorMode::Insert);
-        let cmd = MoveCursorLeftCommand;
-        let event = create_test_key_event(KeyCode::Left);
-
-        assert!(cmd.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn move_cursor_left_should_not_be_relevant_for_h_in_insert_mode() {
-        let context = create_test_context(EditorMode::Insert);
-        let cmd = MoveCursorLeftCommand;
-        let event = create_test_key_event(KeyCode::Char('h'));
-
-        assert!(!cmd.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn move_cursor_left_should_produce_movement_event() {
-        let context = create_test_context(EditorMode::Normal);
-        let cmd = MoveCursorLeftCommand;
-        let event = create_test_key_event(KeyCode::Char('h'));
-
-        let events = cmd.execute(event, &context).unwrap();
-        assert_eq!(events.len(), 1);
-        assert_eq!(
-            events[0],
-            CommandEvent::CursorMoveRequested {
-                direction: MovementDirection::Left,
-                amount: 1
-            }
-        );
-    }
 }
-}
-*/
