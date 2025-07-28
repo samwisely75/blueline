@@ -4,16 +4,16 @@
 
 ## Backlog
 
+- [ ] Rename command terminology for clarity and alignment to the Vim terminologies: h/j/k/l as "navigation commands", i/a/A as "editing commands", :q/:set as "ex commands", Ctrl+C as "application commands"
 - [ ] Support `gg` to go to the top of the current pane.
 - [ ] Support `G` to go to the bottom of the current pane.
 - [ ] Support `Ctrl + f` to scroll down one page in the request/response pane.
 - [ ] Support `Ctrl + b` to scroll up one page in the request/response pane.
 - [ ] Support `Ctrl + d` to scroll down half a page in the request/response pane.
 - [ ] Support `Ctrl + u` to scroll up half a page in the request/response pane.
+- [ ] Support `w` to skip to the next word in the request/response buffer.
 - [ ] Show "Executing..." in the status bar when the request is being processed. The response pane should be cleared and the request pane should be disabled until the response is received.
 - [ ] Dim the Status Bar when it's not in focus to reduce visual clutter.
-- [ ] Support `w` to skip to the next word in the request/response buffer.
-- [ ] Rename command terminology for clarity: h/j/k/l as "motions", i/a/A as "editing commands", :q/:w as "ex commands", Ctrl+C as "application commands"
 - [ ] Support `b` to skip to the previous word in the request/response buffer.
 - [ ] Support `e` to skip to the end of the current word in the request/response buffer.
 - [ ] Support `0` and `Home` to go to the beginning of the current line in the request/response buffer.
