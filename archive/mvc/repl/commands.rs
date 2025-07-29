@@ -29,6 +29,7 @@ use anyhow::Result;
 use crossterm::event::KeyEvent;
 
 use super::model::AppState;
+use super::view_model::ViewModel;
 
 /// Trait for processing user input events and updating application state.
 ///
@@ -76,17 +77,83 @@ pub trait Command {
     /// when in Normal mode.
     fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool>;
 
-    /// Get a human-readable name for this command (for debugging/logging).
-    fn name(&self) -> &'static str;
-
     /// Check if this command is relevant for the current state and event.
     ///
-    /// This is an optimization to avoid unnecessary processing. The default
-    /// implementation returns true (always try to process).
-    fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool {
-        let _ = (state, event); // Suppress unused parameter warning
-        true
-    }
+    /// This allows commands to filter events before processing, improving
+    /// performance and ensuring proper command precedence.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - Reference to the application state for checking mode/pane
+    /// * `event` - The keyboard event to check
+    ///
+    /// # Returns
+    ///
+    /// * `true` - Command should attempt to process this event
+    /// * `false` - Command should ignore this event
+    fn is_relevant(&self, state: &AppState, event: &KeyEvent) -> bool;
+
+    /// Get a human-readable name for this command (for debugging/logging).
+    fn name(&self) -> &'static str;
+}
+
+/// MVVM Command trait for processing user input events through ViewModel.
+///
+/// This is the new MVVM approach where commands delegate to ViewModel methods
+/// instead of directly manipulating AppState. The ViewModel handles all the
+/// business logic, event emission, and display concerns.
+///
+/// ## Benefits over Legacy Command Trait
+///
+/// 1. **Separation of Concerns**: Commands focus on input mapping, ViewModel handles logic
+/// 2. **Event-Driven**: Automatic event emission for model changes
+/// 3. **Centralized Logic**: All cursor movement, scrolling logic in ViewModel
+/// 4. **Better Testing**: Can test ViewModel methods independently
+/// 5. **Consistency**: Same logic path regardless of input source
+///
+/// ## Implementation Guidelines
+///
+/// 1. **Delegate to ViewModel**: Commands should primarily call ViewModel methods
+/// 2. **Check Relevancy**: Use `is_relevant()` to filter applicable events
+/// 3. **Handle Errors**: Return meaningful errors from ViewModel operations
+/// 4. **Keep Simple**: Commands should be thin wrappers around ViewModel calls
+pub trait MvvmCommand {
+    /// Check if this command is relevant for the current state and event.
+    ///
+    /// # Arguments
+    ///
+    /// * `view_model` - Reference to the view model for state checking
+    /// * `event` - The keyboard event to check
+    ///
+    /// # Returns
+    ///
+    /// * `true` - Command can handle this event in current state
+    /// * `false` - Command is not relevant for this event/state
+    fn is_relevant(&self, view_model: &ViewModel, event: &KeyEvent) -> bool;
+    
+    /// Process a key event through the ViewModel.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The keyboard event to process
+    /// * `view_model` - Mutable reference to the view model
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(true)` - Event was handled successfully
+    /// * `Ok(false)` - Event was not relevant (should not happen if is_relevant works)
+    /// * `Err(_)` - An error occurred during processing
+    ///
+    /// # Event Flow
+    ///
+    /// 1. Command delegates to appropriate ViewModel method
+    /// 2. ViewModel updates models and emits events
+    /// 3. View subscribers receive events and update display
+    /// 4. Controller receives success/failure result
+    fn execute(&self, event: KeyEvent, view_model: &mut ViewModel) -> Result<bool>;
+    
+    /// Get a human-readable name for this command (for debugging/logging).
+    fn name(&self) -> &'static str;
 }
 
 /// Result of command execution with additional metadata.
@@ -116,6 +183,20 @@ pub struct CommandResult {
     /// Optional status message to display
     pub status_message: Option<String>,
 }
+
+// Future display-space architecture (commented out for now)
+// /// Display state for a single pane (Request or Response)
+// #[derive(Debug, Clone, PartialEq)]
+// pub struct PaneDisplayState {
+//     /// Display line offset (top visible display line)
+//     pub display_scroll_offset: usize,
+//     /// Logical line offset (primarily for line numbers)
+//     pub logical_scroll_offset: usize,
+//     /// Cursor position in display coordinates
+//     pub display_cursor: (usize, usize), // (display_line, display_col)
+//     /// Cursor position in logical coordinates (derived from display)
+//     pub logical_cursor: (usize, usize), // (logical_line, logical_col)
+// }
 
 impl CommandResult {
     /// Create a result indicating the event was not handled

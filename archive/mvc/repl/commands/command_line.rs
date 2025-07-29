@@ -114,6 +114,18 @@ impl Command for ExecuteCommandCommand {
                             "No response to show. Execute a request first.".to_string();
                     }
                 }
+                "debug" => {
+                    // Debug command to dump cache information
+                    match state.debug_dump_caches() {
+                        Ok(_) => {
+                            state.status_message =
+                                "Cache debug info saved to debug_*_cache.txt files".to_string();
+                        }
+                        Err(e) => {
+                            state.status_message = format!("Debug dump failed: {}", e);
+                        }
+                    }
+                }
                 "" => {
                     // Empty command, just exit command mode
                     state.status_message = "".to_string();

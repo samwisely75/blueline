@@ -92,3 +92,68 @@ Feature: Command Line Operations
     And I press Enter
     Then the POST request is executed with the JSON body
     And I am in normal mode
+
+  Scenario: Navigate to line 0 should be ignored (edge case)
+    Given the request buffer contains:
+      """
+      GET /api/users
+      POST /api/posts
+      """
+    And I am in normal mode
+    And my cursor is at line 2, column 5
+    When I press ":"
+    Then I am in command mode
+    When I type "0"
+    And I press Enter
+    Then I am in normal mode
+    And my cursor is at line 2, column 5
+
+  Scenario: Navigate to line 1 (minimum valid line)
+    Given the request buffer contains:
+      """
+      GET /api/users
+      POST /api/posts
+      PUT /api/data
+      """
+    And I am in normal mode
+    And my cursor is at line 3, column 5
+    When I press ":"
+    Then I am in command mode
+    When I type "1"
+    And I press Enter
+    Then I am in normal mode
+    And my cursor is at line 1, column 0
+
+  Scenario: Navigate to line 5 (many - within bounds)
+    Given the request buffer contains:
+      """
+      GET /api/users
+      POST /api/posts
+      PUT /api/data
+      DELETE /api/item
+      PATCH /api/update
+      HEAD /api/status
+      """
+    And I am in normal mode
+    And my cursor is at line 1, column 0
+    When I press ":"
+    Then I am in command mode
+    When I type "5"
+    And I press Enter
+    Then I am in normal mode
+    And my cursor is at line 5, column 0
+
+  Scenario: Navigate to line 1000 (out of bounds - should clamp to last line)
+    Given the request buffer contains:
+      """
+      GET /api/users
+      POST /api/posts
+      """
+    And I am in normal mode
+    And my cursor is at line 1, column 0
+    When I press ":"
+    Then I am in command mode
+    When I type "1000"
+    And I press Enter
+    Then I am in normal mode
+    And my cursor is at line 2, column 0

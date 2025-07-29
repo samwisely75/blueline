@@ -1,0 +1,127 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.22.0] - 2025-07-29
+
+### Added
+- **Enhanced Backspace Behavior**: Improved backspace functionality for blank lines in insert mode. When backspace is pressed on a blank line (empty line), it now deletes the entire line and moves the cursor to the end of the previous line, providing more intuitive editing experience.
+
+### Technical
+- Enhanced `delete_char_before_cursor()` method in buffer_operations.rs with blank line detection using `line_length() == 0`
+- Added comprehensive unit tests covering blank line deletion, consecutive blank lines, and cursor positioning
+- Refactored pane references to use `current_pane` variable instead of hardcoded `Pane::Request` for better abstraction
+- Preserved existing line joining behavior for non-blank lines
+- All changes validated through 7 comprehensive unit tests and integration test suite
+
+## [0.21.1] - 2025-07-29
+
+### Fixed
+- **Line Navigation Bug**: Fixed `:number` line navigation commands (like `:58`) not working in any pane. Added missing `CursorMoveRequested` event handler in app controller's ex command processing that was causing events to fall through unhandled.
+- **Page Scrolling Buffer Erasure**: Fixed Ctrl+f causing buffer content to appear erased in request pane when scrolling beyond actual content bounds. Added bounds checking to prevent scrolling past display cache limits.
+- **Half-Page Scrolling Issues**: Fixed Ctrl+d endless scrolling and line number corruption by applying same bounds checking pattern used for full page scrolling.
+
+### Technical
+- Enhanced ex command event handling in app_controller.rs with proper `MovementDirection::LineNumber` support
+- Added bounds checking using `display_cache.display_line_count().saturating_sub(page_size).max(0)` in rendering_coordinator.rs
+- Improved cursor-scroll synchronization to prevent buffer/display state inconsistencies
+- All fixes validated through debug log analysis and comprehensive testing
+
+## [0.17.1] - 2025-07-28
+
+### Fixed
+- **G Command Shift Key Support**: Fixed `G` command to properly handle `Shift+g` key combination. Command now responds to uppercase G, lowercase g with SHIFT modifier, and uppercase G with SHIFT modifier to ensure compatibility across different terminals.
+- **Dynamic Line Number Width**: Fixed line number column width calculation to dynamically adjust based on document size. Previously hardcoded to 3 characters, now expands as needed (e.g., 4 characters for documents with 1000+ lines like line 1547) to prevent cursor positioning issues when jumping between documents of different sizes.
+- **Cursor Positioning**: Resolved bug where cursor would appear in invalid positions when using G command to jump from small to large documents due to inconsistent line number column width.
+
+### Technical
+- Added `MIN_LINE_NUMBER_WIDTH` constant to replace magic number 3
+- Enhanced GoToBottomCommand with comprehensive modifier key handling
+- Improved line number width calculation in DisplayManager to be content-aware
+- Added comprehensive unit tests for all Shift key combinations
+
+## [0.17.0] - 2025-07-28
+
+### Added
+- **New Navigation Command**: Implemented `G` command to go to the bottom of the current pane
+- **Document End Navigation**: Added ability to jump to the last line of the document using capital G
+
+### Implementation Details
+- Created GoToBottomCommand struct following same pattern as gg command
+- Positions cursor at beginning of last line (column 0) following Vim behavior
+- Uses same text processing approach as test framework for consistency
+- Added comprehensive unit tests covering all edge cases
+- Integration test validation ensuring proper cursor positioning
+
+### Technical
+- Maintains full compatibility with existing navigation commands
+- Leverages existing DocumentEnd movement infrastructure
+- Fixed line counting consistency between implementation and test framework
+
+## [0.16.0] - 2025-07-28
+
+### Added
+- **New Navigation Command**: Implemented `gg` command to go to the top of the current pane
+- **G Prefix Mode**: Added EditorMode::GPrefix to handle Vim-style 'g' prefix commands
+- **Document Navigation**: Added move_cursor_to_document_start() and move_cursor_to_document_end() methods
+
+### Implementation Details
+- Two new command structs: EnterGPrefixCommand and GoToTopCommand
+- Enhanced MovementDirection enum with DocumentStart and DocumentEnd variants
+- Updated controller to handle document-level cursor movements
+- Comprehensive unit tests covering all new functionality
+- Integration test validation ensuring proper behavior
+
+### Technical
+- Added GPrefix support to terminal renderer for proper cursor display
+- Updated test framework to handle new movement directions
+- Maintains full compatibility with existing navigation commands
+
+## [0.15.1] - 2025-07-28
+
+### Changed
+- **Code Organization**: Renamed `movement.rs` to `navigation.rs` to align with Vim terminology
+- **Module Structure**: Updated imports and declarations to reflect navigation command categorization
+
+### Technical
+- Maintains full backward compatibility
+- All existing navigation commands (h/j/k/l) continue to work unchanged
+- Improved code clarity through consistent terminology alignment
+
+## [0.14.0] - 2025-07-28
+
+### Added
+- **MVVM Architecture**: Complete restructuring from MVC to Model-View-ViewModel pattern
+- **Comprehensive View Model Layer**: Specialized managers for better separation of concerns
+  - Core ViewModel with central coordination
+  - Cursor Manager for position tracking and movement
+  - Display Manager for rendering coordination
+  - Pane Manager for layout management
+  - HTTP Manager for request handling
+  - Rendering Coordinator for optimized updates
+  - Screen Buffer for double buffering support
+- **Buffer Operations**: Text manipulation functionality with insert, delete operations
+- **Ghost Cursor Prevention**: Throttled rendering and improved cursor visibility
+- **Position Indicator Events**: Minimal status bar updates for better performance
+- **Comprehensive Unit Tests**: Full test coverage for all view model components
+- **Developer Workflow**: 14-step development process documentation
+
+### Changed
+- **Controller Updates**: Improved rendering with throttling and flickering reduction
+- **Event System**: Enhanced view events with position indicator support
+- **Display Coordination**: Better cursor synchronization between logical and display positions
+
+### Preserved
+- **Legacy Code**: Renamed `view_models.rs` to `view_models_old.rs` for reference
+
+### Technical
+- Maintains compatibility with existing crossterm-based terminal interface
+- Improved modularity and testability through MVVM pattern
+- Enhanced performance through selective rendering and double buffering
+
+## [0.13.0] - Previous Release
+- Horizontal scrolling implementation
+- Flickering reduction improvements

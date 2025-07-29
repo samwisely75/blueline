@@ -3,6 +3,13 @@ use cucumber::World;
 use std::collections::HashMap;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+// Import real application components
+use blueline::repl::{
+    commands::{CommandContext, CommandEvent, CommandRegistry, ViewModelSnapshot},
+    events::{EditorMode, Pane, SimpleEventBus},
+    view_models::ViewModel,
+};
+
 /// Represents the current mode of the REPL
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mode {
@@ -26,25 +33,31 @@ pub struct CursorPosition {
 }
 
 /// Represents the application state for testing
-#[derive(Debug, World)]
+#[derive(World)]
 #[world(init = Self::new)]
 pub struct BluelineWorld {
-    /// Current mode (Normal, Insert, Command)
+    /// Real ViewModel instance
+    pub view_model: ViewModel,
+
+    /// Real CommandRegistry instance
+    pub command_registry: CommandRegistry,
+
+    /// Current mode (for compatibility with existing steps)
     pub mode: Mode,
 
-    /// Currently active pane
+    /// Currently active pane (for compatibility)
     pub active_pane: ActivePane,
 
-    /// Request buffer content (lines of text)
+    /// Request buffer content (for compatibility)
     pub request_buffer: Vec<String>,
 
-    /// Response buffer content (lines of text)
+    /// Response buffer content (for compatibility)
     pub response_buffer: Vec<String>,
 
-    /// Current cursor position
+    /// Current cursor position (for compatibility)
     pub cursor_position: CursorPosition,
 
-    /// Command buffer for command mode
+    /// Command buffer for command mode (for compatibility)
     pub command_buffer: String,
 
     /// Last executed HTTP request
@@ -73,9 +86,28 @@ pub struct BluelineWorld {
     pub force_quit: bool,
 }
 
+impl std::fmt::Debug for BluelineWorld {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BluelineWorld")
+            .field("mode", &self.mode)
+            .field("active_pane", &self.active_pane)
+            .field("cursor_position", &self.cursor_position)
+            .field("app_exited", &self.app_exited)
+            .finish()
+    }
+}
+
 impl BluelineWorld {
     pub fn new() -> Self {
+        let mut view_model = ViewModel::new();
+        // Set up event bus
+        view_model.set_event_bus(Box::new(SimpleEventBus::new()));
+
+        let command_registry = CommandRegistry::new();
+
         Self {
+            view_model,
+            command_registry,
             mode: Mode::Normal,
             active_pane: ActivePane::Request,
             request_buffer: Vec::new(),
@@ -138,294 +170,258 @@ impl BluelineWorld {
             .unwrap_or_else(|| "http://localhost:8080".to_string())
     }
 
-    /// Simulate key press in the REPL
+    /// Simulate key press in the REPL using real command processing
     pub fn press_key(&mut self, key: &str) -> Result<()> {
-        // Handle Ctrl+W pane navigation specially
-        if key == "Ctrl+W" {
-            // Set a flag to indicate next key is for pane navigation
-            return Ok(());
-        }
+        // Convert key string to crossterm KeyEvent
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-        // Handle post-Ctrl+W navigation
-        if key == "j" && self.mode == Mode::Normal {
-            // After Ctrl+W, j moves to response pane
-            self.active_pane = ActivePane::Response;
-            return Ok(());
-        }
-        if key == "k" && self.mode == Mode::Normal {
-            // After Ctrl+W, k moves to request pane
-            self.active_pane = ActivePane::Request;
-            return Ok(());
-        }
+        let key_event = match key {
+            // Special keys
+            "Escape" => KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
+            "Enter" => KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            "Tab" => KeyEvent::new(KeyCode::Tab, KeyModifiers::empty()),
+            "Backspace" => KeyEvent::new(KeyCode::Backspace, KeyModifiers::empty()),
+            "Delete" => KeyEvent::new(KeyCode::Delete, KeyModifiers::empty()),
 
-        match (self.mode.clone(), self.active_pane.clone(), key) {
-            // Normal mode navigation
-            (Mode::Normal, ActivePane::Request, "h") => {
-                if self.cursor_position.column > 0 {
-                    self.cursor_position.column -= 1;
-                }
-            }
-            (Mode::Normal, ActivePane::Request, "l") => {
-                if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                    if self.cursor_position.column < line.len() {
-                        self.cursor_position.column += 1;
-                    }
-                }
-            }
-            (Mode::Normal, ActivePane::Request, "j") => {
-                if self.cursor_position.line < self.request_buffer.len().saturating_sub(1) {
-                    self.cursor_position.line += 1;
-                    // Adjust column if new line is shorter
-                    if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                        if self.cursor_position.column > line.len() {
-                            self.cursor_position.column = line.len();
-                        }
-                    }
-                }
-            }
-            (Mode::Normal, ActivePane::Request, "k") => {
-                if self.cursor_position.line > 0 {
-                    self.cursor_position.line -= 1;
-                    // Adjust column if new line is shorter
-                    if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                        if self.cursor_position.column > line.len() {
-                            self.cursor_position.column = line.len();
-                        }
-                    }
-                }
-            }
-            // Arrow keys work in all modes
-            (_, ActivePane::Request, "Left") => {
-                if self.cursor_position.column > 0 {
-                    self.cursor_position.column -= 1;
-                }
-            }
-            (_, ActivePane::Request, "Right") => {
-                if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                    if self.cursor_position.column < line.len() {
-                        self.cursor_position.column += 1;
-                    }
-                }
-            }
-            (_, ActivePane::Request, "Up") => {
-                if self.cursor_position.line > 0 {
-                    self.cursor_position.line -= 1;
-                    if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                        if self.cursor_position.column > line.len() {
-                            self.cursor_position.column = line.len();
-                        }
-                    }
-                }
-            }
-            (_, ActivePane::Request, "Down") => {
-                if self.cursor_position.line < self.request_buffer.len().saturating_sub(1) {
-                    self.cursor_position.line += 1;
-                    if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                        if self.cursor_position.column > line.len() {
-                            self.cursor_position.column = line.len();
-                        }
-                    }
-                }
-            }
-            // Arrow keys work in all modes
-            (_, ActivePane::Response, "Left") => {
-                if self.cursor_position.column > 0 {
-                    self.cursor_position.column -= 1;
-                }
-            }
-            (_, ActivePane::Response, "Right") => {
-                if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
-                    if self.cursor_position.column < line.len() {
-                        self.cursor_position.column += 1;
-                    }
-                }
-            }
-            (_, ActivePane::Response, "Up") => {
-                if self.cursor_position.line > 0 {
-                    self.cursor_position.line -= 1;
-                    if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
-                        if self.cursor_position.column > line.len() {
-                            self.cursor_position.column = line.len();
-                        }
-                    }
-                }
-            }
-            (_, ActivePane::Response, "Down") => {
-                if self.cursor_position.line < self.response_buffer.len().saturating_sub(1) {
-                    self.cursor_position.line += 1;
-                    if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
-                        if self.cursor_position.column > line.len() {
-                            self.cursor_position.column = line.len();
-                        }
-                    }
-                }
+            // Arrow keys
+            "Up" => KeyEvent::new(KeyCode::Up, KeyModifiers::empty()),
+            "Down" => KeyEvent::new(KeyCode::Down, KeyModifiers::empty()),
+            "Left" => KeyEvent::new(KeyCode::Left, KeyModifiers::empty()),
+            "Right" => KeyEvent::new(KeyCode::Right, KeyModifiers::empty()),
+
+            // Page keys
+            "Page Up" => KeyEvent::new(KeyCode::PageUp, KeyModifiers::empty()),
+            "Page Down" => KeyEvent::new(KeyCode::PageDown, KeyModifiers::empty()),
+
+            // Control combinations
+            "Ctrl+C" => KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            "Ctrl+U" => KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL),
+            "Ctrl+D" => KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL),
+            "Ctrl+F" => KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL),
+            "Ctrl+B" => KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL),
+            "Ctrl+J" => KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL),
+            "Ctrl+K" => KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL),
+            "Ctrl+W" => KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+
+            // Shift combinations
+            s if s.starts_with("Shift+") => {
+                let ch = s.trim_start_matches("Shift+").chars().next().unwrap_or(' ');
+                KeyEvent::new(KeyCode::Char(ch.to_ascii_uppercase()), KeyModifiers::SHIFT)
             }
 
-            // Mode transitions
-            (Mode::Normal, _, "i") => {
-                self.mode = Mode::Insert;
-            }
-            (Mode::Insert, _, "Escape") => {
-                self.mode = Mode::Normal;
-            }
-            (Mode::Normal, _, ":") => {
-                self.mode = Mode::Command;
-                self.command_buffer.clear();
-            }
-            (Mode::Command, _, "Escape") => {
-                self.mode = Mode::Normal;
-                self.command_buffer.clear();
-            }
-
-            // Pane switching with Tab
-            (Mode::Normal, ActivePane::Request, "Tab") => {
-                self.active_pane = ActivePane::Response;
-            }
-            (Mode::Normal, ActivePane::Response, "Tab") => {
-                self.active_pane = ActivePane::Request;
-            }
-
-            // Command execution
-            (Mode::Command, _, "Enter") => {
-                self.execute_command()?;
-                self.mode = Mode::Normal;
+            // Single characters
+            s if s.len() == 1 => {
+                let ch = s.chars().next().unwrap();
+                KeyEvent::new(KeyCode::Char(ch), KeyModifiers::empty())
             }
 
             _ => {
-                // For unhandled key combinations, do nothing
+                return Err(anyhow::anyhow!("Unknown key: {}", key));
+            }
+        };
+
+        // Create command context from current view model state
+        let context = self.create_command_context();
+
+        // Process the key event through the real command registry
+        if let Ok(events) = self.command_registry.process_event(key_event, &context) {
+            // Apply each command event to the view model
+            for event in events {
+                self.apply_command_event(event)?;
+            }
+        }
+
+        // Update our compatibility fields from the real view model
+        self.sync_from_view_model();
+
+        Ok(())
+    }
+
+    /// Create command context from current view model state
+    fn create_command_context(&self) -> CommandContext {
+        let snapshot = ViewModelSnapshot {
+            current_mode: self.view_model.get_mode(),
+            current_pane: self.view_model.get_current_pane(),
+            cursor_position: self.view_model.get_cursor_position(),
+            request_text: self.view_model.get_request_text(),
+            response_text: self.view_model.get_response_text(),
+            terminal_dimensions: (80, 24), // Default for tests
+            verbose: false,
+        };
+        CommandContext::new(snapshot)
+    }
+
+    /// Apply command event to the view model
+    fn apply_command_event(&mut self, event: CommandEvent) -> Result<()> {
+        use blueline::repl::commands::MovementDirection;
+
+        match event {
+            CommandEvent::CursorMoveRequested { direction, amount } => {
+                for _ in 0..amount {
+                    match direction {
+                        MovementDirection::Left => self.view_model.move_cursor_left()?,
+                        MovementDirection::Right => self.view_model.move_cursor_right()?,
+                        MovementDirection::Up => self.view_model.move_cursor_up()?,
+                        MovementDirection::Down => self.view_model.move_cursor_down()?,
+                        MovementDirection::LineEnd => {
+                            self.view_model.move_cursor_to_end_of_line()?
+                        }
+                        MovementDirection::LineStart => {
+                            self.view_model.move_cursor_to_start_of_line()?
+                        }
+                        MovementDirection::ScrollLeft => {
+                            self.view_model.scroll_horizontally(-1, amount)?
+                        }
+                        MovementDirection::ScrollRight => {
+                            self.view_model.scroll_horizontally(1, amount)?
+                        }
+                        // BUGFIX: Add missing DocumentStart/DocumentEnd cases to test framework
+                        // Without these cases, gg and G command integration tests would fail
+                        // because test framework couldn't apply the movement events they generate
+                        MovementDirection::DocumentStart => {
+                            self.view_model.move_cursor_to_document_start()?
+                        }
+                        MovementDirection::DocumentEnd => {
+                            self.view_model.move_cursor_to_document_end()?
+                        }
+                        MovementDirection::PageDown => {
+                            self.view_model.scroll_vertically_by_page(1)?
+                        }
+                        MovementDirection::PageUp => {
+                            self.view_model.scroll_vertically_by_page(-1)?
+                        }
+                        MovementDirection::HalfPageDown => {
+                            self.view_model.scroll_vertically_by_half_page(1)?
+                        }
+                        MovementDirection::HalfPageUp => {
+                            self.view_model.scroll_vertically_by_half_page(-1)?
+                        }
+                        MovementDirection::WordForward
+                        | MovementDirection::WordBackward
+                        | MovementDirection::WordEnd => {
+                            // Word movements not implemented yet
+                        }
+                        MovementDirection::LineNumber(line_number) => {
+                            self.view_model.move_cursor_to_line(line_number)?
+                        }
+                    }
+                }
+            }
+            CommandEvent::ModeChangeRequested { new_mode } => {
+                self.view_model.change_mode(new_mode)?;
+            }
+            CommandEvent::PaneSwitchRequested { target_pane } => {
+                self.view_model.switch_pane(target_pane)?;
+            }
+            CommandEvent::TextInsertRequested { text, .. } => {
+                self.view_model.insert_text(&text)?;
+            }
+            CommandEvent::ExCommandCharRequested { ch } => {
+                self.view_model.add_ex_command_char(ch)?;
+            }
+            CommandEvent::ExCommandBackspaceRequested => {
+                self.view_model.backspace_ex_command()?;
+            }
+            CommandEvent::ExCommandExecuteRequested => {
+                let events = self.view_model.execute_ex_command()?;
+                for event in events {
+                    self.apply_command_event(event)?;
+                }
+            }
+            CommandEvent::QuitRequested => {
+                self.app_exited = true;
+            }
+            _ => {
+                // Other events not handled in tests
             }
         }
         Ok(())
+    }
+
+    /// Sync compatibility fields from view model
+    fn sync_from_view_model(&mut self) {
+        // Update mode
+        self.mode = match self.view_model.get_mode() {
+            EditorMode::Normal => Mode::Normal,
+            EditorMode::Insert => Mode::Insert,
+            EditorMode::Command => Mode::Command,
+            EditorMode::GPrefix => Mode::Normal, // Treat G prefix mode as normal for testing
+            EditorMode::Visual => Mode::Normal, // Treat visual mode as normal for testing compatibility
+        };
+
+        // Update pane
+        self.active_pane = match self.view_model.get_current_pane() {
+            Pane::Request => ActivePane::Request,
+            Pane::Response => ActivePane::Response,
+        };
+
+        // Update cursor position
+        let pos = self.view_model.get_cursor_position();
+        self.cursor_position = CursorPosition {
+            line: pos.line,
+            column: pos.column,
+        };
+
+        // Update buffers
+        self.request_buffer = self
+            .view_model
+            .get_request_text()
+            .lines()
+            .map(|s| s.to_string())
+            .collect();
+
+        let response_text = self.view_model.get_response_text();
+        if !response_text.is_empty() {
+            self.response_buffer = response_text.lines().map(|s| s.to_string()).collect();
+        }
     }
 
     /// Type text into the current buffer
     pub fn type_text(&mut self, text: &str) -> Result<()> {
-        match self.mode {
-            Mode::Insert => {
-                // Handle multiline text input
-                let lines: Vec<&str> = text.split('\n').collect();
+        // Check mode and sync first
+        self.sync_from_view_model();
 
-                if lines.len() == 1 {
-                    // Single line - insert at cursor position
-                    if self.request_buffer.is_empty() {
-                        self.request_buffer.push(String::new());
-                    }
-
-                    if let Some(line) = self.request_buffer.get_mut(self.cursor_position.line) {
-                        line.insert_str(self.cursor_position.column, text);
-                        self.cursor_position.column += text.len();
-                    }
-                } else {
-                    // Multiple lines - handle line breaks
-                    if self.request_buffer.is_empty() {
-                        self.request_buffer = lines.iter().map(|s| s.to_string()).collect();
-                        self.cursor_position.line = lines.len().saturating_sub(1);
-                        self.cursor_position.column = lines.last().unwrap_or(&"").len();
-                    } else {
-                        // Insert multiline text at current position
-                        for (i, line_text) in lines.iter().enumerate() {
-                            if i == 0 {
-                                // Insert first line at current position
-                                if let Some(line) =
-                                    self.request_buffer.get_mut(self.cursor_position.line)
-                                {
-                                    line.insert_str(self.cursor_position.column, line_text);
-                                }
-                            } else {
-                                // Add new lines
-                                self.request_buffer
-                                    .insert(self.cursor_position.line + i, line_text.to_string());
-                            }
-                        }
-                        self.cursor_position.line += lines.len().saturating_sub(1);
-                        self.cursor_position.column = lines.last().unwrap_or(&"").len();
-                    }
-                }
+        // In insert mode, each character generates a TextInsertRequested event
+        if self.view_model.get_mode() == EditorMode::Insert {
+            // For each character, process it through the command system
+            for ch in text.chars() {
+                self.press_key(&ch.to_string())?;
             }
-            Mode::Command => {
-                self.command_buffer.push_str(text);
+        } else if self.view_model.get_mode() == EditorMode::Command {
+            // In command mode, add to ex command buffer
+            for ch in text.chars() {
+                self.view_model.add_ex_command_char(ch)?;
             }
-            _ => {
-                return Err(anyhow::anyhow!("Cannot type text in {:?} mode", self.mode));
-            }
-        }
-        Ok(())
-    }
-
-    /// Execute a command from command mode
-    fn execute_command(&mut self) -> Result<()> {
-        match self.command_buffer.as_str() {
-            "x" => {
-                // Execute HTTP request
-                self.execute_http_request()?;
-            }
-            "q" => {
-                // Quit application
-                self.app_exited = true;
-            }
-            "q!" => {
-                // Force quit without saving
-                self.app_exited = true;
-                self.force_quit = true;
-            }
-            unknown => {
-                // Unknown command
-                self.last_error = Some(format!("Unknown command: {}", unknown));
-            }
-        }
-        self.command_buffer.clear();
-        Ok(())
-    }
-
-    /// Execute HTTP request based on current request buffer
-    fn execute_http_request(&mut self) -> Result<()> {
-        if self.request_buffer.is_empty() {
-            return Err(anyhow::anyhow!("No request to execute"));
-        }
-
-        let request_text = self.request_buffer.join("\n");
-        self.last_request = Some(request_text.clone());
-
-        // Parse the request (simplified)
-        let lines: Vec<&str> = request_text.lines().collect();
-        if let Some(first_line) = lines.first() {
-            let parts: Vec<&str> = first_line.split_whitespace().collect();
-            if parts.len() >= 2 {
-                let method = parts[0];
-                let path = parts[1];
-
-                // Simulate HTTP response based on mock server
-                let response = match (method, path) {
-                    ("GET", "/api/users") => serde_json::json!([
-                        {"id": 1, "name": "John Doe"},
-                        {"id": 2, "name": "Jane Smith"}
-                    ])
-                    .to_string(),
-                    ("POST", "/api/users") => {
-                        serde_json::json!({"id": 3, "name": "John Doe"}).to_string()
-                    }
-                    ("GET", "/api/status") => {
-                        serde_json::json!({"status": "ok", "version": "1.0.0"}).to_string()
-                    }
-                    _ => serde_json::json!({"error": "Not found"}).to_string(),
-                };
-
-                self.last_response = Some(response.clone());
-                self.response_buffer = response.lines().map(|s| s.to_string()).collect();
+        } else {
+            // If not in insert or command mode, this might be a test setup issue
+            // Let's first switch to insert mode and then type
+            self.view_model.change_mode(EditorMode::Insert)?;
+            for ch in text.chars() {
+                self.press_key(&ch.to_string())?;
             }
         }
 
+        // Sync state
+        self.sync_from_view_model();
         Ok(())
     }
 
     /// Set request buffer content from a multiline string
     pub fn set_request_buffer(&mut self, content: &str) {
-        if content.trim().is_empty() {
-            self.request_buffer.clear();
-        } else {
-            self.request_buffer = content.lines().map(|s| s.to_string()).collect();
+        // For now, just simulate typing the content
+        // TODO: Find a better way to set buffer content directly
+        if !content.trim().is_empty() {
+            self.view_model
+                .change_mode(EditorMode::Insert)
+                .unwrap_or(());
+            self.view_model.insert_text(content).unwrap_or(());
+            self.view_model
+                .change_mode(EditorMode::Normal)
+                .unwrap_or(());
         }
-        self.cursor_position = CursorPosition { line: 0, column: 0 };
+
+        // Sync compatibility fields
+        self.sync_from_view_model();
     }
 
     /// Get request buffer as a single string

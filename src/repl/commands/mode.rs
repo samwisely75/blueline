@@ -1,62 +1,26 @@
-//! # Mode Transition Commands
+//! # Mode Change Commands
 //!
-//! This module contains commands for switching between different editor modes:
-//! Normal, Insert, and Command modes. These follow vi-style mode transitions.
+//! Commands for switching between editor modes (Normal, Insert, Command)
 
+use crate::repl::events::{EditorMode, Pane};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::repl::{
-    commands::{Command, CommandResult},
-    model::{AppState, EditorMode, Pane},
-};
+use super::{Command, CommandContext, CommandEvent, MovementDirection};
 
-/// Command for entering insert mode (i, I, A)
+/// Enter insert mode (i key)
 pub struct EnterInsertModeCommand;
 
-impl EnterInsertModeCommand {}
-
 impl Command for EnterInsertModeCommand {
-    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode, Request pane
-        matches!(state.mode, EditorMode::Normal) && state.current_pane == Pane::Request
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('i'))
+            && context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
     }
 
-    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        // Check if the key matches what we handle
-        if event.modifiers != KeyModifiers::NONE {
-            return Ok(false);
-        }
-
-        match event.code {
-            KeyCode::Char('i') => {
-                // Insert at current position
-                state.mode = EditorMode::Insert;
-                state.status_message = "-- INSERT --".to_string();
-                Ok(true)
-            }
-            KeyCode::Char('I') => {
-                // Insert at beginning of line
-                state.request_buffer.cursor_col = 0;
-                state.mode = EditorMode::Insert;
-                state.status_message = "-- INSERT --".to_string();
-                Ok(true)
-            }
-            KeyCode::Char('A') => {
-                // Append at end of line
-                if let Some(line) = state
-                    .request_buffer
-                    .lines
-                    .get(state.request_buffer.cursor_line)
-                {
-                    state.request_buffer.cursor_col = line.len();
-                }
-                state.mode = EditorMode::Insert;
-                state.status_message = "-- INSERT --".to_string();
-                Ok(true)
-            }
-            _ => Ok(false),
-        }
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::mode_change(EditorMode::Insert)])
     }
 
     fn name(&self) -> &'static str {
@@ -64,25 +28,16 @@ impl Command for EnterInsertModeCommand {
     }
 }
 
-/// Command for exiting insert mode (Esc)
+/// Exit insert mode (Escape key)
 pub struct ExitInsertModeCommand;
 
-impl ExitInsertModeCommand {}
-
 impl Command for ExitInsertModeCommand {
-    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
-        // Only relevant in Insert mode
-        matches!(state.mode, EditorMode::Insert)
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Esc) && context.state.current_mode == EditorMode::Insert
     }
 
-    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        if matches!(event.code, KeyCode::Esc) {
-            state.mode = EditorMode::Normal;
-            state.status_message = "".to_string();
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::mode_change(EditorMode::Normal)])
     }
 
     fn name(&self) -> &'static str {
@@ -90,26 +45,72 @@ impl Command for ExitInsertModeCommand {
     }
 }
 
-/// Command for entering command mode (:)
-pub struct EnterCommandModeCommand;
+/// Enter visual mode (v key)
+pub struct EnterVisualModeCommand;
 
-impl EnterCommandModeCommand {}
+impl Command for EnterVisualModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        let is_v_key = matches!(event.code, KeyCode::Char('v'));
+        let is_normal_mode = context.state.current_mode == EditorMode::Normal;
+        let no_modifiers = event.modifiers.is_empty();
+        let is_relevant = is_v_key && is_normal_mode && no_modifiers;
 
-impl Command for EnterCommandModeCommand {
-    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
-        // Only relevant in Normal mode
-        matches!(state.mode, EditorMode::Normal)
+        tracing::trace!(
+            "EnterVisualModeCommand.is_relevant(): v_key={}, normal_mode={}, no_modifiers={}, result={}",
+            is_v_key, is_normal_mode, no_modifiers, is_relevant
+        );
+
+        if !is_relevant {
+            tracing::debug!(
+                "EnterVisualModeCommand not relevant: event={:?}, mode={:?}, modifiers={:?}",
+                event.code,
+                context.state.current_mode,
+                event.modifiers
+            );
+        }
+
+        is_relevant
     }
 
-    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        if matches!(event.code, KeyCode::Char(':')) && event.modifiers == KeyModifiers::NONE {
-            state.mode = EditorMode::Command;
-            state.command_buffer.clear();
-            state.status_message = ":".to_string();
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        tracing::debug!("EnterVisualModeCommand executing - creating mode change event to Visual");
+        Ok(vec![CommandEvent::mode_change(EditorMode::Visual)])
+    }
+
+    fn name(&self) -> &'static str {
+        "EnterVisualMode"
+    }
+}
+
+/// Exit visual mode (Escape key)
+pub struct ExitVisualModeCommand;
+
+impl Command for ExitVisualModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Esc) && context.state.current_mode == EditorMode::Visual
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::mode_change(EditorMode::Normal)])
+    }
+
+    fn name(&self) -> &'static str {
+        "ExitVisualMode"
+    }
+}
+
+/// Enter command mode (: key)
+pub struct EnterCommandModeCommand;
+
+impl Command for EnterCommandModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char(':'))
+            && context.state.current_mode == EditorMode::Normal
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::mode_change(EditorMode::Command)])
     }
 
     fn name(&self) -> &'static str {
@@ -117,196 +118,470 @@ impl Command for EnterCommandModeCommand {
     }
 }
 
-/// Command for canceling command mode (Esc)
-pub struct CancelCommandModeCommand;
+/// Append at end of line (Shift+A)
+pub struct AppendAtEndOfLineCommand;
 
-impl CancelCommandModeCommand {}
-
-impl Command for CancelCommandModeCommand {
-    fn is_relevant(&self, state: &AppState, _event: &KeyEvent) -> bool {
-        // Only relevant in Command mode
-        matches!(state.mode, EditorMode::Command)
+impl Command for AppendAtEndOfLineCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && (
+                // Case 1: Uppercase 'A' without modifiers
+                (matches!(event.code, KeyCode::Char('A')) && event.modifiers.is_empty())
+                // Case 2: Lowercase 'a' with SHIFT modifier
+                || (matches!(event.code, KeyCode::Char('a')) && event.modifiers.contains(KeyModifiers::SHIFT))
+                // Case 3: Uppercase 'A' with SHIFT modifier (some terminals send this)
+                || (matches!(event.code, KeyCode::Char('A')) && event.modifiers.contains(KeyModifiers::SHIFT))
+            )
     }
 
-    fn process(&self, event: KeyEvent, state: &mut AppState) -> Result<bool> {
-        if matches!(event.code, KeyCode::Esc) {
-            // Cancel command mode and return to normal mode
-            state.mode = EditorMode::Normal;
-            state.command_buffer.clear();
-            state.status_message = "".to_string();
-            Ok(true)
-        } else {
-            Ok(false)
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![
+            CommandEvent::cursor_move(MovementDirection::LineEnd),
+            CommandEvent::mode_change(EditorMode::Insert),
+        ])
+    }
+
+    fn name(&self) -> &'static str {
+        "AppendAtEndOfLine"
+    }
+}
+
+/// Insert at beginning of line (Shift+I)
+pub struct InsertAtBeginningOfLineCommand;
+
+impl Command for InsertAtBeginningOfLineCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && (
+                // Case 1: Uppercase 'I' without modifiers
+                (matches!(event.code, KeyCode::Char('I')) && event.modifiers.is_empty())
+                // Case 2: Lowercase 'i' with SHIFT modifier
+                || (matches!(event.code, KeyCode::Char('i')) && event.modifiers.contains(KeyModifiers::SHIFT))
+                // Case 3: Uppercase 'I' with SHIFT modifier (some terminals send this)
+                || (matches!(event.code, KeyCode::Char('I')) && event.modifiers.contains(KeyModifiers::SHIFT))
+            )
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![
+            CommandEvent::cursor_move(MovementDirection::LineStart),
+            CommandEvent::mode_change(EditorMode::Insert),
+        ])
+    }
+
+    fn name(&self) -> &'static str {
+        "InsertAtBeginningOfLine"
+    }
+}
+
+/// Append after cursor (a key)
+pub struct AppendAfterCursorCommand;
+
+impl Command for AppendAfterCursorCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('a'))
+            && context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![
+            CommandEvent::cursor_move(MovementDirection::Right),
+            CommandEvent::mode_change(EditorMode::Insert),
+        ])
+    }
+
+    fn name(&self) -> &'static str {
+        "AppendAfterCursor"
+    }
+}
+
+/// Handle all ex command mode input (typing, backspace, execute)
+pub struct ExCommandModeCommand;
+
+impl Command for ExCommandModeCommand {
+    fn is_relevant(&self, context: &CommandContext, _event: &KeyEvent) -> bool {
+        matches!(context.state.current_mode, EditorMode::Command)
+    }
+
+    fn execute(&self, event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        match event.code {
+            KeyCode::Char(ch) if event.modifiers == KeyModifiers::NONE => {
+                Ok(vec![CommandEvent::ExCommandCharRequested { ch }])
+            }
+            KeyCode::Backspace => Ok(vec![CommandEvent::ExCommandBackspaceRequested]),
+            KeyCode::Enter => Ok(vec![CommandEvent::ExCommandExecuteRequested]),
+            KeyCode::Esc => Ok(vec![CommandEvent::ModeChangeRequested {
+                new_mode: EditorMode::Normal,
+            }]),
+            _ => Ok(vec![]),
         }
     }
 
     fn name(&self) -> &'static str {
-        "CancelCommandMode"
+        "ExCommandMode"
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::model::AppState;
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use crate::repl::commands::ViewModelSnapshot;
+    use crate::repl::events::LogicalPosition;
+    use crossterm::event::KeyModifiers;
 
-    /// Create a test AppState for command testing
-    fn create_test_app_state() -> AppState {
-        AppState::new((80, 24), false)
+    fn create_test_key_event(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::empty())
+    }
+
+    fn create_test_context() -> CommandContext {
+        CommandContext {
+            state: ViewModelSnapshot {
+                current_mode: EditorMode::Normal,
+                current_pane: Pane::Request,
+                cursor_position: LogicalPosition { line: 0, column: 0 },
+                request_text: String::new(),
+                response_text: String::new(),
+                terminal_dimensions: (80, 24),
+                verbose: false,
+            },
+        }
     }
 
     #[test]
-    fn enter_insert_mode_command_should_be_relevant_for_i_key_in_normal_mode() {
-        let command = EnterInsertModeCommand;
-        let state = create_test_app_state();
-        let event = KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE);
+    fn append_at_end_of_line_should_be_relevant_for_uppercase_a_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = AppendAtEndOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('A'));
 
-        assert!(command.is_relevant(&state, &event));
-        assert_eq!(command.name(), "EnterInsertMode");
+        assert!(cmd.is_relevant(&context, &event));
     }
 
     #[test]
-    fn enter_insert_mode_command_should_not_be_relevant_in_insert_mode() {
-        let command = EnterInsertModeCommand;
-        let mut state = create_test_app_state();
-        state.mode = EditorMode::Insert;
-        let event = KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE);
+    fn append_at_end_of_line_should_be_relevant_for_shift_a_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = AppendAtEndOfLineCommand;
+        let event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::SHIFT);
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(cmd.is_relevant(&context, &event));
     }
 
     #[test]
-    fn enter_insert_mode_with_i_should_maintain_cursor_position() {
-        let command = EnterInsertModeCommand;
-        let mut state = create_test_app_state();
-        state.request_buffer.cursor_col = 5;
-        let event = KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE);
+    fn append_at_end_of_line_should_be_relevant_for_uppercase_a_with_shift_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = AppendAtEndOfLineCommand;
+        let event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT);
 
-        let result = command.process(event, &mut state).unwrap();
-
-        assert!(result);
-        assert_eq!(state.mode, EditorMode::Insert);
-        assert_eq!(state.request_buffer.cursor_col, 5); // Position unchanged
-        assert_eq!(state.status_message, "-- INSERT --");
+        assert!(cmd.is_relevant(&context, &event));
     }
 
     #[test]
-    fn enter_insert_mode_with_capital_i_should_move_cursor_to_line_start() {
-        let command = EnterInsertModeCommand;
-        let mut state = create_test_app_state();
-        state.request_buffer.cursor_col = 5;
-        let event = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::NONE);
+    fn append_at_end_of_line_should_not_be_relevant_for_lowercase_a() {
+        let context = create_test_context();
+        let cmd = AppendAtEndOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('a'));
 
-        let result = command.process(event, &mut state).unwrap();
-
-        assert!(result);
-        assert_eq!(state.mode, EditorMode::Insert);
-        assert_eq!(state.request_buffer.cursor_col, 0); // Moved to start
-        assert_eq!(state.status_message, "-- INSERT --");
+        assert!(!cmd.is_relevant(&context, &event));
     }
 
     #[test]
-    fn enter_insert_mode_with_a_should_move_cursor_to_line_end() {
-        let command = EnterInsertModeCommand;
-        let mut state = create_test_app_state();
-        state.request_buffer.lines = vec!["hello world".to_string()];
-        state.request_buffer.cursor_col = 5;
-        let event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::NONE);
+    fn append_at_end_of_line_should_not_be_relevant_in_insert_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
+        let cmd = AppendAtEndOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('A'));
 
-        let result = command.process(event, &mut state).unwrap();
-
-        assert!(result);
-        assert_eq!(state.mode, EditorMode::Insert);
-        assert_eq!(state.request_buffer.cursor_col, 11); // Moved to end
-        assert_eq!(state.status_message, "-- INSERT --");
+        assert!(!cmd.is_relevant(&context, &event));
     }
 
     #[test]
-    fn exit_insert_mode_command_should_be_relevant_for_esc_in_insert_mode() {
-        let command = ExitInsertModeCommand;
-        let mut state = create_test_app_state();
-        state.mode = EditorMode::Insert;
-        let event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+    fn append_at_end_of_line_should_execute_cursor_move_and_mode_change() {
+        let context = create_test_context();
+        let cmd = AppendAtEndOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('A'));
 
-        assert!(command.is_relevant(&state, &event));
-        assert_eq!(command.name(), "ExitInsertMode");
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(
+            result[0],
+            CommandEvent::cursor_move(MovementDirection::LineEnd)
+        );
+        assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
     }
 
     #[test]
-    fn exit_insert_mode_command_should_not_be_relevant_in_normal_mode() {
-        let command = ExitInsertModeCommand;
-        let state = create_test_app_state();
-        let event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+    fn ex_command_mode_should_be_relevant_in_command_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Command;
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Char('q'));
 
-        assert!(!command.is_relevant(&state, &event));
+        assert!(cmd.is_relevant(&context, &event));
     }
 
     #[test]
-    fn exit_insert_mode_should_return_to_normal_mode_and_clear_status() {
-        let command = ExitInsertModeCommand;
-        let mut state = create_test_app_state();
-        state.mode = EditorMode::Insert;
-        state.status_message = "-- INSERT --".to_string();
-        let event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+    fn ex_command_mode_should_not_be_relevant_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Char('q'));
 
-        let result = command.process(event, &mut state).unwrap();
-
-        assert!(result);
-        assert_eq!(state.mode, EditorMode::Normal);
-        assert_eq!(state.status_message, "");
+        assert!(!cmd.is_relevant(&context, &event));
     }
 
     #[test]
-    fn enter_command_mode_command_should_be_relevant_for_colon_in_normal_mode() {
-        let command = EnterCommandModeCommand;
-        let state = create_test_app_state();
-        let event = KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE);
+    fn ex_command_mode_should_handle_character_input() {
+        let context = create_test_context();
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Char('q'));
 
-        assert!(command.is_relevant(&state, &event));
-        assert_eq!(command.name(), "EnterCommandMode");
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::ExCommandCharRequested { ch: 'q' });
     }
 
     #[test]
-    fn enter_command_mode_should_switch_to_command_mode_and_clear_buffer() {
-        let command = EnterCommandModeCommand;
-        let mut state = create_test_app_state();
-        state.command_buffer = "old_command".to_string();
-        let event = KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE);
+    fn ex_command_mode_should_handle_backspace() {
+        let context = create_test_context();
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Backspace);
 
-        let result = command.process(event, &mut state).unwrap();
-
-        assert!(result);
-        assert_eq!(state.mode, EditorMode::Command);
-        assert!(state.command_buffer.is_empty());
-        assert_eq!(state.status_message, ":");
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::ExCommandBackspaceRequested);
     }
 
     #[test]
-    fn cancel_command_mode_command_should_be_relevant_for_esc_in_command_mode() {
-        let command = CancelCommandModeCommand;
-        let mut state = create_test_app_state();
-        state.mode = EditorMode::Command;
-        let event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+    fn ex_command_mode_should_handle_enter() {
+        let context = create_test_context();
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Enter);
 
-        assert!(command.is_relevant(&state, &event));
-        assert_eq!(command.name(), "CancelCommandMode");
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::ExCommandExecuteRequested);
     }
 
     #[test]
-    fn cancel_command_mode_should_return_to_normal_mode_and_clear_state() {
-        let command = CancelCommandModeCommand;
-        let mut state = create_test_app_state();
-        state.mode = EditorMode::Command;
-        state.command_buffer = "partial_command".to_string();
-        state.status_message = ":partial_command".to_string();
-        let event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+    fn ex_command_mode_should_handle_escape() {
+        let context = create_test_context();
+        let cmd = ExCommandModeCommand;
+        let event = create_test_key_event(KeyCode::Esc);
 
-        let result = command.process(event, &mut state).unwrap();
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0],
+            CommandEvent::ModeChangeRequested {
+                new_mode: EditorMode::Normal
+            }
+        );
+    }
 
-        assert!(result);
-        assert_eq!(state.mode, EditorMode::Normal);
-        assert!(state.command_buffer.is_empty());
-        assert_eq!(state.status_message, "");
+    #[test]
+    fn insert_at_beginning_of_line_should_be_relevant_for_uppercase_i_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('I'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_at_beginning_of_line_should_be_relevant_for_shift_i_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = KeyEvent::new(KeyCode::Char('i'), KeyModifiers::SHIFT);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_at_beginning_of_line_should_be_relevant_for_uppercase_i_with_shift_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::SHIFT);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_at_beginning_of_line_should_not_be_relevant_for_lowercase_i() {
+        let context = create_test_context();
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('i'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_at_beginning_of_line_should_not_be_relevant_in_insert_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('I'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_at_beginning_of_line_should_execute_cursor_move_and_mode_change() {
+        let context = create_test_context();
+        let cmd = InsertAtBeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('I'));
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(
+            result[0],
+            CommandEvent::cursor_move(MovementDirection::LineStart)
+        );
+        assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
+    }
+
+    #[test]
+    fn append_after_cursor_should_be_relevant_for_lowercase_a_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = AppendAfterCursorCommand;
+        let event = create_test_key_event(KeyCode::Char('a'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn append_after_cursor_should_not_be_relevant_for_uppercase_a() {
+        let context = create_test_context();
+        let cmd = AppendAfterCursorCommand;
+        let event = create_test_key_event(KeyCode::Char('A'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn append_after_cursor_should_not_be_relevant_in_insert_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
+        let cmd = AppendAfterCursorCommand;
+        let event = create_test_key_event(KeyCode::Char('a'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn append_after_cursor_should_not_be_relevant_in_response_pane() {
+        let mut context = create_test_context();
+        context.state.current_pane = Pane::Response;
+        let cmd = AppendAfterCursorCommand;
+        let event = create_test_key_event(KeyCode::Char('a'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn append_after_cursor_should_execute_cursor_move_and_mode_change() {
+        let context = create_test_context();
+        let cmd = AppendAfterCursorCommand;
+        let event = create_test_key_event(KeyCode::Char('a'));
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(
+            result[0],
+            CommandEvent::cursor_move(MovementDirection::Right)
+        );
+        assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
+    }
+
+    // Visual mode tests
+    #[test]
+    fn enter_visual_mode_should_be_relevant_for_v_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = EnterVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Char('v'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_visual_mode_should_not_be_relevant_in_insert_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
+        let cmd = EnterVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Char('v'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_visual_mode_should_not_be_relevant_in_visual_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Visual;
+        let cmd = EnterVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Char('v'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_visual_mode_should_not_be_relevant_with_modifiers() {
+        let context = create_test_context();
+        let cmd = EnterVisualModeCommand;
+        let event = KeyEvent::new(KeyCode::Char('v'), KeyModifiers::SHIFT);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_visual_mode_should_produce_mode_change_event() {
+        let context = create_test_context();
+        let cmd = EnterVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Char('v'));
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::mode_change(EditorMode::Visual));
+    }
+
+    #[test]
+    fn exit_visual_mode_should_be_relevant_for_escape_in_visual_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Visual;
+        let cmd = ExitVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Esc);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn exit_visual_mode_should_not_be_relevant_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = ExitVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Esc);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn exit_visual_mode_should_not_be_relevant_in_insert_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
+        let cmd = ExitVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Esc);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn exit_visual_mode_should_produce_mode_change_event() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Visual;
+        let cmd = ExitVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Esc);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::mode_change(EditorMode::Normal));
     }
 }

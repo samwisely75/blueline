@@ -186,6 +186,7 @@ impl ViewManager {
     }
 
     /// Position cursor correctly based on current pane and mode
+    /// Now uses display cache for accurate wrapped text positioning
     fn position_cursor_after_render(&self, state: &AppState) -> Result<()> {
         use super::model::{EditorMode, Pane};
 
@@ -196,11 +197,23 @@ impl ViewManager {
 
         match state.current_pane {
             Pane::Request => {
-                let cursor_row = state
-                    .request_buffer
-                    .cursor_line
-                    .saturating_sub(state.request_buffer.scroll_offset);
-                let cursor_col = state.request_buffer.cursor_col;
+                let logical_line = state.request_buffer.cursor_line;
+                let logical_col = state.request_buffer.cursor_col;
+
+                // Try to get display position from cache first
+                let (display_row, display_col) = if let Some((display_line, display_col)) =
+                    state.logical_to_display_position(logical_line, logical_col)
+                {
+                    // Use cache for accurate wrapped positioning
+                    let visible_display_row =
+                        display_line.saturating_sub(state.request_buffer.scroll_offset);
+                    (visible_display_row, display_col)
+                } else {
+                    // Fallback to logical positioning if cache not ready
+                    let cursor_row =
+                        logical_line.saturating_sub(state.request_buffer.scroll_offset);
+                    (cursor_row, logical_col)
+                };
 
                 // Calculate line number width to offset cursor position
                 let max_line_num = state.request_buffer.line_count();
@@ -210,21 +223,33 @@ impl ViewManager {
                 // Bounds checking to prevent invalid cursor positions
                 let terminal_height = state.terminal_size.1 as usize;
                 let terminal_width = state.terminal_size.0 as usize;
-                let final_col = cursor_col + line_num_offset;
+                let final_col = display_col + line_num_offset;
 
-                if cursor_row < terminal_height && final_col < terminal_width {
+                if display_row < terminal_height && final_col < terminal_width {
                     execute!(
                         io::stdout(),
-                        cursor::MoveTo(final_col as u16, cursor_row as u16)
+                        cursor::MoveTo(final_col as u16, display_row as u16)
                     )?;
                 }
             }
             Pane::Response => {
                 if let Some(ref response_buffer) = state.response_buffer {
-                    let cursor_row = response_buffer
-                        .cursor_line
-                        .saturating_sub(response_buffer.scroll_offset);
-                    let cursor_col = response_buffer.cursor_col;
+                    let logical_line = response_buffer.cursor_line;
+                    let logical_col = response_buffer.cursor_col;
+
+                    // Try to get display position from cache first
+                    let (display_row, display_col) = if let Some((display_line, display_col)) =
+                        state.logical_to_display_position(logical_line, logical_col)
+                    {
+                        // Use cache for accurate wrapped positioning
+                        let visible_display_row =
+                            display_line.saturating_sub(response_buffer.scroll_offset);
+                        (visible_display_row, display_col)
+                    } else {
+                        // Fallback to logical positioning if cache not ready
+                        let cursor_row = logical_line.saturating_sub(response_buffer.scroll_offset);
+                        (cursor_row, logical_col)
+                    };
 
                     // Calculate line number width to offset cursor position
                     let max_line_num = response_buffer.line_count();
@@ -232,8 +257,8 @@ impl ViewManager {
                     let line_num_offset = line_num_width + 1; // +1 for space after line number
 
                     // Offset by request pane height + separator
-                    let actual_row = cursor_row + state.get_request_pane_height() + 1;
-                    let final_col = cursor_col + line_num_offset;
+                    let actual_row = display_row + state.get_request_pane_height() + 1;
+                    let final_col = display_col + line_num_offset;
 
                     // Bounds checking to prevent invalid cursor positions
                     let terminal_height = state.terminal_size.1 as usize;
@@ -317,14 +342,75 @@ impl RenderObserver for RequestPaneRenderer {
 
 impl RequestPaneRenderer {
     fn render_request_pane_content(&self, state: &AppState) -> Result<()> {
-        // Implement request pane content rendering with line numbers like vim
+        // Implement request pane content rendering with line numbers like vim using display cache
 
         let pane_height = state.get_request_pane_height();
-        let (start, end) = state.request_buffer.visible_range(pane_height);
+        let cache = state.cache_manager.get_request_cache();
 
         // Calculate width needed for line numbers (minimum 3 characters)
         let max_line_num = state.request_buffer.line_count();
         let line_num_width = max_line_num.to_string().len().max(3);
+
+        // If cache is not valid, fall back to simple rendering
+        if !cache.is_valid {
+            return self.render_request_pane_fallback(state, pane_height, line_num_width);
+        }
+
+        // Render using display cache for proper wrapped line handling
+        let scroll_offset = state.request_buffer.scroll_offset;
+
+        for display_row in 0..pane_height {
+            execute!(io::stdout(), cursor::MoveTo(0, display_row as u16))?;
+
+            let display_line_idx = scroll_offset + display_row;
+
+            if display_line_idx < cache.total_display_lines {
+                if let Some(display_line) = cache.get_display_line(display_line_idx) {
+                    // Render line number - only show for first line of each logical line
+                    execute!(io::stdout(), SetAttribute(Attribute::Dim))?;
+                    if display_line.is_continuation {
+                        // Continuation lines show spaces instead of line numbers (vim-style)
+                        print!("{} ", " ".repeat(line_num_width));
+                    } else {
+                        // First line of logical line shows actual line number
+                        print!(
+                            "{:>width$} ",
+                            display_line.logical_line + 1,
+                            width = line_num_width
+                        );
+                    }
+                    execute!(io::stdout(), SetAttribute(Attribute::Reset))?;
+
+                    // Render the wrapped segment content
+                    print!("{}", display_line.content);
+                } else {
+                    // Fallback if display line not found
+                    execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
+                    print!("~{} ", " ".repeat(line_num_width.saturating_sub(1)));
+                    execute!(io::stdout(), ResetColor)?;
+                }
+            } else {
+                // Show tilda for rows beyond content (vim-style)
+                execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
+                print!("~{} ", " ".repeat(line_num_width.saturating_sub(1)));
+                execute!(io::stdout(), ResetColor)?;
+            }
+
+            // Clear rest of line
+            execute!(io::stdout(), Clear(ClearType::UntilNewLine))?;
+        }
+
+        Ok(())
+    }
+
+    /// Fallback rendering when display cache is not available
+    fn render_request_pane_fallback(
+        &self,
+        state: &AppState,
+        pane_height: usize,
+        line_num_width: usize,
+    ) -> Result<()> {
+        let (start, end) = state.request_buffer.visible_range(pane_height);
 
         // Move to start of request pane and render visible lines
         for (row, line_idx) in (start..end).enumerate() {
@@ -340,7 +426,6 @@ impl RequestPaneRenderer {
                 print!("{}", line);
             } else {
                 // Show tilda for non-existing lines (like vi) with darker gray color
-                // Place tilda in the first column, followed by spaces to match line number width
                 execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
                 print!("~{} ", " ".repeat(line_num_width.saturating_sub(1)));
                 execute!(io::stdout(), ResetColor)?;
@@ -419,33 +504,70 @@ impl ResponsePaneRenderer {
         let response_start_row = state.get_request_pane_height() + 1; // +1 for separator
 
         if let Some(ref response_buffer) = state.response_buffer {
-            let terminal_width = state.terminal_size.0 as usize;
-            let (start, end) = response_buffer.visible_range(pane_height);
+            let cache = state.cache_manager.get_response_cache();
 
             // Calculate width needed for line numbers (minimum 3 characters)
             let max_line_num = response_buffer.line_count();
             let line_num_width = max_line_num.to_string().len().max(3);
 
-            for (row, line_idx) in (start..end).enumerate() {
-                let actual_row = response_start_row + row;
+            // If cache is not valid, try to update it before falling back
+            if !cache.is_valid {
+                let content_width = state.terminal_size.0 as usize - line_num_width - 1; // Account for line numbers
+                let _ = state
+                    .cache_manager
+                    .update_response_cache(&response_buffer.lines, content_width);
+
+                // Get updated cache after potential update
+                let updated_cache = state.cache_manager.get_response_cache();
+                if !updated_cache.is_valid {
+                    return self.render_response_pane_fallback(
+                        state,
+                        response_buffer,
+                        pane_height,
+                        response_start_row,
+                        line_num_width,
+                    );
+                }
+            }
+
+            // Render using display cache for proper wrapped line handling
+            let updated_cache = state.cache_manager.get_response_cache();
+            let scroll_offset = response_buffer.scroll_offset;
+
+            for display_row in 0..pane_height {
+                let actual_row = response_start_row + display_row;
                 execute!(io::stdout(), cursor::MoveTo(0, actual_row as u16))?;
 
-                if let Some(line) = response_buffer.lines.get(line_idx) {
-                    // Render line number with dimmed style and right alignment
-                    execute!(io::stdout(), SetAttribute(Attribute::Dim))?;
-                    print!("{:>width$} ", line_idx + 1, width = line_num_width);
-                    execute!(io::stdout(), SetAttribute(Attribute::Reset))?;
+                let display_line_idx = scroll_offset + display_row;
 
-                    // Calculate available width for content after line numbers
-                    let content_width = terminal_width.saturating_sub(line_num_width + 1); // +1 for space after line number
+                if display_line_idx < updated_cache.total_display_lines {
+                    if let Some(display_line) = updated_cache.get_display_line(display_line_idx) {
+                        // Render line number - only show for first line of each logical line
+                        execute!(io::stdout(), SetAttribute(Attribute::Dim))?;
+                        if display_line.is_continuation {
+                            // Continuation lines show spaces instead of line numbers (vim-style)
+                            print!("{} ", " ".repeat(line_num_width));
+                        } else {
+                            // First line of logical line shows actual line number
+                            print!(
+                                "{:>width$} ",
+                                display_line.logical_line + 1,
+                                width = line_num_width
+                            );
+                        }
+                        execute!(io::stdout(), SetAttribute(Attribute::Reset))?;
 
-                    // Truncate long lines to prevent overflow
-                    let display_line = if line.len() > content_width {
-                        &line[..content_width.saturating_sub(3)] // Leave space for "..."
+                        // Render the wrapped segment content
+                        print!("{}", display_line.content);
                     } else {
-                        line
-                    };
-                    print!("{}", display_line);
+                        // Fallback if display line not found - clear the line
+                        execute!(io::stdout(), Clear(ClearType::UntilNewLine))?;
+                        continue;
+                    }
+                } else {
+                    // Clear lines beyond content
+                    execute!(io::stdout(), Clear(ClearType::UntilNewLine))?;
+                    continue;
                 }
 
                 execute!(io::stdout(), Clear(ClearType::UntilNewLine))?;
@@ -457,6 +579,46 @@ impl ResponsePaneRenderer {
                 execute!(io::stdout(), cursor::MoveTo(0, actual_row as u16))?;
                 execute!(io::stdout(), Clear(ClearType::UntilNewLine))?;
             }
+        }
+
+        Ok(())
+    }
+
+    /// Fallback rendering when display cache is not available
+    fn render_response_pane_fallback(
+        &self,
+        state: &AppState,
+        response_buffer: &crate::repl::model::ResponseBuffer,
+        pane_height: usize,
+        response_start_row: usize,
+        line_num_width: usize,
+    ) -> Result<()> {
+        let terminal_width = state.terminal_size.0 as usize;
+        let (start, end) = response_buffer.visible_range(pane_height);
+
+        for (row, line_idx) in (start..end).enumerate() {
+            let actual_row = response_start_row + row;
+            execute!(io::stdout(), cursor::MoveTo(0, actual_row as u16))?;
+
+            if let Some(line) = response_buffer.lines.get(line_idx) {
+                // Render line number with dimmed style and right alignment
+                execute!(io::stdout(), SetAttribute(Attribute::Dim))?;
+                print!("{:>width$} ", line_idx + 1, width = line_num_width);
+                execute!(io::stdout(), SetAttribute(Attribute::Reset))?;
+
+                // Calculate available width for content after line numbers
+                let content_width = terminal_width.saturating_sub(line_num_width + 1); // +1 for space after line number
+
+                // Truncate long lines to prevent overflow
+                let display_line = if line.len() > content_width {
+                    &line[..content_width.saturating_sub(3)] // Leave space for "..."
+                } else {
+                    line
+                };
+                print!("{}", display_line);
+            }
+
+            execute!(io::stdout(), Clear(ClearType::UntilNewLine))?;
         }
 
         Ok(())
