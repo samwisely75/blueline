@@ -24,25 +24,29 @@ impl ViewModel {
         let content_width = self.get_content_width();
         self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
 
-        // Calculate display line for the insertion position using updated cache
+        // Sync display cursor with logical cursor
+        self.sync_display_cursor_with_logical(Pane::Request)?;
+
+        // BUGFIX: Ensure cursor is visible BEFORE calculating display coordinates
+        // This ensures scrolling happens first, then we calculate coordinates with the correct scroll offset
+        self.ensure_cursor_visible(Pane::Request);
+
+        // Calculate display line for the insertion position AFTER potential scrolling
         let insertion_display_line = self.panes[Pane::Request]
             .display_cache
             .logical_to_display_position(insertion_pos.line, insertion_pos.column)
             .map(|(display_line, _)| display_line)
             .unwrap_or(0);
 
-        // Sync display cursor with logical cursor
-        self.sync_display_cursor_with_logical(Pane::Request)?;
+        // BUGFIX: Adjust start_line to be relative to current scroll offset
+        // The terminal renderer expects viewport-relative coordinates, not absolute display lines
+        let (vertical_scroll_offset, _) = self.get_scroll_offset(Pane::Request);
+        let viewport_start_line = insertion_display_line.saturating_sub(vertical_scroll_offset);
 
-        // BUGFIX: Ensure cursor is visible BEFORE emitting redraw events
-        // This prevents rendering issues where typed characters don't show up
-        // because scrolling happens after the redraw coordinates were calculated
-        self.ensure_cursor_visible(Pane::Request);
-
-        // Use partial redraw from the line where the character was inserted
+        // Use partial redraw from the viewport-relative line where the character was inserted
         self.emit_view_event([ViewEvent::PartialPaneRedrawRequired {
             pane: Pane::Request,
-            start_line: insertion_display_line,
+            start_line: viewport_start_line,
         }]);
 
         Ok(())
@@ -65,25 +69,29 @@ impl ViewModel {
         let content_width = self.get_content_width();
         self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
 
-        // Calculate display line for the insertion position using updated cache
+        // Sync display cursor with logical cursor
+        self.sync_display_cursor_with_logical(Pane::Request)?;
+
+        // BUGFIX: Ensure cursor is visible BEFORE calculating display coordinates
+        // This ensures scrolling happens first, then we calculate coordinates with the correct scroll offset
+        self.ensure_cursor_visible(Pane::Request);
+
+        // Calculate display line for the insertion position AFTER potential scrolling
         let insertion_display_line = self.panes[Pane::Request]
             .display_cache
             .logical_to_display_position(insertion_pos.line, insertion_pos.column)
             .map(|(display_line, _)| display_line)
             .unwrap_or(0);
 
-        // Sync display cursor with logical cursor
-        self.sync_display_cursor_with_logical(Pane::Request)?;
+        // BUGFIX: Adjust start_line to be relative to current scroll offset
+        // The terminal renderer expects viewport-relative coordinates, not absolute display lines
+        let (vertical_scroll_offset, _) = self.get_scroll_offset(Pane::Request);
+        let viewport_start_line = insertion_display_line.saturating_sub(vertical_scroll_offset);
 
-        // BUGFIX: Ensure cursor is visible BEFORE emitting redraw events
-        // This prevents rendering issues where typed characters don't show up
-        // because scrolling happens after the redraw coordinates were calculated
-        self.ensure_cursor_visible(Pane::Request);
-
-        // Use partial redraw from the line where the text was inserted
+        // Use partial redraw from the viewport-relative line where the text was inserted
         self.emit_view_event([ViewEvent::PartialPaneRedrawRequired {
             pane: Pane::Request,
-            start_line: insertion_display_line,
+            start_line: viewport_start_line,
         }]);
 
         // Update cursor position after text insertion
