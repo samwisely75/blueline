@@ -13,10 +13,7 @@ const MIN_LINE_NUMBER_WIDTH: usize = 3;
 impl ViewModel {
     /// Get display cache for a specific pane
     pub(super) fn get_display_cache(&self, pane: Pane) -> &DisplayCache {
-        match pane {
-            Pane::Request => &self.request_display_cache,
-            Pane::Response => &self.response_display_cache,
-        }
+        &self.panes[pane].display_cache
     }
 
     /// Get display lines for rendering a specific pane
@@ -125,8 +122,8 @@ impl ViewModel {
         let content_width = self.get_content_width();
 
         // Rebuild request cache
-        let request_lines = self.request_buffer.content().lines().to_vec();
-        self.request_display_cache = crate::repl::models::build_display_cache(
+        let request_lines = self.panes[Pane::Request].buffer.content().lines().to_vec();
+        self.panes[Pane::Request].display_cache = crate::repl::models::build_display_cache(
             &request_lines,
             content_width,
             self.wrap_enabled,
@@ -138,7 +135,7 @@ impl ViewModel {
         if !response_content.is_empty() {
             let response_lines: Vec<String> =
                 response_content.lines().map(|s| s.to_string()).collect();
-            self.response_display_cache = crate::repl::models::build_display_cache(
+            self.panes[Pane::Response].display_cache = crate::repl::models::build_display_cache(
                 &response_lines,
                 content_width,
                 self.wrap_enabled,

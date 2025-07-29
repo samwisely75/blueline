@@ -10,10 +10,8 @@ use anyhow::Result;
 impl ViewModel {
     /// Get current logical cursor position for the active pane
     pub fn get_cursor_position(&self) -> LogicalPosition {
-        match self.editor.current_pane() {
-            Pane::Request => self.request_buffer.cursor(),
-            Pane::Response => self.response_buffer.cursor(),
-        }
+        let current_pane = self.editor.current_pane();
+        self.panes[current_pane].buffer.cursor()
     }
 
     /// Move cursor left in current pane (display coordinate based)
@@ -253,16 +251,11 @@ impl ViewModel {
         let current_pane = self.editor.current_pane();
 
         // Update logical cursor in appropriate buffer
-        match current_pane {
-            Pane::Request => {
-                let clamped_position = self.request_buffer.content().clamp_position(position);
-                self.request_buffer.set_cursor(clamped_position);
-            }
-            Pane::Response => {
-                let clamped_position = self.response_buffer.content().clamp_position(position);
-                self.response_buffer.set_cursor(clamped_position);
-            }
-        }
+        let clamped_position = self.panes[current_pane]
+            .buffer
+            .content()
+            .clamp_position(position);
+        self.panes[current_pane].buffer.set_cursor(clamped_position);
 
         // Update visual selection if in visual mode
         self.update_visual_selection_end();
@@ -302,31 +295,20 @@ impl ViewModel {
 
     /// Synchronize display cursors for both panes
     pub(super) fn sync_display_cursors(&mut self) {
-        // Update request display cursor
-        let request_logical = self.request_buffer.cursor();
-        if let Some(display_pos) = self
-            .request_display_cache
-            .logical_to_display_position(request_logical.line, request_logical.column)
-        {
-            self.request_display_cursor = display_pos;
-        }
-
-        // Update response display cursor
-        let response_logical = self.response_buffer.cursor();
-        if let Some(display_pos) = self
-            .response_display_cache
-            .logical_to_display_position(response_logical.line, response_logical.column)
-        {
-            self.response_display_cursor = display_pos;
+        for pane in [Pane::Request, Pane::Response] {
+            let logical = self.panes[pane].buffer.cursor();
+            if let Some(display_pos) = self.panes[pane]
+                .display_cache
+                .logical_to_display_position(logical.line, logical.column)
+            {
+                self.panes[pane].display_cursor = display_pos;
+            }
         }
     }
 
     /// Get display cursor position for a pane
     pub(super) fn get_display_cursor(&self, pane: Pane) -> (usize, usize) {
-        match pane {
-            Pane::Request => self.request_display_cursor,
-            Pane::Response => self.response_display_cursor,
-        }
+        self.panes[pane].display_cursor
     }
 
     /// Set display cursor position for a pane
@@ -335,29 +317,15 @@ impl ViewModel {
         pane: Pane,
         position: (usize, usize),
     ) -> Result<()> {
-        match pane {
-            Pane::Request => {
-                self.request_display_cursor = position;
-                // Convert back to logical position and update buffer
-                if let Some(logical_pos) = self
-                    .request_display_cache
-                    .display_to_logical_position(position.0, position.1)
-                {
-                    let logical_position = LogicalPosition::new(logical_pos.0, logical_pos.1);
-                    self.request_buffer.set_cursor(logical_position);
-                }
-            }
-            Pane::Response => {
-                self.response_display_cursor = position;
-                // Convert back to logical position and update buffer
-                if let Some(logical_pos) = self
-                    .response_display_cache
-                    .display_to_logical_position(position.0, position.1)
-                {
-                    let logical_position = LogicalPosition::new(logical_pos.0, logical_pos.1);
-                    self.response_buffer.set_cursor(logical_position);
-                }
-            }
+        self.panes[pane].display_cursor = position;
+
+        // Convert back to logical position and update buffer
+        if let Some(logical_pos) = self.panes[pane]
+            .display_cache
+            .display_to_logical_position(position.0, position.1)
+        {
+            let logical_position = LogicalPosition::new(logical_pos.0, logical_pos.1);
+            self.panes[pane].buffer.set_cursor(logical_position);
         }
 
         // Update visual selection if in visual mode
@@ -368,20 +336,13 @@ impl ViewModel {
 
     /// Synchronize display cursor with logical cursor position
     pub(super) fn sync_display_cursor_with_logical(&mut self, pane: Pane) -> Result<()> {
-        let logical_pos = match pane {
-            Pane::Request => self.request_buffer.cursor(),
-            Pane::Response => self.response_buffer.cursor(),
-        };
+        let logical_pos = self.panes[pane].buffer.cursor();
 
-        let display_cache = self.get_display_cache(pane);
-
-        if let Some(display_pos) =
-            display_cache.logical_to_display_position(logical_pos.line, logical_pos.column)
+        if let Some(display_pos) = self.panes[pane]
+            .display_cache
+            .logical_to_display_position(logical_pos.line, logical_pos.column)
         {
-            match pane {
-                Pane::Request => self.request_display_cursor = display_pos,
-                Pane::Response => self.response_display_cursor = display_pos,
-            }
+            self.panes[pane].display_cursor = display_pos;
         }
 
         Ok(())
@@ -430,18 +391,12 @@ impl ViewModel {
 
     /// Get scroll offset for a pane
     pub(super) fn get_scroll_offset(&self, pane: Pane) -> (usize, usize) {
-        match pane {
-            Pane::Request => self.request_scroll_offset,
-            Pane::Response => self.response_scroll_offset,
-        }
+        self.panes[pane].scroll_offset
     }
 
     /// Set scroll offset for a pane
     pub(super) fn set_scroll_offset(&mut self, pane: Pane, offset: (usize, usize)) {
-        match pane {
-            Pane::Request => self.request_scroll_offset = offset,
-            Pane::Response => self.response_scroll_offset = offset,
-        }
+        self.panes[pane].scroll_offset = offset;
     }
 
     /// Move cursor to the beginning of the next word
@@ -796,10 +751,7 @@ impl ViewModel {
         }
 
         let current_pane = self.editor.current_pane();
-        let buffer = match current_pane {
-            Pane::Request => &self.request_buffer,
-            Pane::Response => &self.response_buffer,
-        };
+        let buffer = &self.panes[current_pane].buffer;
 
         // Convert to 0-based line number for internal use
         let target_line = line_number.saturating_sub(1);
@@ -821,14 +773,7 @@ impl ViewModel {
             column: 0,
         };
 
-        match current_pane {
-            Pane::Request => {
-                self.request_buffer.set_cursor(new_position);
-            }
-            Pane::Response => {
-                self.response_buffer.set_cursor(new_position);
-            }
-        }
+        self.panes[current_pane].buffer.set_cursor(new_position);
 
         // Sync display cursor and ensure visibility
         self.sync_display_cursor_with_logical(current_pane)?;

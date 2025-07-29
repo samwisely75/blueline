@@ -2,6 +2,7 @@
 //!
 //! Handles HTTP client configuration, request execution, and response management.
 
+use crate::repl::events::Pane;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 use bluenote::{HttpClient, HttpConnectionProfile};
@@ -51,7 +52,11 @@ impl ViewModel {
 
     /// Get request text from buffer
     pub fn get_request_text(&self) -> String {
-        self.request_buffer.content().lines().join("\n")
+        self.panes[Pane::Request]
+            .buffer
+            .content()
+            .lines()
+            .join("\n")
     }
 
     /// Set response from HTTP response
@@ -71,24 +76,28 @@ impl ViewModel {
         self.response.set_body(body.clone());
 
         // Update response buffer content
-        self.response_buffer.content_mut().set_text(&body);
-        self.response_buffer
+        self.panes[Pane::Response]
+            .buffer
+            .content_mut()
+            .set_text(&body);
+        self.panes[Pane::Response]
+            .buffer
             .set_cursor(crate::repl::events::LogicalPosition::zero());
 
         // Rebuild response display cache
         let content_width = self.get_content_width();
-        let response_lines = self.response_buffer.content().lines().to_vec();
+        let response_lines = self.panes[Pane::Response].buffer.content().lines().to_vec();
         if let Ok(cache) = crate::repl::models::build_display_cache(
             &response_lines,
             content_width,
             self.wrap_enabled,
         ) {
-            self.response_display_cache = cache;
+            self.panes[Pane::Response].display_cache = cache;
         }
 
         // Reset response display cursor and scroll
-        self.response_display_cursor = (0, 0);
-        self.response_scroll_offset = (0, 0);
+        self.panes[Pane::Response].display_cursor = (0, 0);
+        self.panes[Pane::Response].scroll_offset = (0, 0);
 
         // Recalculate request pane height now that we have a response
         self.request_pane_height = self.terminal_height / 2;
@@ -110,24 +119,28 @@ impl ViewModel {
         self.response.set_body(content.clone());
 
         // Update response buffer
-        self.response_buffer.content_mut().set_text(&content);
-        self.response_buffer
+        self.panes[Pane::Response]
+            .buffer
+            .content_mut()
+            .set_text(&content);
+        self.panes[Pane::Response]
+            .buffer
             .set_cursor(crate::repl::events::LogicalPosition::zero());
 
         // Rebuild response display cache
         let content_width = self.get_content_width();
-        let response_lines = self.response_buffer.content().lines().to_vec();
+        let response_lines = self.panes[Pane::Response].buffer.content().lines().to_vec();
         if let Ok(cache) = crate::repl::models::build_display_cache(
             &response_lines,
             content_width,
             self.wrap_enabled,
         ) {
-            self.response_display_cache = cache;
+            self.panes[Pane::Response].display_cache = cache;
         }
 
         // Reset response display cursor and scroll
-        self.response_display_cursor = (0, 0);
-        self.response_scroll_offset = (0, 0);
+        self.panes[Pane::Response].display_cursor = (0, 0);
+        self.panes[Pane::Response].scroll_offset = (0, 0);
 
         // Recalculate request pane height now that we have a response
         self.request_pane_height = self.terminal_height / 2;
@@ -159,7 +172,11 @@ impl ViewModel {
 
     /// Get response text content
     pub fn get_response_text(&self) -> String {
-        self.response_buffer.content().lines().join("\n")
+        self.panes[Pane::Response]
+            .buffer
+            .content()
+            .lines()
+            .join("\n")
     }
 
     /// Check if verbose mode is enabled

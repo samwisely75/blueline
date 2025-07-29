@@ -19,4 +19,4 @@ mod tests;
 pub use core::ViewModel;
 
 // Re-export types that other modules need
-pub use core::DisplayLineData;
+pub use core::{DisplayLineData, PaneState};

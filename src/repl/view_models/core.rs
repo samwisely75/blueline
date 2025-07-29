@@ -9,6 +9,7 @@ use crate::repl::view_models::screen_buffer::ScreenBuffer;
 // use anyhow::Result; // Currently unused
 use bluenote::HttpClient;
 use std::collections::HashMap;
+use std::ops::{Index, IndexMut, Not};
 
 /// Type alias for event bus option to reduce complexity
 type EventBusOption = Option<Box<dyn EventBus>>;
@@ -16,22 +17,69 @@ type EventBusOption = Option<Box<dyn EventBus>>;
 /// Type alias for display line rendering data: (content, line_number, is_continuation)
 pub type DisplayLineData = (String, Option<usize>, bool);
 
+/// State container for a single pane (Request or Response)
+#[derive(Debug, Clone)]
+pub struct PaneState {
+    pub buffer: BufferModel,
+    pub display_cache: DisplayCache,
+    pub display_cursor: (usize, usize), // (display_line, display_column)
+    pub scroll_offset: (usize, usize),  // (vertical, horizontal)
+}
+
+impl PaneState {
+    fn new(pane: Pane) -> Self {
+        Self {
+            buffer: BufferModel::new(pane),
+            display_cache: DisplayCache::new(),
+            display_cursor: (0, 0),
+            scroll_offset: (0, 0),
+        }
+    }
+}
+
+/// Array indexing for panes to enable clean access patterns
+impl Index<Pane> for [PaneState; 2] {
+    type Output = PaneState;
+    fn index(&self, pane: Pane) -> &Self::Output {
+        match pane {
+            Pane::Request => &self[0],
+            Pane::Response => &self[1],
+        }
+    }
+}
+
+impl IndexMut<Pane> for [PaneState; 2] {
+    fn index_mut(&mut self, pane: Pane) -> &mut Self::Output {
+        match pane {
+            Pane::Request => &mut self[0],
+            Pane::Response => &mut self[1],
+        }
+    }
+}
+
+/// Enable pane switching with !current_pane
+impl Not for Pane {
+    type Output = Self;
+    fn not(self) -> Self::Output {
+        match self {
+            Pane::Request => Pane::Response,
+            Pane::Response => Pane::Request,
+        }
+    }
+}
+
 /// The central ViewModel that coordinates all business logic
 pub struct ViewModel {
     // Core models
     pub(super) editor: EditorModel,
-    pub(super) request_buffer: BufferModel,
-    pub(super) response_buffer: BufferModel,
     pub(super) response: ResponseModel,
 
+    // Pane management - replaces 8 duplicate fields with unified structure
+    pub(super) panes: [PaneState; 2],
+    pub(super) current_pane: Pane,
+
     // Display coordination (word wrap support)
-    pub(super) request_display_cache: DisplayCache,
-    pub(super) response_display_cache: DisplayCache,
     pub(super) wrap_enabled: bool,
-    pub(super) request_display_cursor: (usize, usize), // (display_line, display_column)
-    pub(super) response_display_cursor: (usize, usize),
-    pub(super) request_scroll_offset: (usize, usize), // (vertical, horizontal)
-    pub(super) response_scroll_offset: (usize, usize),
 
     // Display state
     pub(super) terminal_width: u16,
@@ -74,8 +122,6 @@ impl ViewModel {
     /// Create a new ViewModel with default state
     pub fn new() -> Self {
         let editor = EditorModel::new();
-        let request_buffer = BufferModel::new(Pane::Request);
-        let response_buffer = BufferModel::new(Pane::Response);
         let response = ResponseModel::new();
 
         // Default terminal size
@@ -84,28 +130,27 @@ impl ViewModel {
 
         // Build initial display caches
         let content_width = (terminal_width as usize).saturating_sub(4); // Account for line numbers
-        let request_lines = request_buffer.content().lines().to_vec();
-        let response_lines = response_buffer.content().lines().to_vec();
 
-        let request_display_cache =
+        // Initialize pane array with proper display caches
+        let mut request_pane = PaneState::new(Pane::Request);
+        let mut response_pane = PaneState::new(Pane::Response);
+
+        let request_lines = request_pane.buffer.content().lines().to_vec();
+        let response_lines = response_pane.buffer.content().lines().to_vec();
+
+        request_pane.display_cache =
             crate::repl::models::build_display_cache(&request_lines, content_width, true)
                 .unwrap_or_else(|_| DisplayCache::new());
-        let response_display_cache =
+        response_pane.display_cache =
             crate::repl::models::build_display_cache(&response_lines, content_width, true)
                 .unwrap_or_else(|_| DisplayCache::new());
 
         Self {
             editor,
-            request_buffer,
-            response_buffer,
             response,
-            request_display_cache,
-            response_display_cache,
+            panes: [request_pane, response_pane],
+            current_pane: Pane::Request,
             wrap_enabled: true,
-            request_display_cursor: (0, 0),
-            response_display_cursor: (0, 0),
-            request_scroll_offset: (0, 0),
-            response_scroll_offset: (0, 0),
             terminal_width,
             terminal_height,
             request_pane_height: terminal_height / 2,
@@ -157,9 +202,9 @@ impl ViewModel {
         self.previous_screen_buffer
             .resize(width as usize, height as usize);
 
-        // Invalidate display caches
-        self.request_display_cache.invalidate();
-        self.response_display_cache.invalidate();
+        // Invalidate display caches for both panes
+        self.panes[Pane::Request].display_cache.invalidate();
+        self.panes[Pane::Response].display_cache.invalidate();
 
         tracing::debug!("Terminal size updated: {}x{}", width, height);
     }
@@ -213,6 +258,48 @@ impl ViewModel {
     /// Get the current profile path
     pub fn get_profile_path(&self) -> &str {
         &self.profile_path
+    }
+
+    // === Pane Access Methods ===
+
+    /// Get the current active pane
+    pub fn current_pane(&self) -> Pane {
+        self.current_pane
+    }
+
+    /// Switch to the other pane
+    pub fn toggle_pane(&mut self) {
+        self.current_pane = !self.current_pane;
+    }
+
+    /// Get immutable reference to request pane
+    pub fn request_pane(&self) -> &PaneState {
+        &self.panes[Pane::Request]
+    }
+
+    /// Get mutable reference to request pane
+    pub fn request_pane_mut(&mut self) -> &mut PaneState {
+        &mut self.panes[Pane::Request]
+    }
+
+    /// Get immutable reference to response pane
+    pub fn response_pane(&self) -> &PaneState {
+        &self.panes[Pane::Response]
+    }
+
+    /// Get mutable reference to response pane
+    pub fn response_pane_mut(&mut self) -> &mut PaneState {
+        &mut self.panes[Pane::Response]
+    }
+
+    /// Get immutable reference to current active pane
+    pub fn current_pane_state(&self) -> &PaneState {
+        &self.panes[self.current_pane]
+    }
+
+    /// Get mutable reference to current active pane
+    pub fn current_pane_state_mut(&mut self) -> &mut PaneState {
+        &mut self.panes[self.current_pane]
     }
 
     /// Set a temporary status message for display

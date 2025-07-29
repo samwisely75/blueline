@@ -72,18 +72,22 @@ impl ViewModel {
                 // Update logical cursor in appropriate buffer
                 match current_pane {
                     Pane::Request => {
-                        let clamped_position = self
-                            .request_buffer
+                        let clamped_position = self.panes[Pane::Request]
+                            .buffer
                             .content()
                             .clamp_position(new_cursor_position);
-                        self.request_buffer.set_cursor(clamped_position);
+                        self.panes[Pane::Request]
+                            .buffer
+                            .set_cursor(clamped_position);
                     }
                     Pane::Response => {
-                        let clamped_position = self
-                            .response_buffer
+                        let clamped_position = self.panes[Pane::Response]
+                            .buffer
                             .content()
                             .clamp_position(new_cursor_position);
-                        self.response_buffer.set_cursor(clamped_position);
+                        self.panes[Pane::Response]
+                            .buffer
+                            .set_cursor(clamped_position);
                     }
                 }
 
@@ -171,18 +175,22 @@ impl ViewModel {
             // Update logical cursor in appropriate buffer to maintain cursor-scroll synchronization
             match current_pane {
                 Pane::Request => {
-                    let clamped_position = self
-                        .request_buffer
+                    let clamped_position = self.panes[Pane::Request]
+                        .buffer
                         .content()
                         .clamp_position(cursor_position);
-                    self.request_buffer.set_cursor(clamped_position);
+                    self.panes[Pane::Request]
+                        .buffer
+                        .set_cursor(clamped_position);
                 }
                 Pane::Response => {
-                    let clamped_position = self
-                        .response_buffer
+                    let clamped_position = self.panes[Pane::Response]
+                        .buffer
                         .content()
                         .clamp_position(cursor_position);
-                    self.response_buffer.set_cursor(clamped_position);
+                    self.panes[Pane::Response]
+                        .buffer
+                        .set_cursor(clamped_position);
                 }
             }
 
@@ -258,18 +266,22 @@ impl ViewModel {
             // Update logical cursor in appropriate buffer
             match current_pane {
                 Pane::Request => {
-                    let clamped_position = self
-                        .request_buffer
+                    let clamped_position = self.panes[Pane::Request]
+                        .buffer
                         .content()
                         .clamp_position(cursor_position);
-                    self.request_buffer.set_cursor(clamped_position);
+                    self.panes[Pane::Request]
+                        .buffer
+                        .set_cursor(clamped_position);
                 }
                 Pane::Response => {
-                    let clamped_position = self
-                        .response_buffer
+                    let clamped_position = self.panes[Pane::Response]
+                        .buffer
                         .content()
                         .clamp_position(cursor_position);
-                    self.response_buffer.set_cursor(clamped_position);
+                    self.panes[Pane::Response]
+                        .buffer
+                        .set_cursor(clamped_position);
                 }
             }
 
