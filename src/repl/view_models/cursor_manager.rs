@@ -377,8 +377,12 @@ impl ViewModel {
         // Horizontal scrolling
         if display_pos.1 < horizontal_offset {
             new_horizontal_offset = display_pos.1;
-        } else if display_pos.1 >= horizontal_offset + content_width {
-            new_horizontal_offset = display_pos.1.saturating_sub(content_width - 1);
+        } else if display_pos.1 >= horizontal_offset + content_width && content_width > 0 {
+            // BUGFIX: Add content_width > 0 check to prevent integer underflow panic
+            // This prevents crashes when content width is zero
+            new_horizontal_offset = display_pos
+                .1
+                .saturating_sub(content_width.saturating_sub(1));
         }
 
         // Update scroll offset if changed
@@ -813,7 +817,12 @@ impl ViewModel {
             Pane::Request => self.request_pane_height as usize,
             Pane::Response => {
                 if self.response.status_code().is_some() {
-                    (self.terminal_dimensions.1 - self.request_pane_height - 2) as usize
+                    // BUGFIX: Use saturating_sub to prevent integer underflow panic
+                    // This prevents crashes when terminal dimensions are smaller than expected
+                    self.terminal_dimensions
+                        .1
+                        .saturating_sub(self.request_pane_height)
+                        .saturating_sub(2) as usize
                 // -2 for separator and status
                 } else {
                     0
