@@ -415,11 +415,8 @@ impl ViewRenderer for TerminalRenderer {
                 // BUGFIX: Use saturating_sub to prevent integer underflow panic
                 // This prevents crashes when start_line exceeds request_height during scrolling
                 let height = (request_height as usize).saturating_sub(start_line);
-                let display_lines = view_model.get_display_lines_for_rendering(
-                    pane,
-                    start_line,
-                    height,
-                );
+                let display_lines =
+                    view_model.get_display_lines_for_rendering(pane, start_line, height);
                 let line_num_width = view_model.get_line_number_width(pane);
 
                 for (idx, display_data) in display_lines.iter().enumerate() {
@@ -472,11 +469,8 @@ impl ViewRenderer for TerminalRenderer {
                     // BUGFIX: Use saturating_sub to prevent integer underflow panic
                     // This prevents crashes when start_line exceeds response_height during scrolling
                     let height = (response_height as usize).saturating_sub(start_line);
-                    let display_lines = view_model.get_display_lines_for_rendering(
-                        pane,
-                        start_line,
-                        height,
-                    );
+                    let display_lines =
+                        view_model.get_display_lines_for_rendering(pane, start_line, height);
                     let line_num_width = view_model.get_line_number_width(pane);
 
                     for (idx, display_data) in display_lines.iter().enumerate() {

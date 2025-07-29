@@ -24,10 +24,13 @@ impl ViewModel {
         // Sync display cursor with logical cursor
         self.sync_display_cursor_with_logical(Pane::Request)?;
 
-        // Ensure cursor is visible after insertion (enables auto-horizontal scroll)
+        // BUGFIX: Ensure cursor is visible BEFORE emitting redraw events
+        // This prevents rendering issues where typed characters don't show up
+        // because scrolling happens after the redraw coordinates were calculated
         self.ensure_cursor_visible(Pane::Request);
 
-        // Determine if we need full pane redraw or just partial
+        // BUGFIX: Recalculate display line AFTER scrolling to get correct coordinates
+        // The cursor position might have changed due to scrolling above
         let cursor_pos = self.panes[Pane::Request].buffer.cursor();
         let display_line = self.panes[Pane::Request]
             .display_cache
@@ -61,7 +64,13 @@ impl ViewModel {
         // Sync display cursor with logical cursor
         self.sync_display_cursor_with_logical(Pane::Request)?;
 
-        // Determine if we need full pane redraw or just partial
+        // BUGFIX: Ensure cursor is visible BEFORE emitting redraw events
+        // This prevents rendering issues where typed characters don't show up
+        // because scrolling happens after the redraw coordinates were calculated
+        self.ensure_cursor_visible(Pane::Request);
+
+        // BUGFIX: Recalculate display line AFTER scrolling to get correct coordinates
+        // The cursor position might have changed due to scrolling above
         let cursor_pos = self.panes[Pane::Request].buffer.cursor();
         let display_line = self.panes[Pane::Request]
             .display_cache
@@ -74,9 +83,6 @@ impl ViewModel {
             pane: Pane::Request,
             start_line: display_line,
         }]);
-
-        // Ensure cursor is visible after content is redrawn (prevents ghost cursor race condition)
-        self.ensure_cursor_visible(Pane::Request);
 
         // Update cursor position after text insertion
         self.emit_view_event([
