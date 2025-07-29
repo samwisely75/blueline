@@ -245,8 +245,7 @@ impl BluelineWorld {
             cursor_position: self.view_model.get_cursor_position(),
             request_text: self.view_model.get_request_text(),
             response_text: self.view_model.get_response_text(),
-            terminal_width: 80,  // Default for tests
-            terminal_height: 24, // Default for tests
+            terminal_dimensions: (80, 24), // Default for tests
             verbose: false,
         };
         CommandContext::new(snapshot)

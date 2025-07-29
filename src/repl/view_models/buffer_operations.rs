@@ -3,7 +3,6 @@
 //! Handles text insertion, deletion, and buffer content manipulation.
 
 use crate::repl::events::{EditorMode, LogicalPosition, LogicalRange, Pane, ViewEvent};
-use crate::repl::models::build_display_cache;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 
@@ -11,7 +10,7 @@ impl ViewModel {
     /// Insert a character at current cursor position
     pub fn insert_char(&mut self, ch: char) -> Result<()> {
         // Only allow text insertion in request pane and insert mode
-        if self.editor.current_pane() != Pane::Request || self.editor.mode() != EditorMode::Insert {
+        if self.current_pane != Pane::Request || self.mode() != EditorMode::Insert {
             return Ok(());
         }
 
@@ -20,10 +19,7 @@ impl ViewModel {
 
         // Rebuild request display cache after content change
         let content_width = self.get_content_width();
-        let request_lines = self.panes[Pane::Request].buffer.content().lines().to_vec();
-        if let Ok(cache) = build_display_cache(&request_lines, content_width, self.wrap_enabled) {
-            self.panes[Pane::Request].display_cache = cache;
-        }
+        self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
 
         // Sync display cursor with logical cursor
         self.sync_display_cursor_with_logical(Pane::Request)?;
@@ -40,10 +36,10 @@ impl ViewModel {
             .unwrap_or(0);
 
         // Use partial redraw from current line to bottom
-        self.emit_view_event(ViewEvent::PartialPaneRedrawRequired {
+        self.emit_view_event([ViewEvent::PartialPaneRedrawRequired {
             pane: Pane::Request,
             start_line: display_line,
-        });
+        }]);
 
         Ok(())
     }
@@ -51,7 +47,7 @@ impl ViewModel {
     /// Insert text at current cursor position
     pub fn insert_text(&mut self, text: &str) -> Result<()> {
         // Only allow text insertion in request pane and insert mode
-        if self.editor.current_pane() != Pane::Request || self.editor.mode() != EditorMode::Insert {
+        if self.current_pane != Pane::Request || self.mode() != EditorMode::Insert {
             return Ok(());
         }
 
@@ -60,10 +56,7 @@ impl ViewModel {
 
         // Rebuild request display cache after content change
         let content_width = self.get_content_width();
-        let request_lines = self.panes[Pane::Request].buffer.content().lines().to_vec();
-        if let Ok(cache) = build_display_cache(&request_lines, content_width, self.wrap_enabled) {
-            self.panes[Pane::Request].display_cache = cache;
-        }
+        self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
 
         // Sync display cursor with logical cursor
         self.sync_display_cursor_with_logical(Pane::Request)?;
@@ -77,19 +70,21 @@ impl ViewModel {
             .unwrap_or(0);
 
         // Use partial redraw from current line to bottom
-        self.emit_view_event(ViewEvent::PartialPaneRedrawRequired {
+        self.emit_view_event([ViewEvent::PartialPaneRedrawRequired {
             pane: Pane::Request,
             start_line: display_line,
-        });
+        }]);
 
         // Ensure cursor is visible after content is redrawn (prevents ghost cursor race condition)
         self.ensure_cursor_visible(Pane::Request);
 
         // Update cursor position after text insertion
-        self.emit_view_event(ViewEvent::CursorUpdateRequired {
-            pane: Pane::Request,
-        });
-        self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+        self.emit_view_event([
+            ViewEvent::CursorUpdateRequired {
+                pane: Pane::Request,
+            },
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ]);
 
         Ok(())
     }
@@ -97,11 +92,11 @@ impl ViewModel {
     /// Delete character before cursor
     pub fn delete_char_before_cursor(&mut self) -> Result<()> {
         // Only allow deletion in request pane and insert mode
-        if self.editor.current_pane() != Pane::Request || self.editor.mode() != EditorMode::Insert {
+        if self.current_pane != Pane::Request || self.mode() != EditorMode::Insert {
             return Ok(());
         }
 
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
         let current_pos = self.panes[current_pane].buffer.cursor();
 
         if current_pos.column > 0 {
@@ -119,18 +114,15 @@ impl ViewModel {
 
                 // Rebuild display cache after content change
                 let content_width = self.get_content_width();
-                let current_lines = self.panes[current_pane].buffer.content().lines().to_vec();
-                if let Ok(cache) =
-                    build_display_cache(&current_lines, content_width, self.wrap_enabled)
-                {
-                    self.panes[current_pane].display_cache = cache;
-                }
+                self.panes[current_pane].build_display_cache(content_width, self.wrap_enabled);
 
                 // Sync display cursors to update cursor position
                 self.sync_display_cursors();
 
-                self.emit_view_event(ViewEvent::PaneRedrawRequired { pane: current_pane });
-                self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+                self.emit_view_event([
+                    ViewEvent::PaneRedrawRequired { pane: current_pane },
+                    ViewEvent::CursorUpdateRequired { pane: current_pane },
+                ]);
             }
         } else if current_pos.line > 0 {
             // Check if current line is blank (empty)
@@ -162,18 +154,13 @@ impl ViewModel {
 
                     // Rebuild display cache after content change
                     let content_width = self.get_content_width();
-                    let current_lines = self.panes[current_pane].buffer.content().lines().to_vec();
-                    if let Ok(cache) =
-                        build_display_cache(&current_lines, content_width, self.wrap_enabled)
-                    {
-                        self.panes[current_pane].display_cache = cache;
-                    }
+                    self.panes[current_pane].build_display_cache(content_width, self.wrap_enabled);
 
                     // Sync display cursors to update cursor position
                     self.sync_display_cursors();
 
-                    self.emit_view_event(ViewEvent::PaneRedrawRequired { pane: current_pane });
-                    self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+                    self.emit_view_event([ViewEvent::PaneRedrawRequired { pane: current_pane }]);
+                    self.emit_view_event([ViewEvent::CursorUpdateRequired { pane: current_pane }]);
                 }
             } else {
                 // Join with previous line (existing behavior)
@@ -201,18 +188,13 @@ impl ViewModel {
 
                     // Rebuild display cache after content change
                     let content_width = self.get_content_width();
-                    let current_lines = self.panes[current_pane].buffer.content().lines().to_vec();
-                    if let Ok(cache) =
-                        build_display_cache(&current_lines, content_width, self.wrap_enabled)
-                    {
-                        self.panes[current_pane].display_cache = cache;
-                    }
+                    self.panes[current_pane].build_display_cache(content_width, self.wrap_enabled);
 
                     // Sync display cursors to update cursor position
                     self.sync_display_cursors();
 
-                    self.emit_view_event(ViewEvent::PaneRedrawRequired { pane: current_pane });
-                    self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+                    self.emit_view_event([ViewEvent::PaneRedrawRequired { pane: current_pane }]);
+                    self.emit_view_event([ViewEvent::CursorUpdateRequired { pane: current_pane }]);
                 }
             }
         }
@@ -223,7 +205,7 @@ impl ViewModel {
     /// Delete character after cursor
     pub fn delete_char_after_cursor(&mut self) -> Result<()> {
         // Only allow deletion in request pane and insert mode
-        if self.editor.current_pane() != Pane::Request || self.editor.mode() != EditorMode::Insert {
+        if self.current_pane != Pane::Request || self.mode() != EditorMode::Insert {
             return Ok(());
         }
 
@@ -244,22 +226,19 @@ impl ViewModel {
             {
                 // Rebuild request display cache after content change
                 let content_width = self.get_content_width();
-                let request_lines = self.panes[Pane::Request].buffer.content().lines().to_vec();
-                if let Ok(cache) =
-                    build_display_cache(&request_lines, content_width, self.wrap_enabled)
-                {
-                    self.panes[Pane::Request].display_cache = cache;
-                }
+                self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
 
                 // Sync display cursors to ensure cursor position is correct
                 self.sync_display_cursors();
 
-                self.emit_view_event(ViewEvent::PaneRedrawRequired {
-                    pane: Pane::Request,
-                });
-                self.emit_view_event(ViewEvent::CursorUpdateRequired {
-                    pane: Pane::Request,
-                });
+                self.emit_view_event([
+                    ViewEvent::PaneRedrawRequired {
+                        pane: Pane::Request,
+                    },
+                    ViewEvent::CursorUpdateRequired {
+                        pane: Pane::Request,
+                    },
+                ]);
             }
         }
         // Note: We don't handle joining with next line for simplicity

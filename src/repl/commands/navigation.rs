@@ -484,8 +484,7 @@ mod tests {
             cursor_position: LogicalPosition::zero(),
             request_text: String::new(),
             response_text: String::new(),
-            terminal_width: 80,
-            terminal_height: 24,
+            terminal_dimensions: (80, 24),
             verbose: false,
         };
         CommandContext::new(snapshot)

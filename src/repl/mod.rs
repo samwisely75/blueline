@@ -22,4 +22,4 @@ pub use views::*;
 pub use commands::{Command, CommandContext, CommandEvent, CommandRegistry, ViewModelSnapshot};
 
 // Re-export specific items from models to avoid conflicts
-pub use models::{BufferModel, EditorModel, HttpHeaders, RequestModel, ResponseModel};
+pub use models::{BufferModel, HttpHeaders, RequestModel, ResponseModel};

@@ -6,7 +6,7 @@
 mod integration_tests {
     use crate::repl::{
         commands::CommandEvent,
-        events::{EditorMode, LogicalPosition, Pane},
+        events::{EditorMode, LogicalPosition, Pane, ViewEvent},
         view_models::ViewModel,
     };
 
@@ -178,8 +178,7 @@ mod integration_tests {
         vm.insert_text("hello").unwrap();
 
         // Move cursor to position 1
-        vm.set_cursor_position(crate::repl::events::LogicalPosition::new(0, 1))
-            .unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 1)).unwrap();
 
         // Delete character before cursor (should delete 'h')
         vm.delete_char_before_cursor().unwrap();
@@ -215,7 +214,7 @@ mod integration_tests {
         // Insert text and move cursor back
         vm.insert_text("hello").unwrap();
         let cursor = vm.get_cursor_position();
-        vm.set_cursor_position(crate::repl::events::LogicalPosition::new(cursor.line, 2))
+        vm.set_cursor_position(LogicalPosition::new(cursor.line, 2))
             .unwrap();
 
         // Delete character after cursor (should delete 'l')
@@ -275,8 +274,7 @@ mod integration_tests {
             .unwrap();
 
         // Position cursor on the blank line (line 1, column 0)
-        vm.set_cursor_position(crate::repl::events::LogicalPosition::new(1, 0))
-            .unwrap();
+        vm.set_cursor_position(LogicalPosition::new(1, 0)).unwrap();
 
         // Backspace should delete the blank line and move cursor to end of previous line
         vm.delete_char_before_cursor().unwrap();
@@ -302,8 +300,7 @@ mod integration_tests {
             .unwrap();
 
         // Position cursor on the second blank line (line 2, column 0)
-        vm.set_cursor_position(crate::repl::events::LogicalPosition::new(2, 0))
-            .unwrap();
+        vm.set_cursor_position(LogicalPosition::new(2, 0)).unwrap();
 
         // Backspace should delete only the current blank line
         vm.delete_char_before_cursor().unwrap();
@@ -328,8 +325,7 @@ mod integration_tests {
         vm.insert_text("Hello World\n").unwrap();
 
         // Position cursor on the blank line (line 1, column 0)
-        vm.set_cursor_position(crate::repl::events::LogicalPosition::new(1, 0))
-            .unwrap();
+        vm.set_cursor_position(LogicalPosition::new(1, 0)).unwrap();
 
         // Backspace should delete the blank line and move cursor to end of "Hello World"
         vm.delete_char_before_cursor().unwrap();
@@ -352,8 +348,7 @@ mod integration_tests {
         vm.insert_text("Hello\nWorld").unwrap();
 
         // Position cursor at start of second line
-        vm.set_cursor_position(crate::repl::events::LogicalPosition::new(1, 0))
-            .unwrap();
+        vm.set_cursor_position(LogicalPosition::new(1, 0)).unwrap();
 
         // Backspace should join the lines (existing behavior)
         vm.delete_char_before_cursor().unwrap();
@@ -758,9 +753,8 @@ mod integration_tests {
 
         // Set up visual selection from column 2 to 6 on line 0
         vm.change_mode(EditorMode::Visual).unwrap();
-        vm.visual_selection_start = Some(LogicalPosition::new(0, 2));
-        vm.visual_selection_end = Some(LogicalPosition::new(0, 6));
-        vm.visual_selection_pane = Some(Pane::Request);
+        vm.panes[Pane::Request].visual_selection_start = Some(LogicalPosition::new(0, 2));
+        vm.panes[Pane::Request].visual_selection_end = Some(LogicalPosition::new(0, 6));
 
         // Test positions within selection
         assert!(vm.is_position_selected(LogicalPosition::new(0, 2), Pane::Request));
@@ -786,9 +780,8 @@ mod integration_tests {
 
         // Set up visual selection from line 0, col 2 to line 2, col 3
         vm.change_mode(EditorMode::Visual).unwrap();
-        vm.visual_selection_start = Some(LogicalPosition::new(0, 2));
-        vm.visual_selection_end = Some(LogicalPosition::new(2, 3));
-        vm.visual_selection_pane = Some(Pane::Request);
+        vm.panes[Pane::Request].visual_selection_start = Some(LogicalPosition::new(0, 2));
+        vm.panes[Pane::Request].visual_selection_end = Some(LogicalPosition::new(2, 3));
 
         // Test first line (partial)
         assert!(!vm.is_position_selected(LogicalPosition::new(0, 1), Pane::Request));
@@ -818,9 +811,8 @@ mod integration_tests {
 
         // Set up visual selection with end before start (reversed)
         vm.change_mode(EditorMode::Visual).unwrap();
-        vm.visual_selection_start = Some(LogicalPosition::new(0, 6));
-        vm.visual_selection_end = Some(LogicalPosition::new(0, 2));
-        vm.visual_selection_pane = Some(Pane::Request);
+        vm.panes[Pane::Request].visual_selection_start = Some(LogicalPosition::new(0, 6));
+        vm.panes[Pane::Request].visual_selection_end = Some(LogicalPosition::new(0, 2));
 
         // Should normalize selection range automatically
         assert!(vm.is_position_selected(LogicalPosition::new(0, 2), Pane::Request));
@@ -868,9 +860,15 @@ mod integration_tests {
         vm.set_cursor_position(LogicalPosition::new(0, 3)).unwrap();
 
         // Selection should still be in request pane and unchanged
-        let (_start, end, pane) = vm.get_visual_selection();
-        assert_eq!(pane, Some(Pane::Request));
-        assert_eq!(end, Some(LogicalPosition::new(0, 5))); // Should not have updated
+        // With pane-based selection, the current pane (Response) has no selection
+        let (_start, _end, pane) = vm.get_visual_selection();
+        assert_eq!(pane, None); // Response pane has no selection
+
+        // But the request pane should still have its original selection
+        assert_eq!(
+            vm.panes[Pane::Request].visual_selection_end,
+            Some(LogicalPosition::new(0, 5))
+        );
     }
 
     #[test]
@@ -906,5 +904,104 @@ mod integration_tests {
         assert!(end.is_some());
         assert_eq!(start, Some(LogicalPosition::new(0, 2))); // Start should remain unchanged
         assert_ne!(start, end); // End should be different after movements
+    }
+
+    // Tests for multiple event emission functionality
+    #[test]
+    fn test_emit_view_event_single_event() {
+        let mut vm = ViewModel::new();
+
+        // Emit a single event
+        vm.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
+
+        // Check that it was properly collected
+        let events = vm.collect_pending_view_events();
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
+    }
+
+    #[test]
+    fn test_emit_view_event_multiple_events() {
+        let mut vm = ViewModel::new();
+
+        // Emit multiple events at once
+        vm.emit_view_event([
+            ViewEvent::StatusBarUpdateRequired,
+            ViewEvent::CursorUpdateRequired {
+                pane: Pane::Request,
+            },
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ]);
+
+        // Check that all events were collected
+        let events = vm.collect_pending_view_events();
+        assert_eq!(events.len(), 3);
+        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
+        assert!(matches!(
+            events[1],
+            ViewEvent::CursorUpdateRequired {
+                pane: Pane::Request
+            }
+        ));
+        assert!(matches!(
+            events[2],
+            ViewEvent::PositionIndicatorUpdateRequired
+        ));
+    }
+
+    #[test]
+    fn test_emit_view_event_vec_of_events() {
+        let mut vm = ViewModel::new();
+
+        // Create a vector of events
+        let event_vec = vec![
+            ViewEvent::PaneRedrawRequired {
+                pane: Pane::Request,
+            },
+            ViewEvent::CursorUpdateRequired {
+                pane: Pane::Response,
+            },
+        ];
+
+        // Emit the vector
+        vm.emit_view_event(event_vec);
+
+        // Check that all events were collected
+        let events = vm.collect_pending_view_events();
+        assert_eq!(events.len(), 2);
+        assert!(matches!(
+            events[0],
+            ViewEvent::PaneRedrawRequired {
+                pane: Pane::Request
+            }
+        ));
+        assert!(matches!(
+            events[1],
+            ViewEvent::CursorUpdateRequired {
+                pane: Pane::Response
+            }
+        ));
+    }
+
+    #[test]
+    fn test_emit_view_event_accumulates_events() {
+        let mut vm = ViewModel::new();
+
+        // Emit some events
+        vm.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
+        vm.emit_view_event([
+            ViewEvent::CursorUpdateRequired {
+                pane: Pane::Request,
+            },
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ]);
+
+        // Check that all events were accumulated
+        let events = vm.collect_pending_view_events();
+        assert_eq!(events.len(), 3);
+
+        // Check that collecting clears the events
+        let empty_events = vm.collect_pending_view_events();
+        assert_eq!(empty_events.len(), 0);
     }
 }

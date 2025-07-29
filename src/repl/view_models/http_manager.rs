@@ -24,7 +24,7 @@ impl ViewModel {
 
     /// Set verbose mode
     pub fn set_verbose(&mut self, verbose: bool) {
-        self.verbose = verbose;
+        self.http_verbose = verbose;
         tracing::debug!("Verbose mode set to: {}", verbose);
     }
 
@@ -42,12 +42,12 @@ impl ViewModel {
             tracing::debug!("Request execution finished");
         }
         // Emit status bar update to reflect execution state
-        self.emit_view_event(crate::repl::events::ViewEvent::StatusBarUpdateRequired);
+        self.emit_view_event([crate::repl::events::ViewEvent::StatusBarUpdateRequired]);
     }
 
     /// Get session headers
     pub fn session_headers(&self) -> &HashMap<String, String> {
-        &self.session_headers
+        &self.http_session_headers
     }
 
     /// Get request text from buffer
@@ -86,25 +86,18 @@ impl ViewModel {
 
         // Rebuild response display cache
         let content_width = self.get_content_width();
-        let response_lines = self.panes[Pane::Response].buffer.content().lines().to_vec();
-        if let Ok(cache) = crate::repl::models::build_display_cache(
-            &response_lines,
-            content_width,
-            self.wrap_enabled,
-        ) {
-            self.panes[Pane::Response].display_cache = cache;
-        }
+        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
 
         // Reset response display cursor and scroll
         self.panes[Pane::Response].display_cursor = (0, 0);
         self.panes[Pane::Response].scroll_offset = (0, 0);
 
         // Recalculate request pane height now that we have a response
-        self.request_pane_height = self.terminal_height / 2;
+        self.request_pane_height = self.terminal_dimensions.1 / 2;
 
         // Full redraw is needed when response first appears to draw the response pane
         // This will also update the status bar with TAT and message
-        self.emit_view_event(crate::repl::events::ViewEvent::FullRedrawRequired);
+        self.emit_view_event([crate::repl::events::ViewEvent::FullRedrawRequired]);
 
         tracing::debug!(
             "Response set from HTTP response: status={}, duration={}ms",
@@ -129,24 +122,17 @@ impl ViewModel {
 
         // Rebuild response display cache
         let content_width = self.get_content_width();
-        let response_lines = self.panes[Pane::Response].buffer.content().lines().to_vec();
-        if let Ok(cache) = crate::repl::models::build_display_cache(
-            &response_lines,
-            content_width,
-            self.wrap_enabled,
-        ) {
-            self.panes[Pane::Response].display_cache = cache;
-        }
+        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
 
         // Reset response display cursor and scroll
         self.panes[Pane::Response].display_cursor = (0, 0);
         self.panes[Pane::Response].scroll_offset = (0, 0);
 
         // Recalculate request pane height now that we have a response
-        self.request_pane_height = self.terminal_height / 2;
+        self.request_pane_height = self.terminal_dimensions.1 / 2;
 
         // Full redraw is needed when response first appears
-        self.emit_view_event(crate::repl::events::ViewEvent::FullRedrawRequired);
+        self.emit_view_event([crate::repl::events::ViewEvent::FullRedrawRequired]);
 
         tracing::debug!(
             "Response set: status={}, content_length={}",
@@ -181,6 +167,6 @@ impl ViewModel {
 
     /// Check if verbose mode is enabled
     pub fn is_verbose(&self) -> bool {
-        self.verbose
+        self.http_verbose
     }
 }

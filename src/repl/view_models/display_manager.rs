@@ -3,7 +3,7 @@
 //! Handles display cache management, word wrapping, and display coordinate calculations.
 //! This module coordinates between logical content and display representation.
 
-use crate::repl::events::Pane;
+use crate::repl::events::{Pane, ViewEvent};
 use crate::repl::models::DisplayCache;
 use crate::repl::view_models::core::{DisplayLineData, ViewModel};
 
@@ -101,10 +101,10 @@ impl ViewModel {
     /// Note: This is a simplified calculation. In practice, each pane may have different line number widths.
     pub(super) fn get_content_width(&self) -> usize {
         // Use current pane's line number width
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
         let line_num_width = self.get_line_number_width(current_pane);
 
-        (self.terminal_width as usize).saturating_sub(line_num_width + 1)
+        (self.terminal_dimensions.0 as usize).saturating_sub(line_num_width + 1)
     }
 
     /// Set word wrap enabled/disabled and rebuild display caches
@@ -112,7 +112,7 @@ impl ViewModel {
         if self.wrap_enabled != enabled {
             self.wrap_enabled = enabled;
             self.rebuild_display_caches()?;
-            self.emit_view_event(crate::repl::events::ViewEvent::FullRedrawRequired);
+            self.emit_view_event([ViewEvent::FullRedrawRequired]);
         }
         Ok(())
     }
@@ -121,27 +121,9 @@ impl ViewModel {
     fn rebuild_display_caches(&mut self) -> Result<(), anyhow::Error> {
         let content_width = self.get_content_width();
 
-        // Rebuild request cache
-        let request_lines = self.panes[Pane::Request].buffer.content().lines().to_vec();
-        self.panes[Pane::Request].display_cache = crate::repl::models::build_display_cache(
-            &request_lines,
-            content_width,
-            self.wrap_enabled,
-        )
-        .unwrap_or_else(|_| crate::repl::models::DisplayCache::new());
-
-        // Rebuild response cache if there's response content
-        let response_content = self.response.body();
-        if !response_content.is_empty() {
-            let response_lines: Vec<String> =
-                response_content.lines().map(|s| s.to_string()).collect();
-            self.panes[Pane::Response].display_cache = crate::repl::models::build_display_cache(
-                &response_lines,
-                content_width,
-                self.wrap_enabled,
-            )
-            .unwrap_or_else(|_| crate::repl::models::DisplayCache::new());
-        }
+        // Rebuild display caches using PaneState encapsulation
+        self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
+        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
 
         // Synchronize display cursors after rebuilding caches to handle coordinate system changes
         // This is critical when wrap mode changes as cursor positions may be invalid

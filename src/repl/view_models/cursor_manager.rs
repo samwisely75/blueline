@@ -3,20 +3,20 @@
 //! Handles all cursor movement and positioning logic including display cursor synchronization,
 //! scrolling, and coordinate transformations between logical and display positions.
 
-use crate::repl::events::{LogicalPosition, Pane, ViewEvent};
+use crate::repl::events::{EditorMode, LogicalPosition, Pane, ViewEvent};
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 
 impl ViewModel {
     /// Get current logical cursor position for the active pane
     pub fn get_cursor_position(&self) -> LogicalPosition {
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
         self.panes[current_pane].buffer.cursor()
     }
 
     /// Move cursor left in current pane (display coordinate based)
     pub fn move_cursor_left(&mut self) -> Result<()> {
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
 
         // Sync display cursor with current logical cursor position
         self.sync_display_cursor_with_logical(current_pane)?;
@@ -62,8 +62,10 @@ impl ViewModel {
 
         // Only emit events if we actually moved
         if moved {
-            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-            self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+            self.emit_view_event([
+                ViewEvent::CursorUpdateRequired { pane: current_pane },
+                ViewEvent::PositionIndicatorUpdateRequired,
+            ]);
         }
 
         Ok(())
@@ -71,7 +73,7 @@ impl ViewModel {
 
     /// Move cursor right in current pane (display coordinate based)
     pub fn move_cursor_right(&mut self) -> Result<()> {
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
 
         // Sync display cursor with current logical cursor position
         self.sync_display_cursor_with_logical(current_pane)?;
@@ -120,8 +122,10 @@ impl ViewModel {
 
         // Only emit events if we actually moved
         if moved {
-            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-            self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+            self.emit_view_event([
+                ViewEvent::CursorUpdateRequired { pane: current_pane },
+                ViewEvent::PositionIndicatorUpdateRequired,
+            ]);
         }
 
         Ok(())
@@ -129,7 +133,7 @@ impl ViewModel {
 
     /// Move cursor up in current pane (display line based)
     pub fn move_cursor_up(&mut self) -> Result<()> {
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
         let current_display_pos = self.get_display_cursor(current_pane);
         let display_cache = self.get_display_cache(current_pane);
 
@@ -142,8 +146,10 @@ impl ViewModel {
         if let Some(new_pos) = display_cache.move_up(current_display_pos.0, current_display_pos.1) {
             self.set_display_cursor(current_pane, new_pos)?;
             self.ensure_cursor_visible(current_pane);
-            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-            self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+            self.emit_view_event([
+                ViewEvent::CursorUpdateRequired { pane: current_pane },
+                ViewEvent::PositionIndicatorUpdateRequired,
+            ]);
         } else {
             tracing::debug!("move_cursor_up: already at top, no movement");
         }
@@ -153,7 +159,7 @@ impl ViewModel {
 
     /// Move cursor down in current pane (display line based)
     pub fn move_cursor_down(&mut self) -> Result<()> {
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
         let current_display_pos = self.get_display_cursor(current_pane);
         let display_cache = self.get_display_cache(current_pane);
 
@@ -167,8 +173,10 @@ impl ViewModel {
         {
             self.set_display_cursor(current_pane, new_pos)?;
             self.ensure_cursor_visible(current_pane);
-            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-            self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+            self.emit_view_event([
+                ViewEvent::CursorUpdateRequired { pane: current_pane },
+                ViewEvent::PositionIndicatorUpdateRequired,
+            ]);
         } else {
             tracing::debug!("move_cursor_down: already at bottom, no movement");
         }
@@ -178,7 +186,7 @@ impl ViewModel {
 
     /// Move cursor to end of current line
     pub fn move_cursor_to_end_of_line(&mut self) -> Result<()> {
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
         let current_logical_pos = self.get_cursor_position();
 
         // Get the text content for the current pane
@@ -219,7 +227,7 @@ impl ViewModel {
 
     /// Move cursor to end of document (G command)
     pub fn move_cursor_to_document_end(&mut self) -> Result<()> {
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
 
         // BUGFIX: Use the exact same approach as the test framework to ensure consistency
         // Without this matching approach, G command integration tests fail due to line counting mismatch
@@ -248,7 +256,7 @@ impl ViewModel {
 
     /// Set cursor to specific logical position
     pub fn set_cursor_position(&mut self, position: LogicalPosition) -> Result<()> {
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
 
         // Update logical cursor in appropriate buffer
         let clamped_position = self.panes[current_pane]
@@ -263,32 +271,30 @@ impl ViewModel {
         // Sync display cursor
         self.sync_display_cursor_with_logical(current_pane)?;
         self.ensure_cursor_visible(current_pane);
-        self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-        self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+        self.emit_view_event([
+            ViewEvent::CursorUpdateRequired { pane: current_pane },
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ]);
 
         Ok(())
     }
 
     /// Update visual selection end position if in visual mode
     fn update_visual_selection_end(&mut self) {
-        if self.editor.mode() == crate::repl::events::EditorMode::Visual {
+        if self.mode() == EditorMode::Visual {
             let current_cursor = self.get_cursor_position();
-            let current_pane = self.editor.current_pane();
+            let current_pane = self.current_pane;
 
-            // Only update if we're in the same pane as the selection
-            if let Some(selection_pane) = self.visual_selection_pane {
-                if selection_pane == current_pane {
-                    self.visual_selection_end = Some(current_cursor);
-                    tracing::debug!("Updated visual selection end to {:?}", current_cursor);
+            // Update the selection end for the current pane
+            if self.panes[current_pane].visual_selection_start.is_some() {
+                self.panes[current_pane].visual_selection_end = Some(current_cursor);
+                tracing::debug!("Updated visual selection end to {:?}", current_cursor);
 
-                    // BUGFIX: Emit pane redraw event to trigger visual selection rendering
-                    // Without this, visual selection highlighting won't appear because
-                    // only cursor events are emitted, not text re-rendering events
-                    self.emit_view_event(crate::repl::events::ViewEvent::PaneRedrawRequired {
-                        pane: current_pane,
-                    });
-                    tracing::debug!("Emitted pane redraw event for visual selection update");
-                }
+                // BUGFIX: Emit pane redraw event to trigger visual selection rendering
+                // Without this, visual selection highlighting won't appear because
+                // only cursor events are emitted, not text re-rendering events
+                self.emit_view_event([ViewEvent::PaneRedrawRequired { pane: current_pane }]);
+                tracing::debug!("Emitted pane redraw event for visual selection update");
             }
         }
     }
@@ -381,11 +387,11 @@ impl ViewModel {
             self.set_scroll_offset(pane, (new_vertical_offset, new_horizontal_offset));
 
             // Emit scroll changed event
-            self.emit_view_event(ViewEvent::ScrollChanged {
+            self.emit_view_event([ViewEvent::ScrollChanged {
                 pane,
                 old_offset: old_offset.0,
                 new_offset: new_vertical_offset,
-            });
+            }]);
         }
     }
 
@@ -401,7 +407,7 @@ impl ViewModel {
 
     /// Move cursor to the beginning of the next word
     pub fn move_cursor_to_next_word(&mut self) -> Result<()> {
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
         let current_display_pos = self.get_display_cursor(current_pane);
         let display_cache = self.get_display_cache(current_pane);
 
@@ -503,8 +509,10 @@ impl ViewModel {
 
         // Emit events if we moved
         if moved {
-            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-            self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+            self.emit_view_event([
+                ViewEvent::CursorUpdateRequired { pane: current_pane },
+                ViewEvent::PositionIndicatorUpdateRequired,
+            ]);
         }
 
         Ok(())
@@ -512,7 +520,7 @@ impl ViewModel {
 
     /// Move cursor to the beginning of the previous word
     pub fn move_cursor_to_previous_word(&mut self) -> Result<()> {
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
         let current_display_pos = self.get_display_cursor(current_pane);
         let display_cache = self.get_display_cache(current_pane);
 
@@ -619,8 +627,10 @@ impl ViewModel {
 
         // Emit events if we moved
         if moved {
-            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-            self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+            self.emit_view_event([
+                ViewEvent::CursorUpdateRequired { pane: current_pane },
+                ViewEvent::PositionIndicatorUpdateRequired,
+            ]);
         }
 
         Ok(())
@@ -628,7 +638,7 @@ impl ViewModel {
 
     /// Move cursor to the end of the current or next word
     pub fn move_cursor_to_end_of_word(&mut self) -> Result<()> {
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
         let current_display_pos = self.get_display_cursor(current_pane);
         let display_cache = self.get_display_cache(current_pane);
 
@@ -737,8 +747,10 @@ impl ViewModel {
 
         // Emit events if we moved
         if moved {
-            self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-            self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+            self.emit_view_event([
+                ViewEvent::CursorUpdateRequired { pane: current_pane },
+                ViewEvent::PositionIndicatorUpdateRequired,
+            ]);
         }
 
         Ok(())
@@ -750,7 +762,7 @@ impl ViewModel {
             return Ok(());
         }
 
-        let current_pane = self.editor.current_pane();
+        let current_pane = self.current_pane;
         let buffer = &self.panes[current_pane].buffer;
 
         // Convert to 0-based line number for internal use
@@ -782,13 +794,15 @@ impl ViewModel {
         // BUGFIX: Always emit scroll change event for line navigation to force pane redraw
         // This ensures cursor movement is visible even when no actual scrolling occurs
         let (current_v_offset, _current_h_offset) = self.get_scroll_offset(current_pane);
-        self.emit_view_event(ViewEvent::ScrollChanged {
-            pane: current_pane,
-            old_offset: current_v_offset,
-            new_offset: current_v_offset, // Same offset, but forces redraw
-        });
-        self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
-        self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
+        self.emit_view_event([
+            ViewEvent::ScrollChanged {
+                pane: current_pane,
+                old_offset: current_v_offset,
+                new_offset: current_v_offset, // Same offset, but forces redraw
+            },
+            ViewEvent::CursorUpdateRequired { pane: current_pane },
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ]);
 
         Ok(())
     }
@@ -799,7 +813,7 @@ impl ViewModel {
             Pane::Request => self.request_pane_height as usize,
             Pane::Response => {
                 if self.response.status_code().is_some() {
-                    (self.terminal_height - self.request_pane_height - 2) as usize
+                    (self.terminal_dimensions.1 - self.request_pane_height - 2) as usize
                 // -2 for separator and status
                 } else {
                     0

@@ -15,8 +15,7 @@ pub struct ViewModelSnapshot {
     pub cursor_position: LogicalPosition,
     pub request_text: String,
     pub response_text: String,
-    pub terminal_width: u16,
-    pub terminal_height: u16,
+    pub terminal_dimensions: (u16, u16),
     pub verbose: bool,
 }
 
@@ -29,8 +28,7 @@ impl ViewModelSnapshot {
             cursor_position: view_model.get_cursor_position(),
             request_text: view_model.get_request_text(),
             response_text: view_model.get_response_text(),
-            terminal_width: view_model.terminal_size().0,
-            terminal_height: view_model.terminal_size().1,
+            terminal_dimensions: view_model.terminal_size(),
             verbose: view_model.is_verbose(),
         }
     }
@@ -99,7 +97,7 @@ impl HttpClientAccess for HttpCommandContext {
 
 impl TerminalAccess for CommandContext {
     fn terminal_size(&self) -> (u16, u16) {
-        (self.state.terminal_width, self.state.terminal_height)
+        self.state.terminal_dimensions
     }
 }
 
