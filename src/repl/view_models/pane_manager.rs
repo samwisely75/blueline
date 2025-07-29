@@ -96,12 +96,30 @@ impl ViewModel {
                     tracing::warn!("Failed to disable word wrap: {}", e);
                 }
             }
+            "show profile" => {
+                // Show profile information in status bar
+                events.push(crate::repl::commands::CommandEvent::ShowProfileRequested);
+            }
             "" => {
                 // Empty command, just exit command mode
             }
             _ => {
-                // Unknown command - could emit an error event in future
-                tracing::warn!("Unknown ex command: {}", command);
+                // Check if it's a line number command (:<number>)
+                if let Ok(line_number) = command.parse::<usize>() {
+                    if line_number > 0 {
+                        events.push(crate::repl::commands::CommandEvent::CursorMoveRequested {
+                            direction: crate::repl::commands::MovementDirection::LineNumber(
+                                line_number,
+                            ),
+                            amount: 1,
+                        });
+                    } else {
+                        tracing::warn!("Invalid line number: {}", line_number);
+                    }
+                } else {
+                    // Unknown command - could emit an error event in future
+                    tracing::warn!("Unknown ex command: {}", command);
+                }
             }
         }
 

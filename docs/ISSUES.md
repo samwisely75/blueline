@@ -1,26 +1,34 @@
 # Issues
 
 ## Ready to Develop
-- [ ] Maintain the request history and allow users to navigate through it using `Ctrl + p` and `Ctrl + n` to go to the previous and next requests, respectively. The history should be stored in `~/.blueline/history`.
-- [ ] Support `Ctrl + l` to refresh the entire screen.
+
 - [ ] Support `v` to enter visual mode in the request/response pane and allow other navigation commands to select text.
 - [ ] Support `y` to copy the selected text in the request/response pane to the clipboard.
 - [ ] Support `yy` to copy the current line in the request/response pane to the clipboard.
 - [ ] Support `dd` to cut the current line in the request pane to the clipboard.
 - [ ] Support `x` to delete the current character in the request buffer.
 - [ ] Support `Shift + d(D)` to cut the characters from the current cursor position to the end of the line in the request pane.
-- [ ] Support `p` to paste the text in the clipboard in the request buffer.
-- [ ] Support `Shift + p(P)` to paste the copied line before the current line in the request buffer.
-- [ ] Support `Ctrl + j` to expand the response pane for one line. It goes up to the request pane shrinks to three lines.
-- [ ] Support `Ctrl + k` to shrink the response pane for one line. It goes down to the response pane shrinks to three lines.
-- [ ] Support `:r` to show/hide the response pane.
+- [ ] Support `p` to paste/insert the copied text in the clipboard to the next to the current position in the request pane (clone the Vim behavior).
+- [ ] Support `Shift + p(P)` to paste/insert the copied text in clipboard to the current cursor position in the request pane (clone the Vim behavior).
 
 ## Backlog
 
+- [ ] Backspace over the series of blank lines in the request pane should delete the current line and move to the previous line.
+- [ ] Abstract the request/response pane into a separate module to improve code organization and maintainability. Reduce `match` statement to select the pane.
+- [ ] Print details of the request and response in the beginning of the response pane, when the verbose mode is enabled by `-v` command args. The format is detailed in the monolithic version of the code in the main.rs in the `master` branch (I believe), namely `print_request` and `print_response`.
+- [ ] Support `u` to undo the last change in the request buffer.
+- [ ] Support `Ctrl + r` to redo the last undone change in the request buffer
+- [ ] Support `Ctrl + j` to expand the response pane for one line. It goes up to the request pane shrinks to three lines.
+- [ ] Support `Ctrl + k` to shrink the response pane for one line. It goes down to the response pane shrinks to three lines.
+- [ ] Support `:r` to show/hide the response pane.
+- [ ] Support `Ctrl + l` to refresh the entire screen.
+- [ ] Maintain the request history and allow users to navigate through it using `Ctrl + p` and `Ctrl + n` to go to the previous and next requests, respectively. The history should be stored in `~/.blueline/history`.
+- [ ] Change the wrap/nowrap settings command to `:set wrap on` and `:set wrap off` instead of `:set wrap` and `:set nowrap`.
+- [ ] Toggle the line number visibility in the request/response pane with `:set number on` and `:set number off`.
+- [ ] Load the settings from the `~/.blueline/config` file.
 - [ ] Support syntax highlighting for HTTP requests in the request buffer.
 - [ ] Implement memory mapped file to support large response content (>1GB). `mapmem` crate can be used for this purpose.
 - [ ] Fix background scrolling issue - still occurring despite terminal configuration and alternate screen buffer setup.
-- [ ] Print details of the request and response in the beginning of the response pane, when the verbose mode is enabled by `-v` command args. The format is detailed in the monolithic version of the code in the main.rs in the `master` branch (I believe), namely `print_request` and `print_response`.
 
 ## Done
 
@@ -67,6 +75,7 @@
 - [x] The last HTTP status code, message, and turn around time must be retained and aligned to the right in the status bar.
 - [x] initial width for the line number must be 3. The tilda should be placed in the first column.
 - [x] src/repl/command.rs can be renamed as commands.rs and we can then migrate mod declaration from repl.rs to this.
+- [x] Support `:<number>` to go to the specified line in the request/response pane.
 - [x] integration tests must incorporate the check for the screen refresh. This could be done by a mock framework that hooks the invocation of a refresh method and maintain/check its call count.
 - [x] SwitchPaneCommand in the movement.rs must be pushed out to window.rs.
 - [x] Fix the flicking issue when the cursor is moved in the request pane. It only happens in the request pane, regardless of the response pane being shown or not.

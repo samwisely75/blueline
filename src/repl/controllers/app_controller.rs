@@ -3,7 +3,6 @@
 //! The controller orchestrates the REPL components and manages the event loop.
 //! It's responsible for connecting user input to commands and coordinating view updates.
 
-use crate::cmd_args::CommandLineArgs;
 use crate::repl::{
     commands::{CommandContext, CommandEvent, CommandRegistry, HttpHeaders, ViewModelSnapshot},
     events::{Pane, SimpleEventBus},
@@ -11,8 +10,9 @@ use crate::repl::{
     view_models::ViewModel,
     views::{TerminalRenderer, ViewRenderer},
 };
+use crate::{cmd_args::CommandLineArgs, config};
 use anyhow::Result;
-use bluenote::{get_blank_profile, HttpConnectionProfile, IniProfileStore, DEFAULT_INI_FILE_PATH};
+use bluenote::{get_blank_profile, HttpConnectionProfile, IniProfileStore};
 use crossterm::{
     event::{self, Event},
     execute, terminal,
@@ -47,14 +47,11 @@ impl AppController {
 
         // Load profile from INI file by name specified in --profile argument
         let profile_name = cmd_args.profile();
+        let profile_path = config::get_profile_path();
 
-        tracing::debug!(
-            "Loading profile '{}' from '{}'",
-            profile_name,
-            DEFAULT_INI_FILE_PATH
-        );
+        tracing::debug!("Loading profile '{}' from '{}'", profile_name, profile_path);
 
-        let ini_store = IniProfileStore::new(DEFAULT_INI_FILE_PATH);
+        let ini_store = IniProfileStore::new(&profile_path);
         let profile_result = ini_store.get_profile(profile_name)?;
 
         let profile = match profile_result {
@@ -73,6 +70,9 @@ impl AppController {
             tracing::warn!("Failed to create HTTP client with profile: {}", e);
             // Continue with default client
         }
+
+        // Store profile information for display
+        view_model.set_profile_info(profile_name.clone(), profile_path);
 
         // Set verbose mode from command line args
         view_model.set_verbose(cmd_args.verbose());
@@ -215,6 +215,9 @@ impl AppController {
                         MovementDirection::WordEnd => {
                             self.view_model.move_cursor_to_end_of_word()?
                         }
+                        MovementDirection::LineNumber(line_number) => {
+                            self.view_model.move_cursor_to_line(line_number)?
+                        }
                     }
                 }
             }
@@ -274,6 +277,26 @@ impl AppController {
                         CommandEvent::QuitRequested => {
                             self.should_quit = true;
                         }
+                        CommandEvent::ShowProfileRequested => {
+                            self.handle_show_profile();
+                        }
+                        CommandEvent::CursorMoveRequested { direction, amount } => {
+                            // BUGFIX: Handle line navigation from ex commands like `:58`
+                            // Previously these events were unhandled, causing `:number` to not work
+                            for _ in 0..amount {
+                                match direction {
+                                    MovementDirection::LineNumber(line_number) => {
+                                        self.view_model.move_cursor_to_line(line_number)?
+                                    }
+                                    _ => {
+                                        tracing::warn!(
+                                            "Unsupported movement direction from ex command: {:?}",
+                                            direction
+                                        );
+                                    }
+                                }
+                            }
+                        }
                         _ => {
                             tracing::warn!(
                                 "Unhandled event from ex command execution: {:?}",
@@ -282,6 +305,9 @@ impl AppController {
                         }
                     }
                 }
+            }
+            CommandEvent::ShowProfileRequested => {
+                self.handle_show_profile();
             }
             CommandEvent::NoAction => {
                 // Do nothing
@@ -459,6 +485,13 @@ impl AppController {
         }
 
         Ok(())
+    }
+    /// Handle showing profile information in status bar
+    fn handle_show_profile(&mut self) {
+        let profile_name = self.view_model.get_profile_name();
+        let profile_path = self.view_model.get_profile_path();
+        let message = format!("[{profile_name}] in {profile_path}");
+        self.view_model.set_status_message(message);
     }
 }
 

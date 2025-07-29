@@ -185,14 +185,17 @@ Everyone, including Generative AI Engine like Copilot and Claude Code, must foll
 
 1. **Measure before claiming victory**: Run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` before you say it's complete to ensure code quality and consistency at every change you make. I.e., do not have me stuck at the pre-commit stage and ask you to run these commands again and again.
 
-## Technical Notes
-
 1. **Git commit message**: If the terminal command is too long, contains backtick and emojis, or contains special characters like `|`, `&`, `;`, or `>`, it may not be rendered correctly in the terminal. Git commit is the primary use case for this issue. In such cases, you can use the following workaround:
    - Use a single backtick for inline code formatting, e.g., \`command\`.
    - Use triple backticks for code blocks, e.g., \`\`\`bash
      command
      \`\`\`.
    - If the command is too long, split it into multiple lines using `\` at the end of each line.
+
+## Markdown Guidelines
+
+1. **Follow the Markdown standards**: Use the standard Markdown syntax for headings, lists, code blocks, and links. Do not use any non-standard syntax or extensions.
+2. **Empty line after headings**: Always leave an empty line after a heading to ensure proper rendering in Markdown viewers.
 
 ## Development Workflow
 

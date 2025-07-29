@@ -622,8 +622,12 @@ impl ViewRenderer for TerminalRenderer {
             // Build status parts
             let mut status_text = String::new();
 
+            // 0. Show custom status message when present (highest priority)
+            if let Some(message) = view_model.get_status_message() {
+                status_text.push_str(&format!("{message} | "));
+            }
             // 1. Show "Executing..." when request is being processed (highest priority)
-            if view_model.is_executing_request() {
+            else if view_model.is_executing_request() {
                 status_text.push_str("\x1b[33m●\x1b[0m Executing... | "); // Yellow bullet for executing
             }
             // 2. HTTP response info (optional, when present and not executing)

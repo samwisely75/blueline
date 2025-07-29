@@ -131,11 +131,25 @@ impl ViewModel {
         // Vim typically scrolls by (page_size - 2) to maintain some context
         let scroll_amount = page_size.saturating_sub(2).max(1);
 
+        // BUGFIX: Prevent scrolling beyond actual content bounds to avoid cursor/buffer desync
+        // When scrolling past content in single-line buffers, display_to_logical_position fails
+        // and leaves cursor in inconsistent state, causing buffer content to appear erased
+        let display_cache = self.get_display_cache(current_pane);
+        let max_scroll_offset = display_cache
+            .display_line_count()
+            .saturating_sub(page_size)
+            .max(0);
+
         let new_vertical_offset = if direction > 0 {
-            vertical_offset + scroll_amount
+            std::cmp::min(vertical_offset + scroll_amount, max_scroll_offset)
         } else {
             vertical_offset.saturating_sub(scroll_amount)
         };
+
+        // If scroll offset wouldn't change, don't do anything to avoid unnecessary cursor updates
+        if new_vertical_offset == vertical_offset {
+            return Ok(());
+        }
 
         let old_offset = vertical_offset;
         self.set_scroll_offset(current_pane, (new_vertical_offset, horizontal_offset));
@@ -207,19 +221,34 @@ impl ViewModel {
         // Half page scrolling is typically page_size / 2
         let scroll_amount = (page_size / 2).max(1);
 
+        // BUGFIX: Prevent half-page scrolling beyond actual content bounds like full page scrolling
+        // Endless scrolling in small buffers causes cursor/line number corruption and poor UX
+        let max_scroll_offset = {
+            let display_cache = self.get_display_cache(current_pane);
+            display_cache
+                .display_line_count()
+                .saturating_sub(page_size)
+                .max(0)
+        };
+
         let new_vertical_offset = if direction > 0 {
-            vertical_offset + scroll_amount
+            std::cmp::min(vertical_offset + scroll_amount, max_scroll_offset)
         } else {
             vertical_offset.saturating_sub(scroll_amount)
         };
+
+        // If scroll offset wouldn't change, don't do anything to avoid unnecessary cursor updates
+        if new_vertical_offset == vertical_offset {
+            return Ok(());
+        }
 
         let old_offset = vertical_offset;
         self.set_scroll_offset(current_pane, (new_vertical_offset, horizontal_offset));
 
         // Move logical cursor to match the new scroll position like full page scrolling
         // This ensures consistency with page scrolling behavior and prevents navigation issues
-        let display_cache = self.get_display_cache(current_pane);
         let cursor_column = horizontal_offset; // Position at first visible column
+        let display_cache = self.get_display_cache(current_pane);
         if let Some(logical_pos) =
             display_cache.display_to_logical_position(new_vertical_offset, cursor_column)
         {

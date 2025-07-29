@@ -63,6 +63,9 @@ pub enum CommandEvent {
     /// Request to execute ex command in buffer
     ExCommandExecuteRequested,
 
+    /// Request to show profile information in status bar
+    ShowProfileRequested,
+
     /// No action needed (for commands that only query state)
     NoAction,
 }
@@ -87,6 +90,8 @@ pub enum MovementDirection {
     PageUp,
     HalfPageDown,
     HalfPageUp,
+    /// Move to a specific line number (1-based)
+    LineNumber(usize),
 }
 
 impl CommandEvent {

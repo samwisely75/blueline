@@ -182,7 +182,7 @@ impl ViewModel {
     pub fn move_cursor_to_end_of_line(&mut self) -> Result<()> {
         let current_pane = self.editor.current_pane();
         let current_logical_pos = self.get_cursor_position();
-        
+
         // Get the text content for the current pane
         let text = match current_pane {
             Pane::Request => self.get_request_text(),
@@ -190,7 +190,7 @@ impl ViewModel {
         };
 
         let lines: Vec<_> = text.lines().collect();
-        
+
         if current_logical_pos.line < lines.len() {
             let line_content = lines[current_logical_pos.line];
             let line_length = line_content.chars().count();
@@ -675,15 +675,21 @@ impl ViewModel {
                     // If we're at the end of a word character, move to next word
                     if chars[pos].is_alphanumeric() || chars[pos] == '_' {
                         // Check if we're at the end of the current word
-                        if pos + 1 >= chars.len() || !(chars[pos + 1].is_alphanumeric() || chars[pos + 1] == '_') {
+                        if pos + 1 >= chars.len()
+                            || !(chars[pos + 1].is_alphanumeric() || chars[pos + 1] == '_')
+                        {
                             // We're at the end of a word, move to the next word
                             pos += 1;
                         }
                     }
-                    // If we're at the end of punctuation, move to next word  
+                    // If we're at the end of punctuation, move to next word
                     else if !chars[pos].is_whitespace() {
                         // Check if we're at the end of punctuation sequence
-                        if pos + 1 >= chars.len() || chars[pos + 1].is_whitespace() || chars[pos + 1].is_alphanumeric() || chars[pos + 1] == '_' {
+                        if pos + 1 >= chars.len()
+                            || chars[pos + 1].is_whitespace()
+                            || chars[pos + 1].is_alphanumeric()
+                            || chars[pos + 1] == '_'
+                        {
                             // We're at the end of punctuation, move to the next word
                             pos += 1;
                         }
@@ -705,7 +711,11 @@ impl ViewModel {
                     pos = pos.saturating_sub(1);
                 } else if pos < chars.len() && !chars[pos].is_whitespace() {
                     // Move to end of punctuation sequence
-                    while pos < chars.len() && !chars[pos].is_whitespace() && !chars[pos].is_alphanumeric() && chars[pos] != '_' {
+                    while pos < chars.len()
+                        && !chars[pos].is_whitespace()
+                        && !chars[pos].is_alphanumeric()
+                        && chars[pos] != '_'
+                    {
                         pos += 1;
                     }
                     // Move back one to be at the last punctuation character
@@ -744,6 +754,65 @@ impl ViewModel {
             self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
             self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
         }
+
+        Ok(())
+    }
+
+    /// Move cursor to a specific line number (1-based)
+    pub fn move_cursor_to_line(&mut self, line_number: usize) -> Result<()> {
+        if line_number == 0 {
+            return Ok(());
+        }
+
+        let current_pane = self.editor.current_pane();
+        let buffer = match current_pane {
+            Pane::Request => &self.request_buffer,
+            Pane::Response => &self.response_buffer,
+        };
+
+        // Convert to 0-based line number for internal use
+        let target_line = line_number.saturating_sub(1);
+
+        // Get the buffer content to check line bounds
+        let content = buffer.content();
+        let line_count = content.line_count();
+
+        // Clamp to actual number of lines
+        let actual_target_line = if line_count == 0 {
+            0
+        } else {
+            std::cmp::min(target_line, line_count - 1)
+        };
+
+        // Set cursor to beginning of target line
+        let new_position = LogicalPosition {
+            line: actual_target_line,
+            column: 0,
+        };
+
+        match current_pane {
+            Pane::Request => {
+                self.request_buffer.set_cursor(new_position);
+            }
+            Pane::Response => {
+                self.response_buffer.set_cursor(new_position);
+            }
+        }
+
+        // Sync display cursor and ensure visibility
+        self.sync_display_cursor_with_logical(current_pane)?;
+        self.ensure_cursor_visible(current_pane);
+
+        // BUGFIX: Always emit scroll change event for line navigation to force pane redraw
+        // This ensures cursor movement is visible even when no actual scrolling occurs
+        let (current_v_offset, _current_h_offset) = self.get_scroll_offset(current_pane);
+        self.emit_view_event(ViewEvent::ScrollChanged {
+            pane: current_pane,
+            old_offset: current_v_offset,
+            new_offset: current_v_offset, // Same offset, but forces redraw
+        });
+        self.emit_view_event(ViewEvent::CursorUpdateRequired { pane: current_pane });
+        self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
 
         Ok(())
     }

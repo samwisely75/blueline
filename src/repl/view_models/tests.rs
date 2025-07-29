@@ -334,4 +334,241 @@ mod integration_tests {
             "j key should generate cursor move events"
         );
     }
+
+    #[test]
+    fn test_line_navigation_with_valid_line_number() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Add multi-line content to test navigation
+        vm.insert_text("line 1\nline 2\nline 3\nline 4").unwrap();
+        vm.change_mode(EditorMode::Command).unwrap();
+
+        // Navigate to line 2 using :2 command
+        vm.add_ex_command_char('2').unwrap();
+        let events = vm.execute_ex_command().unwrap();
+
+        // Should get a cursor move event
+        assert_eq!(events.len(), 1);
+        if let CommandEvent::CursorMoveRequested { direction, amount } = &events[0] {
+            assert_eq!(*amount, 1);
+            if let crate::repl::commands::MovementDirection::LineNumber(line_num) = direction {
+                assert_eq!(*line_num, 2);
+            } else {
+                panic!(
+                    "Expected LineNumber movement direction, got {:?}",
+                    direction
+                );
+            }
+        } else {
+            panic!("Expected CursorMoveRequested event, got {:?}", events[0]);
+        }
+
+        // Should be back in normal mode
+        assert_eq!(vm.get_mode(), EditorMode::Normal);
+        assert_eq!(vm.get_ex_command_buffer(), ""); // Buffer should be cleared
+    }
+
+    #[test]
+    fn test_line_navigation_with_line_number_one() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Add multi-line content
+        vm.insert_text("line 1\nline 2\nline 3").unwrap();
+        vm.change_mode(EditorMode::Command).unwrap();
+
+        // Navigate to line 1 using :1 command
+        vm.add_ex_command_char('1').unwrap();
+        let events = vm.execute_ex_command().unwrap();
+
+        // Should get a cursor move event
+        assert_eq!(events.len(), 1);
+        if let CommandEvent::CursorMoveRequested {
+            direction,
+            amount: _,
+        } = &events[0]
+        {
+            if let crate::repl::commands::MovementDirection::LineNumber(line_num) = direction {
+                assert_eq!(*line_num, 1);
+            } else {
+                panic!("Expected LineNumber movement direction");
+            }
+        } else {
+            panic!("Expected CursorMoveRequested event");
+        }
+
+        assert_eq!(vm.get_mode(), EditorMode::Normal);
+    }
+
+    #[test]
+    fn test_line_navigation_with_zero_line_number_should_be_ignored() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Command).unwrap();
+
+        // Try to navigate to line 0 - should be ignored
+        vm.add_ex_command_char('0').unwrap();
+        let events = vm.execute_ex_command().unwrap();
+
+        // Should not generate any cursor move events (line 0 is invalid)
+        assert_eq!(events.len(), 0);
+        assert_eq!(vm.get_mode(), EditorMode::Normal);
+    }
+
+    #[test]
+    fn test_line_navigation_with_large_line_number() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Add only 2 lines
+        vm.insert_text("line 1\nline 2").unwrap();
+        vm.change_mode(EditorMode::Command).unwrap();
+
+        // Try to navigate to line 100 - should work (cursor will be clamped)
+        vm.add_ex_command_char('1').unwrap();
+        vm.add_ex_command_char('0').unwrap();
+        vm.add_ex_command_char('0').unwrap();
+        let events = vm.execute_ex_command().unwrap();
+
+        // Should get a cursor move event for line 100
+        assert_eq!(events.len(), 1);
+        if let CommandEvent::CursorMoveRequested {
+            direction,
+            amount: _,
+        } = &events[0]
+        {
+            if let crate::repl::commands::MovementDirection::LineNumber(line_num) = direction {
+                assert_eq!(*line_num, 100);
+            } else {
+                panic!("Expected LineNumber movement direction");
+            }
+        } else {
+            panic!("Expected CursorMoveRequested event");
+        }
+
+        assert_eq!(vm.get_mode(), EditorMode::Normal);
+    }
+
+    #[test]
+    fn test_move_cursor_to_line_method_with_valid_line() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Add content with multiple lines
+        vm.insert_text("line 1\nline 2\nline 3\nline 4\nline 5")
+            .unwrap();
+
+        // Move to line 3
+        vm.move_cursor_to_line(3).unwrap();
+
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.line, 2); // 0-based indexing, so line 3 = index 2
+        assert_eq!(cursor.column, 0); // Should be at beginning of line
+    }
+
+    #[test]
+    fn test_move_cursor_to_line_method_with_line_beyond_buffer() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Add only 2 lines
+        vm.insert_text("line 1\nline 2").unwrap();
+
+        // Try to move to line 10 (beyond buffer)
+        vm.move_cursor_to_line(10).unwrap();
+
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.line, 1); // Should be clamped to last line (0-based)
+        assert_eq!(cursor.column, 0);
+    }
+
+    #[test]
+    fn test_move_cursor_to_line_method_with_zero_should_do_nothing() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        vm.insert_text("line 1\nline 2").unwrap();
+
+        // Get initial cursor position
+        let initial_cursor = vm.get_cursor_position();
+
+        // Try to move to line 0 (invalid)
+        vm.move_cursor_to_line(0).unwrap();
+
+        // Cursor should not have moved
+        let final_cursor = vm.get_cursor_position();
+        assert_eq!(initial_cursor, final_cursor);
+    }
+
+    #[test]
+    fn test_show_profile_command() {
+        let mut vm = ViewModel::new();
+
+        // Set custom profile info
+        vm.set_profile_info(
+            "test-profile".to_string(),
+            "/custom/path/profile".to_string(),
+        );
+
+        // Enter command mode and execute :show profile
+        vm.change_mode(EditorMode::Command).unwrap();
+        vm.add_ex_command_char('s').unwrap();
+        vm.add_ex_command_char('h').unwrap();
+        vm.add_ex_command_char('o').unwrap();
+        vm.add_ex_command_char('w').unwrap();
+        vm.add_ex_command_char(' ').unwrap();
+        vm.add_ex_command_char('p').unwrap();
+        vm.add_ex_command_char('r').unwrap();
+        vm.add_ex_command_char('o').unwrap();
+        vm.add_ex_command_char('f').unwrap();
+        vm.add_ex_command_char('i').unwrap();
+        vm.add_ex_command_char('l').unwrap();
+        vm.add_ex_command_char('e').unwrap();
+
+        let events = vm.execute_ex_command().unwrap();
+
+        // Should get a ShowProfileRequested event
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], CommandEvent::ShowProfileRequested));
+
+        // Should be back in normal mode
+        assert_eq!(vm.get_mode(), EditorMode::Normal);
+        assert_eq!(vm.get_ex_command_buffer(), ""); // Buffer should be cleared
+    }
+
+    #[test]
+    fn test_profile_info_getters_and_setters() {
+        let mut vm = ViewModel::new();
+
+        // Check default values
+        assert_eq!(vm.get_profile_name(), "default");
+        assert_eq!(vm.get_profile_path(), "~/.blueline/profile");
+
+        // Set custom values
+        vm.set_profile_info("custom-profile".to_string(), "/custom/path".to_string());
+
+        // Check updated values
+        assert_eq!(vm.get_profile_name(), "custom-profile");
+        assert_eq!(vm.get_profile_path(), "/custom/path");
+    }
+
+    #[test]
+    fn test_status_message_functionality() {
+        let mut vm = ViewModel::new();
+
+        // Initially no status message
+        assert_eq!(vm.get_status_message(), None);
+
+        // Set a status message
+        vm.set_status_message("Test message");
+        assert_eq!(vm.get_status_message(), Some("Test message"));
+
+        // Set another message
+        vm.set_status_message("Another message".to_string());
+        assert_eq!(vm.get_status_message(), Some("Another message"));
+
+        // Clear the message
+        vm.clear_status_message();
+        assert_eq!(vm.get_status_message(), None);
+    }
 }

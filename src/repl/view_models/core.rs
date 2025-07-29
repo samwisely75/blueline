@@ -49,6 +49,13 @@ pub struct ViewModel {
     pub(super) session_headers: HashMap<String, String>,
     pub(super) verbose: bool,
 
+    // Profile information
+    pub(super) profile_name: String,
+    pub(super) profile_path: String,
+
+    // Status message for temporary display
+    pub(super) status_message: Option<String>,
+
     // Event management
     pub(super) event_bus: EventBusOption,
     pub(super) pending_view_events: Vec<ViewEvent>,
@@ -102,6 +109,9 @@ impl ViewModel {
             http_client: None,
             session_headers: HashMap::new(),
             verbose: false,
+            profile_name: "default".to_string(),
+            profile_path: "~/.blueline/profile".to_string(),
+            status_message: None,
             event_bus: None,
             pending_view_events: Vec::new(),
             current_screen_buffer: ScreenBuffer::new(
@@ -179,6 +189,37 @@ impl ViewModel {
     /// Get terminal size
     pub fn terminal_size(&self) -> (u16, u16) {
         (self.terminal_width, self.terminal_height)
+    }
+
+    /// Set the profile information for display
+    pub fn set_profile_info(&mut self, profile_name: String, profile_path: String) {
+        self.profile_name = profile_name;
+        self.profile_path = profile_path;
+    }
+
+    /// Get the current profile name
+    pub fn get_profile_name(&self) -> &str {
+        &self.profile_name
+    }
+
+    /// Get the current profile path
+    pub fn get_profile_path(&self) -> &str {
+        &self.profile_path
+    }
+
+    /// Set a temporary status message for display
+    pub fn set_status_message<S: Into<String>>(&mut self, message: S) {
+        self.status_message = Some(message.into());
+    }
+
+    /// Clear the status message
+    pub fn clear_status_message(&mut self) {
+        self.status_message = None;
+    }
+
+    /// Get the current status message
+    pub fn get_status_message(&self) -> Option<&str> {
+        self.status_message.as_deref()
     }
 }
 

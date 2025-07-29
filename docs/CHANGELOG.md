@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.1] - 2025-07-29
+
+### Fixed
+- **Line Navigation Bug**: Fixed `:number` line navigation commands (like `:58`) not working in any pane. Added missing `CursorMoveRequested` event handler in app controller's ex command processing that was causing events to fall through unhandled.
+- **Page Scrolling Buffer Erasure**: Fixed Ctrl+f causing buffer content to appear erased in request pane when scrolling beyond actual content bounds. Added bounds checking to prevent scrolling past display cache limits.
+- **Half-Page Scrolling Issues**: Fixed Ctrl+d endless scrolling and line number corruption by applying same bounds checking pattern used for full page scrolling.
+
+### Technical
+- Enhanced ex command event handling in app_controller.rs with proper `MovementDirection::LineNumber` support
+- Added bounds checking using `display_cache.display_line_count().saturating_sub(page_size).max(0)` in rendering_coordinator.rs
+- Improved cursor-scroll synchronization to prevent buffer/display state inconsistencies
+- All fixes validated through debug log analysis and comprehensive testing
+
 ## [0.17.1] - 2025-07-28
 
 ### Fixed

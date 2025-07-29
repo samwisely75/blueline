@@ -302,6 +302,9 @@ impl BluelineWorld {
                         | MovementDirection::WordEnd => {
                             // Word movements not implemented yet
                         }
+                        MovementDirection::LineNumber(line_number) => {
+                            self.view_model.move_cursor_to_line(line_number)?
+                        }
                     }
                 }
             }
