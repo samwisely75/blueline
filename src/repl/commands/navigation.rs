@@ -16,7 +16,9 @@ impl Command for MoveCursorLeftCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         match event.code {
             KeyCode::Char('h') => {
-                context.state.current_mode == EditorMode::Normal && event.modifiers.is_empty()
+                (context.state.current_mode == EditorMode::Normal
+                    || context.state.current_mode == EditorMode::Visual)
+                    && event.modifiers.is_empty()
             }
             KeyCode::Left => {
                 !event.modifiers.contains(KeyModifiers::SHIFT)
@@ -42,7 +44,9 @@ impl Command for MoveCursorRightCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         match event.code {
             KeyCode::Char('l') => {
-                context.state.current_mode == EditorMode::Normal && event.modifiers.is_empty()
+                (context.state.current_mode == EditorMode::Normal
+                    || context.state.current_mode == EditorMode::Visual)
+                    && event.modifiers.is_empty()
             }
             KeyCode::Right => {
                 !event.modifiers.contains(KeyModifiers::SHIFT)
@@ -68,7 +72,9 @@ impl Command for MoveCursorUpCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         match event.code {
             KeyCode::Char('k') => {
-                context.state.current_mode == EditorMode::Normal && event.modifiers.is_empty()
+                (context.state.current_mode == EditorMode::Normal
+                    || context.state.current_mode == EditorMode::Visual)
+                    && event.modifiers.is_empty()
             }
             KeyCode::Up => true,
             _ => false,
@@ -91,7 +97,9 @@ impl Command for MoveCursorDownCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         match event.code {
             KeyCode::Char('j') => {
-                context.state.current_mode == EditorMode::Normal && event.modifiers.is_empty()
+                (context.state.current_mode == EditorMode::Normal
+                    || context.state.current_mode == EditorMode::Visual)
+                    && event.modifiers.is_empty()
             }
             KeyCode::Down => true,
             _ => false,
@@ -166,7 +174,8 @@ impl Command for ScrollPageDownCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('f'))
             && event.modifiers.contains(KeyModifiers::CONTROL)
-            && context.state.current_mode == EditorMode::Normal
+            && (context.state.current_mode == EditorMode::Normal
+                || context.state.current_mode == EditorMode::Visual)
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -185,7 +194,8 @@ impl Command for ScrollPageUpCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('b'))
             && event.modifiers.contains(KeyModifiers::CONTROL)
-            && context.state.current_mode == EditorMode::Normal
+            && (context.state.current_mode == EditorMode::Normal
+                || context.state.current_mode == EditorMode::Visual)
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -204,7 +214,8 @@ impl Command for ScrollHalfPageDownCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('d'))
             && event.modifiers.contains(KeyModifiers::CONTROL)
-            && context.state.current_mode == EditorMode::Normal
+            && (context.state.current_mode == EditorMode::Normal
+                || context.state.current_mode == EditorMode::Visual)
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -225,7 +236,8 @@ impl Command for ScrollHalfPageUpCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('u'))
             && event.modifiers.contains(KeyModifiers::CONTROL)
-            && context.state.current_mode == EditorMode::Normal
+            && (context.state.current_mode == EditorMode::Normal
+                || context.state.current_mode == EditorMode::Visual)
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -245,7 +257,8 @@ pub struct EnterGPrefixCommand;
 impl Command for EnterGPrefixCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('g'))
-            && context.state.current_mode == EditorMode::Normal
+            && (context.state.current_mode == EditorMode::Normal
+                || context.state.current_mode == EditorMode::Visual)
             && event.modifiers.is_empty()
     }
 
@@ -285,7 +298,8 @@ pub struct GoToBottomCommand;
 
 impl Command for GoToBottomCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        context.state.current_mode == EditorMode::Normal
+        (context.state.current_mode == EditorMode::Normal
+            || context.state.current_mode == EditorMode::Visual)
             && (
                 // Case 1: Uppercase 'G' without modifiers
                 (matches!(event.code, KeyCode::Char('G')) && event.modifiers.is_empty())
@@ -316,7 +330,8 @@ pub struct NextWordCommand;
 impl Command for NextWordCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('w'))
-            && context.state.current_mode == EditorMode::Normal
+            && (context.state.current_mode == EditorMode::Normal
+                || context.state.current_mode == EditorMode::Visual)
             && event.modifiers.is_empty()
     }
 
@@ -337,7 +352,8 @@ pub struct PreviousWordCommand;
 impl Command for PreviousWordCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('b'))
-            && context.state.current_mode == EditorMode::Normal
+            && (context.state.current_mode == EditorMode::Normal
+                || context.state.current_mode == EditorMode::Visual)
             && event.modifiers.is_empty()
     }
 
@@ -358,7 +374,8 @@ pub struct EndOfWordCommand;
 impl Command for EndOfWordCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('e'))
-            && context.state.current_mode == EditorMode::Normal
+            && (context.state.current_mode == EditorMode::Normal
+                || context.state.current_mode == EditorMode::Visual)
             && event.modifiers.is_empty()
     }
 
@@ -377,7 +394,8 @@ pub struct BeginningOfLineCommand;
 impl Command for BeginningOfLineCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('0'))
-            && context.state.current_mode == EditorMode::Normal
+            && (context.state.current_mode == EditorMode::Normal
+                || context.state.current_mode == EditorMode::Visual)
             && event.modifiers.is_empty()
     }
 
@@ -398,7 +416,8 @@ pub struct EndOfLineCommand;
 impl Command for EndOfLineCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('$'))
-            && context.state.current_mode == EditorMode::Normal
+            && (context.state.current_mode == EditorMode::Normal
+                || context.state.current_mode == EditorMode::Visual)
             && event.modifiers.is_empty()
     }
 
@@ -1080,5 +1099,141 @@ mod tests {
             events[0],
             CommandEvent::cursor_move(MovementDirection::LineEnd)
         );
+    }
+
+    // Visual mode navigation tests
+    #[test]
+    fn move_cursor_left_should_be_relevant_for_h_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = MoveCursorLeftCommand;
+        let event = create_test_key_event(KeyCode::Char('h'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn move_cursor_right_should_be_relevant_for_l_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = MoveCursorRightCommand;
+        let event = create_test_key_event(KeyCode::Char('l'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn move_cursor_up_should_be_relevant_for_k_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = MoveCursorUpCommand;
+        let event = create_test_key_event(KeyCode::Char('k'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn move_cursor_down_should_be_relevant_for_j_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = MoveCursorDownCommand;
+        let event = create_test_key_event(KeyCode::Char('j'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn next_word_should_be_relevant_for_w_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = NextWordCommand;
+        let event = create_test_key_event(KeyCode::Char('w'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn previous_word_should_be_relevant_for_b_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = PreviousWordCommand;
+        let event = create_test_key_event(KeyCode::Char('b'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn end_of_word_should_be_relevant_for_e_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = EndOfWordCommand;
+        let event = create_test_key_event(KeyCode::Char('e'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn beginning_of_line_should_be_relevant_for_zero_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = BeginningOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('0'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn end_of_line_should_be_relevant_for_dollar_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = EndOfLineCommand;
+        let event = create_test_key_event(KeyCode::Char('$'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn go_to_bottom_should_be_relevant_for_uppercase_g_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = GoToBottomCommand;
+        let event = create_test_key_event(KeyCode::Char('G'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_g_prefix_should_be_relevant_for_g_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = EnterGPrefixCommand;
+        let event = create_test_key_event(KeyCode::Char('g'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_page_down_should_be_relevant_for_ctrl_f_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = ScrollPageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_page_up_should_be_relevant_for_ctrl_b_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = ScrollPageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_down_should_be_relevant_for_ctrl_d_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = ScrollHalfPageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn scroll_half_page_up_should_be_relevant_for_ctrl_u_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = ScrollHalfPageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
     }
 }

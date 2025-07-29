@@ -54,8 +54,8 @@ pub use editing::{
 };
 pub use mode::{
     AppendAfterCursorCommand, AppendAtEndOfLineCommand, EnterCommandModeCommand,
-    EnterInsertModeCommand, ExCommandModeCommand, ExitInsertModeCommand,
-    InsertAtBeginningOfLineCommand,
+    EnterInsertModeCommand, EnterVisualModeCommand, ExCommandModeCommand, ExitInsertModeCommand,
+    ExitVisualModeCommand, InsertAtBeginningOfLineCommand,
 };
 pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
@@ -106,10 +106,12 @@ impl CommandRegistry {
             Box::new(EndKeyCommand),
             // Mode commands
             Box::new(EnterInsertModeCommand),
+            Box::new(EnterVisualModeCommand),
             Box::new(AppendAfterCursorCommand),
             Box::new(AppendAtEndOfLineCommand),
             Box::new(InsertAtBeginningOfLineCommand),
             Box::new(ExitInsertModeCommand),
+            Box::new(ExitVisualModeCommand),
             Box::new(EnterCommandModeCommand),
             Box::new(ExCommandModeCommand),
             // Pane commands
@@ -133,14 +135,54 @@ impl CommandRegistry {
         event: KeyEvent,
         context: &CommandContext,
     ) -> Result<Vec<CommandEvent>> {
-        tracing::debug!("Processing key event in registry: {:?}", event);
-        for command in &self.commands {
-            if command.is_relevant(context, &event) {
-                tracing::debug!("Found relevant command: {}", command.name());
-                return command.execute(event, context);
+        tracing::debug!(
+            "Processing key event in registry: {:?} (context: mode={:?}, pane={:?})",
+            event,
+            context.state.current_mode,
+            context.state.current_pane
+        );
+
+        for (index, command) in self.commands.iter().enumerate() {
+            let command_name = command.name();
+            let is_relevant = command.is_relevant(context, &event);
+
+            tracing::trace!(
+                "Checking command #{}: {} -> relevant: {}",
+                index,
+                command_name,
+                is_relevant
+            );
+
+            if is_relevant {
+                tracing::info!(
+                    "Found relevant command: {} (index: {})",
+                    command_name,
+                    index
+                );
+                let result = command.execute(event, context);
+                match &result {
+                    Ok(events) => {
+                        tracing::debug!(
+                            "Command {} produced {} events: {:?}",
+                            command_name,
+                            events.len(),
+                            events
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!("Command {} execution failed: {}", command_name, e);
+                    }
+                }
+                return result;
             }
         }
-        tracing::debug!("No relevant command found for event: {:?}", event);
+
+        tracing::warn!(
+            "No relevant command found for event: {:?} (mode={:?}, pane={:?})",
+            event,
+            context.state.current_mode,
+            context.state.current_pane
+        );
         Ok(vec![])
     }
 

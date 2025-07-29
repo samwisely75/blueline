@@ -14,7 +14,7 @@
 ## Backlog
 
 - [ ] Backspace over the series of blank lines in the request pane should delete the current line and move to the previous line.
-- [ ] Abstract the request/response pane into a separate module to improve code organization and maintainability. Reduce `match` statement to select the pane.
+- [ ] Refactor to abstract the request/response pane to reduce `match` statement to select the pane in each command process.
 - [ ] Print details of the request and response in the beginning of the response pane, when the verbose mode is enabled by `-v` command args. The format is detailed in the monolithic version of the code in the main.rs in the `master` branch (I believe), namely `print_request` and `print_response`.
 - [ ] Support `u` to undo the last change in the request buffer.
 - [ ] Support `Ctrl + r` to redo the last undone change in the request buffer

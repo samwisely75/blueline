@@ -201,22 +201,24 @@ Everyone, including Generative AI Engine like Copilot and Claude Code, must foll
 
 Developers and Generative AI Engines like Claude Code should strictly follow this workflow to implement new features or fix bugs in the codebase. This process ensures that changes are made systematically, tested thoroughly, and documented properly.
 
-1. Pick up the first unresolved item from `docs/ISSUES.md`.
+1. Pick up the top-most item in the `Ready` state on [blueline GitHub Kanban](https://github.com/users/samwisely75/projects/1). If the `Ready` column is empty, ask for it.
 2. Plan the implementation and todos. Ask for clarification if needed.
-3. Update the feature file to dictate the specification of the feature. If the feature is already implemented, update the existing test to reflect the new behavior.
-4. Implement the changes.
-5. Create or update comprehensive unit tests for the changes.
-6. Run all tests including integration tests to ensure everything works as expected.
-7. Make sure to leave comments following the coding guidelines. It is particularly important to leave comments when you change the code for a bug fix.
-8. Run `/scripts/git-commit-precheck.sh` to see if the code passes pre-commit checks. If it fails, fix the issues and run the script again until it passes.
+3. Move the Kanban item to the `In progress` state.
+4. Update the feature file to dictate the specification of the feature. If the feature is already implemented, update the existing test to reflect the new behavior.
+5. Implement the changes.
+6. Create or update comprehensive unit tests for the changes.
+7. Run all tests including integration tests to ensure everything works as expected.
+8. Make sure to leave comments following the coding guidelines. It is particularly important to leave comments when you change the code for a bug fix.
+9. Run `/scripts/git-commit-precheck.sh` to see if the code passes pre-commit checks. If it fails, fix the issues and run the script again until it passes.
    - This script will run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` to ensure code quality and formatting.
    - If you are using a Generative AI Engine like Claude Code, make sure to run this script before committing any changes.
-9. Pause your work and call the Code Owner for manual testing and review.
-10. Address any feedback and make necessary changes.
-11. Repeat the process until the Code Owner approves the changes.
-12. Once approved, check off the item in `docs/ISSUES.md` and update the issue status to "Done".
-13. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If a bug is fixed, increment the patch version. If a breaking change is made, increment the major version.
-14. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.
-15. Commit all changes with a clear and concise commit message. Do not leave the code files you updated to fix clippy warnings and what `cargo fmt` modified.
-16. Create a git tag for the same version number with "v", e.g., `git tag v1.0.0`.
-17. Go to step 1.
+10. Move the Kanban item to the `In review` state.
+11. Pause your work and call the Code Owner for manual testing and review.
+12. Address any feedback and make necessary changes.
+13. Repeat the process until the Code Owner approves the changes.
+14. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If a bug is fixed, increment the patch version. If a breaking change is made, increment the major version.
+15. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.
+16. Commit all changes with a clear and concise commit message. Do not leave out the code files you updated to fix clippy warnings and what `cargo fmt` modified. Include #issue number in the commit message, e.g., `Fix #123: Implement new feature X`.
+17. Create a git tag for the same version number with "v", e.g., `git tag v1.0.0`.
+18. Move the Kanban item to the `Done` state.
+19. Go to step 1.

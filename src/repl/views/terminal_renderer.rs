@@ -104,9 +104,11 @@ impl TerminalRenderer {
         self.terminal_size
     }
 
-    /// Render a single line of text at position with line number
+    /// Render a single line of text at position with line number, with visual selection support
     fn render_line_with_number(
         &mut self,
+        view_model: &ViewModel,
+        pane: Pane,
         row: u16,
         line_number: Option<usize>,
         text: &str,
@@ -154,12 +156,76 @@ impl TerminalRenderer {
             text.to_string()
         };
 
-        // Display the (possibly truncated) text
-        execute_term!(self.stdout, Print(display_text))?;
+        // Render text with visual selection highlighting if applicable
+        self.render_text_with_selection(view_model, pane, line_number, &display_text)?;
 
         // Clear rest of line
         execute_term!(self.stdout, Clear(ClearType::UntilNewLine))?;
 
+        Ok(())
+    }
+
+    /// Render text with visual selection highlighting
+    fn render_text_with_selection(
+        &mut self,
+        view_model: &ViewModel,
+        pane: Pane,
+        line_number: Option<usize>,
+        text: &str,
+    ) -> Result<()> {
+        // Check if we're in visual mode and have a selection
+        let mode = view_model.get_mode();
+        if mode == EditorMode::Visual {
+            tracing::trace!("render_text_with_selection: Visual mode detected, pane={:?}, line_number={:?}, text='{}'", pane, line_number, text);
+
+            if let Some(logical_line) = line_number {
+                let logical_line_zero_based = logical_line.saturating_sub(1);
+                let chars: Vec<char> = text.chars().collect();
+                let selection_state = view_model.get_visual_selection();
+
+                tracing::trace!(
+                    "render_text_with_selection: selection_state={:?}",
+                    selection_state
+                );
+
+                for (col_index, ch) in chars.iter().enumerate() {
+                    let position = crate::repl::events::LogicalPosition::new(
+                        logical_line_zero_based,
+                        col_index,
+                    );
+
+                    let is_selected = view_model.is_position_selected(position, pane);
+
+                    if is_selected {
+                        tracing::debug!(
+                            "render_text_with_selection: highlighting character '{}' at {:?}",
+                            ch,
+                            position
+                        );
+                        // Apply visual selection styling: inverse + blue
+                        execute_term!(self.stdout, SetAttribute(Attribute::Reverse))?;
+                        execute_term!(self.stdout, SetForegroundColor(Color::Blue))?;
+                        execute_term!(self.stdout, Print(ch))?;
+                        execute_term!(self.stdout, SetAttribute(Attribute::Reset))?;
+                        execute_term!(self.stdout, ResetColor)?;
+                    } else {
+                        // Normal character rendering
+                        execute_term!(self.stdout, Print(ch))?;
+                    }
+                }
+                return Ok(());
+            } else {
+                tracing::trace!("render_text_with_selection: Visual mode but no line_number");
+            }
+        } else {
+            tracing::trace!(
+                "render_text_with_selection: Not in visual mode (mode={:?})",
+                mode
+            );
+        }
+
+        // No selection or not in visual mode - render normally
+        execute_term!(self.stdout, Print(text))?;
         Ok(())
     }
 
@@ -182,6 +248,8 @@ impl TerminalRenderer {
                 Some((content, line_number, is_continuation)) => {
                     // Render content with optional line number
                     self.render_line_with_number(
+                        view_model,
+                        pane,
                         terminal_row,
                         *line_number,
                         content,
@@ -193,6 +261,8 @@ impl TerminalRenderer {
                     // Special case: always show line number 1 in request pane
                     if pane == Pane::Request && row == 0 {
                         self.render_line_with_number(
+                            view_model,
+                            pane,
                             terminal_row,
                             Some(1),
                             "",
@@ -202,6 +272,8 @@ impl TerminalRenderer {
                     } else {
                         // Beyond content - show tilde
                         self.render_line_with_number(
+                            view_model,
+                            pane,
                             terminal_row,
                             None,
                             "",
@@ -356,6 +428,8 @@ impl ViewRenderer for TerminalRenderer {
                     match display_data {
                         Some((content, line_number, is_continuation)) => {
                             self.render_line_with_number(
+                                view_model,
+                                pane,
                                 terminal_row,
                                 *line_number,
                                 content,
@@ -367,6 +441,8 @@ impl ViewRenderer for TerminalRenderer {
                             // Special case: always show line number 1 in request pane
                             if pane == Pane::Request && idx == 0 && start_line == 0 {
                                 self.render_line_with_number(
+                                    view_model,
+                                    pane,
                                     terminal_row,
                                     Some(1),
                                     "",
@@ -375,6 +451,8 @@ impl ViewRenderer for TerminalRenderer {
                                 )?;
                             } else {
                                 self.render_line_with_number(
+                                    view_model,
+                                    pane,
                                     terminal_row,
                                     None,
                                     "",
@@ -404,6 +482,8 @@ impl ViewRenderer for TerminalRenderer {
                         match display_data {
                             Some((content, line_number, is_continuation)) => {
                                 self.render_line_with_number(
+                                    view_model,
+                                    pane,
                                     terminal_row,
                                     *line_number,
                                     content,
@@ -413,6 +493,8 @@ impl ViewRenderer for TerminalRenderer {
                             }
                             None => {
                                 self.render_line_with_number(
+                                    view_model,
+                                    pane,
                                     terminal_row,
                                     None,
                                     "",
@@ -569,6 +651,20 @@ impl ViewRenderer for TerminalRenderer {
                     Show
                 )?;
             }
+            EditorMode::Visual => {
+                // Block cursor for visual mode (similar to normal mode)
+                tracing::debug!(
+                    "render_cursor: showing cursor at ({}, {}) for Visual mode",
+                    terminal_col,
+                    terminal_row
+                );
+                execute_term!(
+                    self.stdout,
+                    MoveTo(terminal_col, terminal_row),
+                    SetCursorStyle::DefaultUserShape,
+                    Show
+                )?;
+            }
         }
 
         self.stdout.flush().map_err(anyhow::Error::from)?;
@@ -610,6 +706,7 @@ impl ViewRenderer for TerminalRenderer {
                 EditorMode::Insert => "INSERT",
                 EditorMode::Command => "COMMAND", // Shouldn't reach here
                 EditorMode::GPrefix => "NORMAL",  // Show as NORMAL since it's a prefix mode
+                EditorMode::Visual => "VISUAL",   // Visual text selection mode
             };
 
             let pane_text = match view_model.get_current_pane() {
@@ -703,6 +800,7 @@ impl ViewRenderer for TerminalRenderer {
             EditorMode::Insert => "INSERT",
             EditorMode::Command => "COMMAND",
             EditorMode::GPrefix => "NORMAL", // Show as NORMAL since it's a prefix mode
+            EditorMode::Visual => "VISUAL",  // Visual text selection mode
         };
 
         let pane_text = match view_model.get_current_pane() {

@@ -45,6 +45,60 @@ impl Command for ExitInsertModeCommand {
     }
 }
 
+/// Enter visual mode (v key)
+pub struct EnterVisualModeCommand;
+
+impl Command for EnterVisualModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        let is_v_key = matches!(event.code, KeyCode::Char('v'));
+        let is_normal_mode = context.state.current_mode == EditorMode::Normal;
+        let no_modifiers = event.modifiers.is_empty();
+        let is_relevant = is_v_key && is_normal_mode && no_modifiers;
+
+        tracing::trace!(
+            "EnterVisualModeCommand.is_relevant(): v_key={}, normal_mode={}, no_modifiers={}, result={}",
+            is_v_key, is_normal_mode, no_modifiers, is_relevant
+        );
+
+        if !is_relevant {
+            tracing::debug!(
+                "EnterVisualModeCommand not relevant: event={:?}, mode={:?}, modifiers={:?}",
+                event.code,
+                context.state.current_mode,
+                event.modifiers
+            );
+        }
+
+        is_relevant
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        tracing::debug!("EnterVisualModeCommand executing - creating mode change event to Visual");
+        Ok(vec![CommandEvent::mode_change(EditorMode::Visual)])
+    }
+
+    fn name(&self) -> &'static str {
+        "EnterVisualMode"
+    }
+}
+
+/// Exit visual mode (Escape key)
+pub struct ExitVisualModeCommand;
+
+impl Command for ExitVisualModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Esc) && context.state.current_mode == EditorMode::Visual
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::mode_change(EditorMode::Normal)])
+    }
+
+    fn name(&self) -> &'static str {
+        "ExitVisualMode"
+    }
+}
+
 /// Enter command mode (: key)
 pub struct EnterCommandModeCommand;
 
@@ -439,5 +493,96 @@ mod tests {
             CommandEvent::cursor_move(MovementDirection::Right)
         );
         assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
+    }
+
+    // Visual mode tests
+    #[test]
+    fn enter_visual_mode_should_be_relevant_for_v_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = EnterVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Char('v'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_visual_mode_should_not_be_relevant_in_insert_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
+        let cmd = EnterVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Char('v'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_visual_mode_should_not_be_relevant_in_visual_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Visual;
+        let cmd = EnterVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Char('v'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_visual_mode_should_not_be_relevant_with_modifiers() {
+        let context = create_test_context();
+        let cmd = EnterVisualModeCommand;
+        let event = KeyEvent::new(KeyCode::Char('v'), KeyModifiers::SHIFT);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_visual_mode_should_produce_mode_change_event() {
+        let context = create_test_context();
+        let cmd = EnterVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Char('v'));
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::mode_change(EditorMode::Visual));
+    }
+
+    #[test]
+    fn exit_visual_mode_should_be_relevant_for_escape_in_visual_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Visual;
+        let cmd = ExitVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Esc);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn exit_visual_mode_should_not_be_relevant_in_normal_mode() {
+        let context = create_test_context();
+        let cmd = ExitVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Esc);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn exit_visual_mode_should_not_be_relevant_in_insert_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
+        let cmd = ExitVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Esc);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn exit_visual_mode_should_produce_mode_change_event() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Visual;
+        let cmd = ExitVisualModeCommand;
+        let event = create_test_key_event(KeyCode::Esc);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::mode_change(EditorMode::Normal));
     }
 }

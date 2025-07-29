@@ -243,7 +243,16 @@ impl AppController {
                 }
             }
             CommandEvent::ModeChangeRequested { new_mode } => {
-                self.view_model.change_mode(new_mode)?;
+                tracing::debug!("Applying mode change request: {:?}", new_mode);
+                match self.view_model.change_mode(new_mode) {
+                    Ok(_) => {
+                        tracing::info!("Mode successfully changed to: {:?}", new_mode);
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to change mode to {:?}: {}", new_mode, e);
+                        return Err(e);
+                    }
+                }
             }
             CommandEvent::PaneSwitchRequested { target_pane } => {
                 self.view_model.switch_pane(target_pane)?;

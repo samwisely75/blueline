@@ -3,7 +3,7 @@
 //! Contains the main ViewModel struct and basic initialization logic.
 //! This is the central coordinator that delegates to specialized managers.
 
-use crate::repl::events::{EventBus, Pane, ViewEvent};
+use crate::repl::events::{EventBus, LogicalPosition, Pane, ViewEvent};
 use crate::repl::models::{BufferModel, DisplayCache, EditorModel, ResponseModel};
 use crate::repl::view_models::screen_buffer::ScreenBuffer;
 // use anyhow::Result; // Currently unused
@@ -63,6 +63,11 @@ pub struct ViewModel {
     // Double buffering state
     pub(super) current_screen_buffer: ScreenBuffer,
     pub(super) previous_screen_buffer: ScreenBuffer,
+
+    // Visual mode selection state
+    pub(super) visual_selection_start: Option<LogicalPosition>,
+    pub(super) visual_selection_end: Option<LogicalPosition>,
+    pub(super) visual_selection_pane: Option<Pane>,
 }
 
 impl ViewModel {
@@ -122,6 +127,9 @@ impl ViewModel {
                 terminal_width as usize,
                 terminal_height as usize,
             ),
+            visual_selection_start: None,
+            visual_selection_end: None,
+            visual_selection_pane: None,
         }
     }
 

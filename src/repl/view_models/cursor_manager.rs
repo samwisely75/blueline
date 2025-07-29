@@ -264,6 +264,9 @@ impl ViewModel {
             }
         }
 
+        // Update visual selection if in visual mode
+        self.update_visual_selection_end();
+
         // Sync display cursor
         self.sync_display_cursor_with_logical(current_pane)?;
         self.ensure_cursor_visible(current_pane);
@@ -271,6 +274,30 @@ impl ViewModel {
         self.emit_view_event(ViewEvent::PositionIndicatorUpdateRequired);
 
         Ok(())
+    }
+
+    /// Update visual selection end position if in visual mode
+    fn update_visual_selection_end(&mut self) {
+        if self.editor.mode() == crate::repl::events::EditorMode::Visual {
+            let current_cursor = self.get_cursor_position();
+            let current_pane = self.editor.current_pane();
+
+            // Only update if we're in the same pane as the selection
+            if let Some(selection_pane) = self.visual_selection_pane {
+                if selection_pane == current_pane {
+                    self.visual_selection_end = Some(current_cursor);
+                    tracing::debug!("Updated visual selection end to {:?}", current_cursor);
+
+                    // BUGFIX: Emit pane redraw event to trigger visual selection rendering
+                    // Without this, visual selection highlighting won't appear because
+                    // only cursor events are emitted, not text re-rendering events
+                    self.emit_view_event(crate::repl::events::ViewEvent::PaneRedrawRequired {
+                        pane: current_pane,
+                    });
+                    tracing::debug!("Emitted pane redraw event for visual selection update");
+                }
+            }
+        }
     }
 
     /// Synchronize display cursors for both panes
@@ -332,6 +359,10 @@ impl ViewModel {
                 }
             }
         }
+
+        // Update visual selection if in visual mode
+        self.update_visual_selection_end();
+
         Ok(())
     }
 

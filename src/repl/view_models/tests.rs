@@ -4,7 +4,11 @@
 
 #[cfg(test)]
 mod integration_tests {
-    use crate::repl::{commands::CommandEvent, events::EditorMode, view_models::ViewModel};
+    use crate::repl::{
+        commands::CommandEvent,
+        events::{EditorMode, LogicalPosition, Pane},
+        view_models::ViewModel,
+    };
 
     #[test]
     fn test_ex_command_mode_entry_and_exit() {
@@ -570,5 +574,236 @@ mod integration_tests {
         // Clear the message
         vm.clear_status_message();
         assert_eq!(vm.get_status_message(), None);
+    }
+
+    // Visual mode tests
+    #[test]
+    fn test_visual_mode_entry_and_exit() {
+        let mut vm = ViewModel::new();
+
+        // Start in normal mode
+        assert_eq!(vm.get_mode(), EditorMode::Normal);
+
+        // Enter visual mode
+        vm.change_mode(EditorMode::Visual).unwrap();
+        assert_eq!(vm.get_mode(), EditorMode::Visual);
+
+        // Check that visual selection state is initialized
+        let (start, end, pane) = vm.get_visual_selection();
+        assert!(start.is_some());
+        assert!(end.is_some());
+        assert!(pane.is_some());
+        assert_eq!(pane.unwrap(), Pane::Request);
+
+        // Exit visual mode
+        vm.change_mode(EditorMode::Normal).unwrap();
+        assert_eq!(vm.get_mode(), EditorMode::Normal);
+
+        // Check that visual selection state is cleared
+        let (start, end, pane) = vm.get_visual_selection();
+        assert!(start.is_none());
+        assert!(end.is_none());
+        assert!(pane.is_none());
+    }
+
+    #[test]
+    fn test_visual_selection_initialization() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Add some text and position cursor
+        vm.insert_text("hello world").unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 5)).unwrap();
+
+        // Enter visual mode
+        vm.change_mode(EditorMode::Visual).unwrap();
+
+        // Check that selection starts and ends at cursor position
+        let (start, end, pane) = vm.get_visual_selection();
+        assert_eq!(start, Some(LogicalPosition::new(0, 5)));
+        assert_eq!(end, Some(LogicalPosition::new(0, 5)));
+        assert_eq!(pane, Some(Pane::Request));
+    }
+
+    #[test]
+    fn test_visual_selection_updates_with_cursor_movement() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Add some text
+        vm.insert_text("hello\nworld\ntest").unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 2)).unwrap();
+
+        // Enter visual mode
+        vm.change_mode(EditorMode::Visual).unwrap();
+
+        let (start, end, _) = vm.get_visual_selection();
+        assert_eq!(start, Some(LogicalPosition::new(0, 2)));
+        assert_eq!(end, Some(LogicalPosition::new(0, 2)));
+
+        // Move cursor - selection end should update
+        vm.set_cursor_position(LogicalPosition::new(1, 3)).unwrap();
+
+        let (start, end, _) = vm.get_visual_selection();
+        assert_eq!(start, Some(LogicalPosition::new(0, 2))); // Start unchanged
+        assert_eq!(end, Some(LogicalPosition::new(1, 3))); // End updated
+    }
+
+    #[test]
+    fn test_is_position_selected_single_line() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello world").unwrap();
+
+        // Set up visual selection from column 2 to 6 on line 0
+        vm.change_mode(EditorMode::Visual).unwrap();
+        vm.visual_selection_start = Some(LogicalPosition::new(0, 2));
+        vm.visual_selection_end = Some(LogicalPosition::new(0, 6));
+        vm.visual_selection_pane = Some(Pane::Request);
+
+        // Test positions within selection
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 2), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 3), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 4), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 5), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 6), Pane::Request));
+
+        // Test positions outside selection
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 1), Pane::Request));
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 7), Pane::Request));
+        assert!(!vm.is_position_selected(LogicalPosition::new(1, 3), Pane::Request));
+
+        // Test different pane
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 3), Pane::Response));
+    }
+
+    #[test]
+    fn test_is_position_selected_multi_line() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("line1\nline2\nline3").unwrap();
+
+        // Set up visual selection from line 0, col 2 to line 2, col 3
+        vm.change_mode(EditorMode::Visual).unwrap();
+        vm.visual_selection_start = Some(LogicalPosition::new(0, 2));
+        vm.visual_selection_end = Some(LogicalPosition::new(2, 3));
+        vm.visual_selection_pane = Some(Pane::Request);
+
+        // Test first line (partial)
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 1), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 2), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 3), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 4), Pane::Request));
+
+        // Test middle line (fully selected)
+        assert!(vm.is_position_selected(LogicalPosition::new(1, 0), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(1, 2), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(1, 4), Pane::Request));
+
+        // Test last line (partial)
+        assert!(vm.is_position_selected(LogicalPosition::new(2, 0), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(2, 3), Pane::Request));
+        assert!(!vm.is_position_selected(LogicalPosition::new(2, 4), Pane::Request));
+
+        // Test lines outside selection
+        assert!(!vm.is_position_selected(LogicalPosition::new(3, 0), Pane::Request));
+    }
+
+    #[test]
+    fn test_is_position_selected_reversed_selection() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello world").unwrap();
+
+        // Set up visual selection with end before start (reversed)
+        vm.change_mode(EditorMode::Visual).unwrap();
+        vm.visual_selection_start = Some(LogicalPosition::new(0, 6));
+        vm.visual_selection_end = Some(LogicalPosition::new(0, 2));
+        vm.visual_selection_pane = Some(Pane::Request);
+
+        // Should normalize selection range automatically
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 2), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 3), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 6), Pane::Request));
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 1), Pane::Request));
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 7), Pane::Request));
+    }
+
+    #[test]
+    fn test_visual_selection_in_response_pane() {
+        let mut vm = ViewModel::new();
+
+        // Set up response content
+        vm.set_response(200, "response\ntext\nhere".to_string());
+        vm.switch_pane(Pane::Response).unwrap();
+
+        // Enter visual mode in response pane
+        vm.change_mode(EditorMode::Visual).unwrap();
+
+        let (_start, _end, pane) = vm.get_visual_selection();
+        assert_eq!(pane, Some(Pane::Response));
+
+        // Move cursor and check selection updates
+        vm.set_cursor_position(LogicalPosition::new(1, 2)).unwrap();
+
+        let (_start, end, pane) = vm.get_visual_selection();
+        assert_eq!(pane, Some(Pane::Response));
+        assert_eq!(end, Some(LogicalPosition::new(1, 2)));
+    }
+
+    #[test]
+    fn test_visual_selection_does_not_update_across_panes() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("request text").unwrap();
+        vm.set_response(200, "response text".to_string());
+
+        // Start visual selection in request pane
+        vm.change_mode(EditorMode::Visual).unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 5)).unwrap();
+
+        // Switch to response pane - selection should not update
+        vm.switch_pane(Pane::Response).unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 3)).unwrap();
+
+        // Selection should still be in request pane and unchanged
+        let (_start, end, pane) = vm.get_visual_selection();
+        assert_eq!(pane, Some(Pane::Request));
+        assert_eq!(end, Some(LogicalPosition::new(0, 5))); // Should not have updated
+    }
+
+    #[test]
+    fn test_visual_mode_persists_across_cursor_movements() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello\nworld").unwrap();
+
+        // Position cursor at a specific location before entering visual mode
+        vm.set_cursor_position(LogicalPosition::new(0, 2)).unwrap();
+
+        // Enter visual mode
+        vm.change_mode(EditorMode::Visual).unwrap();
+        assert_eq!(vm.get_mode(), EditorMode::Visual);
+
+        let (initial_start, initial_end, _) = vm.get_visual_selection();
+        assert_eq!(initial_start, Some(LogicalPosition::new(0, 2)));
+        assert_eq!(initial_end, Some(LogicalPosition::new(0, 2)));
+
+        // Move cursor multiple times - should stay in visual mode
+        vm.move_cursor_right().unwrap();
+        assert_eq!(vm.get_mode(), EditorMode::Visual);
+
+        vm.move_cursor_down().unwrap();
+        assert_eq!(vm.get_mode(), EditorMode::Visual);
+
+        vm.move_cursor_right().unwrap();
+        assert_eq!(vm.get_mode(), EditorMode::Visual);
+
+        // Selection should be updated
+        let (start, end, _) = vm.get_visual_selection();
+        assert!(start.is_some());
+        assert!(end.is_some());
+        assert_eq!(start, Some(LogicalPosition::new(0, 2))); // Start should remain unchanged
+        assert_ne!(start, end); // End should be different after movements
     }
 }
