@@ -14,12 +14,22 @@ impl ViewModel {
             return Ok(());
         }
 
+        // Get insertion position BEFORE making any changes
+        let insertion_pos = self.panes[Pane::Request].buffer.cursor();
+
         let _event = self.panes[Pane::Request].buffer.insert_char(ch);
         // TODO: self.emit_model_event(event);
 
         // Rebuild request display cache after content change
         let content_width = self.get_content_width();
         self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
+
+        // Calculate display line for the insertion position using updated cache
+        let insertion_display_line = self.panes[Pane::Request]
+            .display_cache
+            .logical_to_display_position(insertion_pos.line, insertion_pos.column)
+            .map(|(display_line, _)| display_line)
+            .unwrap_or(0);
 
         // Sync display cursor with logical cursor
         self.sync_display_cursor_with_logical(Pane::Request)?;
@@ -29,19 +39,10 @@ impl ViewModel {
         // because scrolling happens after the redraw coordinates were calculated
         self.ensure_cursor_visible(Pane::Request);
 
-        // BUGFIX: Recalculate display line AFTER scrolling to get correct coordinates
-        // The cursor position might have changed due to scrolling above
-        let cursor_pos = self.panes[Pane::Request].buffer.cursor();
-        let display_line = self.panes[Pane::Request]
-            .display_cache
-            .logical_to_display_position(cursor_pos.line, cursor_pos.column)
-            .map(|(display_line, _)| display_line)
-            .unwrap_or(0);
-
-        // Use partial redraw from current line to bottom
+        // Use partial redraw from the line where the character was inserted
         self.emit_view_event([ViewEvent::PartialPaneRedrawRequired {
             pane: Pane::Request,
-            start_line: display_line,
+            start_line: insertion_display_line,
         }]);
 
         Ok(())
@@ -54,12 +55,22 @@ impl ViewModel {
             return Ok(());
         }
 
+        // Get insertion position BEFORE making any changes
+        let insertion_pos = self.panes[Pane::Request].buffer.cursor();
+
         let _event = self.panes[Pane::Request].buffer.insert_text(text);
         // TODO: self.emit_model_event(event);
 
         // Rebuild request display cache after content change
         let content_width = self.get_content_width();
         self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
+
+        // Calculate display line for the insertion position using updated cache
+        let insertion_display_line = self.panes[Pane::Request]
+            .display_cache
+            .logical_to_display_position(insertion_pos.line, insertion_pos.column)
+            .map(|(display_line, _)| display_line)
+            .unwrap_or(0);
 
         // Sync display cursor with logical cursor
         self.sync_display_cursor_with_logical(Pane::Request)?;
@@ -69,19 +80,10 @@ impl ViewModel {
         // because scrolling happens after the redraw coordinates were calculated
         self.ensure_cursor_visible(Pane::Request);
 
-        // BUGFIX: Recalculate display line AFTER scrolling to get correct coordinates
-        // The cursor position might have changed due to scrolling above
-        let cursor_pos = self.panes[Pane::Request].buffer.cursor();
-        let display_line = self.panes[Pane::Request]
-            .display_cache
-            .logical_to_display_position(cursor_pos.line, cursor_pos.column)
-            .map(|(display_line, _)| display_line)
-            .unwrap_or(0);
-
-        // Use partial redraw from current line to bottom
+        // Use partial redraw from the line where the text was inserted
         self.emit_view_event([ViewEvent::PartialPaneRedrawRequired {
             pane: Pane::Request,
-            start_line: display_line,
+            start_line: insertion_display_line,
         }]);
 
         // Update cursor position after text insertion
