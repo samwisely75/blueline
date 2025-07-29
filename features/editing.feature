@@ -91,6 +91,44 @@ Feature: Text Editing Commands
     And the text remains "GET /api/users"
     And the cursor stays at the beginning
 
+  Scenario: Backspace on blank line deletes entire line
+    Given the request buffer contains:
+      """
+      GET /api/users
+
+      {"name": "John"}
+      """
+    And I am in insert mode
+    And the cursor is on the blank line (line 2)
+    When I press Backspace
+    Then the blank line is deleted
+    And the cursor moves to the end of the previous line
+    And the text becomes:
+      """
+      GET /api/users
+      {"name": "John"}
+      """
+
+  Scenario: Backspace on consecutive blank lines deletes current blank line
+    Given the request buffer contains:
+      """
+      GET /api/users
+
+
+      {"name": "John"}
+      """
+    And I am in insert mode
+    And the cursor is on the second blank line (line 3)
+    When I press Backspace
+    Then only the current blank line is deleted
+    And the cursor moves to the end of the previous line (first blank line)
+    And the text becomes:
+      """
+      GET /api/users
+
+      {"name": "John"}
+      """
+
   Scenario: Handle problematic characters that might cause parsing errors
     Given the request buffer is empty
     And I am in insert mode

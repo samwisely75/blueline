@@ -266,6 +266,107 @@ mod integration_tests {
     }
 
     #[test]
+    fn test_delete_char_before_cursor_on_blank_line() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Insert text with a blank line: "GET /api/users\n\n{"name": "John"}"
+        vm.insert_text("GET /api/users\n\n{\"name\": \"John\"}")
+            .unwrap();
+
+        // Position cursor on the blank line (line 1, column 0)
+        vm.set_cursor_position(crate::repl::events::LogicalPosition::new(1, 0))
+            .unwrap();
+
+        // Backspace should delete the blank line and move cursor to end of previous line
+        vm.delete_char_before_cursor().unwrap();
+
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.line, 0);
+        assert_eq!(cursor.column, 14); // Should be at end of "GET /api/users"
+
+        // Verify the blank line was deleted
+        assert_eq!(
+            vm.get_request_text(),
+            "GET /api/users\n{\"name\": \"John\"}"
+        );
+    }
+
+    #[test]
+    fn test_delete_char_before_cursor_on_consecutive_blank_lines() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Insert text with consecutive blank lines: "GET /api/users\n\n\n{"name": "John"}"
+        vm.insert_text("GET /api/users\n\n\n{\"name\": \"John\"}")
+            .unwrap();
+
+        // Position cursor on the second blank line (line 2, column 0)
+        vm.set_cursor_position(crate::repl::events::LogicalPosition::new(2, 0))
+            .unwrap();
+
+        // Backspace should delete only the current blank line
+        vm.delete_char_before_cursor().unwrap();
+
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.line, 1);
+        assert_eq!(cursor.column, 0); // Should be at the beginning of the first blank line
+
+        // Verify only one blank line was deleted
+        assert_eq!(
+            vm.get_request_text(),
+            "GET /api/users\n\n{\"name\": \"John\"}"
+        );
+    }
+
+    #[test]
+    fn test_delete_char_before_cursor_blank_line_moves_to_end_of_previous() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Insert text where previous line has content
+        vm.insert_text("Hello World\n").unwrap();
+
+        // Position cursor on the blank line (line 1, column 0)
+        vm.set_cursor_position(crate::repl::events::LogicalPosition::new(1, 0))
+            .unwrap();
+
+        // Backspace should delete the blank line and move cursor to end of "Hello World"
+        vm.delete_char_before_cursor().unwrap();
+
+        let cursor = vm.get_cursor_position();
+
+        assert_eq!(cursor.line, 0);
+        assert_eq!(cursor.column, 11); // Should be at end of "Hello World"
+
+        // Verify the blank line was deleted
+        assert_eq!(vm.get_request_text(), "Hello World");
+    }
+
+    #[test]
+    fn test_delete_char_before_cursor_non_blank_line_joins_normally() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Insert text with non-blank second line
+        vm.insert_text("Hello\nWorld").unwrap();
+
+        // Position cursor at start of second line
+        vm.set_cursor_position(crate::repl::events::LogicalPosition::new(1, 0))
+            .unwrap();
+
+        // Backspace should join the lines (existing behavior)
+        vm.delete_char_before_cursor().unwrap();
+
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.line, 0);
+        assert_eq!(cursor.column, 5); // Should be after "Hello"
+
+        // Verify lines were joined
+        assert_eq!(vm.get_request_text(), "HelloWorld");
+    }
+
+    #[test]
     fn test_pane_switching() {
         let mut vm = ViewModel::new();
 

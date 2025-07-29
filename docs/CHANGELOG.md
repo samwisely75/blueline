@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] - 2025-07-29
+
+### Added
+- **Enhanced Backspace Behavior**: Improved backspace functionality for blank lines in insert mode. When backspace is pressed on a blank line (empty line), it now deletes the entire line and moves the cursor to the end of the previous line, providing more intuitive editing experience.
+
+### Technical
+- Enhanced `delete_char_before_cursor()` method in buffer_operations.rs with blank line detection using `line_length() == 0`
+- Added comprehensive unit tests covering blank line deletion, consecutive blank lines, and cursor positioning
+- Refactored pane references to use `current_pane` variable instead of hardcoded `Pane::Request` for better abstraction
+- Preserved existing line joining behavior for non-blank lines
+- All changes validated through 7 comprehensive unit tests and integration test suite
+
 ## [0.21.1] - 2025-07-29
 
 ### Fixed
