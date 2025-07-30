@@ -294,7 +294,7 @@ impl TerminalRenderer {
                             line_number: Some(1),
                             is_continuation: false,
                             logical_start_col: 0, // logical_start_col is 0 for empty lines
-                            logical_line: 0, // Empty line is logical line 0
+                            logical_line: 0,      // Empty line is logical line 0
                         };
                         self.render_line_with_number(
                             view_model,
@@ -310,7 +310,7 @@ impl TerminalRenderer {
                             line_number: None,
                             is_continuation: false,
                             logical_start_col: 0, // logical_start_col is 0 for tildes
-                            logical_line: 0, // Tildes are beyond content, use 0
+                            logical_line: 0,      // Tildes are beyond content, use 0
                         };
                         self.render_line_with_number(
                             view_model,
@@ -465,7 +465,13 @@ impl ViewRenderer for TerminalRenderer {
                     }
 
                     match display_data {
-                        Some((content, line_number, is_continuation, logical_start_col, logical_line)) => {
+                        Some((
+                            content,
+                            line_number,
+                            is_continuation,
+                            logical_start_col,
+                            logical_line,
+                        )) => {
                             let line_info = LineInfo {
                                 text: content,
                                 line_number: *line_number,
@@ -489,7 +495,7 @@ impl ViewRenderer for TerminalRenderer {
                                     line_number: Some(1),
                                     is_continuation: false,
                                     logical_start_col: 0, // logical_start_col is 0 for empty lines
-                                    logical_line: 0, // Empty line is logical line 0
+                                    logical_line: 0,      // Empty line is logical line 0
                                 };
                                 self.render_line_with_number(
                                     view_model,
@@ -504,7 +510,7 @@ impl ViewRenderer for TerminalRenderer {
                                     line_number: None,
                                     is_continuation: false,
                                     logical_start_col: 0, // logical_start_col is 0 for tildes
-                                    logical_line: 0, // Tildes are beyond content, use 0
+                                    logical_line: 0,      // Tildes are beyond content, use 0
                                 };
                                 self.render_line_with_number(
                                     view_model,
@@ -534,7 +540,13 @@ impl ViewRenderer for TerminalRenderer {
                         }
 
                         match display_data {
-                            Some((content, line_number, is_continuation, logical_start_col, logical_line)) => {
+                            Some((
+                                content,
+                                line_number,
+                                is_continuation,
+                                logical_start_col,
+                                logical_line,
+                            )) => {
                                 let line_info = LineInfo {
                                     text: content,
                                     line_number: *line_number,
@@ -556,7 +568,7 @@ impl ViewRenderer for TerminalRenderer {
                                     line_number: None,
                                     is_continuation: false,
                                     logical_start_col: 0, // logical_start_col is 0 for tildes
-                                    logical_line: 0, // Tildes are beyond content, use 0
+                                    logical_line: 0,      // Tildes are beyond content, use 0
                                 };
                                 self.render_line_with_number(
                                     view_model,
@@ -873,11 +885,20 @@ impl ViewRenderer for TerminalRenderer {
         };
 
         let display_cursor = view_model.get_display_cursor_position();
-        tracing::debug!("render_position_indicator: logical=({}, {}), display=({}, {})", 
-            cursor.line, cursor.column, display_cursor.0, display_cursor.1);
-        let position_text = format!("{}:{} ({}:{})", 
-            cursor.line + 1, cursor.column + 1,
-            display_cursor.0 + 1, display_cursor.1 + 1);
+        tracing::debug!(
+            "render_position_indicator: logical=({}, {}), display=({}, {})",
+            cursor.line,
+            cursor.column,
+            display_cursor.0,
+            display_cursor.1
+        );
+        let position_text = format!(
+            "{}:{} ({}:{})",
+            cursor.line + 1,
+            cursor.column + 1,
+            display_cursor.0 + 1,
+            display_cursor.1 + 1
+        );
 
         // Build the right portion of the status bar, including HTTP info if present
         let mut right_text = String::new();

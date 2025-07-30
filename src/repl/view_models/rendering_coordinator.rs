@@ -93,15 +93,18 @@ impl ViewModel {
             // the careful cursor positioning done in scroll_vertically_by_page.
             // The scroll method already sets both logical and display cursor positions correctly.
             self.ensure_cursor_visible(current_pane);
-            
+
             // BUGFIX: Update visual selection end if in visual mode and cursor moved during page scroll
-            // The page scroll functions directly update cursor position, bypassing the normal 
+            // The page scroll functions directly update cursor position, bypassing the normal
             // update_visual_selection_end() call that happens in cursor movement functions
             if self.mode() == crate::repl::events::EditorMode::Visual {
                 let current_cursor = self.panes[current_pane].buffer.cursor();
                 if self.panes[current_pane].visual_selection_start.is_some() {
                     self.panes[current_pane].visual_selection_end = Some(current_cursor);
-                    tracing::debug!("Updated visual selection end to {:?} after page scroll", current_cursor);
+                    tracing::debug!(
+                        "Updated visual selection end to {:?} after page scroll",
+                        current_cursor
+                    );
                 }
             }
         }
@@ -116,16 +119,18 @@ impl ViewModel {
             ViewEvent::CursorUpdateRequired { pane: current_pane },
             ViewEvent::PositionIndicatorUpdateRequired,
         ];
-        
+
         // BUGFIX: Always emit pane redraw for visual mode during page scrolling
         // User requirement: "At Ctrl F/D, you must redraw the lines from the start of `v` to the jumped point"
         // The complex intersection logic was working but highlighting still wasn't updating properly,
         // so we'll use a simpler approach: always redraw the pane in visual mode during page scrolling
         if self.mode() == crate::repl::events::EditorMode::Visual {
             events.push(ViewEvent::PaneRedrawRequired { pane: current_pane });
-            tracing::debug!("Visual mode page scroll: emitting pane redraw for visual selection highlighting");
+            tracing::debug!(
+                "Visual mode page scroll: emitting pane redraw for visual selection highlighting"
+            );
         }
-        
+
         self.emit_view_event(events);
 
         Ok(())
@@ -152,15 +157,18 @@ impl ViewModel {
             // the careful cursor positioning done in scroll_vertically_by_half_page.
             // The scroll method already sets both logical and display cursor positions correctly.
             self.ensure_cursor_visible(current_pane);
-            
+
             // BUGFIX: Update visual selection end if in visual mode and cursor moved during half-page scroll
-            // The half-page scroll functions directly update cursor position, bypassing the normal 
+            // The half-page scroll functions directly update cursor position, bypassing the normal
             // update_visual_selection_end() call that happens in cursor movement functions
             if self.mode() == crate::repl::events::EditorMode::Visual {
                 let current_cursor = self.panes[current_pane].buffer.cursor();
                 if self.panes[current_pane].visual_selection_start.is_some() {
                     self.panes[current_pane].visual_selection_end = Some(current_cursor);
-                    tracing::debug!("Updated visual selection end to {:?} after half-page scroll", current_cursor);
+                    tracing::debug!(
+                        "Updated visual selection end to {:?} after half-page scroll",
+                        current_cursor
+                    );
                 }
             }
         }
@@ -175,14 +183,14 @@ impl ViewModel {
             ViewEvent::CursorUpdateRequired { pane: current_pane },
             ViewEvent::PositionIndicatorUpdateRequired,
         ];
-        
+
         // BUGFIX: Always emit pane redraw for visual mode during half-page scrolling
         // User requirement: same logic as page scrolling for Ctrl+D/U
         if self.mode() == crate::repl::events::EditorMode::Visual {
             events.push(ViewEvent::PaneRedrawRequired { pane: current_pane });
             tracing::debug!("Visual mode half-page scroll: emitting pane redraw for visual selection highlighting");
         }
-        
+
         self.emit_view_event(events);
 
         Ok(())

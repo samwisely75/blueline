@@ -167,9 +167,14 @@ impl PaneState {
 
         // Vim typically scrolls by (page_size - 1) to maintain some context
         let scroll_amount = page_size.saturating_sub(1).max(1);
-        
-        tracing::debug!("scroll_vertically_by_page: pane_dimensions=({}, {}), page_size={}, scroll_amount={}", 
-            self.pane_dimensions.0, self.pane_dimensions.1, page_size, scroll_amount);
+
+        tracing::debug!(
+            "scroll_vertically_by_page: pane_dimensions=({}, {}), page_size={}, scroll_amount={}",
+            self.pane_dimensions.0,
+            self.pane_dimensions.1,
+            page_size,
+            scroll_amount
+        );
 
         // Prevent scrolling beyond actual content bounds
         let max_scroll_offset = self
@@ -223,10 +228,15 @@ impl PaneState {
             {
                 let cursor_position = LogicalPosition::new(logical_pos.0, logical_pos.1);
                 let clamped_position = self.buffer.content().clamp_position(cursor_position);
-                
-                tracing::debug!("scroll_vertically_by_page: new_logical=({}, {}), clamped=({}, {})",
-                    logical_pos.0, logical_pos.1, clamped_position.line, clamped_position.column);
-                
+
+                tracing::debug!(
+                    "scroll_vertically_by_page: new_logical=({}, {}), clamped=({}, {})",
+                    logical_pos.0,
+                    logical_pos.1,
+                    clamped_position.line,
+                    clamped_position.column
+                );
+
                 // Update cursor position
                 if clamped_position != current_cursor {
                     self.buffer.set_cursor(clamped_position);
@@ -297,7 +307,7 @@ impl PaneState {
             {
                 let cursor_position = LogicalPosition::new(logical_pos.0, logical_pos.1);
                 let clamped_position = self.buffer.content().clamp_position(cursor_position);
-                
+
                 // Update cursor position
                 if clamped_position != current_cursor {
                     self.buffer.set_cursor(clamped_position);
@@ -317,38 +327,54 @@ impl PaneState {
     /// Set display cursor position for this pane with proper clamping
     pub fn set_display_cursor(&mut self, position: (usize, usize)) -> CursorMoveResult {
         use crate::repl::events::LogicalPosition;
-        
+
         let old_display_pos = self.display_cursor;
-        
-        tracing::debug!("PaneState::set_display_cursor: requested_pos={:?}", position);
+
+        tracing::debug!(
+            "PaneState::set_display_cursor: requested_pos={:?}",
+            position
+        );
 
         // Convert to logical position first (this will clamp if needed)
-        if let Some(logical_pos) = self.display_cache
+        if let Some(logical_pos) = self
+            .display_cache
             .display_to_logical_position(position.0, position.1)
         {
             let logical_position = LogicalPosition::new(logical_pos.0, logical_pos.1);
-            tracing::debug!("PaneState::set_display_cursor: converted display ({}, {}) to logical ({}, {})", 
-                position.0, position.1, logical_position.line, logical_position.column);
-            
+            tracing::debug!(
+                "PaneState::set_display_cursor: converted display ({}, {}) to logical ({}, {})",
+                position.0,
+                position.1,
+                logical_position.line,
+                logical_position.column
+            );
+
             // Update logical cursor
             self.buffer.set_cursor(logical_position);
-            
+
             // Set display cursor to the actual position that corresponds to the clamped logical position
-            if let Some(actual_display_pos) = self.display_cache
+            if let Some(actual_display_pos) = self
+                .display_cache
                 .logical_to_display_position(logical_position.line, logical_position.column)
             {
                 self.display_cursor = actual_display_pos;
-                tracing::debug!("PaneState::set_display_cursor: updated display cursor to actual position {:?}", actual_display_pos);
+                tracing::debug!(
+                    "PaneState::set_display_cursor: updated display cursor to actual position {:?}",
+                    actual_display_pos
+                );
             } else {
                 self.display_cursor = position;
             }
         } else {
-            tracing::warn!("PaneState::set_display_cursor: failed to convert display position {:?} to logical", position);
+            tracing::warn!(
+                "PaneState::set_display_cursor: failed to convert display position {:?} to logical",
+                position
+            );
             self.display_cursor = position;
         }
 
         let cursor_moved = self.display_cursor != old_display_pos;
-        
+
         CursorMoveResult {
             cursor_moved,
             old_display_pos,
@@ -361,7 +387,8 @@ impl PaneState {
         let old_display_pos = self.display_cursor;
         let logical_pos = self.buffer.cursor();
 
-        if let Some(display_pos) = self.display_cache
+        if let Some(display_pos) = self
+            .display_cache
             .logical_to_display_position(logical_pos.line, logical_pos.column)
         {
             tracing::debug!("PaneState::sync_display_cursor_with_logical: converted logical ({}, {}) to display ({}, {})", 
@@ -373,7 +400,7 @@ impl PaneState {
         }
 
         let cursor_moved = self.display_cursor != old_display_pos;
-        
+
         CursorMoveResult {
             cursor_moved,
             old_display_pos,
@@ -405,17 +432,24 @@ impl PaneState {
             new_horizontal_offset = display_pos.1;
             tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen left, adjusting horizontal offset to {}", new_horizontal_offset);
         } else if display_pos.1 >= old_horizontal_offset + content_width && content_width > 0 {
-            new_horizontal_offset = display_pos.1.saturating_sub(content_width.saturating_sub(1));
+            new_horizontal_offset = display_pos
+                .1
+                .saturating_sub(content_width.saturating_sub(1));
             tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen right at pos {}, adjusting horizontal offset from {} to {}", display_pos.1, old_horizontal_offset, new_horizontal_offset);
         }
 
         // Update scroll offset if changed
         let vertical_changed = new_vertical_offset != old_vertical_offset;
         let horizontal_changed = new_horizontal_offset != old_horizontal_offset;
-        
+
         if vertical_changed || horizontal_changed {
-            tracing::debug!("PaneState::ensure_cursor_visible: adjusting scroll from ({}, {}) to ({}, {})",
-                old_vertical_offset, old_horizontal_offset, new_vertical_offset, new_horizontal_offset);
+            tracing::debug!(
+                "PaneState::ensure_cursor_visible: adjusting scroll from ({}, {}) to ({}, {})",
+                old_vertical_offset,
+                old_horizontal_offset,
+                new_vertical_offset,
+                new_horizontal_offset
+            );
             self.scroll_offset = (new_vertical_offset, new_horizontal_offset);
         } else {
             tracing::debug!("PaneState::ensure_cursor_visible: no scroll adjustment needed");

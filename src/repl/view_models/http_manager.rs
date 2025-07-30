@@ -96,7 +96,7 @@ impl ViewModel {
         // Use the same logic as update_terminal_size to ensure both panes get proper dimensions
         let (width, height) = self.terminal_dimensions;
         self.request_pane_height = height / 2;
-        
+
         // Recalculate pane dimensions with proper split-screen layout
         let content_width = (width as usize).saturating_sub(4); // Account for line numbers
         let request_pane_height = self.request_pane_height as usize;
@@ -108,10 +108,13 @@ impl ViewModel {
         // Update pane dimensions
         self.panes[Pane::Request].update_dimensions(content_width, request_pane_height);
         self.panes[Pane::Response].update_dimensions(content_width, response_pane_height);
-        
+
         tracing::debug!(
             "Pane dimensions updated after HTTP response: Request={}x{}, Response={}x{}",
-            content_width, request_pane_height, content_width, response_pane_height
+            content_width,
+            request_pane_height,
+            content_width,
+            response_pane_height
         );
 
         // Full redraw is needed when response first appears to draw the response pane
@@ -151,7 +154,7 @@ impl ViewModel {
         // Use the same logic as update_terminal_size to ensure both panes get proper dimensions
         let (width, height) = self.terminal_dimensions;
         self.request_pane_height = height / 2;
-        
+
         // Recalculate pane dimensions with proper split-screen layout
         let content_width = (width as usize).saturating_sub(4); // Account for line numbers
         let request_pane_height = self.request_pane_height as usize;
@@ -163,10 +166,13 @@ impl ViewModel {
         // Update pane dimensions
         self.panes[Pane::Request].update_dimensions(content_width, request_pane_height);
         self.panes[Pane::Response].update_dimensions(content_width, response_pane_height);
-        
+
         tracing::debug!(
             "Pane dimensions updated after manual response: Request={}x{}, Response={}x{}",
-            content_width, request_pane_height, content_width, response_pane_height
+            content_width,
+            request_pane_height,
+            content_width,
+            response_pane_height
         );
 
         // Full redraw is needed when response first appears

@@ -101,7 +101,7 @@ impl ViewModel {
         // Get current display line info
         if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
             let line_length = current_line.content.chars().count();
-            
+
             tracing::debug!(
                 "move_cursor_right: line_length={}, current_col={}, line_content='{}', logical_start={}, logical_end={}, is_continuation={}",
                 line_length, current_display_pos.1, current_line.content,
@@ -126,18 +126,19 @@ impl ViewModel {
                 let new_display_pos = (current_display_pos.0 + 1, 0);
                 tracing::debug!(
                     "move_cursor_right: at end of line {}, moving to next line {:?}",
-                    current_display_pos.0, new_display_pos
+                    current_display_pos.0,
+                    new_display_pos
                 );
-                
+
                 // Check if next line exists and get its info
                 if let Some(next_line) = display_cache.get_display_line(current_display_pos.0 + 1) {
                     tracing::debug!(
                         "move_cursor_right: next line info - logical_line={}, logical_start={}, logical_end={}, is_continuation={}, content='{}'",
-                        next_line.logical_line, next_line.logical_start_col, next_line.logical_end_col, 
+                        next_line.logical_line, next_line.logical_start_col, next_line.logical_end_col,
                         next_line.is_continuation, next_line.content
                     );
                 }
-                
+
                 self.set_display_cursor(current_pane, new_display_pos)?;
                 self.ensure_cursor_visible(current_pane);
                 moved = true;
@@ -355,7 +356,11 @@ impl ViewModel {
         pane: Pane,
         position: (usize, usize),
     ) -> Result<()> {
-        tracing::debug!("set_display_cursor: pane={:?}, display_pos={:?}", pane, position);
+        tracing::debug!(
+            "set_display_cursor: pane={:?}, display_pos={:?}",
+            pane,
+            position
+        );
 
         // Delegate to PaneState for all cursor positioning logic
         let result = self.panes[pane].set_display_cursor(position);
@@ -381,7 +386,7 @@ impl ViewModel {
     /// Ensure cursor is visible within the viewport (handles scrolling)
     pub(super) fn ensure_cursor_visible(&mut self, pane: Pane) {
         let content_width = self.get_content_width();
-        
+
         tracing::debug!("ensure_cursor_visible: pane={:?}", pane);
 
         // Delegate to PaneState for all scroll adjustment logic
@@ -401,7 +406,6 @@ impl ViewModel {
     pub(super) fn get_scroll_offset(&self, pane: Pane) -> (usize, usize) {
         self.panes[pane].scroll_offset
     }
-
 
     /// Move cursor to the beginning of the next word
     pub fn move_cursor_to_next_word(&mut self) -> Result<()> {
@@ -804,5 +808,4 @@ impl ViewModel {
 
         Ok(())
     }
-
 }

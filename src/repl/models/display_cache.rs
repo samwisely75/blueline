@@ -98,7 +98,7 @@ impl DisplayCache {
                     "logical_to_display_position: checking display_idx={}, logical_col={}, start_col={}, end_col={}",
                     display_idx, logical_col, display_line.logical_start_col, display_line.logical_end_col
                 );
-                
+
                 // Check if cursor falls within this display line segment
                 if logical_col >= display_line.logical_start_col
                     && logical_col < display_line.logical_end_col
@@ -106,12 +106,13 @@ impl DisplayCache {
                     let display_col = logical_col - display_line.logical_start_col;
                     tracing::debug!(
                         "logical_to_display_position: found match in range, returning ({}, {})",
-                        display_idx, display_col
+                        display_idx,
+                        display_col
                     );
                     return Some((display_idx, display_col));
                 }
                 // BUGFIX: Handle end-of-line case - when logical_col equals logical_end_col,
-                // it should map to the beginning of the NEXT display line (column 0), 
+                // it should map to the beginning of the NEXT display line (column 0),
                 // not the end of the current display line. This fixes the boundary condition
                 // where cursor gets stuck at column 1 on wrapped continuation lines.
                 if logical_col == display_line.logical_end_col
@@ -134,7 +135,7 @@ impl DisplayCache {
                             }
                         }
                     }
-                    
+
                     // If no next continuation line, position at end of current line (fallback)
                     let display_col = display_line.logical_end_col - display_line.logical_start_col;
                     tracing::debug!(
@@ -171,7 +172,7 @@ impl DisplayCache {
 
         let display_info = self.display_lines.get(display_line)?;
         let logical_line = display_info.logical_line;
-        
+
         // BUGFIX: Clamp display column to valid cursor positions to prevent horizontal scrolling issues
         // For a line with N characters, valid cursor positions are 0 to N-1 (on each character).
         // Position N would be after the last character and can trigger unwanted horizontal scrolling.
@@ -186,7 +187,7 @@ impl DisplayCache {
 
         tracing::debug!(
             "display_to_logical_position: display=({}, {}) -> logical=({}, {}) [content_len={}, start_col={}, clamped_col={}]",
-            display_line, display_col, logical_line, logical_col, 
+            display_line, display_col, logical_line, logical_col,
             content_length, display_info.logical_start_col, clamped_display_col
         );
 
