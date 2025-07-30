@@ -125,7 +125,7 @@ pub async fn execute_http_request(
         if !request_args.headers().is_empty() {
             response_text.push_str("Headers:\n");
             for (key, value) in request_args.headers() {
-                response_text.push_str(&format!("  {}: {}\n", key, value));
+                response_text.push_str(&format!("  {key}: {value}\n"));
             }
         }
 

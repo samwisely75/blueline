@@ -37,7 +37,7 @@ async fn run_basic_features_sequentially() {
     for (i, feature) in features.iter().enumerate() {
         println!("\n[{}/{}] Running {}...", i + 1, features.len(), feature);
         BluelineWorld::run(feature).await;
-        println!("✓ {} completed successfully", feature);
+        println!("✓ {feature} completed successfully");
     }
 
     println!("\n🎉 All basic feature files completed successfully!");

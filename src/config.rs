@@ -19,6 +19,7 @@ pub fn get_profile_path() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_default_profile_path() {
@@ -31,6 +32,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_profile_path_default() {
         // Save current env var state
         let original = std::env::var_os(PROFILE_PATH_ENV_VAR);
@@ -46,6 +48,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_profile_path_env_override() {
         // Save current env var state
         let original = std::env::var_os(PROFILE_PATH_ENV_VAR);

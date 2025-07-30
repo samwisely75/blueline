@@ -129,10 +129,7 @@ impl TerminalRenderer {
         if let Some(num) = line_info.line_number {
             // Render line number with dimmed style and right alignment (minimum width 3)
             execute_term!(self.stdout, SetAttribute(Attribute::Dim))?;
-            execute_term!(
-                self.stdout,
-                Print(format!("{:>width$} ", num, width = line_num_width))
-            )?;
+            execute_term!(self.stdout, Print(format!("{num:>line_num_width$} ")))?;
             execute_term!(self.stdout, SetAttribute(Attribute::Reset))?;
         } else if line_info.is_continuation {
             // Continuation line of wrapped text - show blank space
@@ -807,7 +804,7 @@ impl ViewRenderer for TerminalRenderer {
             else if let Some(status_code) = view_model.get_response_status_code() {
                 let status_message_opt = view_model.get_response_status_message();
                 let status_message = status_message_opt.as_deref().unwrap_or("");
-                let status_full = format!("{} {}", status_code, status_message);
+                let status_full = format!("{status_code} {status_message}");
 
                 // Use old MVC bullet design with ANSI colors
                 let signal_icon = match status_code {
@@ -816,13 +813,13 @@ impl ViewRenderer for TerminalRenderer {
                     _ => "● ",                        // Default bullet for unknown
                 };
 
-                status_text.push_str(&format!("{}{}", signal_icon, status_full));
+                status_text.push_str(&format!("{signal_icon}{status_full}"));
 
                 // TAT (ephemeral)
                 if let Some(duration_ms) = view_model.get_response_duration_ms() {
                     let duration = std::time::Duration::from_millis(duration_ms);
                     let duration_text = humantime::format_duration(duration).to_string();
-                    status_text.push_str(&format!(" | {}", duration_text));
+                    status_text.push_str(&format!(" | {duration_text}"));
                 }
 
                 status_text.push_str(" | ");
@@ -854,7 +851,7 @@ impl ViewRenderer for TerminalRenderer {
 
             // Dim the status bar when not in focus (not in Command mode) to reduce visual clutter
             // Use dark gray color for better visibility than ANSI dim
-            let dimmed_text = format!("\x1b[38;5;240m{}\x1b[0m", final_text); // Dark gray (240) and reset
+            let dimmed_text = format!("\x1b[38;5;240m{final_text}\x1b[0m"); // Dark gray (240) and reset
 
             execute_term!(
                 self.stdout,
@@ -907,7 +904,7 @@ impl ViewRenderer for TerminalRenderer {
         if let Some(status_code) = view_model.get_response_status_code() {
             let status_message_opt = view_model.get_response_status_message();
             let status_message = status_message_opt.as_deref().unwrap_or("");
-            let status_full = format!("{} {}", status_code, status_message);
+            let status_full = format!("{status_code} {status_message}");
 
             // Use old MVC bullet design with ANSI colors
             let signal_icon = match status_code {
@@ -916,20 +913,20 @@ impl ViewRenderer for TerminalRenderer {
                 _ => "● ",                        // Default bullet for unknown
             };
 
-            right_text.push_str(&format!("{}{}", signal_icon, status_full));
+            right_text.push_str(&format!("{signal_icon}{status_full}"));
 
             // TAT (ephemeral)
             if let Some(duration_ms) = view_model.get_response_duration_ms() {
                 let duration = std::time::Duration::from_millis(duration_ms);
                 let duration_text = humantime::format_duration(duration).to_string();
-                right_text.push_str(&format!(" | {}", duration_text));
+                right_text.push_str(&format!(" | {duration_text}"));
             }
 
             right_text.push_str(" | ");
         }
 
         // Add mode, pane, and position
-        right_text.push_str(&format!("{} | {} {}", mode_text, pane_text, position_text));
+        right_text.push_str(&format!("{mode_text} | {pane_text} {position_text}"));
 
         // Calculate where this portion should start to be right-aligned
         let available_width = self.terminal_size.0 as usize;
