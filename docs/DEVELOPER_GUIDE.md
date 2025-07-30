@@ -45,15 +45,17 @@ The MVC refactoring has been successful and the app working very well, until I i
 
 The MVC version of the code is archived in `archive/mvc/`. The current MVVM version is in the `src/repl/` directory.
 
-The codebase is successfully transitioned from MVC to MVVM/event-driven architecture. The architecture is a mix of MVC and MVVM, where the ViewModel layer is being introduced to handle the display logic and cursor movement. Please see `MVVM_ARCHITECTURE.md` for the details of the architecture.
-
 ### Where Are We Now
 
-MVVM transition is nearly complete and fixing the last few issues. The REPL interface is working well, but still lacks some features like yank and paste, command history, and syntax highlighting. Thanks to the new architecture, the codebase is now more modular and easier to maintain.
+The project is currently transitioning from MVC to MVVM/event-driven architecture. The current architecture is a mix of MVC and MVVM, where the ViewModel layer is being introduced to handle the display logic and cursor movement.The goal is to remove view concerns from Commands and centralize display logic in a ViewModel layer. See `docs/MVVM_TRANSITION_STRATEGY.md` for detailed implementation plan.
+
+The implementation is still in progress. We are at Phase 3-4 in the documented strategy. The new MVVM foundation is being built with event-driven system and some of the fundamental commands are implemented. However due to the lose control of the Claude Code, the implementation started to get messed up. When I run the app in `cargo run`, it now looks totally different from the beautifully-crafted MVC version and is not functioning at all.
+
+The reason of failure is because the refactoring approach was more in horizontally-split approach, where it split the phase by the application layer, rather than vertical split approach, where it splits the phase by feature. I wanted to implement one command at a time, but the Claude Code started to implement multiple commands at once, along with the framework transitions, which resulted in a lot of unfinished and broken code. The current state of the codebase is a mix of unfinished commands and broken display logic, which makes it difficult to test and maintain.
 
 ### Where Are We Heading
 
-Once all the basic vim commands are implemented, we will release it as v1.0.0. After that, we will make the app connect to other user's console and collaborate over the terminal. The goal is to make the app useful on the field of consulting, where clients needs consultant's help to update/troubleshoot their systems via REST APIs. The app will allow users to share their terminal session with others, making it easy to collaborate and troubleshoot issues in real-time.
+The immediate goal is to restore the visual of the REPL terminal available in MVC codebase with the new MVVM architecture and limited implementation of the commands. The current implementation is not following what MVC codebase has implemented, like `crossterm`'s raw mode, Alternate Screen Buffer (ASB), and other terminal features. It does not have the Status Bar.
 
 ## Development Environment
 
@@ -63,7 +65,7 @@ https://github.com/samwisely75/blueline
 
 ### IDE
 
-Visual Studio Code with the following extensions:
+I am using Visual Studio Code with the following extensions:
 
 - Claude Code plugin
 - Copilot with Claude 4 Sonnet primarily
@@ -199,28 +201,29 @@ Everyone, including Generative AI Engine like Copilot and Claude Code, must foll
 
 Developers and Generative AI Engines like Claude Code should strictly follow this workflow to implement new features or fix bugs in the codebase. This process ensures that changes are made systematically, tested thoroughly, and documented properly.
 
-1. Pick up the top-most item in the `Ready` state on [blueline GitHub Kanban](https://github.com/users/samwisely75/projects/1). If the `Ready` column is empty, ask for it.
+1. Pick up the top-most item in the `Ready` state on [blueline GitHub Kanban](https://github.com/users/samwisely75/projects/1) by the following command. If the result is empty, ask for it.
+
+   ```shell
+   gh project item-list 1 --owner samwisely75 --format json --jq '.items[] | select(.status == "Ready")'
+   ```
+
 2. Plan the implementation and todos. Ask for clarification if needed.
-3. Create a new branch from the `develop` branch with a descriptive name, e.g., `feature/new-feature` or `bugfix/fix-issue-123`.
-4. Move the Kanban item to the `In progress` state.
-5. Update the feature file to dictate the specification of the feature. If the feature is already implemented, update the existing test to reflect the new behavior.
-6. Implement the changes.
-7. Create or update comprehensive unit tests for the changes.
-8. Run all tests including integration tests to ensure everything works as expected.
-9. Make sure to leave comments following the coding guidelines. It is particularly important to leave comments when you change the code for a bug fix.
-10. Run `/scripts/git-commit-precheck.sh` to see if the code passes pre-commit checks. If it fails, fix the issues and run the script again until it passes.
-    - This script will run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` to ensure code quality and formatting.
-    - If you are using a Generative AI Engine like Claude Code, make sure to run this script before committing any changes.
-11. Commit all changes with a clear and concise commit message. Do not leave out the code files you updated to fix clippy warnings and what `cargo fmt` modified.
-12. Create a pull request (PR) with a clear and concise description of the changes made, including the issue number if applicable.
-    - The PR title should be descriptive and follow the format `Fix #issue_number: Short description of the change`.
-    - The PR description should include:
-      - A summary of the changes made
-      - The issue number(s) related to the changes
-      - Any additional context or information that may be helpful for reviewers
-13. Move the Kanban item to the `In review` state.
-14. Address any feedback on PR and make necessary changes.
-15. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If a bug is fixed, increment the patch version. If a breaking change is made, increment the major version.
-16. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.
+3. Move the Kanban item to the `In progress` state.
+4. Update the feature file to dictate the specification of the feature. If the feature is already implemented, update the existing test to reflect the new behavior.
+5. Implement the changes.
+6. Create or update comprehensive unit tests for the changes.
+7. Run all tests including integration tests to ensure everything works as expected.
+8. Make sure to leave comments following the coding guidelines. It is particularly important to leave comments when you change the code for a bug fix.
+9. Run `/scripts/git-commit-precheck.sh` to see if the code passes pre-commit checks. If it fails, fix the issues and run the script again until it passes.
+   - This script will run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` to ensure code quality and formatting.
+   - If you are using a Generative AI Engine like Claude Code, make sure to run this script before committing any changes.
+10. Move the Kanban item to the `In review` state.
+11. Pause your work and call the Code Owner for manual testing and review.
+12. Address any feedback and make necessary changes.
+13. Repeat the process until the Code Owner approves the changes.
+14. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If a bug is fixed, increment the patch version. If a breaking change is made, increment the major version.
+15. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.
+16. Commit all changes with a clear and concise commit message. Do not leave out the code files you updated to fix clippy warnings and what `cargo fmt` modified. Include #issue number in the commit message, e.g., `Fix #123: Implement new feature X`.
 17. Create a git tag for the same version number with "v", e.g., `git tag v1.0.0`.
-18. Go to step 1.
+18. Move the Kanban item to the `Done` state.
+19. Go to step 1.
