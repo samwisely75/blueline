@@ -14,6 +14,12 @@ impl ViewModel {
         self.panes[current_pane].buffer.cursor()
     }
 
+    /// Get current display cursor position for the active pane
+    pub fn get_display_cursor_position(&self) -> (usize, usize) {
+        let current_pane = self.current_pane;
+        self.get_display_cursor(current_pane)
+    }
+
     /// Move cursor left in current pane (display coordinate based)
     pub fn move_cursor_left(&mut self) -> Result<()> {
         let current_pane = self.current_pane;
@@ -46,7 +52,10 @@ impl ViewModel {
             // Move to end of previous display line
             let prev_display_line = current_display_pos.0 - 1;
             if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
-                let new_col = prev_line.content.chars().count();
+                // BUGFIX: Position cursor at the last character, not after it
+                // For a line with N characters, valid positions are 0 to N-1
+                // Position N would be after the last character and could trigger horizontal scrolling
+                let new_col = prev_line.content.chars().count().saturating_sub(1);
                 let new_display_pos = (prev_display_line, new_col);
                 tracing::debug!(
                     "move_cursor_left: moving to end of previous line {:?}",
@@ -93,8 +102,17 @@ impl ViewModel {
         if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
             let line_length = current_line.content.chars().count();
 
+            tracing::debug!(
+                "move_cursor_right: line_length={}, current_col={}, line_content='{}', logical_start={}, logical_end={}, is_continuation={}",
+                line_length, current_display_pos.1, current_line.content,
+                current_line.logical_start_col, current_line.logical_end_col, current_line.is_continuation
+            );
+
             // Check if we can move right within current display line
-            if current_display_pos.1 < line_length {
+            // BUGFIX: Account for clamping - if cursor is at the last valid position (line_length - 1),
+            // we should move to the next line instead of trying to move to an invalid position
+            let last_valid_position = if line_length > 0 { line_length - 1 } else { 0 };
+            if current_display_pos.1 < last_valid_position {
                 let new_display_pos = (current_display_pos.0, current_display_pos.1 + 1);
                 tracing::debug!(
                     "move_cursor_right: moving within line to {:?}",
@@ -107,9 +125,20 @@ impl ViewModel {
                 // Move to beginning of next display line
                 let new_display_pos = (current_display_pos.0 + 1, 0);
                 tracing::debug!(
-                    "move_cursor_right: moving to next line {:?}",
+                    "move_cursor_right: at end of line {}, moving to next line {:?}",
+                    current_display_pos.0,
                     new_display_pos
                 );
+
+                // Check if next line exists and get its info
+                if let Some(next_line) = display_cache.get_display_line(current_display_pos.0 + 1) {
+                    tracing::debug!(
+                        "move_cursor_right: next line info - logical_line={}, logical_start={}, logical_end={}, is_continuation={}, content='{}'",
+                        next_line.logical_line, next_line.logical_start_col, next_line.logical_end_col,
+                        next_line.is_continuation, next_line.content
+                    );
+                }
+
                 self.set_display_cursor(current_pane, new_display_pos)?;
                 self.ensure_cursor_visible(current_pane);
                 moved = true;
@@ -290,11 +319,15 @@ impl ViewModel {
                 self.panes[current_pane].visual_selection_end = Some(current_cursor);
                 tracing::debug!("Updated visual selection end to {:?}", current_cursor);
 
-                // BUGFIX: Emit pane redraw event to trigger visual selection rendering
-                // Without this, visual selection highlighting won't appear because
-                // only cursor events are emitted, not text re-rendering events
-                self.emit_view_event([ViewEvent::PaneRedrawRequired { pane: current_pane }]);
-                tracing::debug!("Emitted pane redraw event for visual selection update");
+                // BUGFIX: Use full pane redraw for visual selection highlighting
+                // Visual selection highlighting requires re-evaluating selection state for all visible characters,
+                // not just redrawing from a specific line. PartialPaneRedrawRequired is optimized for text changes
+                // but doesn't properly handle selection state changes that can affect non-contiguous display lines.
+                self.emit_view_event([
+                    ViewEvent::PaneRedrawRequired { pane: current_pane },
+                    ViewEvent::CursorUpdateRequired { pane: current_pane },
+                ]);
+                tracing::debug!("Emitted full pane redraw for visual selection highlighting");
             }
         }
     }
@@ -323,78 +356,48 @@ impl ViewModel {
         pane: Pane,
         position: (usize, usize),
     ) -> Result<()> {
-        self.panes[pane].display_cursor = position;
+        tracing::debug!(
+            "set_display_cursor: pane={:?}, display_pos={:?}",
+            pane,
+            position
+        );
 
-        // Convert back to logical position and update buffer
-        if let Some(logical_pos) = self.panes[pane]
-            .display_cache
-            .display_to_logical_position(position.0, position.1)
-        {
-            let logical_position = LogicalPosition::new(logical_pos.0, logical_pos.1);
-            self.panes[pane].buffer.set_cursor(logical_position);
+        // Delegate to PaneState for all cursor positioning logic
+        let result = self.panes[pane].set_display_cursor(position);
+
+        // Update visual selection if in visual mode and cursor actually moved
+        if result.cursor_moved {
+            self.update_visual_selection_end();
         }
-
-        // Update visual selection if in visual mode
-        self.update_visual_selection_end();
 
         Ok(())
     }
 
     /// Synchronize display cursor with logical cursor position
     pub(super) fn sync_display_cursor_with_logical(&mut self, pane: Pane) -> Result<()> {
-        let logical_pos = self.panes[pane].buffer.cursor();
+        tracing::debug!("sync_display_cursor_with_logical: pane={:?}", pane);
 
-        if let Some(display_pos) = self.panes[pane]
-            .display_cache
-            .logical_to_display_position(logical_pos.line, logical_pos.column)
-        {
-            self.panes[pane].display_cursor = display_pos;
-        }
+        // Delegate to PaneState for coordinate conversion
+        let _result = self.panes[pane].sync_display_cursor_with_logical();
 
         Ok(())
     }
 
     /// Ensure cursor is visible within the viewport (handles scrolling)
     pub(super) fn ensure_cursor_visible(&mut self, pane: Pane) {
-        let display_pos = self.get_display_cursor(pane);
-        let (vertical_offset, horizontal_offset) = self.get_scroll_offset(pane);
-        let pane_height = self.get_pane_display_height(pane);
         let content_width = self.get_content_width();
 
-        let mut new_vertical_offset = vertical_offset;
-        let mut new_horizontal_offset = horizontal_offset;
+        tracing::debug!("ensure_cursor_visible: pane={:?}", pane);
 
-        // Vertical scrolling to keep cursor within visible area
-        if display_pos.0 < vertical_offset {
-            new_vertical_offset = display_pos.0;
-        } else if display_pos.0 >= vertical_offset + pane_height && pane_height > 0 {
-            // BUGFIX: Add pane_height > 0 check to prevent integer underflow in tests
-            // Without this check, pane_height - 1 would underflow when pane_height is 0,
-            // causing panics in test environments where terminal height is uninitialized
-            new_vertical_offset = display_pos.0.saturating_sub(pane_height.saturating_sub(1));
-        }
+        // Delegate to PaneState for all scroll adjustment logic
+        let result = self.panes[pane].ensure_cursor_visible(content_width);
 
-        // Horizontal scrolling
-        if display_pos.1 < horizontal_offset {
-            new_horizontal_offset = display_pos.1;
-        } else if display_pos.1 >= horizontal_offset + content_width && content_width > 0 {
-            // BUGFIX: Add content_width > 0 check to prevent integer underflow panic
-            // This prevents crashes when content width is zero
-            new_horizontal_offset = display_pos
-                .1
-                .saturating_sub(content_width.saturating_sub(1));
-        }
-
-        // Update scroll offset if changed
-        if new_vertical_offset != vertical_offset || new_horizontal_offset != horizontal_offset {
-            let old_offset = (vertical_offset, horizontal_offset);
-            self.set_scroll_offset(pane, (new_vertical_offset, new_horizontal_offset));
-
-            // Emit scroll changed event
+        // Emit scroll changed event if scrolling occurred
+        if result.vertical_changed {
             self.emit_view_event([ViewEvent::ScrollChanged {
                 pane,
-                old_offset: old_offset.0,
-                new_offset: new_vertical_offset,
+                old_offset: result.old_vertical_offset,
+                new_offset: result.new_vertical_offset,
             }]);
         }
     }
@@ -402,11 +405,6 @@ impl ViewModel {
     /// Get scroll offset for a pane
     pub(super) fn get_scroll_offset(&self, pane: Pane) -> (usize, usize) {
         self.panes[pane].scroll_offset
-    }
-
-    /// Set scroll offset for a pane
-    pub(super) fn set_scroll_offset(&mut self, pane: Pane, offset: (usize, usize)) {
-        self.panes[pane].scroll_offset = offset;
     }
 
     /// Move cursor to the beginning of the next word
@@ -809,25 +807,5 @@ impl ViewModel {
         ]);
 
         Ok(())
-    }
-
-    /// Get display height for a pane
-    fn get_pane_display_height(&self, pane: Pane) -> usize {
-        match pane {
-            Pane::Request => self.request_pane_height as usize,
-            Pane::Response => {
-                if self.response.status_code().is_some() {
-                    // BUGFIX: Use saturating_sub to prevent integer underflow panic
-                    // This prevents crashes when terminal dimensions are smaller than expected
-                    self.terminal_dimensions
-                        .1
-                        .saturating_sub(self.request_pane_height)
-                        .saturating_sub(2) as usize
-                // -2 for separator and status
-                } else {
-                    0
-                }
-            }
-        }
     }
 }

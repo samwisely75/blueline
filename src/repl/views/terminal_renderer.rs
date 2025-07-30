@@ -10,6 +10,16 @@ use anyhow::Result;
 /// Type alias for pane boundary tuple to reduce complexity
 pub type PaneBoundaries = (u16, u16, u16);
 
+/// Line rendering information to reduce function parameter count
+#[derive(Debug)]
+struct LineInfo<'a> {
+    text: &'a str,
+    line_number: Option<usize>,
+    is_continuation: bool,
+    logical_start_col: usize,
+    logical_line: usize,
+}
+
 // Helper macro to convert crossterm errors to anyhow errors
 macro_rules! execute_term {
     ($($arg:expr),* $(,)?) => {
@@ -110,15 +120,13 @@ impl TerminalRenderer {
         view_model: &ViewModel,
         pane: Pane,
         row: u16,
-        line_number: Option<usize>,
-        text: &str,
+        line_info: &LineInfo,
         line_num_width: usize,
-        is_continuation: bool,
     ) -> Result<()> {
         // Just move cursor, don't hide it here (should be hidden by caller)
         execute_term!(self.stdout, MoveTo(0, row))?;
 
-        if let Some(num) = line_number {
+        if let Some(num) = line_info.line_number {
             // Render line number with dimmed style and right alignment (minimum width 3)
             execute_term!(self.stdout, SetAttribute(Attribute::Dim))?;
             execute_term!(
@@ -126,7 +134,7 @@ impl TerminalRenderer {
                 Print(format!("{:>width$} ", num, width = line_num_width))
             )?;
             execute_term!(self.stdout, SetAttribute(Attribute::Reset))?;
-        } else if is_continuation {
+        } else if line_info.is_continuation {
             // Continuation line of wrapped text - show blank space
             execute_term!(
                 self.stdout,
@@ -150,14 +158,25 @@ impl TerminalRenderer {
         let available_width = (self.terminal_size.0 as usize).saturating_sub(used_width);
 
         // Truncate text to fit within terminal width to prevent overlap
-        let display_text = if text.chars().count() > available_width {
-            text.chars().take(available_width).collect::<String>()
+        let display_text = if line_info.text.chars().count() > available_width {
+            line_info
+                .text
+                .chars()
+                .take(available_width)
+                .collect::<String>()
         } else {
-            text.to_string()
+            line_info.text.to_string()
         };
 
         // Render text with visual selection highlighting if applicable
-        self.render_text_with_selection(view_model, pane, line_number, &display_text)?;
+        self.render_text_with_selection(
+            view_model,
+            pane,
+            line_info.line_number,
+            &display_text,
+            line_info.logical_start_col,
+            line_info.logical_line,
+        )?;
 
         // Clear rest of line
         execute_term!(self.stdout, Clear(ClearType::UntilNewLine))?;
@@ -172,51 +191,56 @@ impl TerminalRenderer {
         pane: Pane,
         line_number: Option<usize>,
         text: &str,
+        logical_start_col: usize,
+        logical_line: usize,
     ) -> Result<()> {
         // Check if we're in visual mode and have a selection
         let mode = view_model.get_mode();
         if mode == EditorMode::Visual {
-            tracing::trace!("render_text_with_selection: Visual mode detected, pane={:?}, line_number={:?}, text='{}'", pane, line_number, text);
+            tracing::trace!("render_text_with_selection: Visual mode detected, pane={:?}, line_number={:?}, logical_line={}, text='{}'", pane, line_number, logical_line, text);
 
-            if let Some(logical_line) = line_number {
-                let logical_line_zero_based = logical_line.saturating_sub(1);
-                let chars: Vec<char> = text.chars().collect();
-                let selection_state = view_model.get_visual_selection();
+            // BUGFIX: Use logical_line directly instead of relying on line_number
+            // For wrapped lines, continuation segments have line_number=None but we still need
+            // to render visual selection. The logical_line parameter always contains the correct
+            // logical line number regardless of whether this is a continuation or not.
+            let chars: Vec<char> = text.chars().collect();
+            let selection_state = view_model.get_visual_selection();
 
-                tracing::trace!(
-                    "render_text_with_selection: selection_state={:?}",
-                    selection_state
+            tracing::trace!(
+                "render_text_with_selection: selection_state={:?}",
+                selection_state
+            );
+
+            for (col_index, ch) in chars.iter().enumerate() {
+                // BUGFIX: Calculate correct logical column for wrapped lines
+                // For wrapped lines, logical_start_col indicates where this display line starts
+                // within the original logical line, so we add col_index to get the actual position
+                let logical_col = logical_start_col + col_index;
+                let position = crate::repl::events::LogicalPosition::new(
+                    logical_line, // Use logical_line directly (already 0-based)
+                    logical_col,
                 );
 
-                for (col_index, ch) in chars.iter().enumerate() {
-                    let position = crate::repl::events::LogicalPosition::new(
-                        logical_line_zero_based,
-                        col_index,
+                let is_selected = view_model.is_position_selected(position, pane);
+
+                if is_selected {
+                    tracing::debug!(
+                        "render_text_with_selection: highlighting character '{}' at {:?}",
+                        ch,
+                        position
                     );
-
-                    let is_selected = view_model.is_position_selected(position, pane);
-
-                    if is_selected {
-                        tracing::debug!(
-                            "render_text_with_selection: highlighting character '{}' at {:?}",
-                            ch,
-                            position
-                        );
-                        // Apply visual selection styling: inverse + blue
-                        execute_term!(self.stdout, SetAttribute(Attribute::Reverse))?;
-                        execute_term!(self.stdout, SetForegroundColor(Color::Blue))?;
-                        execute_term!(self.stdout, Print(ch))?;
-                        execute_term!(self.stdout, SetAttribute(Attribute::Reset))?;
-                        execute_term!(self.stdout, ResetColor)?;
-                    } else {
-                        // Normal character rendering
-                        execute_term!(self.stdout, Print(ch))?;
-                    }
+                    // Apply visual selection styling: inverse + blue
+                    execute_term!(self.stdout, SetAttribute(Attribute::Reverse))?;
+                    execute_term!(self.stdout, SetForegroundColor(Color::Blue))?;
+                    execute_term!(self.stdout, Print(ch))?;
+                    execute_term!(self.stdout, SetAttribute(Attribute::Reset))?;
+                    execute_term!(self.stdout, ResetColor)?;
+                } else {
+                    // Normal character rendering
+                    execute_term!(self.stdout, Print(ch))?;
                 }
-                return Ok(());
-            } else {
-                tracing::trace!("render_text_with_selection: Visual mode but no line_number");
             }
+            return Ok(());
         } else {
             tracing::trace!(
                 "render_text_with_selection: Not in visual mode (mode={:?})",
@@ -245,40 +269,55 @@ impl TerminalRenderer {
             let terminal_row = start_row + row as u16;
 
             match display_data {
-                Some((content, line_number, is_continuation)) => {
+                Some((content, line_number, is_continuation, logical_start_col, logical_line)) => {
                     // Render content with optional line number
+                    let line_info = LineInfo {
+                        text: content,
+                        line_number: *line_number,
+                        is_continuation: *is_continuation,
+                        logical_start_col: *logical_start_col,
+                        logical_line: *logical_line,
+                    };
                     self.render_line_with_number(
                         view_model,
                         pane,
                         terminal_row,
-                        *line_number,
-                        content,
+                        &line_info,
                         line_num_width,
-                        *is_continuation,
                     )?;
                 }
                 None => {
                     // Special case: always show line number 1 in request pane
                     if pane == Pane::Request && row == 0 {
+                        let line_info = LineInfo {
+                            text: "",
+                            line_number: Some(1),
+                            is_continuation: false,
+                            logical_start_col: 0, // logical_start_col is 0 for empty lines
+                            logical_line: 0,      // Empty line is logical line 0
+                        };
                         self.render_line_with_number(
                             view_model,
                             pane,
                             terminal_row,
-                            Some(1),
-                            "",
+                            &line_info,
                             line_num_width,
-                            false,
                         )?;
                     } else {
                         // Beyond content - show tilde
+                        let line_info = LineInfo {
+                            text: "",
+                            line_number: None,
+                            is_continuation: false,
+                            logical_start_col: 0, // logical_start_col is 0 for tildes
+                            logical_line: 0,      // Tildes are beyond content, use 0
+                        };
                         self.render_line_with_number(
                             view_model,
                             pane,
                             terminal_row,
-                            None,
-                            "",
+                            &line_info,
                             line_num_width,
-                            false,
                         )?;
                     }
                 }
@@ -426,38 +465,59 @@ impl ViewRenderer for TerminalRenderer {
                     }
 
                     match display_data {
-                        Some((content, line_number, is_continuation)) => {
+                        Some((
+                            content,
+                            line_number,
+                            is_continuation,
+                            logical_start_col,
+                            logical_line,
+                        )) => {
+                            let line_info = LineInfo {
+                                text: content,
+                                line_number: *line_number,
+                                is_continuation: *is_continuation,
+                                logical_start_col: *logical_start_col,
+                                logical_line: *logical_line,
+                            };
                             self.render_line_with_number(
                                 view_model,
                                 pane,
                                 terminal_row,
-                                *line_number,
-                                content,
+                                &line_info,
                                 line_num_width,
-                                *is_continuation,
                             )?;
                         }
                         None => {
                             // Special case: always show line number 1 in request pane
                             if pane == Pane::Request && idx == 0 && start_line == 0 {
+                                let line_info = LineInfo {
+                                    text: "",
+                                    line_number: Some(1),
+                                    is_continuation: false,
+                                    logical_start_col: 0, // logical_start_col is 0 for empty lines
+                                    logical_line: 0,      // Empty line is logical line 0
+                                };
                                 self.render_line_with_number(
                                     view_model,
                                     pane,
                                     terminal_row,
-                                    Some(1),
-                                    "",
+                                    &line_info,
                                     line_num_width,
-                                    false,
                                 )?;
                             } else {
+                                let line_info = LineInfo {
+                                    text: "",
+                                    line_number: None,
+                                    is_continuation: false,
+                                    logical_start_col: 0, // logical_start_col is 0 for tildes
+                                    logical_line: 0,      // Tildes are beyond content, use 0
+                                };
                                 self.render_line_with_number(
                                     view_model,
                                     pane,
                                     terminal_row,
-                                    None,
-                                    "",
+                                    &line_info,
                                     line_num_width,
-                                    false,
                                 )?;
                             }
                         }
@@ -480,26 +540,42 @@ impl ViewRenderer for TerminalRenderer {
                         }
 
                         match display_data {
-                            Some((content, line_number, is_continuation)) => {
+                            Some((
+                                content,
+                                line_number,
+                                is_continuation,
+                                logical_start_col,
+                                logical_line,
+                            )) => {
+                                let line_info = LineInfo {
+                                    text: content,
+                                    line_number: *line_number,
+                                    is_continuation: *is_continuation,
+                                    logical_start_col: *logical_start_col,
+                                    logical_line: *logical_line,
+                                };
                                 self.render_line_with_number(
                                     view_model,
                                     pane,
                                     terminal_row,
-                                    *line_number,
-                                    content,
+                                    &line_info,
                                     line_num_width,
-                                    *is_continuation,
                                 )?;
                             }
                             None => {
+                                let line_info = LineInfo {
+                                    text: "",
+                                    line_number: None,
+                                    is_continuation: false,
+                                    logical_start_col: 0, // logical_start_col is 0 for tildes
+                                    logical_line: 0,      // Tildes are beyond content, use 0
+                                };
                                 self.render_line_with_number(
                                     view_model,
                                     pane,
                                     terminal_row,
-                                    None,
-                                    "",
+                                    &line_info,
                                     line_num_width,
-                                    false,
                                 )?;
                             }
                         }
@@ -808,7 +884,21 @@ impl ViewRenderer for TerminalRenderer {
             Pane::Response => "RESPONSE",
         };
 
-        let position_text = format!("{}:{}", cursor.line + 1, cursor.column + 1);
+        let display_cursor = view_model.get_display_cursor_position();
+        tracing::debug!(
+            "render_position_indicator: logical=({}, {}), display=({}, {})",
+            cursor.line,
+            cursor.column,
+            display_cursor.0,
+            display_cursor.1
+        );
+        let position_text = format!(
+            "{}:{} ({}:{})",
+            cursor.line + 1,
+            cursor.column + 1,
+            display_cursor.0 + 1,
+            display_cursor.1 + 1
+        );
 
         // Build the right portion of the status bar, including HTTP info if present
         let mut right_text = String::new();

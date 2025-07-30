@@ -1157,4 +1157,212 @@ mod integration_tests {
         // Response text should also be unchanged (no deletion in response pane)
         assert_eq!(vm.get_response_text(), "response\n\ntext");
     }
+
+    // Tests for Visual mode over wrapped lines (Issue #31)
+    #[test]
+    fn test_visual_selection_across_wrapped_lines() {
+        let mut vm = ViewModel::new();
+        // Enable word wrapping with narrow width to force wrapping
+        vm.update_terminal_size(20, 10);
+        vm.set_wrap_enabled(true).unwrap();
+
+        // Insert a long line that will wrap: "This is a very long line that will definitely wrap"
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("This is a very long line that will definitely wrap")
+            .unwrap();
+
+        // Start visual mode at position (0, 5) - at the word "is"
+        vm.change_mode(EditorMode::Normal).unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 5)).unwrap();
+        vm.change_mode(EditorMode::Visual).unwrap();
+
+        // Move cursor to position (0, 35) - into the wrapped portion
+        vm.set_cursor_position(LogicalPosition::new(0, 35)).unwrap();
+
+        // Verify visual selection spans from position 5 to 35
+        let (start, end, pane) = vm.get_visual_selection();
+        assert_eq!(start, Some(LogicalPosition::new(0, 5)));
+        assert_eq!(end, Some(LogicalPosition::new(0, 35)));
+        assert_eq!(pane, Some(Pane::Request));
+
+        // Test position selection at various points
+        // Position at column 5 should be selected (start of selection)
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 5), Pane::Request));
+        // Position at column 20 should be selected (middle of selection)
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 20), Pane::Request));
+        // Position at column 35 should be selected (end of selection)
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 35), Pane::Request));
+        // Position at column 4 should not be selected (before start)
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 4), Pane::Request));
+        // Position at column 36 should not be selected (after end)
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 36), Pane::Request));
+    }
+
+    #[test]
+    fn test_visual_selection_in_second_wrapped_line() {
+        let mut vm = ViewModel::new();
+        // Enable word wrapping with narrow width
+        vm.update_terminal_size(20, 10);
+        vm.set_wrap_enabled(true).unwrap();
+
+        // Insert a long line that will wrap into multiple display lines
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("This is the first part and this is the second part that continues")
+            .unwrap();
+
+        // Start visual mode at position (0, 25) - in the second wrapped part
+        vm.change_mode(EditorMode::Normal).unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 25)).unwrap();
+        vm.change_mode(EditorMode::Visual).unwrap();
+
+        // Extend selection to position (0, 45) - deeper into the wrapped part
+        vm.set_cursor_position(LogicalPosition::new(0, 45)).unwrap();
+
+        // Verify selection is correct
+        let (start, end, _) = vm.get_visual_selection();
+        assert_eq!(start, Some(LogicalPosition::new(0, 25)));
+        assert_eq!(end, Some(LogicalPosition::new(0, 45)));
+
+        // Test that positions in the wrapped section are correctly identified as selected
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 30), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 40), Pane::Request));
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 20), Pane::Request));
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 50), Pane::Request));
+    }
+
+    #[test]
+    fn test_visual_selection_character_by_character_movement_across_wrapped_lines() {
+        let mut vm = ViewModel::new();
+        // Enable word wrapping with narrow width to force wrapping
+        vm.update_terminal_size(20, 10);
+        vm.set_wrap_enabled(true).unwrap();
+
+        // Insert a long line that will wrap: "This is a very long line"
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("This is a very long line that wraps")
+            .unwrap();
+
+        // Start visual mode at the beginning and test character-by-character movement
+        vm.change_mode(EditorMode::Normal).unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 0)).unwrap();
+        vm.change_mode(EditorMode::Visual).unwrap();
+
+        // Test moving right character by character through wrapped line segments
+        let start_pos = vm.get_cursor_position();
+
+        // Move cursor right multiple times to cross wrap boundaries
+        for i in 1..=30 {
+            vm.move_cursor_right().unwrap();
+            let current_pos = vm.get_cursor_position();
+
+            // Verify cursor advances properly
+            assert_eq!(
+                current_pos.line, 0,
+                "Cursor should stay on same logical line"
+            );
+            assert_eq!(
+                current_pos.column, i,
+                "Cursor should advance by one character each time"
+            );
+
+            // Verify visual selection is maintained
+            let (visual_start, visual_end, _) = vm.get_visual_selection();
+            assert_eq!(visual_start, Some(start_pos));
+            assert_eq!(visual_end, Some(current_pos));
+        }
+    }
+
+    #[test]
+    fn test_visual_selection_spanning_multiple_logical_lines_with_wrapping() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(15, 10);
+        vm.set_wrap_enabled(true).unwrap();
+
+        // Insert multiple lines where the first line wraps
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("This is a very long first line that wraps\nSecond line")
+            .unwrap();
+
+        // Start visual mode at end of first line (in wrapped portion)
+        vm.change_mode(EditorMode::Normal).unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 35)).unwrap();
+        vm.change_mode(EditorMode::Visual).unwrap();
+
+        // Extend selection to second line
+        vm.set_cursor_position(LogicalPosition::new(1, 6)).unwrap();
+
+        // Verify selection spans across logical lines
+        let (start, end, _) = vm.get_visual_selection();
+        assert_eq!(start, Some(LogicalPosition::new(0, 35)));
+        assert_eq!(end, Some(LogicalPosition::new(1, 6)));
+
+        // Test that wrapped portion of first line is selected
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 38), Pane::Request));
+        // Test that beginning of second line is selected
+        assert!(vm.is_position_selected(LogicalPosition::new(1, 3), Pane::Request));
+        // Test boundaries
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 30), Pane::Request));
+        assert!(!vm.is_position_selected(LogicalPosition::new(1, 8), Pane::Request));
+    }
+
+    #[test]
+    fn test_visual_selection_with_word_wrapping_disabled() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(20, 10);
+        vm.set_wrap_enabled(false).unwrap(); // Disable wrapping
+
+        // Insert a long line that would wrap if wrapping was enabled
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("This is a very long line that would wrap but truncates instead")
+            .unwrap();
+
+        // Start visual mode and select part of the long line
+        vm.change_mode(EditorMode::Normal).unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 10)).unwrap();
+        vm.change_mode(EditorMode::Visual).unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 30)).unwrap();
+
+        // Should work normally without wrapping complications
+        let (start, end, _) = vm.get_visual_selection();
+        assert_eq!(start, Some(LogicalPosition::new(0, 10)));
+        assert_eq!(end, Some(LogicalPosition::new(0, 30)));
+
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 20), Pane::Request));
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 5), Pane::Request));
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 35), Pane::Request));
+    }
+
+    #[test]
+    fn test_visual_selection_reversed_direction_on_wrapped_line() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(20, 10);
+        vm.set_wrap_enabled(true).unwrap();
+
+        // Insert a long line that wraps
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("This is a very long line that will definitely wrap around")
+            .unwrap();
+
+        // Start visual mode at position (0, 30) in wrapped portion
+        vm.change_mode(EditorMode::Normal).unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 30)).unwrap();
+        vm.change_mode(EditorMode::Visual).unwrap();
+
+        // Move cursor backwards to position (0, 10) - should handle reversed selection
+        vm.set_cursor_position(LogicalPosition::new(0, 10)).unwrap();
+
+        // Verify selection is normalized (start <= end)
+        let (start, end, _) = vm.get_visual_selection();
+        assert_eq!(start, Some(LogicalPosition::new(0, 30))); // Original start position
+        assert_eq!(end, Some(LogicalPosition::new(0, 10))); // Current cursor position
+
+        // Test that positions between 10 and 30 are selected (inclusive)
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 15), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 25), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 10), Pane::Request));
+        assert!(vm.is_position_selected(LogicalPosition::new(0, 30), Pane::Request));
+        // Test boundaries
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 8), Pane::Request));
+        assert!(!vm.is_position_selected(LogicalPosition::new(0, 32), Pane::Request));
+    }
 }
