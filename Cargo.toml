@@ -36,7 +36,7 @@ assets = [
 ]
 
 [dependencies]
-bluenote = { path = "../bluenote" }
+bluenote = { git = "https://github.com/samwisely75/bluenote.git", branch = "main" }
 anyhow = "1.0"
 tokio = { version = "1.44.0", features = ["full"] }
 clap = { version = "4.5.28", features = ["derive"] }
