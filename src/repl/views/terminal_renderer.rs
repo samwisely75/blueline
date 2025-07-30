@@ -773,7 +773,7 @@ impl ViewRenderer for TerminalRenderer {
                 Show
             )?;
         } else {
-            // Show normal status information (dimmed when not in focus)
+            // Show normal status information
             let mode_text = match view_model.get_mode() {
                 EditorMode::Normal => "NORMAL",
                 EditorMode::Insert => "INSERT",
@@ -832,7 +832,21 @@ impl ViewRenderer for TerminalRenderer {
             // Pane and Position (no separator between them)
             status_text.push_str(pane_text);
             status_text.push(' ');
-            status_text.push_str(&format!("{}:{}", cursor.line + 1, cursor.column + 1));
+
+            // Use consistent position formatting with render_position_indicator
+            let position_text = if view_model.is_display_cursor_visible() {
+                let display_cursor = view_model.get_display_cursor_position();
+                format!(
+                    "{}:{} ({}:{})",
+                    cursor.line + 1,
+                    cursor.column + 1,
+                    display_cursor.0 + 1,
+                    display_cursor.1 + 1
+                )
+            } else {
+                format!("{}:{}", cursor.line + 1, cursor.column + 1)
+            };
+            status_text.push_str(&position_text);
 
             let available_width = self.terminal_size.0 as usize;
             let visual_len = self.visual_length(&status_text);
@@ -849,14 +863,10 @@ impl ViewRenderer for TerminalRenderer {
             // Calculate right alignment based on visual length
             let padding = available_width.saturating_sub(visual_len);
 
-            // Dim the status bar when not in focus (not in Command mode) to reduce visual clutter
-            // Use dark gray color for better visibility than ANSI dim
-            let dimmed_text = format!("\x1b[38;5;240m{final_text}\x1b[0m"); // Dark gray (240) and reset
-
             execute_term!(
                 self.stdout,
                 MoveTo(0, status_row),
-                Print(format!("{}{}", " ".repeat(padding), dimmed_text))
+                Print(format!("{}{}", " ".repeat(padding), final_text))
             )?;
         }
 
@@ -889,13 +899,17 @@ impl ViewRenderer for TerminalRenderer {
             display_cursor.0,
             display_cursor.1
         );
-        let position_text = format!(
-            "{}:{} ({}:{})",
-            cursor.line + 1,
-            cursor.column + 1,
-            display_cursor.0 + 1,
-            display_cursor.1 + 1
-        );
+        let position_text = if view_model.is_display_cursor_visible() {
+            format!(
+                "{}:{} ({}:{})",
+                cursor.line + 1,
+                cursor.column + 1,
+                display_cursor.0 + 1,
+                display_cursor.1 + 1
+            )
+        } else {
+            format!("{}:{}", cursor.line + 1, cursor.column + 1)
+        };
 
         // Build the right portion of the status bar, including HTTP info if present
         let mut right_text = String::new();

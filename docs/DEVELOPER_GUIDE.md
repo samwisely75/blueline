@@ -202,7 +202,11 @@ Developers and Generative AI Engines like Claude Code should strictly follow thi
 1. Pick up the top-most item in the `Ready` state on [blueline GitHub Kanban](https://github.com/users/samwisely75/projects/1) by the following command. If the result is empty, ask for it.
 
    ```shell
-   gh project item-list 1 --owner samwisely75 --format json --jq '.items[] | select(.status == "Ready")'
+   gh project item-list 1 \
+       --owner samwisely75 \
+       --format json \
+       --limit 1000 \
+       --jq '.items[] | select(.status == "Ready")'
    ```
 
 2. Plan the implementation and todos. Ask for clarification if needed.
