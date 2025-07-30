@@ -294,6 +294,9 @@ impl ViewModel {
             .clamp_position(position);
         self.panes[current_pane].buffer.set_cursor(clamped_position);
 
+        // Update status line cursor position
+        self.status_line.set_cursor_position(clamped_position);
+
         // Update visual selection if in visual mode
         self.update_visual_selection_end();
 
@@ -364,6 +367,11 @@ impl ViewModel {
 
         // Delegate to PaneState for all cursor positioning logic
         let result = self.panes[pane].set_display_cursor(position);
+
+        // Update status line display position (for debugging)
+        if pane == self.current_pane {
+            self.status_line.set_display_position(Some(position));
+        }
 
         // Update visual selection if in visual mode and cursor actually moved
         if result.cursor_moved {
