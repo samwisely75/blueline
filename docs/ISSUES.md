@@ -81,3 +81,4 @@
 - [x] Fix the flicking issue when the cursor is moved in the request pane. It only happens in the request pane, regardless of the response pane being shown or not.
 - [x] Hide the cursor when it is switched to the command mode. Restore the cursor when it is switched back to the normal mode.
 - [x] Make arrow keys work in the request/response pane, regardless of the mode.
+- [x] Fix panic crash when scrolling down past bottom of request pane with 'j' key in normal mode. Added saturating arithmetic to prevent integer underflow and fixed coordinate system mismatch between display cache and terminal renderer.
