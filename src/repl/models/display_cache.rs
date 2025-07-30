@@ -178,11 +178,7 @@ impl DisplayCache {
         // Position N would be after the last character and can trigger unwanted horizontal scrolling.
         // When moving across wrapped line segments, display_col might exceed valid positions.
         let content_length = display_info.content.chars().count();
-        let clamped_display_col = if content_length > 0 {
-            display_col.min(content_length - 1)
-        } else {
-            0
-        };
+        let clamped_display_col = display_col.min(content_length);
         let logical_col = display_info.logical_start_col + clamped_display_col;
 
         tracing::debug!(
