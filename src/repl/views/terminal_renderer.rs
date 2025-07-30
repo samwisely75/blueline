@@ -773,7 +773,7 @@ impl ViewRenderer for TerminalRenderer {
                 Show
             )?;
         } else {
-            // Show normal status information (dimmed when not in focus)
+            // Show normal status information
             let mode_text = match view_model.get_mode() {
                 EditorMode::Normal => "NORMAL",
                 EditorMode::Insert => "INSERT",
@@ -849,14 +849,10 @@ impl ViewRenderer for TerminalRenderer {
             // Calculate right alignment based on visual length
             let padding = available_width.saturating_sub(visual_len);
 
-            // Dim the status bar when not in focus (not in Command mode) to reduce visual clutter
-            // Use dark gray color for better visibility than ANSI dim
-            let dimmed_text = format!("\x1b[38;5;240m{final_text}\x1b[0m"); // Dark gray (240) and reset
-
             execute_term!(
                 self.stdout,
                 MoveTo(0, status_row),
-                Print(format!("{}{}", " ".repeat(padding), dimmed_text))
+                Print(format!("{}{}", " ".repeat(padding), final_text))
             )?;
         }
 
