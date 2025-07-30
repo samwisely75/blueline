@@ -28,6 +28,9 @@ impl ViewModel {
     /// Switch to a different pane
     pub fn switch_pane(&mut self, pane: Pane) -> Result<()> {
         if let Some(_event) = self.set_current_pane(pane) {
+            // Update status line pane
+            self.status_line.set_current_pane(pane);
+
             // When switching panes, we need to update cursor and status bar
             self.emit_view_event([
                 ViewEvent::StatusBarUpdateRequired,
@@ -46,9 +49,12 @@ impl ViewModel {
         let _event = self.set_mode(mode);
         // TODO: self.emit_model_event(event);
 
+        // Update status line mode
+        self.status_line.set_editor_mode(mode);
+
         // Clear command buffer when exiting Command mode (e.g., when pressing Escape)
         if old_mode == EditorMode::Command && mode != EditorMode::Command {
-            self.ex_command_buffer.clear();
+            self.status_line.clear_command_buffer();
             tracing::debug!("Cleared command buffer when exiting Command mode");
         }
 
@@ -95,7 +101,7 @@ impl ViewModel {
 
     /// Get ex command buffer
     pub fn get_ex_command_buffer(&self) -> &str {
-        &self.ex_command_buffer
+        self.status_line.command_buffer()
     }
 
     /// Get visual selection state
@@ -181,25 +187,25 @@ impl ViewModel {
 
     /// Add character to ex command buffer
     pub fn add_ex_command_char(&mut self, ch: char) -> Result<()> {
-        self.ex_command_buffer.push(ch);
+        self.status_line.append_to_command_buffer(ch);
         self.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
         Ok(())
     }
 
     /// Remove last character from ex command buffer
     pub fn backspace_ex_command(&mut self) -> Result<()> {
-        self.ex_command_buffer.pop();
+        self.status_line.backspace_command_buffer();
         self.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
         Ok(())
     }
 
     /// Execute ex command and return resulting command events
     pub fn execute_ex_command(&mut self) -> Result<Vec<CommandEvent>> {
-        let command = self.ex_command_buffer.trim();
+        let command = self.status_line.command_buffer().trim().to_string();
         let mut events = Vec::new();
 
         // Handle ex commands
-        match command {
+        match command.as_str() {
             "q" => {
                 // Quit the application
                 events.push(CommandEvent::QuitRequested);
@@ -246,7 +252,7 @@ impl ViewModel {
         }
 
         // Clear buffer and exit command mode
-        self.ex_command_buffer.clear();
+        self.status_line.clear_command_buffer();
         self.change_mode(EditorMode::Normal)?;
 
         Ok(events)

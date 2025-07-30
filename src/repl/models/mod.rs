@@ -9,12 +9,14 @@ pub mod buffer_model;
 pub mod display_cache;
 pub mod request_model;
 pub mod response_model;
+pub mod status_line;
 
 // Re-export all models for easy access
 pub use buffer_model::{BufferContent, BufferModel};
 pub use display_cache::{build_display_cache, DisplayCache, DisplayLine, DisplayPosition};
 pub use request_model::{HttpHeaders, RequestModel};
 pub use response_model::ResponseModel;
+pub use status_line::{HttpStatus, StatusLine};
 
 #[cfg(test)]
 mod tests {

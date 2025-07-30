@@ -30,12 +30,12 @@ impl ViewModel {
 
     /// Get current request execution status
     pub fn is_executing_request(&self) -> bool {
-        self.is_executing_request
+        self.status_line.is_executing()
     }
 
     /// Set request execution status and update status bar
     pub fn set_executing_request(&mut self, executing: bool) {
-        self.is_executing_request = executing;
+        self.status_line.set_executing(executing);
         if executing {
             tracing::debug!("Request execution started");
         } else {
@@ -71,9 +71,13 @@ impl ViewModel {
         let body = response.body().to_string();
 
         self.response.set_status_code(status_code);
-        self.response.set_status_message(status_message);
+        self.response.set_status_message(status_message.clone());
         self.response.set_duration_ms(duration_ms);
         self.response.set_body(body.clone());
+
+        // Update status line with HTTP status
+        self.status_line
+            .set_http_status(status_code, status_message, duration_ms);
 
         // Update response buffer content
         self.panes[Pane::Response]
