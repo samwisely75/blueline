@@ -218,47 +218,134 @@ impl ViewModel {
         Ok(())
     }
 
-    /// Delete character after cursor
+    /// Delete character after cursor or empty line
     pub fn delete_char_after_cursor(&mut self) -> Result<()> {
         // Only allow deletion in request pane and insert mode
         if self.current_pane != Pane::Request || self.mode() != EditorMode::Insert {
             return Ok(());
         }
 
-        let current_pos = self.panes[Pane::Request].buffer.cursor();
-        let current_line_length = self.panes[Pane::Request]
+        let current_pane = self.current_pane;
+        let current_pos = self.panes[current_pane].buffer.cursor();
+        let current_line_length = self.panes[current_pane]
             .buffer
             .content()
             .line_length(current_pos.line);
+        let total_lines = self.panes[current_pane].buffer.content().line_count();
 
         if current_pos.column < current_line_length {
             // Delete character in current line
             let range = LogicalRange::single_char(current_pos);
 
-            if let Some(_event) = self.panes[Pane::Request]
+            if let Some(_event) = self.panes[current_pane]
                 .buffer
                 .content_mut()
-                .delete_range(Pane::Request, range)
+                .delete_range(current_pane, range)
             {
                 // Rebuild request display cache after content change
                 let content_width = self.get_content_width();
-                self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
+                self.panes[current_pane].build_display_cache(content_width, self.wrap_enabled);
 
                 // Sync display cursors to ensure cursor position is correct
                 self.sync_display_cursors();
 
                 self.emit_view_event([
-                    ViewEvent::PaneRedrawRequired {
-                        pane: Pane::Request,
-                    },
-                    ViewEvent::CursorUpdateRequired {
-                        pane: Pane::Request,
-                    },
+                    ViewEvent::PaneRedrawRequired { pane: current_pane },
+                    ViewEvent::CursorUpdateRequired { pane: current_pane },
                 ]);
             }
+        } else if current_line_length == 0 && current_pos.line > 0 {
+            // Current line is empty and not the first line - delete it
+            let prev_line_length = self.panes[current_pane]
+                .buffer
+                .content()
+                .line_length(current_pos.line - 1);
+            let new_cursor = LogicalPosition::new(current_pos.line - 1, prev_line_length);
+
+            // Delete the empty line by removing the newline at the end of the previous line
+            let range = LogicalRange::new(
+                LogicalPosition::new(current_pos.line - 1, prev_line_length),
+                LogicalPosition::new(current_pos.line, 0),
+            );
+
+            if let Some(_event) = self.panes[current_pane]
+                .buffer
+                .content_mut()
+                .delete_range(current_pane, range)
+            {
+                self.panes[current_pane].buffer.set_cursor(new_cursor);
+
+                // Rebuild display cache after content change
+                let content_width = self.get_content_width();
+                self.panes[current_pane].build_display_cache(content_width, self.wrap_enabled);
+
+                // Sync display cursors to update cursor position
+                self.sync_display_cursors();
+
+                self.emit_view_event([
+                    ViewEvent::PaneRedrawRequired { pane: current_pane },
+                    ViewEvent::CursorUpdateRequired { pane: current_pane },
+                ]);
+            }
+        } else if current_pos.line + 1 < total_lines {
+            // At end of current line, check if next line exists
+            let next_line_length = self.panes[current_pane]
+                .buffer
+                .content()
+                .line_length(current_pos.line + 1);
+
+            if next_line_length == 0 {
+                // Next line is empty - delete it by removing the newline that creates it
+                let range = LogicalRange::new(
+                    LogicalPosition::new(current_pos.line, current_line_length),
+                    LogicalPosition::new(current_pos.line + 1, 0),
+                );
+
+                if let Some(_event) = self.panes[current_pane]
+                    .buffer
+                    .content_mut()
+                    .delete_range(current_pane, range)
+                {
+                    // Cursor stays at end of current line
+                    // Rebuild display cache after content change
+                    let content_width = self.get_content_width();
+                    self.panes[current_pane].build_display_cache(content_width, self.wrap_enabled);
+
+                    // Sync display cursors to ensure cursor position is correct
+                    self.sync_display_cursors();
+
+                    self.emit_view_event([
+                        ViewEvent::PaneRedrawRequired { pane: current_pane },
+                        ViewEvent::CursorUpdateRequired { pane: current_pane },
+                    ]);
+                }
+            } else {
+                // Join current line with next line by removing the newline between them
+                let range = LogicalRange::new(
+                    LogicalPosition::new(current_pos.line, current_line_length),
+                    LogicalPosition::new(current_pos.line + 1, 0),
+                );
+
+                if let Some(_event) = self.panes[current_pane]
+                    .buffer
+                    .content_mut()
+                    .delete_range(current_pane, range)
+                {
+                    // Cursor stays at end of current line (now joined with next line content)
+                    // Rebuild display cache after content change
+                    let content_width = self.get_content_width();
+                    self.panes[current_pane].build_display_cache(content_width, self.wrap_enabled);
+
+                    // Sync display cursors to ensure cursor position is correct
+                    self.sync_display_cursors();
+
+                    self.emit_view_event([
+                        ViewEvent::PaneRedrawRequired { pane: current_pane },
+                        ViewEvent::CursorUpdateRequired { pane: current_pane },
+                    ]);
+                }
+            }
         }
-        // Note: We don't handle joining with next line for simplicity
-        // That would be a more complex operation
 
         Ok(())
     }

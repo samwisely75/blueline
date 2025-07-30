@@ -1004,4 +1004,157 @@ mod integration_tests {
         let empty_events = vm.collect_pending_view_events();
         assert_eq!(empty_events.len(), 0);
     }
+
+    // Tests for Delete key empty line functionality (Issue #34)
+    #[test]
+    fn test_delete_char_after_cursor_removes_empty_next_line() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Insert text with empty line: "hello\n\nworld"
+        vm.insert_text("hello\n\nworld").unwrap();
+
+        // Position cursor at end of first line (after "hello")
+        vm.set_cursor_position(LogicalPosition::new(0, 5)).unwrap();
+
+        // Delete should remove the empty line
+        vm.delete_char_after_cursor().unwrap();
+
+        // Text should now be "hello\nworld" with cursor still at end of first line
+        assert_eq!(vm.get_request_text(), "hello\nworld");
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.line, 0);
+        assert_eq!(cursor.column, 5);
+    }
+
+    #[test]
+    fn test_delete_char_after_cursor_joins_lines_when_next_line_has_content() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Insert text: "hello\nworld"
+        vm.insert_text("hello\nworld").unwrap();
+
+        // Position cursor at end of first line
+        vm.set_cursor_position(LogicalPosition::new(0, 5)).unwrap();
+
+        // Delete should join the lines
+        vm.delete_char_after_cursor().unwrap();
+
+        // Text should now be "helloworld"
+        assert_eq!(vm.get_request_text(), "helloworld");
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.line, 0);
+        assert_eq!(cursor.column, 5); // Cursor stays at same position
+    }
+
+    #[test]
+    fn test_delete_char_after_cursor_on_empty_line_deletes_current_line() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Insert text with empty line in middle: "hello\n\nworld"
+        vm.insert_text("hello\n\nworld").unwrap();
+
+        // Position cursor on the empty line (line 1, column 0)
+        vm.set_cursor_position(LogicalPosition::new(1, 0)).unwrap();
+
+        // Delete should remove the empty line and move cursor to end of previous line
+        vm.delete_char_after_cursor().unwrap();
+
+        // Text should now be "hello\nworld"
+        assert_eq!(vm.get_request_text(), "hello\nworld");
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.line, 0);
+        assert_eq!(cursor.column, 5); // Should be at end of "hello"
+    }
+
+    #[test]
+    fn test_delete_char_after_cursor_on_empty_first_line_does_nothing() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Start with empty buffer (first line is empty and there's no previous line)
+        // Position cursor at (0, 0)
+        vm.set_cursor_position(LogicalPosition::new(0, 0)).unwrap();
+
+        // Delete should do nothing since there's no previous line to move to
+        vm.delete_char_after_cursor().unwrap();
+
+        // Buffer should remain empty
+        assert_eq!(vm.get_request_text(), "");
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.line, 0);
+        assert_eq!(cursor.column, 0);
+    }
+
+    #[test]
+    fn test_delete_char_after_cursor_multiple_consecutive_empty_lines() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Insert text with multiple empty lines: "hello\n\n\n\nworld"
+        vm.insert_text("hello\n\n\n\nworld").unwrap();
+
+        // Position cursor at end of first line
+        vm.set_cursor_position(LogicalPosition::new(0, 5)).unwrap();
+
+        // First delete should remove first empty line
+        vm.delete_char_after_cursor().unwrap();
+        assert_eq!(vm.get_request_text(), "hello\n\n\nworld");
+
+        // Second delete should remove next empty line
+        vm.delete_char_after_cursor().unwrap();
+        assert_eq!(vm.get_request_text(), "hello\n\nworld");
+
+        // Third delete should remove last empty line
+        vm.delete_char_after_cursor().unwrap();
+        assert_eq!(vm.get_request_text(), "hello\nworld");
+
+        // Cursor should remain at end of first line
+        let cursor = vm.get_cursor_position();
+        assert_eq!(cursor.line, 0);
+        assert_eq!(cursor.column, 5);
+    }
+
+    #[test]
+    fn test_delete_char_after_cursor_only_in_insert_mode() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Insert text with empty line
+        vm.insert_text("hello\n\nworld").unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 5)).unwrap();
+
+        // Switch to normal mode
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Delete should do nothing in normal mode
+        vm.delete_char_after_cursor().unwrap();
+
+        // Text should be unchanged
+        assert_eq!(vm.get_request_text(), "hello\n\nworld");
+    }
+
+    #[test]
+    fn test_delete_char_after_cursor_only_in_request_pane() {
+        let mut vm = ViewModel::new();
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        // Insert text in request pane
+        vm.insert_text("hello\n\nworld").unwrap();
+
+        // Set response and switch to response pane
+        vm.set_response(200, "response\n\ntext".to_string());
+        vm.switch_pane(Pane::Response).unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 8)).unwrap();
+
+        // Delete should do nothing in response pane
+        vm.delete_char_after_cursor().unwrap();
+
+        // Request text should be unchanged
+        assert_eq!(vm.get_request_text(), "hello\n\nworld");
+        // Response text should also be unchanged (no deletion in response pane)
+        assert_eq!(vm.get_response_text(), "response\n\ntext");
+    }
 }
