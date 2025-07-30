@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.1] - 2025-07-30
+
+### Fixed
+- **Visual Mode on Wrapped Lines**: Fixed visual mode selection highlighting not working properly over wrapped line boundaries (issue #31)
+- **Cursor Navigation Issues**: Resolved cursor lag and disappearing during Ctrl+F/D page scrolling operations
+- **Boundary Condition Bug**: Fixed 'l' key not working when cursor was at column 1 on wrapped text continuation lines
+- **Horizontal Scrolling**: Prevented unwanted horizontal scrolling during cursor navigation on wrapped text
+
+### Refactored
+- **Feature Envy Elimination**: Moved cursor management business logic from ViewModel to PaneState for better separation of concerns
+- **Coordination Structs**: Added CursorMoveResult and ScrollAdjustResult structs to maintain clean architecture
+- **Display Position Logic**: Simplified cursor positioning logic and improved logical/display coordinate conversion
+- **Visual Selection Updates**: Enhanced visual mode highlighting to properly update during page scrolling operations
+
+### Technical
+- Enhanced boundary condition handling in `logical_to_display_position` and `display_to_logical_position` functions
+- Improved cursor synchronization between logical and display coordinates
+- Added comprehensive debug logging for cursor movement troubleshooting
+- All changes validated through extensive manual testing and user feedback
+
 ## [0.24.0] - 2025-07-30
 
 ### Added
