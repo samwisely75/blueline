@@ -47,11 +47,12 @@ impl ViewModel {
                 } else {
                     Some(display_line.logical_line + 1) // 1-based line numbers
                 };
-                // Third parameter indicates if this is a continuation line (true) or beyond content (false)
+                // Fourth parameter provides logical start column for accurate visual selection in wrapped lines
                 result.push(Some((
                     visible_content,
                     line_number,
                     display_line.is_continuation,
+                    display_line.logical_start_col + horizontal_scroll_offset,
                 )));
             } else {
                 // Beyond content - show tilde (false indicates this is beyond content, not continuation)

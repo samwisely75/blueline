@@ -14,8 +14,8 @@ use std::ops::{Index, IndexMut, Not};
 /// Type alias for event bus option to reduce complexity
 type EventBusOption = Option<Box<dyn EventBus>>;
 
-/// Type alias for display line rendering data: (content, line_number, is_continuation)
-pub type DisplayLineData = (String, Option<usize>, bool);
+/// Type alias for display line rendering data: (content, line_number, is_continuation, logical_start_col)
+pub type DisplayLineData = (String, Option<usize>, bool, usize);
 
 /// Result of a scrolling operation, contains information needed for event emission
 #[derive(Debug, Clone)]
