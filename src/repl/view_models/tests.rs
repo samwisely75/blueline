@@ -455,10 +455,7 @@ mod integration_tests {
             if let crate::repl::commands::MovementDirection::LineNumber(line_num) = direction {
                 assert_eq!(*line_num, 2);
             } else {
-                panic!(
-                    "Expected LineNumber movement direction, got {:?}",
-                    direction
-                );
+                panic!("Expected LineNumber movement direction, got {direction:?}");
             }
         } else {
             panic!("Expected CursorMoveRequested event, got {:?}", events[0]);
@@ -1277,8 +1274,7 @@ mod integration_tests {
             // After moving right i times from position 0, we should be at expected position
             assert_eq!(
                 current_pos.column, expected_column,
-                "Cursor should advance by one character each time (iteration {})",
-                i
+                "Cursor should advance by one character each time (iteration {i})"
             );
 
             // Verify visual selection is maintained

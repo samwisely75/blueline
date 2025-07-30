@@ -350,7 +350,7 @@ impl AppController {
                 Ok(result) => result,
                 Err(error_message) => {
                     self.view_model
-                        .set_response(0, format!("Error: {}", error_message));
+                        .set_response(0, format!("Error: {error_message}"));
                     // Clear executing status on error
                     self.view_model.set_executing_request(false);
                     // Refresh status bar to show error
@@ -368,7 +368,7 @@ impl AppController {
                 }
                 Err(error) => {
                     self.view_model
-                        .set_response(0, format!("HTTP Error: {}", error));
+                        .set_response(0, format!("HTTP Error: {error}"));
                 }
             }
         } else {
