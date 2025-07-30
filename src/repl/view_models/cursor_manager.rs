@@ -290,11 +290,11 @@ impl ViewModel {
                 self.panes[current_pane].visual_selection_end = Some(current_cursor);
                 tracing::debug!("Updated visual selection end to {:?}", current_cursor);
 
-                // BUGFIX: Emit pane redraw event to trigger visual selection rendering
-                // Without this, visual selection highlighting won't appear because
-                // only cursor events are emitted, not text re-rendering events
-                self.emit_view_event([ViewEvent::PaneRedrawRequired { pane: current_pane }]);
-                tracing::debug!("Emitted pane redraw event for visual selection update");
+                // BUGFIX: Emit full redraw for visual selection to ensure wrapped lines update properly
+                // For wrapped lines, visual selection spans multiple display lines and requires
+                // more comprehensive redrawing than a simple pane redraw to show highlighting correctly
+                self.emit_view_event([ViewEvent::FullRedrawRequired]);
+                tracing::debug!("Emitted full redraw event for visual selection update");
             }
         }
     }
