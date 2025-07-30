@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] - 2025-07-30
+
+### Added
+- **Delete Key Empty Line Support**: Enhanced Delete key functionality to support empty line deletion in insert mode. The Delete key now handles three scenarios: (1) when cursor is on an empty line, it deletes the current line and moves cursor to end of previous line; (2) when cursor is at end of a line followed by an empty line, it removes the empty line; (3) when cursor is at end of a line followed by content, it joins the lines as before.
+
+### Technical
+- Enhanced `delete_char_after_cursor()` method in buffer_operations.rs with comprehensive empty line detection and handling
+- Reordered condition logic to prioritize empty line detection over next-line-exists check
+- Added 7 comprehensive unit tests covering all Delete key scenarios including edge cases
+- Maintains backward compatibility with existing character deletion behavior
+- All changes validated through unit tests and pre-commit checks
+
+## [0.23.0] - 2025-07-29
+
+### Fixed
+- **Scrolling Panic Crash**: Fixed critical integer underflow panic when scrolling down in request pane using 'j' key in normal mode. The crash occurred when `start_line` exceeded `request_height` during rapid scrolling, causing "attempt to subtract with overflow" errors.
+- **Text Rendering After Scroll**: Fixed issue where characters typed in insert mode after scrolling wouldn't display immediately. The problem was that `PartialPaneRedrawRequired` used absolute display coordinates instead of viewport-relative coordinates.
+
+### Technical
+- Applied saturating arithmetic using `saturating_sub()` in terminal_renderer.rs and cursor_manager.rs to prevent integer underflow panics
+- Fixed viewport coordinate system mismatch by adjusting `PartialPaneRedrawRequired` coordinates relative to scroll offset
+- Enhanced buffer operations with proper coordinate transformation between display cache and terminal renderer
+- Added comprehensive error handling for terminal dimension calculations and content width bounds checking
+
 ## [0.22.0] - 2025-07-29
 
 ### Added
