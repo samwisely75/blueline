@@ -1231,6 +1231,41 @@ mod integration_tests {
     }
 
     #[test]
+    fn test_visual_selection_character_by_character_movement_across_wrapped_lines() {
+        let mut vm = ViewModel::new();
+        // Enable word wrapping with narrow width to force wrapping
+        vm.update_terminal_size(20, 10);
+        vm.set_wrap_enabled(true).unwrap();
+
+        // Insert a long line that will wrap: "This is a very long line"
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("This is a very long line that wraps").unwrap();
+
+        // Start visual mode at the beginning and test character-by-character movement
+        vm.change_mode(EditorMode::Normal).unwrap();
+        vm.set_cursor_position(LogicalPosition::new(0, 0)).unwrap();
+        vm.change_mode(EditorMode::Visual).unwrap();
+
+        // Test moving right character by character through wrapped line segments
+        let start_pos = vm.get_cursor_position();
+        
+        // Move cursor right multiple times to cross wrap boundaries
+        for i in 1..=30 {
+            vm.move_cursor_right().unwrap();
+            let current_pos = vm.get_cursor_position();
+            
+            // Verify cursor advances properly
+            assert_eq!(current_pos.line, 0, "Cursor should stay on same logical line");
+            assert_eq!(current_pos.column, i, "Cursor should advance by one character each time");
+            
+            // Verify visual selection is maintained
+            let (visual_start, visual_end, _) = vm.get_visual_selection();
+            assert_eq!(visual_start, Some(start_pos));
+            assert_eq!(visual_end, Some(current_pos));
+        }
+    }
+
+    #[test]
     fn test_visual_selection_spanning_multiple_logical_lines_with_wrapping() {
         let mut vm = ViewModel::new();
         vm.update_terminal_size(15, 10);

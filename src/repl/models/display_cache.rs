@@ -94,18 +94,53 @@ impl DisplayCache {
 
         for &display_idx in display_indices {
             if let Some(display_line) = self.display_lines.get(display_idx) {
+                tracing::debug!(
+                    "logical_to_display_position: checking display_idx={}, logical_col={}, start_col={}, end_col={}",
+                    display_idx, logical_col, display_line.logical_start_col, display_line.logical_end_col
+                );
+                
                 // Check if cursor falls within this display line segment
                 if logical_col >= display_line.logical_start_col
                     && logical_col < display_line.logical_end_col
                 {
                     let display_col = logical_col - display_line.logical_start_col;
+                    tracing::debug!(
+                        "logical_to_display_position: found match in range, returning ({}, {})",
+                        display_idx, display_col
+                    );
                     return Some((display_idx, display_col));
                 }
-                // Handle end-of-line case
+                // BUGFIX: Handle end-of-line case - when logical_col equals logical_end_col,
+                // it should map to the beginning of the NEXT display line (column 0), 
+                // not the end of the current display line. This fixes the boundary condition
+                // where cursor gets stuck at column 1 on wrapped continuation lines.
                 if logical_col == display_line.logical_end_col
                     && display_line.logical_end_col > display_line.logical_start_col
                 {
+                    // Check if there's a next display line for this logical line
+                    let next_display_idx = display_idx + 1;
+                    if next_display_idx < self.display_lines.len() {
+                        if let Some(next_display_line) = self.display_lines.get(next_display_idx) {
+                            // If the next display line is a continuation of the same logical line,
+                            // position cursor at the beginning of it (column 0)
+                            if next_display_line.logical_line == display_line.logical_line
+                                && next_display_line.is_continuation
+                            {
+                                tracing::debug!(
+                                    "logical_to_display_position: found end-of-line match, moving to next continuation line ({}, 0)",
+                                    next_display_idx
+                                );
+                                return Some((next_display_idx, 0));
+                            }
+                        }
+                    }
+                    
+                    // If no next continuation line, position at end of current line (fallback)
                     let display_col = display_line.logical_end_col - display_line.logical_start_col;
+                    tracing::debug!(
+                        "logical_to_display_position: found end of logical line, returning ({}, {})",
+                        display_idx, display_col
+                    );
                     return Some((display_idx, display_col));
                 }
             }
@@ -130,12 +165,30 @@ impl DisplayCache {
         display_col: usize,
     ) -> Option<LogicalPosition> {
         if !self.is_valid {
+            tracing::debug!("display_to_logical_position: cache invalid");
             return None;
         }
 
         let display_info = self.display_lines.get(display_line)?;
         let logical_line = display_info.logical_line;
-        let logical_col = display_info.logical_start_col + display_col;
+        
+        // BUGFIX: Clamp display column to valid cursor positions to prevent horizontal scrolling issues
+        // For a line with N characters, valid cursor positions are 0 to N-1 (on each character).
+        // Position N would be after the last character and can trigger unwanted horizontal scrolling.
+        // When moving across wrapped line segments, display_col might exceed valid positions.
+        let content_length = display_info.content.chars().count();
+        let clamped_display_col = if content_length > 0 {
+            display_col.min(content_length - 1)
+        } else {
+            0
+        };
+        let logical_col = display_info.logical_start_col + clamped_display_col;
+
+        tracing::debug!(
+            "display_to_logical_position: display=({}, {}) -> logical=({}, {}) [content_len={}, start_col={}, clamped_col={}]",
+            display_line, display_col, logical_line, logical_col, 
+            content_length, display_info.logical_start_col, clamped_display_col
+        );
 
         Some((logical_line, logical_col))
     }
