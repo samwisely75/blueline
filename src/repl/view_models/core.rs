@@ -4,7 +4,7 @@
 //! This is the central coordinator that delegates to specialized managers.
 
 use crate::repl::events::{EditorMode, EventBus, LogicalPosition, ModelEvent, Pane, ViewEvent};
-use crate::repl::models::{BufferModel, DisplayCache, ResponseModel};
+use crate::repl::models::{BufferModel, DisplayCache, ResponseModel, StatusLine};
 use crate::repl::view_models::screen_buffer::ScreenBuffer;
 // use anyhow::Result; // Currently unused
 use bluenote::HttpClient;
@@ -514,23 +514,13 @@ pub struct ViewModel {
     pub(super) terminal_dimensions: (u16, u16), // (width, height)
     pub(super) request_pane_height: u16,
 
-    // Ex command mode state (for :q, :w, etc.)
-    pub(super) ex_command_buffer: String,
-
-    // Request execution state
-    pub(super) is_executing_request: bool,
+    // Status line model - encapsulates all status bar state
+    pub(super) status_line: StatusLine,
 
     // HTTP client and configuration
     pub(super) http_client: Option<HttpClient>,
     pub(super) http_session_headers: HashMap<String, String>,
     pub(super) http_verbose: bool,
-
-    // Profile information
-    pub(super) profile_name: String,
-    pub(super) profile_path: String,
-
-    // Status message for temporary display
-    pub(super) status_message: Option<String>,
 
     // Event management
     pub(super) event_bus: EventBusOption,
@@ -573,14 +563,10 @@ impl ViewModel {
             wrap_enabled: true,
             terminal_dimensions,
             request_pane_height: terminal_dimensions.1 / 2,
-            ex_command_buffer: String::new(),
-            is_executing_request: false,
+            status_line: StatusLine::new(),
             http_client: None,
             http_session_headers: HashMap::new(),
             http_verbose: false,
-            profile_name: "default".to_string(),
-            profile_path: "~/.blueline/profile".to_string(),
-            status_message: None,
             event_bus: None,
             pending_view_events: Vec::new(),
             pending_model_events: Vec::new(),
@@ -682,18 +668,17 @@ impl ViewModel {
 
     /// Set the profile information for display
     pub fn set_profile_info(&mut self, profile_name: String, profile_path: String) {
-        self.profile_name = profile_name;
-        self.profile_path = profile_path;
+        self.status_line.set_profile(profile_name, profile_path);
     }
 
     /// Get the current profile name
     pub fn get_profile_name(&self) -> &str {
-        &self.profile_name
+        self.status_line.profile_name()
     }
 
     /// Get the current profile path
     pub fn get_profile_path(&self) -> &str {
-        &self.profile_path
+        self.status_line.profile_path()
     }
 
     // === Pane Access Methods ===
@@ -740,17 +725,17 @@ impl ViewModel {
 
     /// Set a temporary status message for display
     pub fn set_status_message<S: Into<String>>(&mut self, message: S) {
-        self.status_message = Some(message.into());
+        self.status_line.set_status_message(message);
     }
 
     /// Clear the status message
     pub fn clear_status_message(&mut self) {
-        self.status_message = None;
+        self.status_line.clear_status_message();
     }
 
     /// Get the current status message
     pub fn get_status_message(&self) -> Option<&str> {
-        self.status_message.as_deref()
+        self.status_line.status_message()
     }
 
     // === Editor State Management ===
