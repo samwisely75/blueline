@@ -290,17 +290,15 @@ impl ViewModel {
                 self.panes[current_pane].visual_selection_end = Some(current_cursor);
                 tracing::debug!("Updated visual selection end to {:?}", current_cursor);
 
-                // BUGFIX: Use partial redraw from start of selection for wrapped line visual highlighting
-                // For wrapped lines, we need to redraw from the start of the visual selection
-                // to ensure all affected display line segments are properly highlighted
+                // BUGFIX: Use full pane redraw for visual selection highlighting
+                // Visual selection highlighting requires re-evaluating selection state for all visible characters,
+                // not just redrawing from a specific line. PartialPaneRedrawRequired is optimized for text changes
+                // but doesn't properly handle selection state changes that can affect non-contiguous display lines.
                 self.emit_view_event([
-                    ViewEvent::PartialPaneRedrawRequired {
-                        pane: current_pane,
-                        start_line: 0, // Redraw from beginning to capture all wrapped line segments
-                    },
+                    ViewEvent::PaneRedrawRequired { pane: current_pane },
                     ViewEvent::CursorUpdateRequired { pane: current_pane },
                 ]);
-                tracing::debug!("Emitted partial pane redraw from start for visual selection");
+                tracing::debug!("Emitted full pane redraw for visual selection highlighting");
             }
         }
     }
