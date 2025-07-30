@@ -832,7 +832,21 @@ impl ViewRenderer for TerminalRenderer {
             // Pane and Position (no separator between them)
             status_text.push_str(pane_text);
             status_text.push(' ');
-            status_text.push_str(&format!("{}:{}", cursor.line + 1, cursor.column + 1));
+
+            // Use consistent position formatting with render_position_indicator
+            let position_text = if view_model.is_display_cursor_visible() {
+                let display_cursor = view_model.get_display_cursor_position();
+                format!(
+                    "{}:{} ({}:{})",
+                    cursor.line + 1,
+                    cursor.column + 1,
+                    display_cursor.0 + 1,
+                    display_cursor.1 + 1
+                )
+            } else {
+                format!("{}:{}", cursor.line + 1, cursor.column + 1)
+            };
+            status_text.push_str(&position_text);
 
             let available_width = self.terminal_size.0 as usize;
             let visual_len = self.visual_length(&status_text);
@@ -885,13 +899,17 @@ impl ViewRenderer for TerminalRenderer {
             display_cursor.0,
             display_cursor.1
         );
-        let position_text = format!(
-            "{}:{} ({}:{})",
-            cursor.line + 1,
-            cursor.column + 1,
-            display_cursor.0 + 1,
-            display_cursor.1 + 1
-        );
+        let position_text = if view_model.is_display_cursor_visible() {
+            format!(
+                "{}:{} ({}:{})",
+                cursor.line + 1,
+                cursor.column + 1,
+                display_cursor.0 + 1,
+                display_cursor.1 + 1
+            )
+        } else {
+            format!("{}:{}", cursor.line + 1, cursor.column + 1)
+        };
 
         // Build the right portion of the status bar, including HTTP info if present
         let mut right_text = String::new();

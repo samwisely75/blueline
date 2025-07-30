@@ -48,6 +48,11 @@ pub struct StatusLine {
     /// Display/visual position marker for debugging purposes
     /// Format: (display_line, display_column)
     display_position: Option<DisplayPosition>,
+
+    /// Whether to show display cursor position in status bar
+    /// When false: shows "1:1" format only
+    /// When true: shows "1:1 (1:1)" format with display position
+    display_cursor_visible: bool,
 }
 
 impl StatusLine {
@@ -64,6 +69,7 @@ impl StatusLine {
             cursor_position: LogicalPosition::zero(),
             is_executing: false,
             display_position: None,
+            display_cursor_visible: false, // Hide display cursor by default
         }
     }
 
@@ -218,6 +224,16 @@ impl StatusLine {
     pub fn display_position(&self) -> Option<DisplayPosition> {
         self.display_position
     }
+
+    /// Set whether display cursor position is visible in status bar
+    pub fn set_display_cursor_visible(&mut self, visible: bool) {
+        self.display_cursor_visible = visible;
+    }
+
+    /// Check if display cursor position is visible in status bar
+    pub fn is_display_cursor_visible(&self) -> bool {
+        self.display_cursor_visible
+    }
 }
 
 impl Default for StatusLine {
@@ -241,6 +257,7 @@ mod tests {
         assert_eq!(status.current_pane(), Pane::Request);
         assert!(!status.is_executing());
         assert_eq!(status.display_position(), None);
+        assert!(!status.is_display_cursor_visible());
     }
 
     #[test]
@@ -338,5 +355,19 @@ mod tests {
 
         status.set_display_position(None);
         assert_eq!(status.display_position(), None);
+    }
+
+    #[test]
+    fn test_display_cursor_visibility() {
+        let mut status = StatusLine::new();
+
+        // Should be hidden by default
+        assert!(!status.is_display_cursor_visible());
+
+        status.set_display_cursor_visible(true);
+        assert!(status.is_display_cursor_visible());
+
+        status.set_display_cursor_visible(false);
+        assert!(!status.is_display_cursor_visible());
     }
 }

@@ -738,6 +738,11 @@ impl ViewModel {
         self.status_line.status_message()
     }
 
+    /// Check if display cursor position is visible in status bar
+    pub fn is_display_cursor_visible(&self) -> bool {
+        self.status_line.is_display_cursor_visible()
+    }
+
     // === Editor State Management ===
 
     /// Get current editor mode
