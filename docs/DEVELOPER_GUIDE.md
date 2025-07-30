@@ -6,24 +6,24 @@ This file provides guidance to human developers and Generative AI Engines when w
 
 - [Application Overview](#application-overview)
 - [Project](#project)
-   - [History](#history)
-   - [Where Are We Now](#where-are-we-now)
-   - [Where Are We Heading](#where-are-we-heading)
+  - [History](#history)
+  - [Where Are We Now](#where-are-we-now)
+  - [Where Are We Heading](#where-are-we-heading)
 - [Development Environment](#development-environment)
-   - [Primary Repository](#primary-repository)
-   - [IDE](#ide)
-   - [Language and Libraries](#language-and-libraries)
-   - [Coding Tools](#coding-tools)
-   - [Test Tools](#test-tools)
-   - [CI/CD Pipelines](#cicd-pipelines)
-   - [Documentations](#documentations)
-   - [Issue Tracking](#issue-tracking)
+  - [Primary Repository](#primary-repository)
+  - [IDE](#ide)
+  - [Language and Libraries](#language-and-libraries)
+  - [Coding Tools](#coding-tools)
+  - [Test Tools](#test-tools)
+  - [CI/CD Pipelines](#cicd-pipelines)
+  - [Documentations](#documentations)
+  - [Issue Tracking](#issue-tracking)
 - [Development Guidelines](#development-guidelines)
-   - [Coding Style](#coding-style)
-   - [Error Handling](#error-handling)
-   - [Build and Test](#build-and-test)
-   - [Release Process](#release-process)
-   - [Coding Guidelines](#coding-guidelines)
+  - [Coding Style](#coding-style)
+  - [Error Handling](#error-handling)
+  - [Build and Test](#build-and-test)
+  - [Release Process](#release-process)
+  - [Coding Guidelines](#coding-guidelines)
 - [Technical Notes](#technical-notes)
 - [Development Workflow](#development-workflow)
 
@@ -59,7 +59,7 @@ Once all the basic vim commands are implemented, we will release it as v1.0.0. A
 
 ### Primary Repository
 
-https://github.com/samwisely75/blueline
+<https://github.com/samwisely75/blueline>
 
 ### IDE
 
@@ -207,7 +207,16 @@ Developers and Generative AI Engines like Claude Code should strictly follow thi
 
 2. Plan the implementation and todos. Ask for clarification if needed.
 3. Create a new branch from the `develop` branch with a descriptive name, e.g., `feature/new-feature` or `bugfix/fix-issue-123`.
-4. Move the Kanban item to the `In progress` state.
+4. Move the Kanban item to the `In progress` state. The command is:
+
+   ```shell
+   gh project item-edit \
+       --id $item_id \
+       --field-id PVTSSF_lAHODQVrPs4A_FfHzgyS000 \
+       --single-select-option-id 47fc9ee4 \
+       --project-id PVT_kwHODQVrPs4A_FfH
+   ```
+
 5. Update the feature file to dictate the specification of the feature. If the feature is already implemented, update the existing test to reflect the new behavior.
 6. Implement the changes.
 7. Create or update comprehensive unit tests for the changes.
@@ -223,7 +232,16 @@ Developers and Generative AI Engines like Claude Code should strictly follow thi
       - A summary of the changes made
       - The issue number(s) related to the changes
       - Any additional context or information that may be helpful for reviewers
-13. Move the Kanban item to the `In review` state.
+13. Move the Kanban item to the `In Review` state. The command is:
+
+   ```shell
+   gh project item-edit \
+       --id $item_id \
+       --field-id PVTSSF_lAHODQVrPs4A_FfHzgyS000 \
+       --single-select-option-id df73e18b \
+       --project-id PVT_kwHODQVrPs4A_FfH
+   ```
+
 14. Address any feedback on PR and make necessary changes.
 15. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If a bug is fixed, increment the patch version. If a breaking change is made, increment the major version.
 16. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.
