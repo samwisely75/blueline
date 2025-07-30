@@ -9,6 +9,7 @@ mod cursor_manager;
 mod display_manager;
 mod http_manager;
 mod pane_manager;
+mod pane_state;
 mod rendering_coordinator;
 mod screen_buffer;
 
@@ -19,4 +20,5 @@ mod tests;
 pub use core::ViewModel;
 
 // Re-export types that other modules need
-pub use core::{DisplayLineData, PaneState};
+pub use core::DisplayLineData;
+pub use pane_state::PaneState;
