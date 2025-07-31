@@ -18,9 +18,8 @@ pub struct ExecuteRequestCommand;
 
 impl HttpCommand for ExecuteRequestCommand {
     fn is_relevant(&self, context: &HttpCommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Enter)
-            && context.state().current_mode == EditorMode::Normal
-            // Allow execution from both Request and Response panes - user should be able to execute from either
+        matches!(event.code, KeyCode::Enter) && context.state().current_mode == EditorMode::Normal
+        // Allow execution from both Request and Response panes - user should be able to execute from either
     }
 
     fn execute(&self, _event: KeyEvent, context: &HttpCommandContext) -> Result<Vec<CommandEvent>> {
@@ -67,9 +66,8 @@ impl HttpCommand for ExecuteRequestCommand {
 
 impl Command for ExecuteRequestCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Enter)
-            && context.state.current_mode == EditorMode::Normal
-            // Allow execution from both Request and Response panes - user should be able to execute from either
+        matches!(event.code, KeyCode::Enter) && context.state.current_mode == EditorMode::Normal
+        // Allow execution from both Request and Response panes - user should be able to execute from either
     }
 
     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {

@@ -151,7 +151,10 @@ async fn test_basic_editing_workflow() {
     let events = command_registry.process_event(key_event, &context).unwrap();
     println!("Enter in Response pane events: {:?}", events);
     // Should now generate an HTTP request event since we fixed the pane restriction
-    assert!(!events.is_empty(), "Enter in Response pane should generate HTTP request event");
+    assert!(
+        !events.is_empty(),
+        "Enter in Response pane should generate HTTP request event"
+    );
 
     // Test 9: Navigation keys should work in Response pane
     let _initial_cursor = view_model.get_cursor_position();

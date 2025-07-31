@@ -386,7 +386,7 @@ impl PaneManager {
             let _event = self.panes[Pane::Request].buffer.insert_char(ch);
 
             // Rebuild display cache to ensure rendering sees the updated content
-            let content_width = self.terminal_dimensions.0 as usize - 4; // Account for line numbers
+            let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4); // Account for line numbers
             self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
 
             // Sync display cursor after cache rebuild
@@ -481,7 +481,7 @@ impl PaneManager {
             .set_text(text);
 
         // Rebuild display cache to ensure rendering sees the updated content
-        let content_width = self.terminal_dimensions.0 as usize - 4; // Same as Request pane
+        let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4); // Same as Request pane
         self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
 
         vec![ViewEvent::ResponseContentChanged]
