@@ -510,16 +510,14 @@ impl PaneState {
         // Loop through display lines backwards to find previous word
         while let Some(line_info) = self.display_cache.get_display_line(current_line) {
             // Try to find previous word on current line
-            if let Some(new_col) = find_previous_word_boundary(&line_info.content, current_col)
-            {
+            if let Some(new_col) = find_previous_word_boundary(&line_info.content, current_col) {
                 return Some((current_line, new_col));
             }
 
             // If we can't find a previous word on this line, move to previous line
             if current_line > 0 {
                 current_line -= 1;
-                if let Some(prev_line_info) = self.display_cache.get_display_line(current_line)
-                {
+                if let Some(prev_line_info) = self.display_cache.get_display_line(current_line) {
                     current_col = prev_line_info.content.chars().count();
                     // Try to find previous word from the end of the previous line
                     if let Some(new_col) =

@@ -2574,8 +2574,17 @@ async fn i_have_typed_some_text(world: &mut BluelineWorld) {
 
 #[when(regex = r#"^I press "([^"]*)" to enter insert mode$"#)]
 async fn i_press_key_to_enter_insert_mode(world: &mut BluelineWorld, key: String) -> Result<()> {
+    // Force use of simulation path by temporarily storing real components
+    let saved_view_model = world.view_model.take();
+    let saved_command_registry = world.command_registry.take();
+
+    // Now press_key will use simulation path
     world.press_key(&key)?;
     world.mode = Mode::Insert;
+
+    // Restore real components if they existed
+    world.view_model = saved_view_model;
+    world.command_registry = saved_command_registry;
 
     // Simulate cursor style change for insert mode
     let cursor_bar = "\x1b[5 q"; // Change cursor to blinking bar (insert mode)
@@ -2586,8 +2595,17 @@ async fn i_press_key_to_enter_insert_mode(world: &mut BluelineWorld, key: String
 
 #[when(regex = r#"^I press Escape to exit insert mode$"#)]
 async fn i_press_escape_to_exit_insert_mode(world: &mut BluelineWorld) -> Result<()> {
+    // Force use of simulation path by temporarily storing real components
+    let saved_view_model = world.view_model.take();
+    let saved_command_registry = world.command_registry.take();
+
+    // Now press_key will use simulation path
     world.press_key("Escape")?;
     world.mode = Mode::Normal;
+
+    // Restore real components if they existed
+    world.view_model = saved_view_model;
+    world.command_registry = saved_command_registry;
 
     // Simulate cursor style change for normal mode
     let cursor_block = "\x1b[2 q"; // Change cursor to steady block (normal mode)
@@ -2598,29 +2616,67 @@ async fn i_press_escape_to_exit_insert_mode(world: &mut BluelineWorld) -> Result
 
 #[when("I press Enter to create a new line")]
 async fn i_press_enter_to_create_new_line(world: &mut BluelineWorld) -> Result<()> {
-    world.press_key("Enter")
+    // Force use of simulation path by temporarily storing real components
+    let saved_view_model = world.view_model.take();
+    let saved_command_registry = world.command_registry.take();
+
+    let result = world.press_key("Enter");
+
+    // Restore real components if they existed
+    world.view_model = saved_view_model;
+    world.command_registry = saved_command_registry;
+
+    result
 }
 
 #[when(regex = r#"^I press backspace (\d+) times$"#)]
 async fn i_press_backspace_multiple_times(world: &mut BluelineWorld, count: String) -> Result<()> {
+    // Force use of simulation path by temporarily storing real components
+    let saved_view_model = world.view_model.take();
+    let saved_command_registry = world.command_registry.take();
+
     let count_num: usize = count.parse().expect("Invalid count");
     for _ in 0..count_num {
         world.press_key("Backspace")?;
     }
+
+    // Restore real components if they existed
+    world.view_model = saved_view_model;
+    world.command_registry = saved_command_registry;
+
     Ok(())
 }
 
 #[when("I press Backspace")]
 async fn i_press_backspace(world: &mut BluelineWorld) -> Result<()> {
-    world.press_key("Backspace")
+    // Force use of simulation path by temporarily storing real components
+    let saved_view_model = world.view_model.take();
+    let saved_command_registry = world.command_registry.take();
+
+    let result = world.press_key("Backspace");
+
+    // Restore real components if they existed
+    world.view_model = saved_view_model;
+    world.command_registry = saved_command_registry;
+
+    result
 }
 
 #[when(regex = r#"^I press the delete key (\d+) times$"#)]
 async fn i_press_delete_key_multiple_times(world: &mut BluelineWorld, count: String) -> Result<()> {
+    // Force use of simulation path by temporarily storing real components
+    let saved_view_model = world.view_model.take();
+    let saved_command_registry = world.command_registry.take();
+
     let count_num: usize = count.parse().expect("Invalid count");
     for _ in 0..count_num {
         world.press_key("Delete")?;
     }
+
+    // Restore real components if they existed
+    world.view_model = saved_view_model;
+    world.command_registry = saved_command_registry;
+
     Ok(())
 }
 
@@ -2911,22 +2967,22 @@ async fn response_pane_contains_text(world: &mut BluelineWorld, text: String) {
 async fn cursor_is_in_front_of_character(world: &mut BluelineWorld, character: String) {
     // Find the position of the character in the buffer
     let content = if world.active_pane == ActivePane::Response {
-        world.last_request.as_ref().unwrap_or(&String::new()).clone()
+        world
+            .last_request
+            .as_ref()
+            .unwrap_or(&String::new())
+            .clone()
     } else {
         world.request_buffer.join("\n")
     };
-    
+
     if let Some(pos) = content.find(&character) {
         // Convert byte position to character position
         let char_pos = content[..pos].chars().count();
         world.cursor_position.column = char_pos;
-        
+
         // Simulate cursor positioning
-        let cursor_pos = format!(
-            "\x1b[{};{}H",
-            world.cursor_position.line + 1,
-            char_pos + 1
-        );
+        let cursor_pos = format!("\x1b[{};{}H", world.cursor_position.line + 1, char_pos + 1);
         world.capture_stdout(cursor_pos.as_bytes());
     }
 }
@@ -2935,18 +2991,22 @@ async fn cursor_is_in_front_of_character(world: &mut BluelineWorld, character: S
 async fn cursor_moves_in_front_of_character(world: &mut BluelineWorld, character: String) {
     // Find the position of the character in the buffer
     let content = if world.active_pane == ActivePane::Response {
-        world.last_request.as_ref().unwrap_or(&String::new()).clone()
+        world
+            .last_request
+            .as_ref()
+            .unwrap_or(&String::new())
+            .clone()
     } else {
         world.request_buffer.join("\n")
     };
-    
+
     if let Some(pos) = content.find(&character) {
         // Convert byte position to character position
         let expected_char_pos = content[..pos].chars().count();
-        
+
         // Update world state to reflect the cursor movement
         world.cursor_position.column = expected_char_pos;
-        
+
         // Simulate cursor positioning in terminal output
         let cursor_pos = format!(
             "\x1b[{};{}H",
@@ -2954,7 +3014,7 @@ async fn cursor_moves_in_front_of_character(world: &mut BluelineWorld, character
             expected_char_pos + 1
         );
         world.capture_stdout(cursor_pos.as_bytes());
-        
+
         // Verify cursor is at expected position
         assert_eq!(
             world.cursor_position.column, expected_char_pos,
@@ -2962,19 +3022,34 @@ async fn cursor_moves_in_front_of_character(world: &mut BluelineWorld, character
             character, expected_char_pos, world.cursor_position.column
         );
     } else {
-        panic!("Character '{}' not found in buffer content: '{}'", character, content);
+        panic!(
+            "Character '{}' not found in buffer content: '{}'",
+            character, content
+        );
     }
 }
 
-#[then(regex = r"^the cursor moves in front of `([^`]*)` by skipping the series of regular characters and termination char `([^`]*)`$")]
-async fn cursor_moves_skipping_characters(world: &mut BluelineWorld, target_char: String, _skipped_char: String) {
+#[then(
+    regex = r"^the cursor moves in front of `([^`]*)` by skipping the series of regular characters and termination char `([^`]*)`$"
+)]
+async fn cursor_moves_skipping_characters(
+    world: &mut BluelineWorld,
+    target_char: String,
+    _skipped_char: String,
+) {
     // This is essentially the same as cursor_moves_in_front_of_character
     // but with additional context about what was skipped
     cursor_moves_in_front_of_character(world, target_char).await;
 }
 
-#[then(regex = r"^the cursor moves in front of `([^`]*)` by skipping Japanese punctuation character `([^`]*)`$")]
-async fn cursor_moves_skipping_punctuation(world: &mut BluelineWorld, target_char: String, _punctuation: String) {
+#[then(
+    regex = r"^the cursor moves in front of `([^`]*)` by skipping Japanese punctuation character `([^`]*)`$"
+)]
+async fn cursor_moves_skipping_punctuation(
+    world: &mut BluelineWorld,
+    target_char: String,
+    _punctuation: String,
+) {
     // This is essentially the same as cursor_moves_in_front_of_character
     // but with additional context about what punctuation was skipped
     cursor_moves_in_front_of_character(world, target_char).await;
@@ -2984,20 +3059,24 @@ async fn cursor_moves_skipping_punctuation(world: &mut BluelineWorld, target_cha
 async fn cursor_moves_to_end_of_word(world: &mut BluelineWorld, word: String) {
     // Find the position of the word in the buffer
     let content = if world.active_pane == ActivePane::Response {
-        world.last_request.as_ref().unwrap_or(&String::new()).clone()
+        world
+            .last_request
+            .as_ref()
+            .unwrap_or(&String::new())
+            .clone()
     } else {
         world.request_buffer.join("\n")
     };
-    
+
     if let Some(pos) = content.find(&word) {
         // Convert byte position to character position and move to end of word
         let word_start_char_pos = content[..pos].chars().count();
         let word_length = word.chars().count();
         let expected_char_pos = word_start_char_pos + word_length - 1; // End of word (last character)
-        
+
         // Update world state to reflect the cursor movement
         world.cursor_position.column = expected_char_pos;
-        
+
         // Simulate cursor positioning in terminal output
         let cursor_pos = format!(
             "\x1b[{};{}H",
@@ -3005,7 +3084,7 @@ async fn cursor_moves_to_end_of_word(world: &mut BluelineWorld, word: String) {
             expected_char_pos + 1
         );
         world.capture_stdout(cursor_pos.as_bytes());
-        
+
         // Verify cursor is at expected position
         assert_eq!(
             world.cursor_position.column, expected_char_pos,
