@@ -17,7 +17,7 @@ impl Command for InsertCharCommand {
         match event.code {
             KeyCode::Char(ch) => {
                 !event.modifiers.contains(KeyModifiers::CONTROL)
-                    && (ch.is_ascii_graphic() || ch == ' ')
+                    && (!ch.is_control() || ch == ' ')
                     && context.state.current_mode == EditorMode::Insert
                     && context.state.current_pane == Pane::Request
             }
@@ -142,6 +142,48 @@ mod tests {
         let event = create_test_key_event(KeyCode::Char('a'));
 
         assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_japanese_hiragana_in_insert_mode() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = create_test_key_event(KeyCode::Char('あ')); // Hiragana 'a'
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_japanese_katakana_in_insert_mode() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = create_test_key_event(KeyCode::Char('ア')); // Katakana 'a'
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_japanese_kanji_in_insert_mode() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = create_test_key_event(KeyCode::Char('漢')); // Kanji character
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_execute_japanese_character_insertion() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = create_test_key_event(KeyCode::Char('こ')); // Single hiragana character
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        if let CommandEvent::TextInsertRequested { text, .. } = &result[0] {
+            assert_eq!(text, "こ");
+        } else {
+            panic!("Expected TextInsertRequested event");
+        }
     }
 
     #[test]

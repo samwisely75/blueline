@@ -350,4 +350,216 @@ mod tests {
         assert!(event.is_some());
         assert_eq!(buffer.cursor(), LogicalPosition::new(0, 3));
     }
+
+    #[test]
+    fn buffer_content_should_insert_japanese_hiragana_text() {
+        let mut content = BufferContent::new();
+        let pos = LogicalPosition::new(0, 0);
+
+        content.insert_text(Pane::Request, pos, "こんにちは");
+
+        assert_eq!(content.get_text(), "こんにちは");
+        assert_eq!(content.line_count(), 1);
+    }
+
+    #[test]
+    fn buffer_content_should_insert_japanese_katakana_text() {
+        let mut content = BufferContent::new();
+        let pos = LogicalPosition::new(0, 0);
+
+        content.insert_text(Pane::Request, pos, "カタカナ");
+
+        assert_eq!(content.get_text(), "カタカナ");
+        assert_eq!(content.line_count(), 1);
+    }
+
+    #[test]
+    fn buffer_content_should_insert_japanese_kanji_text() {
+        let mut content = BufferContent::new();
+        let pos = LogicalPosition::new(0, 0);
+
+        content.insert_text(Pane::Request, pos, "日本語");
+
+        assert_eq!(content.get_text(), "日本語");
+        assert_eq!(content.line_count(), 1);
+    }
+
+    #[test]
+    fn buffer_content_should_insert_mixed_japanese_and_ascii_text() {
+        let mut content = BufferContent::new();
+        let pos = LogicalPosition::new(0, 0);
+
+        content.insert_text(Pane::Request, pos, "Hello こんにちは World 世界");
+
+        assert_eq!(content.get_text(), "Hello こんにちは World 世界");
+        assert_eq!(content.line_count(), 1);
+    }
+
+    #[test]
+    fn buffer_content_should_insert_multiline_japanese_text() {
+        let mut content = BufferContent::new();
+        let pos = LogicalPosition::new(0, 0);
+
+        content.insert_text(Pane::Request, pos, "こんにちは\n世界");
+
+        assert_eq!(content.line_count(), 2);
+        assert_eq!(content.get_line(0), Some(&"こんにちは".to_string()));
+        assert_eq!(content.get_line(1), Some(&"世界".to_string()));
+    }
+
+    #[test]
+    fn buffer_model_should_insert_japanese_character() {
+        let mut buffer = BufferModel::new(Pane::Request);
+
+        let event = buffer.insert_char('あ');
+
+        assert_eq!(buffer.content().get_text(), "あ");
+        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 1));
+        if let ModelEvent::TextInserted { text, .. } = event {
+            assert_eq!(text, "あ");
+        } else {
+            panic!("Expected TextInserted event");
+        }
+    }
+
+    #[test]
+    fn buffer_content_should_handle_long_japanese_text_with_line_counting() {
+        let mut content = BufferContent::new();
+        let pos = LogicalPosition::new(0, 0);
+
+        // Create a long Japanese text with multiple lines (original content, not copyrighted)
+        let long_japanese_text = "これはとても長い日本語のテストです。\n\
+            プログラミングにおいて、文字エンコーディングは重要な概念です。\n\
+            UTF-8は現在最も広く使用されている文字エンコーディングの一つです。\n\
+            日本語、中国語、韓国語などの東アジアの言語を適切に表示するためには、\n\
+            ダブルバイト文字の処理が必要になります。\n\
+            このテストでは、長いテキストが正しく処理されることを確認します。\n\
+            各行の文字数や表示幅を正確に計算することは、\n\
+            ターミナルアプリケーションにとって非常に重要です。\n\
+            スクロール機能やカーソル移動も、\n\
+            ダブルバイト文字で正しく動作する必要があります。";
+
+        content.insert_text(Pane::Request, pos, long_japanese_text);
+
+        assert_eq!(content.line_count(), 10);
+        assert_eq!(
+            content.get_line(0),
+            Some(&"これはとても長い日本語のテストです。".to_string())
+        );
+        assert_eq!(
+            content.get_line(1),
+            Some(&"プログラミングにおいて、文字エンコーディングは重要な概念です。".to_string())
+        );
+        assert_eq!(
+            content.get_line(9),
+            Some(&"ダブルバイト文字で正しく動作する必要があります。".to_string())
+        );
+    }
+
+    #[test]
+    fn buffer_model_should_navigate_cursor_in_long_japanese_text() {
+        let mut buffer = BufferModel::new(Pane::Request);
+
+        // Insert multi-line Japanese text
+        buffer.insert_text("日本語の一行目です。\n二行目はここです。\n三行目も日本語です。");
+
+        // Test cursor movement to specific positions
+        buffer.set_cursor(LogicalPosition::new(1, 5)); // Move to middle of second line
+        assert_eq!(buffer.cursor(), LogicalPosition::new(1, 5));
+
+        // Test moving right from Japanese characters
+        let event = buffer.move_cursor_right();
+        assert!(event.is_some());
+        assert_eq!(buffer.cursor(), LogicalPosition::new(1, 6));
+
+        // Test moving left from Japanese characters
+        let event = buffer.move_cursor_left();
+        assert!(event.is_some());
+        assert_eq!(buffer.cursor(), LogicalPosition::new(1, 5));
+    }
+
+    #[test]
+    fn buffer_content_should_handle_very_long_single_japanese_line() {
+        let mut content = BufferContent::new();
+        let pos = LogicalPosition::new(0, 0);
+
+        // Create a very long single line with Japanese text for wrapping test
+        let long_line = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん".repeat(5);
+
+        content.insert_text(Pane::Request, pos, &long_line);
+
+        assert_eq!(content.line_count(), 1);
+        assert_eq!(content.line_length(0), long_line.len()); // Character count, not visual width
+        assert_eq!(content.get_text(), long_line);
+    }
+
+    #[test]
+    fn buffer_content_should_handle_mixed_ascii_japanese_long_line() {
+        let mut content = BufferContent::new();
+        let pos = LogicalPosition::new(0, 0);
+
+        // Create a very long line mixing ASCII and Japanese (realistic scenario)
+        let mixed_long_line = "Anthropic Claude は現時点ではコーディング作業に対して最も優れた LLM であると言われている。しかし、GitHub Copilot や ChatGPT などの他の AI ツールも非常に有用である。特に VS Code の拡張機能として利用する場合、開発者の生産性を大幅に向上させることができる。日本語のコメントや変数名を使用する場合でも、適切に処理される必要がある。".repeat(3);
+
+        content.insert_text(Pane::Request, pos, &mixed_long_line);
+
+        assert_eq!(content.line_count(), 1);
+        assert_eq!(content.line_length(0), mixed_long_line.len());
+        assert_eq!(content.get_text(), mixed_long_line);
+
+        // Test that mixed content is preserved correctly
+        let text = content.get_text();
+        assert!(text.contains("Anthropic Claude"));
+        assert!(text.contains("は現時点では"));
+        assert!(text.contains("LLM"));
+        assert!(text.contains("であると言われている"));
+    }
+
+    #[test]
+    fn buffer_model_should_navigate_in_mixed_ascii_japanese_text() {
+        let mut buffer = BufferModel::new(Pane::Request);
+
+        // Insert mixed text
+        let mixed_text = "Hello こんにちは World 世界 API エンドポイント";
+        buffer.insert_text(mixed_text);
+
+        // Move cursor to different positions in mixed text
+        buffer.set_cursor(LogicalPosition::new(0, 6)); // After "Hello "
+        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 6));
+
+        // Move right through Japanese characters
+        for _ in 0..5 {
+            // Move through "こんにちは"
+            buffer.move_cursor_right();
+        }
+        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 11)); // After "Hello こんにちは"
+
+        // Move left back through Japanese characters
+        for _ in 0..2 {
+            buffer.move_cursor_left();
+        }
+        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 9)); // In middle of "こんにちは"
+    }
+
+    #[test]
+    fn buffer_content_should_handle_extremely_long_wrapped_mixed_line() {
+        let mut content = BufferContent::new();
+        let pos = LogicalPosition::new(0, 0);
+
+        // Create an extremely long line that will definitely wrap (no \n)
+        let base_text = "Programming プログラミング is とても楽しい activity アクティビティ for developers 開発者 who love コードを書くこと and creating アプリケーション applications. ";
+        let extremely_long_line = base_text.repeat(20); // Very long single line
+
+        content.insert_text(Pane::Request, pos, &extremely_long_line);
+
+        // Should still be one logical line
+        assert_eq!(content.line_count(), 1);
+        assert_eq!(content.get_text(), extremely_long_line);
+
+        // Verify mixed content integrity
+        let text = content.get_text();
+        assert!(text.contains("Programming プログラミング"));
+        assert!(text.contains("developers 開発者"));
+        assert!(text.contains("アプリケーション applications"));
+    }
 }

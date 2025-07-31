@@ -31,6 +31,7 @@ use crossterm::{
     terminal::{Clear, ClearType},
 };
 use std::io::{self, Write};
+use unicode_width::UnicodeWidthChar;
 
 /// Trait for rendering views
 pub trait ViewRenderer {
@@ -84,6 +85,7 @@ impl TerminalRenderer {
     }
 
     /// Calculate visual length of text, excluding ANSI escape sequences
+    /// Accounts for double-byte characters that take 2 terminal columns
     fn visual_length(&self, text: &str) -> usize {
         let mut length = 0;
         let mut in_escape = false;
@@ -94,7 +96,12 @@ impl TerminalRenderer {
             } else if in_escape && ch == 'm' {
                 in_escape = false;
             } else if !in_escape {
-                length += 1;
+                // Use unicode-width to get proper display width
+                // Most double-byte characters (CJK) have width 2
+                match unicode_width::UnicodeWidthChar::width(ch) {
+                    Some(w) => length += w,
+                    None => {} // Control characters and zero-width characters
+                }
             }
         }
 
@@ -151,13 +158,20 @@ impl TerminalRenderer {
         let used_width = line_num_width + 1; // line number + space
         let available_width = (self.terminal_size.0 as usize).saturating_sub(used_width);
 
-        // Truncate text to fit within terminal width to prevent overlap
-        let display_text = if line_info.text.chars().count() > available_width {
-            line_info
-                .text
-                .chars()
-                .take(available_width)
-                .collect::<String>()
+        // Truncate text to fit within terminal width, accounting for double-byte characters
+        let display_text = if self.visual_length(line_info.text) > available_width {
+            let mut result = String::new();
+            let mut current_width = 0;
+
+            for ch in line_info.text.chars() {
+                let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+                if current_width + char_width > available_width {
+                    break;
+                }
+                result.push(ch);
+                current_width += char_width;
+            }
+            result
         } else {
             line_info.text.to_string()
         };
@@ -1102,6 +1116,96 @@ mod tests {
 
             // Test only ANSI codes
             assert_eq!(renderer.visual_length("\x1b[32m\x1b[0m"), 0);
+        }
+    }
+
+    #[test]
+    fn visual_length_should_handle_double_byte_characters() {
+        if let Ok(renderer) = TerminalRenderer::new() {
+            // Test Japanese hiragana (double-byte)
+            assert_eq!(renderer.visual_length("こんにちは"), 10); // 5 chars × 2 width each = 10
+
+            // Test Japanese katakana (double-byte)
+            assert_eq!(renderer.visual_length("カタカナ"), 8); // 4 chars × 2 width each = 8
+
+            // Test Japanese kanji (double-byte)
+            assert_eq!(renderer.visual_length("日本語"), 6); // 3 chars × 2 width each = 6
+
+            // Test mixed ASCII and Japanese
+            assert_eq!(renderer.visual_length("Hello こんにちは"), 16); // "Hello " (6) + "こんにちは" (10) = 16
+
+            // Test Japanese with ANSI codes
+            assert_eq!(renderer.visual_length("\x1b[32mこんにちは\x1b[0m"), 10); // Only count the Japanese characters, ignore ANSI
+
+            // Test ASCII vs Japanese comparison
+            assert_eq!(renderer.visual_length("AAAAA"), 5); // 5 ASCII chars = 5 width
+            assert_eq!(renderer.visual_length("あああああ"), 10); // 5 Japanese chars = 10 width
+        }
+    }
+
+    #[test]
+    fn visual_length_should_handle_mixed_ascii_japanese_realistic_text() {
+        if let Ok(renderer) = TerminalRenderer::new() {
+            // Test realistic mixed content like what users actually type
+            assert_eq!(
+                renderer.visual_length("Anthropic Claude は現時点では"),
+                29 // "Anthropic Claude " (17) + "は現時点では" (12) = 29
+            );
+
+            assert_eq!(
+                renderer.visual_length("GitHub Copilot や ChatGPT"),
+                25 // "GitHub Copilot " (15) + "や" (2) + " ChatGPT" (8) = 25
+            );
+
+            assert_eq!(
+                renderer.visual_length("VS Code の拡張機能"),
+                18 // "VS Code " (8) + "の拡張機能" (10) = 18
+            );
+
+            // Test mixed content with punctuation
+            assert_eq!(
+                renderer.visual_length("API エンドポイント。"),
+                20 // "API " (4) + "エンドポイント" (14) + "。" (2) = 20
+            );
+
+            // Test very long mixed line
+            let long_mixed = "Programming プログラミング is とても楽しい activity";
+            assert_eq!(
+                renderer.visual_length(long_mixed),
+                51 // Calculate: "Programming " (12) + "プログラミング" (14) + " is " (4) + "とても楽しい" (12) + " activity" (9) = 51
+            );
+        }
+    }
+
+    #[test]
+    fn text_truncation_should_work_with_mixed_characters() {
+        if let Ok(mut renderer) = TerminalRenderer::new() {
+            renderer.update_size(20, 10); // Small terminal for testing truncation
+
+            // Test truncation with mixed content - simulate the truncation logic
+            let mixed_text = "Hello こんにちは World 世界";
+            let available_width = 15; // Simulate limited space
+
+            // Manually test the truncation logic (similar to what's in render_line_with_number)
+            let mut result = String::new();
+            let mut current_width = 0;
+
+            for ch in mixed_text.chars() {
+                let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+                if current_width + char_width > available_width {
+                    break;
+                }
+                result.push(ch);
+                current_width += char_width;
+            }
+
+            // Should truncate appropriately without breaking double-byte characters
+            assert!(renderer.visual_length(&result) <= available_width);
+            assert!(!result.is_empty());
+
+            // Verify it contains some content but is truncated
+            assert!(result.contains("Hello"));
+            // The exact truncation point depends on character boundaries
         }
     }
 
