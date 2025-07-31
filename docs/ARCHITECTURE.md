@@ -1,4 +1,4 @@
-# MVVM Architecture Overview
+# Architecture Overview
 
 ## Table of Contents
 
@@ -52,6 +52,8 @@ Blueline implements a **Model-View-ViewModel (MVVM)** architecture pattern enhan
 
 ### 2. ViewModel Layer (`src/repl/view_models/`)
 
+- **Modular ViewModel architecture** split into focused responsibilities
+- **PaneManager** for complete pane abstraction and semantic operations
 - **Display state management** (scroll positions, cursor coordinates)
 - **Coordinate transformations** (logical ↔ display positions)
 - **Event handling** and propagation
@@ -137,16 +139,18 @@ The ViewModel layer bridges the gap between pure model data and display requirem
 pub struct ViewModel {
     // Core state
     editor_mode: EditorMode,
-    current_pane: Pane,
     response: ResponseModel,
     
-    // Pane management - unified architecture
-    panes: [PaneState; 2],
+    // Pane management - complete abstraction through PaneManager
+    pane_manager: PaneManager,
     
-    // Display coordination
-    wrap_enabled: bool,
-    terminal_dimensions: (u16, u16),
-    request_pane_height: u16,
+    // Status line model - encapsulates all status bar state
+    status_line: StatusLine,
+    
+    // HTTP client and configuration
+    http_client: Option<HttpClient>,
+    http_session_headers: HashMap<String, String>,
+    http_verbose: bool,
     
     // Event management
     event_bus: EventBusOption,
@@ -159,9 +163,29 @@ pub struct ViewModel {
 }
 ```
 
-### PaneState Structure
+### PaneManager Architecture
 
-The `PaneState` represents the display state for a single pane (Request or Response):
+The `PaneManager` encapsulates all pane-related state and operations, providing complete abstraction where external components never directly access pane-specific identifiers:
+
+```rust
+pub struct PaneManager {
+    panes: [PaneState; 2],           // Private - no external access
+    current_pane: Pane,
+    wrap_enabled: bool,
+    terminal_dimensions: (u16, u16),
+    request_pane_height: u16,
+}
+```
+
+#### PaneManager Responsibilities
+
+1. **Complete Pane Abstraction**: External components use semantic operations like `switch_to_request_pane()` instead of pane indexing
+2. **Pane Layout Management**: Calculates pane boundaries and heights based on terminal size
+3. **Semantic Operations**: Provides domain-specific methods like `insert_char_in_request()`, `is_in_request_pane()`
+4. **Display State Coordination**: Manages cursor positions, scroll offsets, and visual selection across panes
+5. **Event Emission**: Returns semantic ViewEvents like `RequestContentChanged`, `FocusSwitched`
+
+### PaneState Structure (Internal to PaneManager)
 
 ```rust
 pub struct PaneState {
@@ -175,17 +199,27 @@ pub struct PaneState {
 }
 ```
 
-#### PaneState Responsibilities
-
-1. **Display Cursor Management**: Converts logical cursor to display coordinates
-2. **Scrolling Logic**: Tracks viewport position and ensures cursor visibility
-3. **Visual Selection**: Manages text selection for visual mode operations
-4. **Display Cache**: Maintains wrapped text representation for rendering
-5. **Coordinate Conversion**: Translates between logical and display positions
-
 ### ViewModel Specialized Modules
 
-The ViewModel delegates specific concerns to specialized modules:
+The ViewModel is split into focused modules for better maintainability:
+
+#### Core (`src/repl/view_models/core.rs`)
+
+- Main ViewModel struct and basic initialization
+- Terminal size management and screen buffer coordination
+- Central coordinator that delegates to specialized managers
+
+#### Mode Manager (`src/repl/view_models/mode_manager.rs`)
+
+- Editor mode transitions (Normal, Insert, Visual, Command)
+- Visual mode selection state management
+- Mode-related event handling
+
+#### Ex Command Manager (`src/repl/view_models/ex_command_manager.rs`)
+
+- Ex command buffer operations (`:q`, `:set wrap`, etc.)
+- Command parsing and execution
+- Command mode state management
 
 #### Buffer Operations (`src/repl/view_models/buffer_operations.rs`)
 
@@ -208,11 +242,12 @@ The ViewModel delegates specific concerns to specialized modules:
 - Text wrapping and overflow handling
 - Visual selection highlighting
 
-#### Pane Manager (`src/repl/view_models/pane_manager.rs`)
+#### PaneManager (`src/repl/view_models/pane_manager.rs`)
 
-- Pane switching and focus management
-- Terminal size calculation and pane resizing
-- Split pane layout management
+- **Complete pane abstraction** - external components never directly access pane arrays
+- **Semantic operations** - `switch_to_request_pane()`, `insert_char_in_request()` instead of pane indexing
+- **Pane layout management** - calculates boundaries, heights, and handles terminal resizing
+- **Event abstraction** - emits semantic events like `RequestContentChanged`, `FocusSwitched`
 
 #### Rendering Coordinator (`src/repl/view_models/rendering_coordinator.rs`)
 
@@ -252,15 +287,20 @@ pub enum ModelEvent {
 
 #### View Events (`src/repl/events/view_events.rs`)
 
+The ViewEvent system has been abstracted to eliminate pane parameter leakage:
+
 ```rust
 pub enum ViewEvent {
     FullRedrawRequired,                                    // Complete screen refresh
-    PaneRedrawRequired { pane: Pane },                    // Full pane redraw
-    PartialPaneRedrawRequired { pane: Pane, start_line: usize }, // Partial update
-    StatusBarUpdateRequired,                               // Status bar refresh
-    PositionIndicatorUpdateRequired,                       // Position indicator only
-    CursorUpdateRequired { pane: Pane },                  // Cursor position/style
-    ScrollChanged { pane: Pane, old_offset: usize, new_offset: usize },
+    CurrentAreaRedrawRequired,                             // Redraw currently active pane
+    SecondaryAreaRedrawRequired,                          // Redraw inactive pane
+    ActiveCursorUpdateRequired,                           // Update cursor in active pane
+    StatusBarUpdateRequired,                              // Status bar refresh
+    PositionIndicatorUpdateRequired,                      // Position indicator only
+    RequestContentChanged,                                // Request pane content changed
+    ResponseContentChanged,                               // Response pane content changed
+    FocusSwitched,                                        // Active pane changed
+    CurrentAreaScrollChanged { old_offset: usize, new_offset: usize },
 }
 ```
 
@@ -390,17 +430,18 @@ terminal_renderer.render_position_indicator()
 - **Display Coordinates**: Terminal row/column positions (view model)
 - **Viewport Coordinates**: Visible area relative positions (rendering)
 
-### 3. Unified Pane Architecture
+### 3. Complete Pane Abstraction
 
-- Single `PaneState` structure handles both Request and Response panes
-- Array-based access pattern: `panes[Pane::Request]`, `panes[Pane::Response]`
-- Eliminates code duplication between pane types
+- `PaneManager` provides complete encapsulation of pane-related state
+- External components use semantic operations: `switch_to_request_pane()`, `is_in_request_pane()`
+- ViewEvents use semantic naming: `RequestContentChanged`, `FocusSwitched` instead of pane parameters
+- Eliminates pane leakage throughout the architecture
 
 ### 4. Partial Update Optimization
 
 - Multiple view event granularities for efficiency
-- `FullRedrawRequired` → `PaneRedrawRequired` → `PartialPaneRedrawRequired` → `CursorUpdateRequired`
-- Minimizes terminal I/O for better performance
+- `FullRedrawRequired` → `CurrentAreaRedrawRequired` → `ActiveCursorUpdateRequired` → `PositionIndicatorUpdateRequired`
+- Semantic events reduce coupling and improve performance
 
 ### 5. Display Cache Management
 
@@ -417,11 +458,13 @@ terminal_renderer.render_position_indicator()
 ## Benefits of This Architecture
 
 1. **Testability**: Business logic separated from UI concerns
-2. **Maintainability**: Clear component boundaries and responsibilities
-3. **Performance**: Efficient partial updates and caching strategies
-4. **Flexibility**: Easy to add new features without affecting existing code
-5. **Debuggability**: Event streams provide clear audit trail of state changes
-6. **Extensibility**: Plugin-like architecture for adding new commands and features
+2. **Maintainability**: Modular ViewModel with clear component boundaries and responsibilities
+3. **Encapsulation**: Complete pane abstraction eliminates component coupling
+4. **Performance**: Efficient partial updates and semantic event system
+5. **Flexibility**: Easy to add new features without affecting existing code
+6. **Debuggability**: Event streams provide clear audit trail of state changes
+7. **Extensibility**: Plugin-like architecture for adding new commands and features
+8. **Domain-Driven Design**: Operations match domain concepts (Request vs Response panes)
 
-This MVVM architecture enables Blueline to provide a responsive, efficient terminal-based HTTP client with vim-like editing capabilities while maintaining clean, testable code.
+This modular MVVM architecture with complete pane abstraction enables Blueline to provide a responsive, efficient terminal-based HTTP client with vim-like editing capabilities while maintaining clean, testable, and maintainable code.
 

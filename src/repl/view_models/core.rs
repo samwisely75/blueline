@@ -5,7 +5,7 @@
 
 use crate::repl::events::{EditorMode, EventBus, ModelEvent, Pane, ViewEvent};
 use crate::repl::models::{ResponseModel, StatusLine};
-use crate::repl::view_models::pane_state::PaneState;
+use crate::repl::view_models::pane_manager::PaneManager;
 use crate::repl::view_models::screen_buffer::ScreenBuffer;
 // use anyhow::Result; // Currently unused
 use bluenote::HttpClient;
@@ -17,24 +17,14 @@ type EventBusOption = Option<Box<dyn EventBus>>;
 /// Type alias for display line rendering data: (content, line_number, is_continuation, logical_start_col, logical_line)
 pub type DisplayLineData = (String, Option<usize>, bool, usize, usize);
 
-
-
 /// The central ViewModel that coordinates all business logic
 pub struct ViewModel {
     // Core state
     pub(super) editor_mode: EditorMode,
-    pub(super) current_pane: Pane,
     pub(super) response: ResponseModel,
 
-    // Pane management - replaces 8 duplicate fields with unified structure
-    pub(super) panes: [PaneState; 2],
-
-    // Display coordination (word wrap support)
-    pub(super) wrap_enabled: bool,
-
-    // Display state
-    pub(super) terminal_dimensions: (u16, u16), // (width, height)
-    pub(super) request_pane_height: u16,
+    // Pane management - encapsulates all pane-related state and operations
+    pub(super) pane_manager: PaneManager,
 
     // Status line model - encapsulates all status bar state
     pub(super) status_line: StatusLine,
@@ -62,29 +52,10 @@ impl ViewModel {
         // Default terminal size
         let terminal_dimensions = (80, 24);
 
-        // Build initial display caches
-        let content_width = (terminal_dimensions.0 as usize).saturating_sub(4); // Account for line numbers
-
-        // Calculate pane heights
-        let request_pane_height = (terminal_dimensions.1 / 2) as usize;
-        let response_pane_height = (terminal_dimensions.1 as usize)
-            .saturating_sub((terminal_dimensions.1 / 2) as usize)
-            .saturating_sub(2) // -2 for separator and status
-            .max(1); // Ensure minimum height of 1
-
-        // Initialize pane array with proper display caches and dimensions
-        let request_pane = PaneState::new(Pane::Request, content_width, request_pane_height, true);
-        let response_pane =
-            PaneState::new(Pane::Response, content_width, response_pane_height, true);
-
         Self {
             editor_mode: EditorMode::Normal,
-            current_pane: Pane::Request,
             response,
-            panes: [request_pane, response_pane],
-            wrap_enabled: true,
-            terminal_dimensions,
-            request_pane_height: terminal_dimensions.1 / 2,
+            pane_manager: PaneManager::new(terminal_dimensions),
             status_line: StatusLine::new(),
             http_client: None,
             http_session_headers: HashMap::new(),
@@ -111,46 +82,18 @@ impl ViewModel {
 
     /// Update terminal size and resize screen buffers
     pub fn update_terminal_size(&mut self, width: u16, height: u16) {
-        self.terminal_dimensions = (width, height);
-
-        // Calculate request pane height (split screen when response exists)
-        self.request_pane_height = if self.response.status_code().is_some() {
-            height / 2
-        } else {
-            height - 1 // Reserve space for status bar
-        };
-
-        // Recalculate pane dimensions
-        let content_width = (width as usize).saturating_sub(4); // Account for line numbers
-        let request_pane_height = self.request_pane_height as usize;
-        let response_pane_height = (height as usize)
-            .saturating_sub(self.request_pane_height as usize)
-            .saturating_sub(2) // -2 for separator and status
-            .max(1); // Ensure minimum height of 1
-
-        // Update pane dimensions
-        self.panes[Pane::Request].update_dimensions(content_width, request_pane_height);
-        self.panes[Pane::Response].update_dimensions(content_width, response_pane_height);
+        // Update PaneManager's terminal size and pane dimensions
+        self.pane_manager.update_terminal_size(
+            width,
+            height,
+            self.response.status_code().is_some(),
+        );
 
         // Resize screen buffers
         self.current_screen_buffer
             .resize(width as usize, height as usize);
         self.previous_screen_buffer
             .resize(width as usize, height as usize);
-
-        // Invalidate display caches for both panes
-        self.panes[Pane::Request].display_cache.invalidate();
-        self.panes[Pane::Response].display_cache.invalidate();
-
-        tracing::debug!(
-            "Terminal size updated: {}x{}, pane dimensions: Request={}x{}, Response={}x{}",
-            width,
-            height,
-            content_width,
-            request_pane_height,
-            content_width,
-            response_pane_height
-        );
     }
 
     /// Get current screen buffer dimensions
@@ -185,7 +128,7 @@ impl ViewModel {
 
     /// Get terminal size
     pub fn terminal_size(&self) -> (u16, u16) {
-        self.terminal_dimensions
+        self.pane_manager.terminal_dimensions
     }
 
     /// Set the profile information for display
@@ -203,49 +146,50 @@ impl ViewModel {
         self.status_line.profile_path()
     }
 
-    // === Pane Access Methods ===
+    // === Pane Methods (Semantic Operations) ===
 
-    /// Get the current active pane
-    pub fn current_pane(&self) -> Pane {
-        self.current_pane
+    /// Get current active pane (for backward compatibility - prefer semantic operations)
+    pub fn get_current_pane(&self) -> Pane {
+        self.pane_manager.current_pane_type()
+    }
+
+    /// Check if currently in Request pane
+    pub fn is_in_request_pane(&self) -> bool {
+        self.pane_manager.is_in_request_pane()
+    }
+
+    /// Check if currently in Response pane  
+    pub fn is_in_response_pane(&self) -> bool {
+        self.pane_manager.is_in_response_pane()
     }
 
     /// Switch to the other pane
-    pub fn toggle_pane(&mut self) {
-        self.current_pane = match self.current_pane {
-            Pane::Request => Pane::Response,
-            Pane::Response => Pane::Request,
-        };
+    pub fn switch_to_other_pane(&mut self) {
+        let events = self.pane_manager.switch_to_other_area();
+        if !events.is_empty() {
+            // Update status line pane
+            self.status_line
+                .set_current_pane(self.pane_manager.current_pane_type());
+            self.emit_view_event(events);
+        }
     }
 
-    /// Get immutable reference to request pane
-    pub fn request_pane(&self) -> &PaneState {
-        &self.panes[Pane::Request]
+    /// Switch to Request pane
+    pub fn switch_to_request_pane(&mut self) {
+        let events = self.pane_manager.switch_to_request_pane();
+        if !events.is_empty() {
+            self.status_line.set_current_pane(Pane::Request);
+            self.emit_view_event(events);
+        }
     }
 
-    /// Get mutable reference to request pane
-    pub fn request_pane_mut(&mut self) -> &mut PaneState {
-        &mut self.panes[Pane::Request]
-    }
-
-    /// Get immutable reference to response pane
-    pub fn response_pane(&self) -> &PaneState {
-        &self.panes[Pane::Response]
-    }
-
-    /// Get mutable reference to response pane
-    pub fn response_pane_mut(&mut self) -> &mut PaneState {
-        &mut self.panes[Pane::Response]
-    }
-
-    /// Get immutable reference to current active pane
-    pub fn current_pane_state(&self) -> &PaneState {
-        &self.panes[self.current_pane]
-    }
-
-    /// Get mutable reference to current active pane
-    pub fn current_pane_state_mut(&mut self) -> &mut PaneState {
-        &mut self.panes[self.current_pane]
+    /// Switch to Response pane
+    pub fn switch_to_response_pane(&mut self) {
+        let events = self.pane_manager.switch_to_response_pane();
+        if !events.is_empty() {
+            self.status_line.set_current_pane(Pane::Response);
+            self.emit_view_event(events);
+        }
     }
 
     /// Set a temporary status message for display
@@ -286,15 +230,17 @@ impl ViewModel {
         }
     }
 
-    /// Set current pane, returning event if changed
-    pub fn set_current_pane(&mut self, new_pane: Pane) -> Option<ModelEvent> {
-        if self.current_pane != new_pane {
-            let old_pane = self.current_pane;
-            self.current_pane = new_pane;
-            Some(ModelEvent::PaneSwitched { old_pane, new_pane })
-        } else {
-            None
-        }
+    /// Get content width (terminal width minus line numbers and padding)
+    pub fn get_content_width(&self) -> usize {
+        // Use semantic width calculation based on current area
+        let current_pane = self.pane_manager.current_pane_type();
+        let line_num_width = self.get_line_number_width(current_pane);
+        (self.pane_manager.terminal_dimensions.0 as usize).saturating_sub(line_num_width + 1)
+    }
+
+    /// Get reference to PaneManager for pane-specific operations
+    pub fn pane_manager(&self) -> &PaneManager {
+        &self.pane_manager
     }
 }
 

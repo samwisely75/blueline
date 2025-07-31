@@ -1,569 +1,217 @@
 //! # Cursor Management
 //!
-//! Handles all cursor movement and positioning logic including display cursor synchronization,
-//! scrolling, and coordinate transformations between logical and display positions.
+//! Handles all cursor movement and positioning logic using semantic operations from PaneManager.
+//! This module provides high-level cursor operations that work with the current/other area abstraction.
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane, ViewEvent};
+use crate::repl::events::LogicalPosition;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 
 impl ViewModel {
-    /// Get current logical cursor position for the active pane
+    /// Get current logical cursor position for the active area
     pub fn get_cursor_position(&self) -> LogicalPosition {
-        let current_pane = self.current_pane;
-        self.panes[current_pane].buffer.cursor()
+        self.pane_manager.get_current_cursor_position()
     }
 
-    /// Get current display cursor position for the active pane
+    /// Get current display cursor position for the active area
     pub fn get_display_cursor_position(&self) -> (usize, usize) {
-        let current_pane = self.current_pane;
-        self.get_display_cursor(current_pane)
+        self.pane_manager.get_current_display_cursor()
     }
 
-    /// Move cursor left in current pane (display coordinate based)
+    /// Move cursor left in current area
     pub fn move_cursor_left(&mut self) -> Result<()> {
-        let current_pane = self.current_pane;
-
-        // Sync display cursor with current logical cursor position
-        self.sync_display_cursor_with_logical(current_pane)?;
-
-        let current_display_pos = self.get_display_cursor(current_pane);
-        let display_cache = self.get_display_cache(current_pane);
-
-        tracing::debug!(
-            "move_cursor_left: pane={:?}, current_pos={:?}",
-            current_pane,
-            current_display_pos
-        );
-
-        let mut moved = false;
-
-        // Check if we can move left within current display line
-        if current_display_pos.1 > 0 {
-            let new_display_pos = (current_display_pos.0, current_display_pos.1 - 1);
-            tracing::debug!(
-                "move_cursor_left: moving within line to {:?}",
-                new_display_pos
-            );
-            self.set_display_cursor(current_pane, new_display_pos)?;
-            self.ensure_cursor_visible(current_pane);
-            moved = true;
-        } else if current_display_pos.0 > 0 {
-            // Move to end of previous display line
-            let prev_display_line = current_display_pos.0 - 1;
-            if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
-                // BUGFIX: Position cursor at the last character, not after it
-                // For a line with N characters, valid positions are 0 to N-1
-                // Position N would be after the last character and could trigger horizontal scrolling
-                let new_col = prev_line.content.chars().count().saturating_sub(1);
-                let new_display_pos = (prev_display_line, new_col);
-                tracing::debug!(
-                    "move_cursor_left: moving to end of previous line {:?}",
-                    new_display_pos
-                );
-                self.set_display_cursor(current_pane, new_display_pos)?;
-                self.ensure_cursor_visible(current_pane);
-                moved = true;
-            }
-        } else {
-            tracing::debug!("move_cursor_left: already at beginning, no movement");
+        let events = self.pane_manager.move_cursor_left();
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
         }
-
-        // Only emit events if we actually moved
-        if moved {
-            self.emit_view_event([
-                ViewEvent::CursorUpdateRequired { pane: current_pane },
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ]);
-        }
-
         Ok(())
     }
 
-    /// Move cursor right in current pane (display coordinate based)
+    /// Move cursor right in current area
     pub fn move_cursor_right(&mut self) -> Result<()> {
-        let current_pane = self.current_pane;
-
-        // Sync display cursor with current logical cursor position
-        self.sync_display_cursor_with_logical(current_pane)?;
-
-        let current_display_pos = self.get_display_cursor(current_pane);
-        let display_cache = self.get_display_cache(current_pane);
-
-        tracing::debug!(
-            "move_cursor_right: pane={:?}, current_pos={:?}",
-            current_pane,
-            current_display_pos
-        );
-
-        let mut moved = false;
-
-        // Get current display line info
-        if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
-            let line_length = current_line.content.chars().count();
-
-            tracing::debug!(
-                "move_cursor_right: line_length={}, current_col={}, line_content='{}', logical_start={}, logical_end={}, is_continuation={}",
-                line_length, current_display_pos.1, current_line.content,
-                current_line.logical_start_col, current_line.logical_end_col, current_line.is_continuation
-            );
-
-            // Check if we can move right within current display line
-            // BUGFIX: Account for clamping - if cursor is at the last valid position (line_length - 1),
-            // we should move to the next line instead of trying to move to an invalid position
-            let last_valid_position = if line_length > 0 { line_length - 1 } else { 0 };
-            if current_display_pos.1 < last_valid_position {
-                let new_display_pos = (current_display_pos.0, current_display_pos.1 + 1);
-                tracing::debug!(
-                    "move_cursor_right: moving within line to {:?}",
-                    new_display_pos
-                );
-                self.set_display_cursor(current_pane, new_display_pos)?;
-                self.ensure_cursor_visible(current_pane);
-                moved = true;
-            } else if current_display_pos.0 + 1 < display_cache.display_line_count() {
-                // Move to beginning of next display line
-                let new_display_pos = (current_display_pos.0 + 1, 0);
-                tracing::debug!(
-                    "move_cursor_right: at end of line {}, moving to next line {:?}",
-                    current_display_pos.0,
-                    new_display_pos
-                );
-
-                // Check if next line exists and get its info
-                if let Some(next_line) = display_cache.get_display_line(current_display_pos.0 + 1) {
-                    tracing::debug!(
-                        "move_cursor_right: next line info - logical_line={}, logical_start={}, logical_end={}, is_continuation={}, content='{}'",
-                        next_line.logical_line, next_line.logical_start_col, next_line.logical_end_col,
-                        next_line.is_continuation, next_line.content
-                    );
-                }
-
-                self.set_display_cursor(current_pane, new_display_pos)?;
-                self.ensure_cursor_visible(current_pane);
-                moved = true;
-            } else {
-                tracing::debug!("move_cursor_right: already at end, no movement");
-            }
-        } else {
-            tracing::debug!("move_cursor_right: invalid display line, no movement");
+        let events = self.pane_manager.move_cursor_right();
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
         }
-
-        // Only emit events if we actually moved
-        if moved {
-            self.emit_view_event([
-                ViewEvent::CursorUpdateRequired { pane: current_pane },
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ]);
-        }
-
         Ok(())
     }
 
-    /// Move cursor up in current pane (display line based)
+    /// Move cursor up in current area
     pub fn move_cursor_up(&mut self) -> Result<()> {
-        let current_pane = self.current_pane;
-        let current_display_pos = self.get_display_cursor(current_pane);
-        let display_cache = self.get_display_cache(current_pane);
-
-        tracing::debug!(
-            "move_cursor_up: pane={:?}, current_pos={:?}",
-            current_pane,
-            current_display_pos
-        );
-
-        if let Some(new_pos) = display_cache.move_up(current_display_pos.0, current_display_pos.1) {
-            self.set_display_cursor(current_pane, new_pos)?;
-            self.ensure_cursor_visible(current_pane);
-            self.emit_view_event([
-                ViewEvent::CursorUpdateRequired { pane: current_pane },
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ]);
-        } else {
-            tracing::debug!("move_cursor_up: already at top, no movement");
+        let events = self.pane_manager.move_cursor_up();
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
         }
-
         Ok(())
     }
 
-    /// Move cursor down in current pane (display line based)
+    /// Move cursor down in current area
     pub fn move_cursor_down(&mut self) -> Result<()> {
-        let current_pane = self.current_pane;
-        let current_display_pos = self.get_display_cursor(current_pane);
-        let display_cache = self.get_display_cache(current_pane);
-
-        tracing::debug!(
-            "move_cursor_down: pane={:?}, current_pos={:?}",
-            current_pane,
-            current_display_pos
-        );
-
-        if let Some(new_pos) = display_cache.move_down(current_display_pos.0, current_display_pos.1)
-        {
-            self.set_display_cursor(current_pane, new_pos)?;
-            self.ensure_cursor_visible(current_pane);
-            self.emit_view_event([
-                ViewEvent::CursorUpdateRequired { pane: current_pane },
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ]);
-        } else {
-            tracing::debug!("move_cursor_down: already at bottom, no movement");
+        let events = self.pane_manager.move_cursor_down();
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
         }
-
         Ok(())
     }
 
     /// Move cursor to end of current line
     pub fn move_cursor_to_end_of_line(&mut self) -> Result<()> {
-        let current_pane = self.current_pane;
-        let current_logical_pos = self.get_cursor_position();
-
-        // Get the text content for the current pane
-        let text = match current_pane {
-            Pane::Request => self.get_request_text(),
-            Pane::Response => self.get_response_text(),
-        };
-
-        let lines: Vec<_> = text.lines().collect();
-
-        if current_logical_pos.line < lines.len() {
-            let line_content = lines[current_logical_pos.line];
-            let line_length = line_content.chars().count();
-            let new_position = LogicalPosition::new(current_logical_pos.line, line_length);
-            self.set_cursor_position(new_position)?;
+        let events = self.pane_manager.move_cursor_to_end_of_line();
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
         }
-
         Ok(())
     }
 
     /// Move cursor to start of current line
     pub fn move_cursor_to_start_of_line(&mut self) -> Result<()> {
-        let current_logical_pos = self.get_cursor_position();
-        let new_position = LogicalPosition::new(current_logical_pos.line, 0);
-        self.set_cursor_position(new_position)?;
-
+        let events = self.pane_manager.move_cursor_to_start_of_line();
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
+        }
         Ok(())
     }
 
-    /// Move cursor to start of document (gg command)
+    /// Move cursor to start of document
     pub fn move_cursor_to_document_start(&mut self) -> Result<()> {
-        // Set logical cursor to (0, 0) - first line, first column
-        let start_position = LogicalPosition::new(0, 0);
-        self.set_cursor_position(start_position)?;
-
+        let events = self.pane_manager.move_cursor_to_document_start();
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
+        }
         Ok(())
     }
 
-    /// Move cursor to end of document (G command)
+    /// Move cursor to end of document
     pub fn move_cursor_to_document_end(&mut self) -> Result<()> {
-        let current_pane = self.current_pane;
-
-        // BUGFIX: Use the exact same approach as the test framework to ensure consistency
-        // Without this matching approach, G command integration tests fail due to line counting mismatch
-        // (expected cursor at line 7 but was at line 8) because test framework counts lines differently
-        let text = match current_pane {
-            Pane::Request => self.get_request_text(),
-            Pane::Response => self.get_response_text(),
-        };
-
-        let lines: Vec<_> = text.lines().collect();
-
-        if lines.is_empty() {
-            // If no content, position at (0, 0)
-            let end_position = LogicalPosition::new(0, 0);
-            self.set_cursor_position(end_position)?;
-        } else {
-            // Position at the beginning of the last line (column 0), like Vim's G command
-            // Use the same calculation as the test: lines.len() - 1
-            let last_line_index = lines.len() - 1;
-            let end_position = LogicalPosition::new(last_line_index, 0);
-            self.set_cursor_position(end_position)?;
+        let events = self.pane_manager.move_cursor_to_document_end();
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
         }
-
         Ok(())
     }
 
-    /// Set cursor to specific logical position
+    /// Set cursor position in current area
     pub fn set_cursor_position(&mut self, position: LogicalPosition) -> Result<()> {
-        let current_pane = self.current_pane;
-
-        // Update logical cursor in appropriate buffer
-        let clamped_position = self.panes[current_pane]
-            .buffer
-            .content()
-            .clamp_position(position);
-        self.panes[current_pane].buffer.set_cursor(clamped_position);
-
-        // Update status line cursor position
-        self.status_line.set_cursor_position(clamped_position);
-
-        // Update visual selection if in visual mode
-        self.update_visual_selection_end();
-
-        // Sync display cursor
-        self.sync_display_cursor_with_logical(current_pane)?;
-        self.ensure_cursor_visible(current_pane);
-        self.emit_view_event([
-            ViewEvent::CursorUpdateRequired { pane: current_pane },
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ]);
-
+        let events = self.pane_manager.set_current_cursor_position(position);
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
+        }
         Ok(())
     }
 
-    /// Update visual selection end position if in visual mode
-    fn update_visual_selection_end(&mut self) {
-        if self.mode() == EditorMode::Visual {
-            let current_cursor = self.get_cursor_position();
-            let current_pane = self.current_pane;
-
-            // Update the selection end for the current pane
-            if self.panes[current_pane].visual_selection_start.is_some() {
-                self.panes[current_pane].visual_selection_end = Some(current_cursor);
-                tracing::debug!("Updated visual selection end to {:?}", current_cursor);
-
-                // BUGFIX: Use full pane redraw for visual selection highlighting
-                // Visual selection highlighting requires re-evaluating selection state for all visible characters,
-                // not just redrawing from a specific line. PartialPaneRedrawRequired is optimized for text changes
-                // but doesn't properly handle selection state changes that can affect non-contiguous display lines.
-                self.emit_view_event([
-                    ViewEvent::PaneRedrawRequired { pane: current_pane },
-                    ViewEvent::CursorUpdateRequired { pane: current_pane },
-                ]);
-                tracing::debug!("Emitted full pane redraw for visual selection highlighting");
-            }
-        }
-    }
-
-    /// Synchronize display cursors for both panes
-    pub(super) fn sync_display_cursors(&mut self) {
-        for pane in [Pane::Request, Pane::Response] {
-            let logical = self.panes[pane].buffer.cursor();
-            if let Some(display_pos) = self.panes[pane]
-                .display_cache
-                .logical_to_display_position(logical.line, logical.column)
-            {
-                self.panes[pane].display_cursor = display_pos;
-            }
-        }
-    }
-
-    /// Get display cursor position for a pane
-    pub(super) fn get_display_cursor(&self, pane: Pane) -> (usize, usize) {
-        self.panes[pane].display_cursor
-    }
-
-    /// Set display cursor position for a pane
-    pub(super) fn set_display_cursor(
-        &mut self,
-        pane: Pane,
-        position: (usize, usize),
-    ) -> Result<()> {
-        tracing::debug!(
-            "set_display_cursor: pane={:?}, display_pos={:?}",
-            pane,
-            position
-        );
-
-        // Delegate to PaneState for all cursor positioning logic
-        let result = self.panes[pane].set_display_cursor(position);
-
-        // Update status line display position (for debugging)
-        if pane == self.current_pane {
-            self.status_line.set_display_position(Some(position));
-        }
-
-        // Update visual selection if in visual mode and cursor actually moved
-        if result.cursor_moved {
-            self.update_visual_selection_end();
-        }
-
-        Ok(())
-    }
-
-    /// Synchronize display cursor with logical cursor position
-    pub(super) fn sync_display_cursor_with_logical(&mut self, pane: Pane) -> Result<()> {
-        tracing::debug!("sync_display_cursor_with_logical: pane={:?}", pane);
-
-        // Delegate to PaneState for coordinate conversion
-        let _result = self.panes[pane].sync_display_cursor_with_logical();
-
-        Ok(())
-    }
-
-    /// Ensure cursor is visible within the viewport (handles scrolling)
-    pub(super) fn ensure_cursor_visible(&mut self, pane: Pane) {
-        let content_width = self.get_content_width();
-
-        tracing::debug!("ensure_cursor_visible: pane={:?}", pane);
-
-        // Delegate to PaneState for all scroll adjustment logic
-        let result = self.panes[pane].ensure_cursor_visible(content_width);
-
-        // Emit scroll changed event if scrolling occurred
-        if result.vertical_changed {
-            self.emit_view_event([ViewEvent::ScrollChanged {
-                pane,
-                old_offset: result.old_vertical_offset,
-                new_offset: result.new_vertical_offset,
-            }]);
-        }
-    }
-
-    /// Get scroll offset for a pane
-    pub(super) fn get_scroll_offset(&self, pane: Pane) -> (usize, usize) {
-        self.panes[pane].scroll_offset
-    }
-
-    /// Move cursor to the beginning of the next word
+    /// Move cursor to next word in current area
     pub fn move_cursor_to_next_word(&mut self) -> Result<()> {
-        let current_pane = self.current_pane;
-        let current_display_pos = self.get_display_cursor(current_pane);
-
-        tracing::debug!(
-            "move_cursor_to_next_word: pane={:?}, current_pos={:?}",
-            current_pane,
-            current_display_pos
-        );
-
-        // Delegate word finding logic to PaneState
-        if let Some(new_pos) = self.panes[current_pane].find_next_word_position(current_display_pos)
-        {
-            tracing::debug!("move_cursor_to_next_word: found word at {:?}", new_pos);
-            self.set_display_cursor(current_pane, new_pos)?;
-            self.ensure_cursor_visible(current_pane);
-
-            // Emit cursor update events
-            self.emit_view_event([
-                ViewEvent::CursorUpdateRequired { pane: current_pane },
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ]);
-        } else {
-            tracing::debug!(
-                "move_cursor_to_next_word: no next word found, staying at current position"
-            );
+        let events = self.pane_manager.move_cursor_to_next_word();
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
         }
-
         Ok(())
     }
 
-    /// Move cursor to the beginning of the previous word
+    /// Move cursor to previous word in current area
     pub fn move_cursor_to_previous_word(&mut self) -> Result<()> {
-        let current_pane = self.current_pane;
-        let current_display_pos = self.get_display_cursor(current_pane);
-
-        tracing::debug!(
-            "move_cursor_to_previous_word: pane={:?}, current_pos={:?}",
-            current_pane,
-            current_display_pos
-        );
-
-        // Delegate word finding logic to PaneState
-        if let Some(new_pos) =
-            self.panes[current_pane].find_previous_word_position(current_display_pos)
-        {
-            tracing::debug!("move_cursor_to_previous_word: found word at {:?}", new_pos);
-            self.set_display_cursor(current_pane, new_pos)?;
-            self.ensure_cursor_visible(current_pane);
-
-            // Emit cursor update events
-            self.emit_view_event([
-                ViewEvent::CursorUpdateRequired { pane: current_pane },
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ]);
-        } else {
-            tracing::debug!(
-                "move_cursor_to_previous_word: no previous word found, staying at current position"
-            );
+        let events = self.pane_manager.move_cursor_to_previous_word();
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
         }
-
         Ok(())
     }
 
-    /// Move cursor to the end of the current or next word
+    /// Move cursor to end of word in current area
     pub fn move_cursor_to_end_of_word(&mut self) -> Result<()> {
-        let current_pane = self.current_pane;
-        let current_display_pos = self.get_display_cursor(current_pane);
-
-        tracing::debug!(
-            "move_cursor_to_end_of_word: pane={:?}, current_pos={:?}",
-            current_pane,
-            current_display_pos
-        );
-
-        // Delegate word finding logic to PaneState
-        if let Some(new_pos) =
-            self.panes[current_pane].find_end_of_word_position(current_display_pos)
-        {
-            tracing::debug!(
-                "move_cursor_to_end_of_word: found word end at {:?}",
-                new_pos
-            );
-            self.set_display_cursor(current_pane, new_pos)?;
-            self.ensure_cursor_visible(current_pane);
-
-            // Emit cursor update events
-            self.emit_view_event([
-                ViewEvent::CursorUpdateRequired { pane: current_pane },
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ]);
-        } else {
-            tracing::debug!(
-                "move_cursor_to_end_of_word: no word end found, staying at current position"
-            );
+        let events = self.pane_manager.move_cursor_to_end_of_word();
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
         }
-
         Ok(())
     }
 
-    /// Move cursor to a specific line number (1-based)
+    /// Move cursor to specific line number (1-based)
     pub fn move_cursor_to_line(&mut self, line_number: usize) -> Result<()> {
-        if line_number == 0 {
-            return Ok(());
+        let events = self.pane_manager.move_cursor_to_line(line_number);
+        if !events.is_empty() {
+            let content_width = self.get_content_width();
+            let visibility_events = self
+                .pane_manager
+                .ensure_current_cursor_visible(content_width);
+            let mut all_events = events;
+            all_events.extend(visibility_events);
+            self.emit_view_event(all_events);
         }
-
-        let current_pane = self.current_pane;
-        let buffer = &self.panes[current_pane].buffer;
-
-        // Convert to 0-based line number for internal use
-        let target_line = line_number.saturating_sub(1);
-
-        // Get the buffer content to check line bounds
-        let content = buffer.content();
-        let line_count = content.line_count();
-
-        // Clamp to actual number of lines
-        let actual_target_line = if line_count == 0 {
-            0
-        } else {
-            std::cmp::min(target_line, line_count - 1)
-        };
-
-        // Set cursor to beginning of target line
-        let new_position = LogicalPosition {
-            line: actual_target_line,
-            column: 0,
-        };
-
-        self.panes[current_pane].buffer.set_cursor(new_position);
-
-        // Sync display cursor and ensure visibility
-        self.sync_display_cursor_with_logical(current_pane)?;
-        self.ensure_cursor_visible(current_pane);
-
-        // BUGFIX: Always emit scroll change event for line navigation to force pane redraw
-        // This ensures cursor movement is visible even when no actual scrolling occurs
-        let (current_v_offset, _current_h_offset) = self.get_scroll_offset(current_pane);
-        self.emit_view_event([
-            ViewEvent::ScrollChanged {
-                pane: current_pane,
-                old_offset: current_v_offset,
-                new_offset: current_v_offset, // Same offset, but forces redraw
-            },
-            ViewEvent::CursorUpdateRequired { pane: current_pane },
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ]);
-
         Ok(())
     }
+
+    // Scrolling methods are implemented elsewhere - avoiding duplication
 }

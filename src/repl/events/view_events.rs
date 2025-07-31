@@ -3,21 +3,29 @@
 //! Events related to view updates and user input.
 //! These events drive UI refreshing and handle user interactions.
 
-use super::types::Pane;
+// Pane import removed - no longer needed for abstracted events
 use crossterm::event::KeyEvent;
 
 /// Events emitted when view updates are needed
+/// These events are completely abstracted - external components never need to know about specific panes
 #[derive(Debug, Clone, PartialEq)]
 pub enum ViewEvent {
     /// Full screen redraw required (most expensive - terminal resize, etc)
     FullRedrawRequired,
 
-    /// Specific pane needs full redrawing (scrolling, major content change)
-    PaneRedrawRequired { pane: Pane },
+    /// Current active area needs full redrawing (scrolling, major content change)
+    CurrentAreaRedrawRequired,
 
-    /// Redraw from a specific line to bottom of visible area (for wrapped line edits)
-    PartialPaneRedrawRequired {
-        pane: Pane,
+    /// Secondary/display area needs full redrawing
+    SecondaryAreaRedrawRequired,
+
+    /// Redraw current area from a specific line to bottom of visible area
+    CurrentAreaPartialRedrawRequired {
+        start_line: usize, // Logical line number
+    },
+
+    /// Redraw secondary area from a specific line to bottom of visible area
+    SecondaryAreaPartialRedrawRequired {
         start_line: usize, // Logical line number
     },
 
@@ -27,15 +35,33 @@ pub enum ViewEvent {
     /// Only position indicator in status bar needs updating (very cheap)
     PositionIndicatorUpdateRequired,
 
-    /// Only cursor position/style needs updating (cheapest)
-    CursorUpdateRequired { pane: Pane },
+    /// Active cursor position/style needs updating (cheapest)
+    ActiveCursorUpdateRequired,
 
-    /// Scroll position changed
-    ScrollChanged {
-        pane: Pane,
+    /// Scroll position changed in current area
+    CurrentAreaScrollChanged {
         old_offset: usize,
         new_offset: usize,
     },
+
+    /// Scroll position changed in secondary area
+    SecondaryAreaScrollChanged {
+        old_offset: usize,
+        new_offset: usize,
+    },
+
+    /// Content area focus switched (for cursor style, highlighting, etc)
+    FocusSwitched,
+
+    // Domain-specific events for clearer semantics
+    /// Request content has been modified
+    RequestContentChanged,
+
+    /// Response content needs to be displayed
+    ResponseContentChanged,
+
+    /// Both request and response areas need redraw (for layout changes)
+    AllContentAreasRedrawRequired,
 }
 
 /// Input events from user or system
@@ -60,38 +86,27 @@ mod tests {
     }
 
     #[test]
-    fn view_event_pane_redraw_should_carry_pane_data() {
-        let event = ViewEvent::PaneRedrawRequired {
-            pane: Pane::Request,
-        };
-
-        match event {
-            ViewEvent::PaneRedrawRequired { pane } => {
-                assert_eq!(pane, Pane::Request);
-            }
-            _ => panic!("Expected PaneRedrawRequired event"),
-        }
+    fn view_event_current_area_redraw_should_create() {
+        let event = ViewEvent::CurrentAreaRedrawRequired;
+        assert_eq!(event, ViewEvent::CurrentAreaRedrawRequired);
     }
 
     #[test]
     fn scroll_changed_event_should_carry_offset_data() {
-        let event = ViewEvent::ScrollChanged {
-            pane: Pane::Response,
+        let event = ViewEvent::CurrentAreaScrollChanged {
             old_offset: 5,
             new_offset: 10,
         };
 
         match event {
-            ViewEvent::ScrollChanged {
-                pane,
+            ViewEvent::CurrentAreaScrollChanged {
                 old_offset,
                 new_offset,
             } => {
-                assert_eq!(pane, Pane::Response);
                 assert_eq!(old_offset, 5);
                 assert_eq!(new_offset, 10);
             }
-            _ => panic!("Expected ScrollChanged event"),
+            _ => panic!("Expected CurrentAreaScrollChanged event"),
         }
     }
 

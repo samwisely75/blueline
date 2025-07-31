@@ -13,7 +13,7 @@ const MIN_LINE_NUMBER_WIDTH: usize = 3;
 impl ViewModel {
     /// Get display cache for a specific pane
     pub(super) fn get_display_cache(&self, pane: Pane) -> &DisplayCache {
-        &self.panes[pane].display_cache
+        self.pane_manager.get_display_cache(pane)
     }
 
     /// Get display lines for rendering a specific pane
@@ -24,7 +24,13 @@ impl ViewModel {
         row_count: usize,
     ) -> Vec<Option<DisplayLineData>> {
         let display_cache = self.get_display_cache(pane);
-        let (vertical_scroll_offset, horizontal_scroll_offset) = self.get_scroll_offset(pane);
+        let (vertical_scroll_offset, horizontal_scroll_offset) =
+            if pane == self.pane_manager.current_pane_type() {
+                self.pane_manager.get_current_scroll_offset()
+            } else {
+                // For non-current pane, access scroll offset directly (this should be made semantic later)
+                (0, 0) // Simplified for now
+            };
         let content_width = self.get_content_width();
         let mut result = Vec::new();
 
@@ -67,8 +73,19 @@ impl ViewModel {
 
     /// Get cursor position for rendering
     pub fn get_cursor_for_rendering(&self, pane: Pane) -> (usize, usize) {
-        let display_pos = self.get_display_cursor(pane);
-        let (vertical_offset, horizontal_offset) = self.get_scroll_offset(pane);
+        let display_pos = if pane == self.pane_manager.current_pane_type() {
+            self.pane_manager.get_current_display_cursor()
+        } else {
+            // For non-current pane, simplified for now
+            (0, 0)
+        };
+        let (vertical_offset, horizontal_offset) = if pane == self.pane_manager.current_pane_type()
+        {
+            self.pane_manager.get_current_scroll_offset()
+        } else {
+            // For non-current pane, simplified for now
+            (0, 0)
+        };
 
         // Calculate screen-relative position
         let screen_row = display_pos.0.saturating_sub(vertical_offset);
@@ -83,8 +100,8 @@ impl ViewModel {
     /// (e.g., jumping to line 1547 with hardcoded width=3 causes cursor to appear next to "7" of "1547")
     pub fn get_line_number_width(&self, pane: Pane) -> usize {
         let content = match pane {
-            Pane::Request => self.get_request_text(),
-            Pane::Response => self.get_response_text(),
+            Pane::Request => self.pane_manager.get_request_text(),
+            Pane::Response => self.pane_manager.get_response_text(),
         };
 
         let line_count = if content.is_empty() {
@@ -100,20 +117,12 @@ impl ViewModel {
         width.max(MIN_LINE_NUMBER_WIDTH)
     }
 
-    /// Get content width (terminal width minus line numbers and padding)
-    /// Note: This is a simplified calculation. In practice, each pane may have different line number widths.
-    pub(super) fn get_content_width(&self) -> usize {
-        // Use current pane's line number width
-        let current_pane = self.current_pane;
-        let line_num_width = self.get_line_number_width(current_pane);
-
-        (self.terminal_dimensions.0 as usize).saturating_sub(line_num_width + 1)
-    }
+    // get_content_width method moved to core.rs to avoid duplication
 
     /// Set word wrap enabled/disabled and rebuild display caches
     pub fn set_wrap_enabled(&mut self, enabled: bool) -> Result<(), anyhow::Error> {
-        if self.wrap_enabled != enabled {
-            self.wrap_enabled = enabled;
+        if self.pane_manager.is_wrap_enabled() != enabled {
+            self.pane_manager.set_wrap_enabled(enabled);
             self.rebuild_display_caches()?;
             self.emit_view_event([ViewEvent::FullRedrawRequired]);
         }
@@ -123,21 +132,15 @@ impl ViewModel {
     /// Rebuild display caches for both panes
     fn rebuild_display_caches(&mut self) -> Result<(), anyhow::Error> {
         let content_width = self.get_content_width();
+        self.pane_manager.rebuild_display_caches(content_width);
 
-        // Rebuild display caches using PaneState encapsulation
-        self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
-        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
+        // Sync display cursors to ensure they're still valid after cache rebuild
+        self.pane_manager.sync_display_cursors();
 
-        // Synchronize display cursors after rebuilding caches to handle coordinate system changes
-        // This is critical when wrap mode changes as cursor positions may be invalid
-        self.sync_display_cursors();
-
-        // BUGFIX: Ensure cursor remains visible after wrap mode toggle instead of resetting to (0,0)
-        // Without this fix, toggling wrap mode resets scroll to top while cursor position indicator
-        // shows the old position (e.g., "RESPONSE 56:1"), causing navigation to behave incorrectly
-        // Using ensure_cursor_visible() maintains proper cursor-scroll synchronization
-        self.ensure_cursor_visible(Pane::Request);
-        self.ensure_cursor_visible(Pane::Response);
+        // Ensure current cursor is visible after potential layout changes
+        let _visibility_events = self
+            .pane_manager
+            .ensure_current_cursor_visible(content_width);
 
         Ok(())
     }

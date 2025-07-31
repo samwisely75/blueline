@@ -2,7 +2,7 @@
 //!
 //! Handles HTTP client configuration, request execution, and response management.
 
-use crate::repl::events::Pane;
+// Pane import removed - using semantic operations instead
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 use bluenote::{HttpClient, HttpConnectionProfile};
@@ -52,11 +52,7 @@ impl ViewModel {
 
     /// Get request text from buffer
     pub fn get_request_text(&self) -> String {
-        self.panes[Pane::Request]
-            .buffer
-            .content()
-            .lines()
-            .join("\n")
+        self.pane_manager.get_request_text()
     }
 
     /// Set response from HTTP response
@@ -79,47 +75,16 @@ impl ViewModel {
         self.status_line
             .set_http_status(status_code, status_message, duration_ms);
 
-        // Update response buffer content
-        self.panes[Pane::Response]
-            .buffer
-            .content_mut()
-            .set_text(&body);
-        self.panes[Pane::Response]
-            .buffer
-            .set_cursor(crate::repl::events::LogicalPosition::zero());
+        // Update response buffer content using semantic operation
+        let _events = self.pane_manager.set_response_content(&body);
 
-        // Rebuild response display cache
-        let content_width = self.get_content_width();
-        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
-
-        // Reset response display cursor and scroll
-        self.panes[Pane::Response].display_cursor = (0, 0);
-        self.panes[Pane::Response].scroll_offset = (0, 0);
+        // Response content setting already resets cursor and scroll positions
 
         // Recalculate pane dimensions now that we have a response
-        // Use the same logic as update_terminal_size to ensure both panes get proper dimensions
-        let (width, height) = self.terminal_dimensions;
-        self.request_pane_height = height / 2;
+        let (width, height) = self.pane_manager.terminal_dimensions;
+        self.pane_manager.update_terminal_size(width, height, true);
 
-        // Recalculate pane dimensions with proper split-screen layout
-        let content_width = (width as usize).saturating_sub(4); // Account for line numbers
-        let request_pane_height = self.request_pane_height as usize;
-        let response_pane_height = (height as usize)
-            .saturating_sub(self.request_pane_height as usize)
-            .saturating_sub(2) // -2 for separator and status
-            .max(1); // Ensure minimum height of 1
-
-        // Update pane dimensions
-        self.panes[Pane::Request].update_dimensions(content_width, request_pane_height);
-        self.panes[Pane::Response].update_dimensions(content_width, response_pane_height);
-
-        tracing::debug!(
-            "Pane dimensions updated after HTTP response: Request={}x{}, Response={}x{}",
-            content_width,
-            request_pane_height,
-            content_width,
-            response_pane_height
-        );
+        tracing::debug!("Pane dimensions updated after HTTP response");
 
         // Full redraw is needed when response first appears to draw the response pane
         // This will also update the status bar with TAT and message
@@ -137,47 +102,14 @@ impl ViewModel {
         self.response.set_status_code(status_code);
         self.response.set_body(content.clone());
 
-        // Update response buffer
-        self.panes[Pane::Response]
-            .buffer
-            .content_mut()
-            .set_text(&content);
-        self.panes[Pane::Response]
-            .buffer
-            .set_cursor(crate::repl::events::LogicalPosition::zero());
-
-        // Rebuild response display cache
-        let content_width = self.get_content_width();
-        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
-
-        // Reset response display cursor and scroll
-        self.panes[Pane::Response].display_cursor = (0, 0);
-        self.panes[Pane::Response].scroll_offset = (0, 0);
+        // Update response buffer using semantic operation
+        let _events = self.pane_manager.set_response_content(&content);
 
         // Recalculate pane dimensions now that we have a response
-        // Use the same logic as update_terminal_size to ensure both panes get proper dimensions
-        let (width, height) = self.terminal_dimensions;
-        self.request_pane_height = height / 2;
+        let (width, height) = self.pane_manager.terminal_dimensions;
+        self.pane_manager.update_terminal_size(width, height, true);
 
-        // Recalculate pane dimensions with proper split-screen layout
-        let content_width = (width as usize).saturating_sub(4); // Account for line numbers
-        let request_pane_height = self.request_pane_height as usize;
-        let response_pane_height = (height as usize)
-            .saturating_sub(self.request_pane_height as usize)
-            .saturating_sub(2) // -2 for separator and status
-            .max(1); // Ensure minimum height of 1
-
-        // Update pane dimensions
-        self.panes[Pane::Request].update_dimensions(content_width, request_pane_height);
-        self.panes[Pane::Response].update_dimensions(content_width, response_pane_height);
-
-        tracing::debug!(
-            "Pane dimensions updated after manual response: Request={}x{}, Response={}x{}",
-            content_width,
-            request_pane_height,
-            content_width,
-            response_pane_height
-        );
+        tracing::debug!("Pane dimensions updated after manual response");
 
         // Full redraw is needed when response first appears
         self.emit_view_event([crate::repl::events::ViewEvent::FullRedrawRequired]);
@@ -206,11 +138,7 @@ impl ViewModel {
 
     /// Get response text content
     pub fn get_response_text(&self) -> String {
-        self.panes[Pane::Response]
-            .buffer
-            .content()
-            .lines()
-            .join("\n")
+        self.pane_manager.get_response_text()
     }
 
     /// Check if verbose mode is enabled
