@@ -562,4 +562,26 @@ mod tests {
         assert!(text.contains("developers 開発者"));
         assert!(text.contains("アプリケーション applications"));
     }
+
+    #[test]
+    fn buffer_content_should_handle_get_space_enter_enter_sequence() {
+        let mut content = BufferContent::new();
+
+        // Simulate the exact sequence: "GET " + Enter + Enter
+        content.insert_text(Pane::Request, LogicalPosition::new(0, 0), "G");
+        content.insert_text(Pane::Request, LogicalPosition::new(0, 1), "E");
+        content.insert_text(Pane::Request, LogicalPosition::new(0, 2), "T");
+        content.insert_text(Pane::Request, LogicalPosition::new(0, 3), " ");
+        content.insert_text(Pane::Request, LogicalPosition::new(0, 4), "\n");
+        content.insert_text(Pane::Request, LogicalPosition::new(1, 0), "\n");
+
+        // Should have 3 lines: "GET ", "", ""
+        assert_eq!(content.line_count(), 3);
+        assert_eq!(content.get_line(0), Some(&"GET ".to_string()));
+        assert_eq!(content.get_line(1), Some(&"".to_string()));
+        assert_eq!(content.get_line(2), Some(&"".to_string()));
+
+        let full_text = content.get_text();
+        assert_eq!(full_text, "GET \n\n");
+    }
 }

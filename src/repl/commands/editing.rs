@@ -154,6 +154,33 @@ mod tests {
     }
 
     #[test]
+    fn insert_char_should_be_relevant_for_capital_g_with_shift() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = KeyEvent::new(KeyCode::Char('G'), KeyModifiers::SHIFT);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_capital_e_with_shift() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = KeyEvent::new(KeyCode::Char('E'), KeyModifiers::SHIFT);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_capital_t_with_shift() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = KeyEvent::new(KeyCode::Char('T'), KeyModifiers::SHIFT);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
     fn insert_char_should_be_relevant_for_japanese_hiragana_in_insert_mode() {
         let context = create_test_context();
         let cmd = InsertCharCommand;

@@ -1235,4 +1235,21 @@ mod tests {
             assert_eq!(request_height + 1 + response_height + 1, 40); // +1 for separator, +1 for status
         }
     }
+
+    #[test]
+    fn visual_length_should_handle_control_characters_safely() {
+        if let Ok(renderer) = TerminalRenderer::new() {
+            // Test newline character (should be ignored/zero width)
+            assert_eq!(renderer.visual_length("\n"), 0);
+
+            // Test tab character (should be ignored/zero width)
+            assert_eq!(renderer.visual_length("\t"), 0);
+
+            // Test mixed text with newlines (newlines should be ignored)
+            assert_eq!(renderer.visual_length("Hello\nWorld"), 10); // Only count printable chars
+
+            // Test empty string
+            assert_eq!(renderer.visual_length(""), 0);
+        }
+    }
 }
