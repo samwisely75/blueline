@@ -17,6 +17,7 @@ impl Command for SwitchPaneCommand {
     }
 
     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Use semantic switching - just switch to other area
         let new_pane = match context.state.current_pane {
             Pane::Request => Pane::Response,
             Pane::Response => Pane::Request,

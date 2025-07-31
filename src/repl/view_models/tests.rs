@@ -1377,4 +1377,229 @@ mod integration_tests {
         assert!(!vm.is_position_selected(LogicalPosition::new(0, 8), Pane::Request));
         assert!(!vm.is_position_selected(LogicalPosition::new(0, 32), Pane::Request));
     }
+
+    // Tests for PaneState word navigation methods
+    #[test]
+    fn test_pane_state_find_next_word_position_should_find_next_word_on_same_line() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(80, 24);
+        vm.set_wrap_enabled(false).unwrap();
+
+        // Insert text with multiple words
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello world test").unwrap();
+
+        let pane_state = &vm.panes[Pane::Request];
+
+        // From position (0, 0), should find "world" at (0, 6)
+        let result = pane_state.find_next_word_position((0, 0));
+        assert_eq!(result, Some((0, 6)));
+
+        // From position (0, 6), should find "test" at (0, 12)
+        let result = pane_state.find_next_word_position((0, 6));
+        assert_eq!(result, Some((0, 12)));
+    }
+
+    #[test]
+    fn test_pane_state_find_next_word_position_should_find_word_on_next_line() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(80, 24);
+        vm.set_wrap_enabled(false).unwrap();
+
+        // Insert text with multiple lines
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello\n  world test").unwrap();
+
+        let pane_state = &vm.panes[Pane::Request];
+
+        // From end of first line, should find "world" on next line
+        let result = pane_state.find_next_word_position((0, 5));
+        assert_eq!(result, Some((1, 2))); // "world" starts at column 2 (after spaces)
+    }
+
+    #[test]
+    fn test_pane_state_find_next_word_position_should_return_none_at_end() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(80, 24);
+        vm.set_wrap_enabled(false).unwrap();
+
+        // Insert single word
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello").unwrap();
+
+        let pane_state = &vm.panes[Pane::Request];
+
+        // From end of text, should return None
+        let result = pane_state.find_next_word_position((0, 5));
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_pane_state_find_previous_word_position_should_find_previous_word_on_same_line() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(80, 24);
+        vm.set_wrap_enabled(false).unwrap();
+
+        // Insert text with multiple words
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello world test").unwrap();
+
+        let pane_state = &vm.panes[Pane::Request];
+
+        // From position (0, 12) "test", should find "world" at (0, 6)
+        let result = pane_state.find_previous_word_position((0, 12));
+        assert_eq!(result, Some((0, 6)));
+
+        // From position (0, 6) "world", should find "hello" at (0, 0)
+        let result = pane_state.find_previous_word_position((0, 6));
+        assert_eq!(result, Some((0, 0)));
+    }
+
+    #[test]
+    fn test_pane_state_find_previous_word_position_should_find_word_on_previous_line() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(80, 24);
+        vm.set_wrap_enabled(false).unwrap();
+
+        // Insert text with multiple lines
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello world\ntest").unwrap();
+
+        let pane_state = &vm.panes[Pane::Request];
+
+        // From beginning of second line, should find "world" on previous line
+        let result = pane_state.find_previous_word_position((1, 0));
+        assert_eq!(result, Some((0, 6))); // "world" starts at column 6
+    }
+
+    #[test]
+    fn test_pane_state_find_previous_word_position_should_return_none_at_beginning() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(80, 24);
+        vm.set_wrap_enabled(false).unwrap();
+
+        // Insert single word
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello").unwrap();
+
+        let pane_state = &vm.panes[Pane::Request];
+
+        // From beginning of text, should return None
+        let result = pane_state.find_previous_word_position((0, 0));
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_pane_state_find_end_of_word_position_should_find_end_of_current_word() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(80, 24);
+        vm.set_wrap_enabled(false).unwrap();
+
+        // Insert text with multiple words
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello world test").unwrap();
+
+        let pane_state = &vm.panes[Pane::Request];
+
+        // From position (0, 0) in "hello", should find end at (0, 4)
+        let result = pane_state.find_end_of_word_position((0, 0));
+        assert_eq!(result, Some((0, 4))); // 'o' in "hello"
+
+        // From position (0, 6) in "world", should find end at (0, 10)
+        let result = pane_state.find_end_of_word_position((0, 6));
+        assert_eq!(result, Some((0, 10))); // 'd' in "world"
+    }
+
+    #[test]
+    fn test_pane_state_find_end_of_word_position_should_find_next_word_end_when_at_word_end() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(80, 24);
+        vm.set_wrap_enabled(false).unwrap();
+
+        // Insert text with multiple words
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello world test").unwrap();
+
+        let pane_state = &vm.panes[Pane::Request];
+
+        // From end of "hello" (position 4), should find end of "world" at (0, 10)
+        let result = pane_state.find_end_of_word_position((0, 4));
+        assert_eq!(result, Some((0, 10))); // 'd' in "world"
+    }
+
+    #[test]
+    fn test_pane_state_find_end_of_word_position_should_return_none_at_end() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(80, 24);
+        vm.set_wrap_enabled(false).unwrap();
+
+        // Insert single word
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello").unwrap();
+
+        let pane_state = &vm.panes[Pane::Request];
+
+        // From end of text, should return None
+        let result = pane_state.find_end_of_word_position((0, 4));
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_pane_state_word_navigation_should_handle_punctuation() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(80, 24);
+        vm.set_wrap_enabled(false).unwrap();
+
+        // Insert text with punctuation
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello, world! test").unwrap();
+
+        let pane_state = &vm.panes[Pane::Request];
+
+        // Debug: let's see what the actual text looks like
+        // "hello, world! test"
+        //  01234567890123456789
+        //  h=0, ,=5, w=7, !=12, t=14
+
+        // Test next word navigation with punctuation
+        let result = pane_state.find_next_word_position((0, 0)); // from "hello"
+                                                                 // Current algorithm behavior: finds the comma at position 5
+                                                                 // This matches vim's behavior where punctuation is treated as a separate "word"
+        assert_eq!(result, Some((0, 5))); // finds comma
+
+        // From comma, should find "world"
+        let result = pane_state.find_next_word_position((0, 5)); // from comma
+        assert_eq!(result, Some((0, 7))); // should find "world"
+
+        let result = pane_state.find_next_word_position((0, 7)); // from "world"
+        assert_eq!(result, Some((0, 12))); // finds exclamation at position 12
+
+        // Test previous word navigation with punctuation
+        let result = pane_state.find_previous_word_position((0, 14)); // from "test"
+        assert_eq!(result, Some((0, 7))); // should find "world"
+
+        let result = pane_state.find_previous_word_position((0, 7)); // from "world"
+        assert_eq!(result, Some((0, 0))); // should find "hello"
+    }
+
+    #[test]
+    fn test_pane_state_word_navigation_should_handle_empty_lines() {
+        let mut vm = ViewModel::new();
+        vm.update_terminal_size(80, 24);
+        vm.set_wrap_enabled(false).unwrap();
+
+        // Insert text with empty lines
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello\n\nworld").unwrap();
+
+        let pane_state = &vm.panes[Pane::Request];
+
+        // Should skip empty line and find "world"
+        let result = pane_state.find_next_word_position((0, 5)); // from end of "hello"
+        assert_eq!(result, Some((2, 0))); // "world" on line 2
+
+        // Should skip empty line going backwards
+        let result = pane_state.find_previous_word_position((2, 0)); // from "world"
+        assert_eq!(result, Some((0, 0))); // "hello" on line 0
+    }
 }

@@ -107,9 +107,7 @@ mod tests {
             events_clone.lock().unwrap().push(event.clone());
         }));
 
-        let event = ViewEvent::PaneRedrawRequired {
-            pane: Pane::Request,
-        };
+        let event = ViewEvent::CurrentAreaRedrawRequired;
         bus.publish_view_event(event.clone());
 
         let received = received_events.lock().unwrap();

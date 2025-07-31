@@ -16,7 +16,7 @@ This file provides guidance to human developers and Generative AI Engines when w
   - [Coding Tools](#coding-tools)
   - [Test Tools](#test-tools)
   - [CI/CD Pipelines](#cicd-pipelines)
-  - [Documentations](#documentations)
+  - [Documentation Guidelines](#documentation-guidelines)
   - [Issue Tracking](#issue-tracking)
 - [Development Guidelines](#development-guidelines)
   - [Coding Style](#coding-style)
@@ -24,8 +24,7 @@ This file provides guidance to human developers and Generative AI Engines when w
   - [Build and Test](#build-and-test)
   - [Release Process](#release-process)
   - [Coding Guidelines](#coding-guidelines)
-- [Technical Notes](#technical-notes)
-- [Development Workflow](#development-workflow)
+- [Documentation Guidelines](#documentation-guidelines)
 
 ## Application Overview
 
@@ -96,10 +95,6 @@ Since this is a command line tool, it does not have a CD pipeline. CI and releas
 
 - **Continuous Integration**: `.github/workflows/ci.yml`
 - **Release Automation**: `.github/workflows/release.yml`
-
-### Documentations
-
-All documents except `README.md` and `CLAUDE.md` are managed under `docs/` directory.
 
 ### Issue Tracking
 
@@ -190,64 +185,7 @@ Everyone, including Generative AI Engine like Copilot and Claude Code, must foll
      \`\`\`.
    - If the command is too long, split it into multiple lines using `\` at the end of each line.
 
-## Markdown Guidelines
+## Documentation Guidelines
 
-1. **Follow the Markdown standards**: Use the standard Markdown syntax for headings, lists, code blocks, and links. Do not use any non-standard syntax or extensions.
-2. **Empty line after headings**: Always leave an empty line after a heading to ensure proper rendering in Markdown viewers.
-
-## Development Workflow
-
-Developers and Generative AI Engines like Claude Code should strictly follow this workflow to implement new features or fix bugs in the codebase. This process ensures that changes are made systematically, tested thoroughly, and documented properly.
-
-1. Pick up the top-most item in the `Ready` state on [blueline GitHub Kanban](https://github.com/users/samwisely75/projects/1) by the following command. If the result is empty, ask for it.
-
-   ```shell
-   gh project item-list 1 \
-       --owner samwisely75 \
-       --format json \
-       --limit 1000 \
-       --jq '.items[] | select(.status == "Ready")'
-   ```
-
-2. Plan the implementation and todos. Ask for clarification if needed.
-3. Create a new branch from the `develop` branch with a descriptive name, e.g., `feature/new-feature` or `bugfix/fix-issue-123`.
-4. Move the Kanban item to the `In progress` state. The command is:
-
-   ```shell
-   gh project item-edit \
-       --id $item_id \
-       --field-id PVTSSF_lAHODQVrPs4A_FfHzgyS000 \
-       --single-select-option-id 47fc9ee4 \
-       --project-id PVT_kwHODQVrPs4A_FfH
-   ```
-
-5. Update the feature file to dictate the specification of the feature. If the feature is already implemented, update the existing test to reflect the new behavior.
-6. Implement the changes.
-7. Create or update comprehensive unit tests for the changes.
-8. Run all tests including integration tests to ensure everything works as expected.
-9. Make sure to leave comments following the coding guidelines. It is particularly important to leave comments when you change the code for a bug fix.
-10. Run `/scripts/git-commit-precheck.sh` to see if the code passes pre-commit checks. If it fails, fix the issues and run the script again until it passes.
-    - This script will run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` to ensure code quality and formatting.
-    - If you are using a Generative AI Engine like Claude Code, make sure to run this script before committing any changes.
-11. Commit all changes with a clear and concise commit message. Do not leave out the code files you updated to fix clippy warnings and what `cargo fmt` modified.
-12. Create a pull request (PR) with a clear and concise description of the changes made, including the issue number if applicable.
-    - The PR title should be descriptive and follow the format `Fix #issue_number: Short description of the change`.
-    - The PR description should include:
-      - A summary of the changes made
-      - The issue number(s) related to the changes
-      - Any additional context or information that may be helpful for reviewers
-13. Move the Kanban item to the `In Review` state. The command is:
-
-   ```shell
-   gh project item-edit \
-       --id $item_id \
-       --field-id PVTSSF_lAHODQVrPs4A_FfHzgyS000 \
-       --single-select-option-id df73e18b \
-       --project-id PVT_kwHODQVrPs4A_FfH
-   ```
-
-14. Address any feedback on PR and make necessary changes.
-15. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If a bug is fixed, increment the patch version. If a breaking change is made, increment the major version.
-16. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.
-17. Create a git tag for the same version number with "v", e.g., `git tag v1.0.0`.
-18. Go to step 1.
+1. **Document Store**: All documents except `README.md` and `CLAUDE.md` are managed under `docs/` directory.
+1. **Markdown**: All documents are written in Markdown format. Use standard Markdown syntax for headings, lists, code blocks, and links. Always leave an empty line after a heading to ensure proper rendering in Markdown viewers. Use markdownlint to check the Markdown files for any issues.

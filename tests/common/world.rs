@@ -310,9 +310,10 @@ impl BluelineWorld {
             CommandEvent::ModeChangeRequested { new_mode } => {
                 self.view_model.change_mode(new_mode)?;
             }
-            CommandEvent::PaneSwitchRequested { target_pane } => {
-                self.view_model.switch_pane(target_pane)?;
-            }
+            CommandEvent::PaneSwitchRequested { target_pane } => match target_pane {
+                blueline::Pane::Request => self.view_model.switch_to_request_pane(),
+                blueline::Pane::Response => self.view_model.switch_to_response_pane(),
+            },
             CommandEvent::TextInsertRequested { text, .. } => {
                 self.view_model.insert_text(&text)?;
             }

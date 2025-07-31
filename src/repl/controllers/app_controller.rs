@@ -254,9 +254,10 @@ impl AppController {
                     }
                 }
             }
-            CommandEvent::PaneSwitchRequested { target_pane } => {
-                self.view_model.switch_pane(target_pane)?;
-            }
+            CommandEvent::PaneSwitchRequested { target_pane } => match target_pane {
+                Pane::Request => self.view_model.switch_to_request_pane(),
+                Pane::Response => self.view_model.switch_to_response_pane(),
+            },
             CommandEvent::HttpRequestRequested {
                 method,
                 url,
@@ -406,7 +407,8 @@ impl AppController {
         let mut needs_full_redraw = false;
         let mut needs_status_bar = false;
         let mut needs_cursor_update = false;
-        let mut panes_to_redraw = std::collections::HashSet::new();
+        let mut needs_current_area_redraw = false;
+        let mut needs_secondary_area_redraw = false;
         let mut partial_redraws: std::collections::HashMap<Pane, usize> =
             std::collections::HashMap::new();
 
@@ -417,16 +419,32 @@ impl AppController {
                     // Full redraw overrides all other events
                     break;
                 }
-                ViewEvent::PaneRedrawRequired { pane } => {
-                    panes_to_redraw.insert(pane);
-                    // Full pane redraw overrides partial redraws
-                    partial_redraws.remove(&pane);
+                ViewEvent::CurrentAreaRedrawRequired => {
+                    needs_current_area_redraw = true;
                 }
-                ViewEvent::PartialPaneRedrawRequired { pane, start_line } => {
-                    // Only add partial redraw if we're not already doing a full pane redraw
-                    if !panes_to_redraw.contains(&pane) {
+                ViewEvent::SecondaryAreaRedrawRequired => {
+                    needs_secondary_area_redraw = true;
+                }
+                ViewEvent::CurrentAreaPartialRedrawRequired { start_line } => {
+                    // Only add partial redraw if we're not already doing a full current area redraw
+                    if !needs_current_area_redraw {
+                        let current_pane = self.view_model.get_current_pane();
                         partial_redraws
-                            .entry(pane)
+                            .entry(current_pane)
+                            .and_modify(|line| *line = (*line).min(start_line))
+                            .or_insert(start_line);
+                    }
+                }
+                ViewEvent::SecondaryAreaPartialRedrawRequired { start_line } => {
+                    // Only add partial redraw if we're not already doing a full secondary area redraw
+                    if !needs_secondary_area_redraw {
+                        let current_pane = self.view_model.get_current_pane();
+                        let secondary_pane = match current_pane {
+                            Pane::Request => Pane::Response,
+                            Pane::Response => Pane::Request,
+                        };
+                        partial_redraws
+                            .entry(secondary_pane)
                             .and_modify(|line| *line = (*line).min(start_line))
                             .or_insert(start_line);
                     }
@@ -439,15 +457,41 @@ impl AppController {
                     self.view_renderer
                         .render_position_indicator(&self.view_model)?;
                 }
-                ViewEvent::CursorUpdateRequired { .. } => {
+                ViewEvent::ActiveCursorUpdateRequired => {
                     needs_cursor_update = true;
                 }
-                ViewEvent::ScrollChanged { pane, .. } => {
-                    panes_to_redraw.insert(pane);
-                    // Scroll requires full pane redraw
-                    partial_redraws.remove(&pane);
-                    // Ensure cursor is hidden during scroll to prevent ghost cursor
+                ViewEvent::CurrentAreaScrollChanged { .. } => {
+                    needs_current_area_redraw = true;
+                    // Ensure cursor is updated after scroll to prevent ghost cursor
                     needs_cursor_update = true;
+                }
+                ViewEvent::SecondaryAreaScrollChanged { .. } => {
+                    needs_secondary_area_redraw = true;
+                }
+                ViewEvent::FocusSwitched => {
+                    // Focus switch requires cursor update and status bar update
+                    needs_cursor_update = true;
+                    needs_status_bar = true;
+                }
+                ViewEvent::RequestContentChanged => {
+                    // Request content changed - redraw current area if we're in request pane
+                    if self.view_model.is_in_request_pane() {
+                        needs_current_area_redraw = true;
+                    } else {
+                        needs_secondary_area_redraw = true;
+                    }
+                }
+                ViewEvent::ResponseContentChanged => {
+                    // Response content changed - redraw current area if we're in response pane
+                    if self.view_model.is_in_response_pane() {
+                        needs_current_area_redraw = true;
+                    } else {
+                        needs_secondary_area_redraw = true;
+                    }
+                }
+                ViewEvent::AllContentAreasRedrawRequired => {
+                    needs_current_area_redraw = true;
+                    needs_secondary_area_redraw = true;
                 }
             }
         }
@@ -457,11 +501,14 @@ impl AppController {
             self.view_renderer.render_full(&self.view_model)?;
         } else {
             // Selective rendering - hide cursor once at the beginning
-            let has_content_updates = !panes_to_redraw.is_empty() || !partial_redraws.is_empty();
+            let has_content_updates = needs_current_area_redraw
+                || needs_secondary_area_redraw
+                || !partial_redraws.is_empty();
             if has_content_updates {
                 tracing::debug!(
-                    "controller: hiding cursor for content updates - panes: {:?}, partial: {:?}",
-                    panes_to_redraw,
+                    "controller: hiding cursor for content updates - current: {}, secondary: {}, partial: {:?}",
+                    needs_current_area_redraw,
+                    needs_secondary_area_redraw,
                     partial_redraws.keys().collect::<Vec<_>>()
                 );
                 execute!(io::stdout(), crossterm::cursor::Hide)?;
@@ -472,8 +519,22 @@ impl AppController {
                 std::thread::sleep(std::time::Duration::from_micros(100));
             }
 
-            for pane in &panes_to_redraw {
-                self.view_renderer.render_pane(&self.view_model, *pane)?;
+            // Render current area if needed
+            if needs_current_area_redraw {
+                let current_pane = self.view_model.get_current_pane();
+                self.view_renderer
+                    .render_pane(&self.view_model, current_pane)?;
+            }
+
+            // Render secondary area if needed
+            if needs_secondary_area_redraw {
+                let current_pane = self.view_model.get_current_pane();
+                let secondary_pane = match current_pane {
+                    Pane::Request => Pane::Response,
+                    Pane::Response => Pane::Request,
+                };
+                self.view_renderer
+                    .render_pane(&self.view_model, secondary_pane)?;
             }
 
             // Handle partial pane redraws

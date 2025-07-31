@@ -7,9 +7,6 @@ use crate::repl::events::{EditorMode, Pane, ViewEvent};
 use crate::repl::view_models::ViewModel;
 use anyhow::Result;
 
-/// Type alias for pane boundary tuple to reduce complexity
-pub type PaneBoundaries = (u16, u16, u16);
-
 /// Line rendering information to reduce function parameter count
 #[derive(Debug)]
 struct LineInfo<'a> {
@@ -324,26 +321,6 @@ impl TerminalRenderer {
         Ok(())
     }
 
-    /// Calculate pane boundaries
-    fn get_pane_boundaries(&self, view_model: &ViewModel) -> PaneBoundaries {
-        let total_height = self.terminal_size.1;
-
-        if view_model.get_response_status_code().is_some() {
-            // When response exists, split the space
-            let request_height = view_model.request_pane_height();
-            let response_start = request_height + 1; // +1 for separator
-            let response_height = view_model.response_pane_height();
-
-            (request_height, response_start, response_height)
-        } else {
-            // When no response, request pane uses full available space
-            let request_height = total_height - 1; // -1 for status bar
-            let response_start = request_height + 1; // Won't be used
-            let response_height = 0; // Hidden
-            (request_height, response_start, response_height)
-        }
-    }
-
     /// Render pane separator
     fn render_separator(&mut self, row: u16) -> Result<()> {
         execute_term!(
@@ -376,8 +353,9 @@ impl ViewRenderer for TerminalRenderer {
 
         execute_term!(self.stdout, Clear(ClearType::All))?;
 
-        let (request_height, response_start, response_height) =
-            self.get_pane_boundaries(view_model);
+        let (request_height, response_start, response_height) = view_model
+            .pane_manager()
+            .get_pane_boundaries(view_model.get_response_status_code().is_some());
 
         // Render request pane
         self.render_buffer_content(view_model, Pane::Request, 0, request_height)?;
@@ -409,8 +387,9 @@ impl ViewRenderer for TerminalRenderer {
     fn render_pane(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()> {
         // Cursor hiding is now handled by the controller
 
-        let (request_height, response_start, response_height) =
-            self.get_pane_boundaries(view_model);
+        let (request_height, response_start, response_height) = view_model
+            .pane_manager()
+            .get_pane_boundaries(view_model.get_response_status_code().is_some());
 
         match pane {
             Pane::Request => {
@@ -442,8 +421,9 @@ impl ViewRenderer for TerminalRenderer {
     ) -> Result<()> {
         // Cursor hiding is now handled by the controller
 
-        let (request_height, response_start, response_height) =
-            self.get_pane_boundaries(view_model);
+        let (request_height, response_start, response_height) = view_model
+            .pane_manager()
+            .get_pane_boundaries(view_model.get_response_status_code().is_some());
 
         match pane {
             Pane::Request => {
@@ -610,7 +590,9 @@ impl ViewRenderer for TerminalRenderer {
             let terminal_row = match current_pane {
                 Pane::Request => cursor_row as u16,
                 Pane::Response => {
-                    let (_, response_start, _) = self.get_pane_boundaries(view_model);
+                    let (_, response_start, _) = view_model
+                        .pane_manager()
+                        .get_pane_boundaries(view_model.get_response_status_code().is_some());
                     response_start + cursor_row as u16
                 }
             };
@@ -649,7 +631,9 @@ impl ViewRenderer for TerminalRenderer {
         let terminal_row = match current_pane {
             Pane::Request => cursor_row as u16,
             Pane::Response => {
-                let (_, response_start, _) = self.get_pane_boundaries(view_model);
+                let (_, response_start, _) = view_model
+                    .pane_manager()
+                    .get_pane_boundaries(view_model.get_response_status_code().is_some());
                 response_start + cursor_row as u16
             }
         };
@@ -975,11 +959,29 @@ impl ViewRenderer for TerminalRenderer {
             ViewEvent::FullRedrawRequired => {
                 self.render_full(view_model)?;
             }
-            ViewEvent::PaneRedrawRequired { pane } => {
-                self.render_pane(view_model, *pane)?;
+            ViewEvent::CurrentAreaRedrawRequired => {
+                let current_pane = view_model.get_current_pane();
+                self.render_pane(view_model, current_pane)?;
             }
-            ViewEvent::PartialPaneRedrawRequired { pane, start_line } => {
-                self.render_pane_partial(view_model, *pane, *start_line)?;
+            ViewEvent::SecondaryAreaRedrawRequired => {
+                let current_pane = view_model.get_current_pane();
+                let secondary_pane = match current_pane {
+                    crate::repl::events::Pane::Request => crate::repl::events::Pane::Response,
+                    crate::repl::events::Pane::Response => crate::repl::events::Pane::Request,
+                };
+                self.render_pane(view_model, secondary_pane)?;
+            }
+            ViewEvent::CurrentAreaPartialRedrawRequired { start_line } => {
+                let current_pane = view_model.get_current_pane();
+                self.render_pane_partial(view_model, current_pane, *start_line)?;
+            }
+            ViewEvent::SecondaryAreaPartialRedrawRequired { start_line } => {
+                let current_pane = view_model.get_current_pane();
+                let secondary_pane = match current_pane {
+                    crate::repl::events::Pane::Request => crate::repl::events::Pane::Response,
+                    crate::repl::events::Pane::Response => crate::repl::events::Pane::Request,
+                };
+                self.render_pane_partial(view_model, secondary_pane, *start_line)?;
             }
             ViewEvent::StatusBarUpdateRequired => {
                 self.render_status_bar(view_model)?;
@@ -989,11 +991,47 @@ impl ViewRenderer for TerminalRenderer {
             ViewEvent::PositionIndicatorUpdateRequired => {
                 self.render_position_indicator(view_model)?;
             }
-            ViewEvent::CursorUpdateRequired { .. } => {
+            ViewEvent::ActiveCursorUpdateRequired => {
                 self.render_cursor(view_model)?;
             }
-            ViewEvent::ScrollChanged { pane, .. } => {
-                self.render_pane(view_model, *pane)?;
+            ViewEvent::CurrentAreaScrollChanged { .. } => {
+                let current_pane = view_model.get_current_pane();
+                self.render_pane(view_model, current_pane)?;
+            }
+            ViewEvent::SecondaryAreaScrollChanged { .. } => {
+                let current_pane = view_model.get_current_pane();
+                let secondary_pane = match current_pane {
+                    crate::repl::events::Pane::Request => crate::repl::events::Pane::Response,
+                    crate::repl::events::Pane::Response => crate::repl::events::Pane::Request,
+                };
+                self.render_pane(view_model, secondary_pane)?;
+            }
+            ViewEvent::FocusSwitched => {
+                // Focus switched - update cursor and status bar
+                self.render_cursor(view_model)?;
+                self.render_status_bar(view_model)?;
+            }
+            ViewEvent::RequestContentChanged => {
+                // Request content changed - redraw if we're in request pane
+                if view_model.is_in_request_pane() {
+                    let current_pane = view_model.get_current_pane();
+                    self.render_pane(view_model, current_pane)?;
+                }
+            }
+            ViewEvent::ResponseContentChanged => {
+                // Response content changed - redraw if we're in response pane
+                if view_model.is_in_response_pane() {
+                    let current_pane = view_model.get_current_pane();
+                    self.render_pane(view_model, current_pane)?;
+                } else {
+                    // Always redraw response pane when content changes
+                    self.render_pane(view_model, crate::repl::events::Pane::Response)?;
+                }
+            }
+            ViewEvent::AllContentAreasRedrawRequired => {
+                // Redraw both panes
+                self.render_pane(view_model, crate::repl::events::Pane::Request)?;
+                self.render_pane(view_model, crate::repl::events::Pane::Response)?;
             }
         }
         Ok(())
@@ -1077,8 +1115,9 @@ mod tests {
             // Set a response so the response pane appears
             view_model.set_response(200, "test response".to_string());
 
-            let (request_height, response_start, response_height) =
-                renderer.get_pane_boundaries(&view_model);
+            let (request_height, response_start, response_height) = view_model
+                .pane_manager()
+                .get_pane_boundaries(view_model.get_response_status_code().is_some());
 
             // With terminal height 40:
             // - request_pane_height should be 20 (height/2)
