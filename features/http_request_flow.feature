@@ -4,29 +4,28 @@ Feature: HTTP Request Flow
   So that I can test API endpoints effectively
 
   Background:
-    Given blueline is launched in a terminal
-    And I am in the request pane
+    Given I am in the request pane
+      And I am in insert mode
 
   Scenario: Simple GET request execution
     Given I type a GET request:
       """
-      GET /api/health HTTP/1.1
-      Host: httpbin.org
+      GET /api/health
       """
     When I execute the request
     Then the screen should not be blank
     And the response pane should appear
-    And I should see a status code in the response
+    And I should see a status code in the status bar
     And the original request should still be visible
 
   Scenario: POST request with JSON body
     Given I type a POST request:
       """
-      POST /api/users HTTP/1.1
-      Host: httpbin.org
-      Content-Type: application/json
-
-      {"name": "test", "email": "test@example.com"}
+      POST /api/users
+      {
+        "name": "test", 
+        "email": "test@example.com"
+      }
       """
     When I execute the request
     Then the screen should not be blank
@@ -36,11 +35,10 @@ Feature: HTTP Request Flow
   Scenario: Request with Japanese characters
     Given I type a request with Japanese text:
       """
-      POST /api/message HTTP/1.1
-      Host: httpbin.org
-      Content-Type: application/json
-
-      {"message": "こんにちは世界"}
+      POST /api/message
+      {
+        "message": "こんにちは世界"
+      }
       """
     When I execute the request
     Then the screen should not be blank
@@ -59,8 +57,7 @@ Feature: HTTP Request Flow
   Scenario: Network error handling
     Given I type a request to an invalid host:
       """
-      GET /test HTTP/1.1
-      Host: invalid.nonexistent.domain.test
+      GET /test
       """
     When I execute the request
     Then the screen should not be blank
@@ -70,8 +67,7 @@ Feature: HTTP Request Flow
   Scenario: Large response handling
     Given I type a request that returns large data:
       """
-      GET /json HTTP/1.1
-      Host: httpbin.org
+      GET /json
       """
     When I execute the request
     Then the screen should not be blank

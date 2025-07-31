@@ -14,7 +14,7 @@ Feature: Terminal Rendering Integrity
 
   Scenario: Typing text keeps screen visible  
     When I enter insert mode by pressing "i"
-    And I type "GET /api/test HTTP/1.1"
+    And I type "GET /api/test"
     Then the screen should not be blank
     And I should see "GET /api/test" in the request pane
     And the cursor should be visible

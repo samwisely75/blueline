@@ -12,7 +12,6 @@ Feature: Visual Mode Text Selection
     Given the request buffer contains:
       """
       GET /api/users
-      Content-Type: application/json
       """
     And I am in normal mode
     And the cursor is at line 0 column 0
@@ -45,9 +44,6 @@ Feature: Visual Mode Text Selection
     Given the request buffer contains:
       """
       POST /api/users
-      Content-Type: application/json
-      Authorization: Bearer token123
-      
       {"name": "John"}
       """
     And I am in normal mode
