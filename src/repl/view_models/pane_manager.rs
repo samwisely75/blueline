@@ -707,10 +707,21 @@ impl PaneManager {
     /// Set display cursor position for current area
     pub fn set_current_display_cursor(&mut self, position: (usize, usize)) -> Vec<ViewEvent> {
         let _result = self.panes[self.current_pane].set_display_cursor(position);
-        vec![
+        
+        let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
-        ]
+        ];
+
+        // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+        if self.panes[self.current_pane].visual_selection_start.is_some() {
+            let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
+            self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
+            events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+            tracing::debug!("Display cursor movement updated visual selection end to {:?}", new_cursor_pos);
+        }
+
+        events
     }
 
     /// Handle horizontal scrolling in current area
@@ -740,6 +751,14 @@ impl PaneManager {
 
         if result.cursor_moved {
             events.push(ViewEvent::ActiveCursorUpdateRequired);
+            
+            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+            if self.panes[self.current_pane].visual_selection_start.is_some() {
+                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
+                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
+                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+                tracing::debug!("Page scroll updated visual selection end to {:?}", new_cursor_pos);
+            }
         }
 
         events
@@ -756,6 +775,14 @@ impl PaneManager {
 
         if result.cursor_moved {
             events.push(ViewEvent::ActiveCursorUpdateRequired);
+            
+            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+            if self.panes[self.current_pane].visual_selection_start.is_some() {
+                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
+                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
+                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+                tracing::debug!("Half-page scroll updated visual selection end to {:?}", new_cursor_pos);
+            }
         }
 
         events
@@ -840,9 +867,31 @@ impl PaneManager {
         }
 
         if moved {
+            // Sync logical cursor with new display position
+            let new_display_pos = self.get_current_display_cursor();
+            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+                .display_cache
+                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
+                self.panes[self.current_pane]
+                    .buffer
+                    .set_cursor(new_logical_pos);
+
+                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
+                if self.panes[self.current_pane]
+                    .visual_selection_start
+                    .is_some()
+                {
+                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
+                }
+            }
+
             vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
             ]
         } else {
             vec![]
@@ -894,14 +943,25 @@ impl PaneManager {
                 .display_cache
                 .display_to_logical_position(new_display_pos.0, new_display_pos.1)
             {
+                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
                 self.panes[self.current_pane]
                     .buffer
-                    .set_cursor(LogicalPosition::new(logical_line, logical_col));
+                    .set_cursor(new_logical_pos);
+
+                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
+                if self.panes[self.current_pane]
+                    .visual_selection_start
+                    .is_some()
+                {
+                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
+                }
             }
 
             vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
             ]
         } else {
             vec![]
@@ -915,9 +975,31 @@ impl PaneManager {
         if current_display_pos.0 > 0 {
             let new_display_pos = (current_display_pos.0 - 1, current_display_pos.1);
             self.panes[self.current_pane].display_cursor = new_display_pos;
+
+            // Sync logical cursor with new display position
+            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+                .display_cache
+                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
+                self.panes[self.current_pane]
+                    .buffer
+                    .set_cursor(new_logical_pos);
+
+                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
+                if self.panes[self.current_pane]
+                    .visual_selection_start
+                    .is_some()
+                {
+                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
+                }
+            }
+
             vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
             ]
         } else {
             vec![]
@@ -942,14 +1024,25 @@ impl PaneManager {
                 .display_cache
                 .display_to_logical_position(new_display_pos.0, new_display_pos.1)
             {
+                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
                 self.panes[self.current_pane]
                     .buffer
-                    .set_cursor(LogicalPosition::new(logical_line, logical_col));
+                    .set_cursor(new_logical_pos);
+
+                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
+                if self.panes[self.current_pane]
+                    .visual_selection_start
+                    .is_some()
+                {
+                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
+                }
             }
 
             vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
             ]
         } else {
             vec![]
@@ -958,40 +1051,87 @@ impl PaneManager {
 
     /// Move cursor to start of current line
     pub fn move_cursor_to_start_of_line(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let new_display_pos = (current_display_pos.0, 0);
-        self.panes[self.current_pane].display_cursor = new_display_pos;
+        // Get current logical position
+        let current_logical = self.panes[self.current_pane].buffer.cursor();
+        
+        // Create new logical position at start of current line (column 0)
+        let new_logical = LogicalPosition::new(current_logical.line, 0);
+        
+        // Update logical cursor first
+        self.panes[self.current_pane].buffer.set_cursor(new_logical);
+        
+        // Sync display cursor with logical cursor
+        self.panes[self.current_pane].sync_display_cursor_with_logical();
 
-        vec![
+        // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+        let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
-        ]
+        ];
+
+        if self.panes[self.current_pane].visual_selection_start.is_some() {
+            self.panes[self.current_pane].visual_selection_end = Some(new_logical);
+            events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+            tracing::debug!("Line start movement updated visual selection end to {:?}", new_logical);
+        }
+
+        events
     }
 
     /// Move cursor to end of current line
     pub fn move_cursor_to_end_of_line(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let display_cache = &self.panes[self.current_pane].display_cache;
-
-        if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
-            let line_char_count = current_line.content.chars().count();
-            let new_display_pos = (current_display_pos.0, line_char_count);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-        }
-
-        vec![
+        // Get current logical position
+        let current_logical = self.panes[self.current_pane].buffer.cursor();
+        
+        let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
-        ]
+        ];
+
+        // Get the current line content to find its length
+        if let Some(line) = self.panes[self.current_pane].buffer.content().get_line(current_logical.line) {
+            let line_length = line.chars().count();
+            
+            // Create new logical position at end of current line
+            let new_logical = LogicalPosition::new(current_logical.line, line_length);
+            
+            // Update logical cursor first
+            self.panes[self.current_pane].buffer.set_cursor(new_logical);
+            
+            // Sync display cursor with logical cursor
+            self.panes[self.current_pane].sync_display_cursor_with_logical();
+
+            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+            if self.panes[self.current_pane].visual_selection_start.is_some() {
+                self.panes[self.current_pane].visual_selection_end = Some(new_logical);
+                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+                tracing::debug!("Line end movement updated visual selection end to {:?}", new_logical);
+            }
+        }
+
+        events
     }
 
     /// Move cursor to start of document
     pub fn move_cursor_to_document_start(&mut self) -> Vec<ViewEvent> {
-        self.panes[self.current_pane].display_cursor = (0, 0);
-        vec![
+        // Use proper cursor positioning method to ensure logical/display sync
+        let start_position = (0, 0);
+        let _result = self.panes[self.current_pane].set_display_cursor(start_position);
+        
+        let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
-        ]
+        ];
+
+        // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+        if self.panes[self.current_pane].visual_selection_start.is_some() {
+            let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
+            self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
+            events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+            tracing::debug!("Document start movement updated visual selection end to {:?}", new_cursor_pos);
+        }
+
+        events
     }
 
     /// Move cursor to end of document
@@ -1005,15 +1145,28 @@ impl PaneManager {
             idx += 1;
         }
 
-        if let Some(last_line) = display_cache.get_display_line(last_line_idx) {
-            let line_char_count = last_line.content.chars().count();
-            self.panes[self.current_pane].display_cursor = (last_line_idx, line_char_count);
-        }
-
-        vec![
+        let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
-        ]
+        ];
+
+        if let Some(last_line) = display_cache.get_display_line(last_line_idx) {
+            let line_char_count = last_line.content.chars().count();
+            let end_position = (last_line_idx, line_char_count);
+            
+            // Use proper cursor positioning method to ensure logical/display sync
+            let _result = self.panes[self.current_pane].set_display_cursor(end_position);
+
+            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+            if self.panes[self.current_pane].visual_selection_start.is_some() {
+                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
+                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
+                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+                tracing::debug!("Document end movement updated visual selection end to {:?}", new_cursor_pos);
+            }
+        }
+
+        events
     }
 
     /// Move cursor to specific line number (1-based)

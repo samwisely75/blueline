@@ -1,6 +1,7 @@
 use super::world::{ActivePane, BluelineWorld, Mode};
 use anyhow::Result;
 use blueline::repl::commands::CommandEvent;
+use blueline::repl::events::{EditorMode, Pane};
 use blueline::{CommandContext, ViewModelSnapshot, ViewRenderer};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use cucumber::{gherkin::Step, given, then, when};
@@ -2078,6 +2079,229 @@ async fn screen_should_not_be_blacked_out(world: &mut BluelineWorld) {
     );
 
     println!("✅ Screen is not blacked out");
+}
+
+// === VISUAL MODE RENDERING TESTS ===
+
+#[when("I switch to the response pane")]
+async fn switch_to_response_pane(world: &mut BluelineWorld) {
+    println!("🔄 Switching to response pane");
+
+    if let Some(ref mut view_model) = world.view_model {
+        view_model.switch_to_response_pane();
+        println!("✅ Switched to response pane");
+
+        // Render the updated state
+        if let Some(ref mut renderer) = world.terminal_renderer {
+            renderer.render_full(view_model).ok();
+        }
+    } else {
+        panic!("Real application not initialized");
+    }
+}
+
+#[when(regex = r#"I send key "([^"]*)" to enter visual mode"#)]
+async fn send_key_to_enter_visual_mode(world: &mut BluelineWorld, key: String) {
+    println!("👁️ Sending key '{}' to enter visual mode", key);
+
+    if world.view_model.is_none() {
+        panic!("Real application not initialized");
+    }
+
+    // Send the key through the real command system
+    match world.press_key(&key) {
+        Ok(()) => {
+            println!("✅ Successfully sent key '{}' to enter visual mode", key);
+
+            // Verify we're in visual mode
+            if let Some(ref view_model) = world.view_model {
+                let mode = view_model.get_mode();
+                println!("📊 Current mode after key press: {:?}", mode);
+                assert_eq!(
+                    mode,
+                    EditorMode::Visual,
+                    "Expected Visual mode after pressing '{}'",
+                    key
+                );
+
+                // Check visual selection state
+                let selection = view_model.get_visual_selection();
+                println!("🎯 Visual selection state: {:?}", selection);
+            }
+        }
+        Err(e) => {
+            println!("❌ Failed to send key '{}': {}", key, e);
+            panic!("Failed to send key to enter visual mode: {}", e);
+        }
+    }
+}
+
+#[when("I move cursor to select some text")]
+async fn move_cursor_to_select_text(world: &mut BluelineWorld) {
+    println!("➡️ Moving cursor to select text");
+
+    if let Some(ref mut view_model) = world.view_model {
+        // Check current cursor position and response content first
+        let cursor_pos = view_model.get_cursor_position();
+        println!("📍 Current cursor position: {:?}", cursor_pos);
+
+        // Get response content to see what we're navigating through
+        let response_status = view_model.get_response_status_code();
+        println!("📋 Response status: {:?}", response_status);
+
+        // Try to get response text length for debugging
+        if let Some(response_status) = response_status {
+            println!("🔍 Response exists with status: {}", response_status);
+        }
+
+        // Move cursor right a few positions to create a selection
+        for i in 0..5 {
+            let pos_before = view_model.get_cursor_position();
+            match view_model.move_cursor_right() {
+                Ok(()) => {
+                    let pos_after = view_model.get_cursor_position();
+                    println!(
+                        "✅ Moved cursor right {}: {:?} -> {:?}",
+                        i + 1,
+                        pos_before,
+                        pos_after
+                    );
+
+                    // Check visual selection after each movement
+                    let selection = view_model.get_visual_selection();
+                    println!("   🎯 Visual selection: {:?}", selection);
+                }
+                Err(e) => {
+                    println!("⚠️ Cursor movement {} failed: {}", i + 1, e);
+                    break;
+                }
+            }
+        }
+
+        // Render after cursor movements
+        if let Some(ref mut renderer) = world.terminal_renderer {
+            renderer.render_full(view_model).ok();
+        }
+
+        // Check final visual selection
+        let selection = view_model.get_visual_selection();
+        println!(
+            "🎯 Final visual selection after cursor movement: {:?}",
+            selection
+        );
+    } else {
+        panic!("Real application not initialized");
+    }
+}
+
+#[then("I should be in visual mode")]
+async fn should_be_in_visual_mode(world: &mut BluelineWorld) {
+    println!("🔍 Checking if in visual mode");
+
+    if let Some(ref view_model) = world.view_model {
+        let mode = view_model.get_mode();
+        assert_eq!(
+            mode,
+            EditorMode::Visual,
+            "Expected Visual mode but got {:?}",
+            mode
+        );
+        println!("✅ Confirmed Visual mode");
+    } else {
+        panic!("Real application not initialized");
+    }
+}
+
+#[then("I should see visual selection highlighting in the response pane")]
+async fn should_see_visual_selection_highlighting(world: &mut BluelineWorld) {
+    println!("🔍 Checking for visual selection highlighting in response pane");
+
+    if let Some(ref view_model) = world.view_model {
+        let selection = view_model.get_visual_selection();
+        let (start, end, pane) = selection;
+
+        println!(
+            "🎯 Visual selection state: start={:?}, end={:?}, pane={:?}",
+            start, end, pane
+        );
+
+        // Verify selection exists
+        assert!(start.is_some(), "Visual selection start should be set");
+        assert!(end.is_some(), "Visual selection end should be set");
+        assert_eq!(
+            pane,
+            Some(Pane::Response),
+            "Visual selection should be in Response pane"
+        );
+
+        // Verify selection range
+        let start_pos = start.unwrap();
+        let end_pos = end.unwrap();
+
+        assert!(
+            start_pos != end_pos,
+            "Visual selection should span multiple positions"
+        );
+
+        println!(
+            "✅ Visual selection highlighting verified: {}:{} to {}:{}",
+            start_pos.line, start_pos.column, end_pos.line, end_pos.column
+        );
+    } else {
+        panic!("Real application not initialized");
+    }
+}
+
+#[then("the visual selection should be visible on screen")]
+async fn visual_selection_should_be_visible_on_screen(world: &mut BluelineWorld) {
+    println!("🔍 Checking if visual selection is visible on screen");
+
+    // Get both the terminal state and raw captured output
+    let terminal_state = world.get_terminal_state();
+    let screen_content = terminal_state.get_full_text();
+    let raw_output = world.get_raw_captured_output();
+
+    println!("📺 Screen content for visual selection check:");
+    println!("{}", screen_content);
+
+    // Look for visual selection indicators in the RAW captured output
+    // ANSI escape sequences should be present in the raw output before VTE processing
+    let has_visual_indicators = raw_output.contains("\x1b[7m") || // Reverse video
+                               raw_output.contains("\x1b[44m") || // Blue background  
+                               raw_output.contains("\x1b[46m") || // Cyan background
+                               raw_output.contains("\x1b[100m") || // Bright black background
+                               raw_output.contains("\x1b[104m"); // Bright blue background
+
+    println!(
+        "🔍 Raw output contains visual indicators: {}",
+        has_visual_indicators
+    );
+    if has_visual_indicators {
+        println!("✅ Found ANSI escape sequences in raw output");
+    } else {
+        println!("❌ No ANSI escape sequences found in raw output");
+        // Show a sample of the raw output for debugging
+        let raw_sample = if raw_output.len() > 200 {
+            format!("{}...(truncated)", &raw_output[raw_output.len() - 200..])
+        } else {
+            raw_output.clone()
+        };
+        println!("📝 Raw output sample: {:?}", raw_sample);
+    }
+
+    // Also check that we have response content to select from
+    let has_response_content = screen_content.contains("Response")
+        && (screen_content.contains("{") || screen_content.contains("id"));
+
+    if !has_response_content {
+        println!("⚠️ No response content found to select from");
+    }
+
+    assert!(has_visual_indicators,
+           "❌ VISUAL MODE BUG: No visual selection highlighting found on screen!\nScreen content:\n{}", 
+           screen_content);
+
+    println!("✅ Visual selection highlighting is visible on screen");
 }
 
 // === REAL VTE APPLICATION TEST STEPS ===
