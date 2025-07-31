@@ -145,6 +145,14 @@ async fn test_basic_editing_workflow() {
     }
     assert_eq!(view_model.get_current_pane(), Pane::Response);
 
+    // Test 8.5: Press Enter in Response pane to execute request (should work now!)
+    let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+    let context = CommandContext::new(ViewModelSnapshot::from_view_model(&view_model));
+    let events = command_registry.process_event(key_event, &context).unwrap();
+    println!("Enter in Response pane events: {:?}", events);
+    // Should now generate an HTTP request event since we fixed the pane restriction
+    assert!(!events.is_empty(), "Enter in Response pane should generate HTTP request event");
+
     // Test 9: Navigation keys should work in Response pane
     let _initial_cursor = view_model.get_cursor_position();
 

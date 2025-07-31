@@ -2,7 +2,7 @@
 //!
 //! Commands for executing HTTP requests and related operations
 
-use crate::repl::events::{EditorMode, Pane};
+use crate::repl::events::EditorMode;
 use crate::repl::utils::parse_request_from_text;
 use anyhow::Result;
 use bluenote::HttpRequestArgs;
@@ -20,7 +20,7 @@ impl HttpCommand for ExecuteRequestCommand {
     fn is_relevant(&self, context: &HttpCommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Enter)
             && context.state().current_mode == EditorMode::Normal
-            && context.state().current_pane == Pane::Request
+            // Allow execution from both Request and Response panes - user should be able to execute from either
     }
 
     fn execute(&self, _event: KeyEvent, context: &HttpCommandContext) -> Result<Vec<CommandEvent>> {
@@ -69,7 +69,7 @@ impl Command for ExecuteRequestCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Enter)
             && context.state.current_mode == EditorMode::Normal
-            && context.state.current_pane == Pane::Request
+            // Allow execution from both Request and Response panes - user should be able to execute from either
     }
 
     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -114,7 +114,7 @@ impl Command for ExecuteRequestCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::{EditorMode, Pane};
+    use crate::repl::events::EditorMode;
     use crossterm::event::KeyModifiers;
 
     fn create_test_key_event(code: KeyCode) -> KeyEvent {
