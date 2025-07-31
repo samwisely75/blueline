@@ -1,4 +1,4 @@
-# Architecture Overview
+# System Architecture
 
 ## Table of Contents
 
@@ -563,4 +563,3 @@ terminal_renderer.render_position_indicator()
 8. **Domain-Driven Design**: Operations match domain concepts (Request vs Response panes)
 
 This modular MVVM architecture with complete pane abstraction enables Blueline to provide a responsive, efficient terminal-based HTTP client with vim-like editing capabilities while maintaining clean, testable, and maintainable code.
-
