@@ -17,7 +17,7 @@ impl Command for InsertCharCommand {
         match event.code {
             KeyCode::Char(ch) => {
                 !event.modifiers.contains(KeyModifiers::CONTROL)
-                    && (ch.is_ascii_graphic() || ch == ' ')
+                    && !ch.is_control()
                     && context.state.current_mode == EditorMode::Insert
                     && context.state.current_pane == Pane::Request
             }
@@ -72,11 +72,26 @@ impl Command for DeleteCharCommand {
 
     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
         use super::MovementDirection;
+        tracing::debug!(
+            "🗑️  DeleteCharBeforeCursorCommand::execute - creating TextDeleteRequested event"
+        );
+        tracing::debug!(
+            "🗑️  Current cursor position: {:?}",
+            context.state.cursor_position
+        );
+        tracing::debug!(
+            "🗑️  Current mode: {:?}, pane: {:?}",
+            context.state.current_mode,
+            context.state.current_pane
+        );
+
         let delete_event = CommandEvent::TextDeleteRequested {
             position: context.state.cursor_position,
             amount: 1,
             direction: MovementDirection::Left,
         };
+
+        tracing::debug!("🗑️  Created TextDeleteRequested event: {:?}", delete_event);
         Ok(vec![delete_event])
     }
 
@@ -142,6 +157,84 @@ mod tests {
         let event = create_test_key_event(KeyCode::Char('a'));
 
         assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_space_in_insert_mode() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = create_test_key_event(KeyCode::Char(' '));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_capital_g_with_shift() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = KeyEvent::new(KeyCode::Char('G'), KeyModifiers::SHIFT);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_capital_e_with_shift() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = KeyEvent::new(KeyCode::Char('E'), KeyModifiers::SHIFT);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_capital_t_with_shift() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = KeyEvent::new(KeyCode::Char('T'), KeyModifiers::SHIFT);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_japanese_hiragana_in_insert_mode() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = create_test_key_event(KeyCode::Char('あ')); // Hiragana 'a'
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_japanese_katakana_in_insert_mode() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = create_test_key_event(KeyCode::Char('ア')); // Katakana 'a'
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_japanese_kanji_in_insert_mode() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = create_test_key_event(KeyCode::Char('漢')); // Kanji character
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_execute_japanese_character_insertion() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = create_test_key_event(KeyCode::Char('こ')); // Single hiragana character
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        if let CommandEvent::TextInsertRequested { text, .. } = &result[0] {
+            assert_eq!(text, "こ");
+        } else {
+            panic!("Expected TextInsertRequested event");
+        }
     }
 
     #[test]

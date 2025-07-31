@@ -31,6 +31,7 @@ use crossterm::{
     terminal::{Clear, ClearType},
 };
 use std::io::{self, Write};
+use unicode_width::UnicodeWidthChar;
 
 /// Trait for rendering views
 pub trait ViewRenderer {
@@ -68,22 +69,34 @@ pub trait ViewRenderer {
 }
 
 /// Terminal-based view renderer using crossterm
-pub struct TerminalRenderer {
-    stdout: io::Stdout,
+pub struct TerminalRenderer<W: Write> {
+    writer: W,
     terminal_size: (u16, u16),
 }
 
-impl TerminalRenderer {
-    /// Create new terminal renderer
+impl TerminalRenderer<io::Stdout> {
+    /// Create new terminal renderer with stdout
     pub fn new() -> Result<Self> {
         let terminal_size = crossterm::terminal::size().map_err(anyhow::Error::from)?;
         Ok(Self {
-            stdout: io::stdout(),
+            writer: io::stdout(),
+            terminal_size,
+        })
+    }
+}
+
+impl<W: Write> TerminalRenderer<W> {
+    /// Create new terminal renderer with custom writer (for testing)
+    pub fn with_writer(writer: W) -> Result<Self> {
+        let terminal_size = crossterm::terminal::size().unwrap_or((80, 24));
+        Ok(Self {
+            writer,
             terminal_size,
         })
     }
 
     /// Calculate visual length of text, excluding ANSI escape sequences
+    /// Accounts for double-byte characters that take 2 terminal columns
     fn visual_length(&self, text: &str) -> usize {
         let mut length = 0;
         let mut in_escape = false;
@@ -94,7 +107,12 @@ impl TerminalRenderer {
             } else if in_escape && ch == 'm' {
                 in_escape = false;
             } else if !in_escape {
-                length += 1;
+                // Use unicode-width to get proper display width
+                // Most double-byte characters (CJK) have width 2
+                match unicode_width::UnicodeWidthChar::width(ch) {
+                    Some(w) => length += w,
+                    None => {} // Control characters and zero-width characters
+                }
             }
         }
 
@@ -121,43 +139,50 @@ impl TerminalRenderer {
         line_num_width: usize,
     ) -> Result<()> {
         // Just move cursor, don't hide it here (should be hidden by caller)
-        execute_term!(self.stdout, MoveTo(0, row))?;
+        execute_term!(self.writer, MoveTo(0, row))?;
 
         if let Some(num) = line_info.line_number {
             // Render line number with dimmed style and right alignment (minimum width 3)
-            execute_term!(self.stdout, SetAttribute(Attribute::Dim))?;
-            execute_term!(self.stdout, Print(format!("{num:>line_num_width$} ")))?;
-            execute_term!(self.stdout, SetAttribute(Attribute::Reset))?;
+            execute_term!(self.writer, SetAttribute(Attribute::Dim))?;
+            execute_term!(self.writer, Print(format!("{num:>line_num_width$} ")))?;
+            execute_term!(self.writer, SetAttribute(Attribute::Reset))?;
         } else if line_info.is_continuation {
             // Continuation line of wrapped text - show blank space
             execute_term!(
-                self.stdout,
+                self.writer,
                 Print(format!("{} ", " ".repeat(line_num_width)))
             )?;
         } else {
             // Show tilda for empty lines beyond content (vim-style) with darker gray color
-            execute_term!(self.stdout, SetForegroundColor(Color::DarkGrey))?;
+            execute_term!(self.writer, SetForegroundColor(Color::DarkGrey))?;
             execute_term!(
-                self.stdout,
+                self.writer,
                 Print(format!(
                     "~{} ",
                     " ".repeat(line_num_width.saturating_sub(1))
                 ))
             )?;
-            execute_term!(self.stdout, ResetColor)?;
+            execute_term!(self.writer, ResetColor)?;
         }
 
         // Calculate how much space is available for text after line number
         let used_width = line_num_width + 1; // line number + space
         let available_width = (self.terminal_size.0 as usize).saturating_sub(used_width);
 
-        // Truncate text to fit within terminal width to prevent overlap
-        let display_text = if line_info.text.chars().count() > available_width {
-            line_info
-                .text
-                .chars()
-                .take(available_width)
-                .collect::<String>()
+        // Truncate text to fit within terminal width, accounting for double-byte characters
+        let display_text = if self.visual_length(line_info.text) > available_width {
+            let mut result = String::new();
+            let mut current_width = 0;
+
+            for ch in line_info.text.chars() {
+                let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+                if current_width + char_width > available_width {
+                    break;
+                }
+                result.push(ch);
+                current_width += char_width;
+            }
+            result
         } else {
             line_info.text.to_string()
         };
@@ -173,7 +198,7 @@ impl TerminalRenderer {
         )?;
 
         // Clear rest of line
-        execute_term!(self.stdout, Clear(ClearType::UntilNewLine))?;
+        execute_term!(self.writer, Clear(ClearType::UntilNewLine))?;
 
         Ok(())
     }
@@ -224,14 +249,14 @@ impl TerminalRenderer {
                         position
                     );
                     // Apply visual selection styling: inverse + blue
-                    execute_term!(self.stdout, SetAttribute(Attribute::Reverse))?;
-                    execute_term!(self.stdout, SetForegroundColor(Color::Blue))?;
-                    execute_term!(self.stdout, Print(ch))?;
-                    execute_term!(self.stdout, SetAttribute(Attribute::Reset))?;
-                    execute_term!(self.stdout, ResetColor)?;
+                    execute_term!(self.writer, SetAttribute(Attribute::Reverse))?;
+                    execute_term!(self.writer, SetForegroundColor(Color::Blue))?;
+                    execute_term!(self.writer, Print(ch))?;
+                    execute_term!(self.writer, SetAttribute(Attribute::Reset))?;
+                    execute_term!(self.writer, ResetColor)?;
                 } else {
                     // Normal character rendering
-                    execute_term!(self.stdout, Print(ch))?;
+                    execute_term!(self.writer, Print(ch))?;
                 }
             }
             return Ok(());
@@ -243,7 +268,7 @@ impl TerminalRenderer {
         }
 
         // No selection or not in visual mode - render normally
-        execute_term!(self.stdout, Print(text))?;
+        execute_term!(self.writer, Print(text))?;
         Ok(())
     }
 
@@ -324,7 +349,7 @@ impl TerminalRenderer {
     /// Render pane separator
     fn render_separator(&mut self, row: u16) -> Result<()> {
         execute_term!(
-            self.stdout,
+            self.writer,
             MoveTo(0, row),
             SetForegroundColor(Color::Blue),
             Print("─".repeat(self.terminal_size.0 as usize)),
@@ -333,25 +358,25 @@ impl TerminalRenderer {
     }
 }
 
-impl Default for TerminalRenderer {
+impl Default for TerminalRenderer<io::Stdout> {
     fn default() -> Self {
         Self::new().expect("Failed to create terminal renderer")
     }
 }
 
-impl ViewRenderer for TerminalRenderer {
+impl<W: Write> ViewRenderer for TerminalRenderer<W> {
     fn initialize(&mut self) -> Result<()> {
         // Controller handles raw mode and alternate screen
         // We just need to clear screen and set initial cursor state
-        execute_term!(self.stdout, Clear(ClearType::All), crossterm::cursor::Hide)?;
+        execute_term!(self.writer, Clear(ClearType::All), crossterm::cursor::Hide)?;
         Ok(())
     }
 
     fn render_full(&mut self, view_model: &ViewModel) -> Result<()> {
         // Hide cursor before screen refresh to avoid flickering
-        execute_term!(self.stdout, crossterm::cursor::Hide)?;
+        execute_term!(self.writer, crossterm::cursor::Hide)?;
 
-        execute_term!(self.stdout, Clear(ClearType::All))?;
+        execute_term!(self.writer, Clear(ClearType::All))?;
 
         let (request_height, response_start, response_height) = view_model
             .pane_manager()
@@ -380,7 +405,7 @@ impl ViewRenderer for TerminalRenderer {
         // Render cursor (this will show cursor in correct position)
         self.render_cursor(view_model)?;
 
-        self.stdout.flush().map_err(anyhow::Error::from)?;
+        self.writer.flush().map_err(anyhow::Error::from)?;
         Ok(())
     }
 
@@ -409,7 +434,7 @@ impl ViewRenderer for TerminalRenderer {
         }
 
         // Don't render cursor here - let the controller handle it once at the end
-        self.stdout.flush().map_err(anyhow::Error::from)?;
+        self.writer.flush().map_err(anyhow::Error::from)?;
         Ok(())
     }
 
@@ -562,14 +587,14 @@ impl ViewRenderer for TerminalRenderer {
         }
 
         // Don't render cursor here - let the controller handle it once at the end
-        self.stdout.flush().map_err(anyhow::Error::from)?;
+        self.writer.flush().map_err(anyhow::Error::from)?;
         Ok(())
     }
 
     fn render_cursor(&mut self, view_model: &ViewModel) -> Result<()> {
         // Always hide cursor first to prevent any ghost cursor artifacts
         tracing::debug!("render_cursor: hiding cursor before positioning");
-        execute_term!(self.stdout, crossterm::cursor::Hide)?;
+        execute_term!(self.writer, crossterm::cursor::Hide)?;
 
         let current_mode = view_model.get_mode();
 
@@ -607,14 +632,14 @@ impl ViewRenderer for TerminalRenderer {
 
             // Show underline cursor in request pane
             execute_term!(
-                self.stdout,
+                self.writer,
                 MoveTo(terminal_col, terminal_row),
                 SetCursorStyle::BlinkingUnderScore,
                 Show
             )?;
 
             // Command line cursor (I-beam) is handled in status bar rendering
-            self.stdout.flush().map_err(anyhow::Error::from)?;
+            self.writer.flush().map_err(anyhow::Error::from)?;
             return Ok(());
         }
 
@@ -660,7 +685,7 @@ impl ViewRenderer for TerminalRenderer {
                     terminal_row
                 );
                 execute_term!(
-                    self.stdout,
+                    self.writer,
                     MoveTo(terminal_col, terminal_row),
                     SetCursorStyle::DefaultUserShape,
                     Show
@@ -674,7 +699,7 @@ impl ViewRenderer for TerminalRenderer {
                     terminal_row
                 );
                 execute_term!(
-                    self.stdout,
+                    self.writer,
                     MoveTo(terminal_col, terminal_row),
                     SetCursorStyle::BlinkingBar,
                     Show
@@ -688,7 +713,7 @@ impl ViewRenderer for TerminalRenderer {
                     terminal_row
                 );
                 execute_term!(
-                    self.stdout,
+                    self.writer,
                     MoveTo(terminal_col, terminal_row),
                     SetCursorStyle::BlinkingUnderScore,
                     Show
@@ -702,7 +727,7 @@ impl ViewRenderer for TerminalRenderer {
                     terminal_row
                 );
                 execute_term!(
-                    self.stdout,
+                    self.writer,
                     MoveTo(terminal_col, terminal_row),
                     SetCursorStyle::DefaultUserShape,
                     Show
@@ -716,7 +741,7 @@ impl ViewRenderer for TerminalRenderer {
                     terminal_row
                 );
                 execute_term!(
-                    self.stdout,
+                    self.writer,
                     MoveTo(terminal_col, terminal_row),
                     SetCursorStyle::DefaultUserShape,
                     Show
@@ -724,7 +749,7 @@ impl ViewRenderer for TerminalRenderer {
             }
         }
 
-        self.stdout.flush().map_err(anyhow::Error::from)?;
+        self.writer.flush().map_err(anyhow::Error::from)?;
 
         // Add tiny delay after cursor show to prevent ghost cursor artifacts
         // during rapid key repetition (especially 'j' key)
@@ -738,7 +763,7 @@ impl ViewRenderer for TerminalRenderer {
 
         // Clear the status bar first
         execute_term!(
-            self.stdout,
+            self.writer,
             MoveTo(0, status_row),
             Print(" ".repeat(self.terminal_size.0 as usize))
         )?;
@@ -746,12 +771,12 @@ impl ViewRenderer for TerminalRenderer {
         // Check if we're in command mode and need to show ex command buffer
         if view_model.get_mode() == EditorMode::Command {
             let ex_command_text = format!(":{}", view_model.get_ex_command_buffer());
-            execute_term!(self.stdout, MoveTo(0, status_row), Print(&ex_command_text))?;
+            execute_term!(self.writer, MoveTo(0, status_row), Print(&ex_command_text))?;
 
             // Show I-beam cursor at the end of command text for command line editing
             let cursor_pos = ex_command_text.len() as u16;
             execute_term!(
-                self.stdout,
+                self.writer,
                 MoveTo(cursor_pos, status_row),
                 SetCursorStyle::BlinkingBar,
                 Show
@@ -848,7 +873,7 @@ impl ViewRenderer for TerminalRenderer {
             let padding = available_width.saturating_sub(visual_len);
 
             execute_term!(
-                self.stdout,
+                self.writer,
                 MoveTo(0, status_row),
                 Print(format!("{}{}", " ".repeat(padding), final_text))
             )?;
@@ -938,19 +963,19 @@ impl ViewRenderer for TerminalRenderer {
 
         // Clear from the safe start position to the end of the line
         execute_term!(
-            self.stdout,
+            self.writer,
             MoveTo(clear_start_col as u16, status_row),
             Clear(ClearType::UntilNewLine)
         )?;
 
         // Write the reconstructed right portion
         execute_term!(
-            self.stdout,
+            self.writer,
             MoveTo(right_start_col as u16, status_row),
             Print(&right_text)
         )?;
 
-        self.stdout.flush().map_err(anyhow::Error::from)?;
+        self.writer.flush().map_err(anyhow::Error::from)?;
         Ok(())
     }
 
@@ -986,7 +1011,7 @@ impl ViewRenderer for TerminalRenderer {
             ViewEvent::StatusBarUpdateRequired => {
                 self.render_status_bar(view_model)?;
                 self.render_cursor(view_model)?;
-                self.stdout.flush().map_err(anyhow::Error::from)?;
+                self.writer.flush().map_err(anyhow::Error::from)?;
             }
             ViewEvent::PositionIndicatorUpdateRequired => {
                 self.render_position_indicator(view_model)?;
@@ -1040,7 +1065,7 @@ impl ViewRenderer for TerminalRenderer {
     fn cleanup(&mut self) -> Result<()> {
         // Controller handles alternate screen and raw mode cleanup
         // We just need to show cursor before exit
-        execute_term!(self.stdout, Show)?;
+        execute_term!(self.writer, Show)?;
         Ok(())
     }
 }
@@ -1106,6 +1131,96 @@ mod tests {
     }
 
     #[test]
+    fn visual_length_should_handle_double_byte_characters() {
+        if let Ok(renderer) = TerminalRenderer::new() {
+            // Test Japanese hiragana (double-byte)
+            assert_eq!(renderer.visual_length("こんにちは"), 10); // 5 chars × 2 width each = 10
+
+            // Test Japanese katakana (double-byte)
+            assert_eq!(renderer.visual_length("カタカナ"), 8); // 4 chars × 2 width each = 8
+
+            // Test Japanese kanji (double-byte)
+            assert_eq!(renderer.visual_length("日本語"), 6); // 3 chars × 2 width each = 6
+
+            // Test mixed ASCII and Japanese
+            assert_eq!(renderer.visual_length("Hello こんにちは"), 16); // "Hello " (6) + "こんにちは" (10) = 16
+
+            // Test Japanese with ANSI codes
+            assert_eq!(renderer.visual_length("\x1b[32mこんにちは\x1b[0m"), 10); // Only count the Japanese characters, ignore ANSI
+
+            // Test ASCII vs Japanese comparison
+            assert_eq!(renderer.visual_length("AAAAA"), 5); // 5 ASCII chars = 5 width
+            assert_eq!(renderer.visual_length("あああああ"), 10); // 5 Japanese chars = 10 width
+        }
+    }
+
+    #[test]
+    fn visual_length_should_handle_mixed_ascii_japanese_realistic_text() {
+        if let Ok(renderer) = TerminalRenderer::new() {
+            // Test realistic mixed content like what users actually type
+            assert_eq!(
+                renderer.visual_length("Anthropic Claude は現時点では"),
+                29 // "Anthropic Claude " (17) + "は現時点では" (12) = 29
+            );
+
+            assert_eq!(
+                renderer.visual_length("GitHub Copilot や ChatGPT"),
+                25 // "GitHub Copilot " (15) + "や" (2) + " ChatGPT" (8) = 25
+            );
+
+            assert_eq!(
+                renderer.visual_length("VS Code の拡張機能"),
+                18 // "VS Code " (8) + "の拡張機能" (10) = 18
+            );
+
+            // Test mixed content with punctuation
+            assert_eq!(
+                renderer.visual_length("API エンドポイント。"),
+                20 // "API " (4) + "エンドポイント" (14) + "。" (2) = 20
+            );
+
+            // Test very long mixed line
+            let long_mixed = "Programming プログラミング is とても楽しい activity";
+            assert_eq!(
+                renderer.visual_length(long_mixed),
+                51 // Calculate: "Programming " (12) + "プログラミング" (14) + " is " (4) + "とても楽しい" (12) + " activity" (9) = 51
+            );
+        }
+    }
+
+    #[test]
+    fn text_truncation_should_work_with_mixed_characters() {
+        if let Ok(mut renderer) = TerminalRenderer::new() {
+            renderer.update_size(20, 10); // Small terminal for testing truncation
+
+            // Test truncation with mixed content - simulate the truncation logic
+            let mixed_text = "Hello こんにちは World 世界";
+            let available_width = 15; // Simulate limited space
+
+            // Manually test the truncation logic (similar to what's in render_line_with_number)
+            let mut result = String::new();
+            let mut current_width = 0;
+
+            for ch in mixed_text.chars() {
+                let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+                if current_width + char_width > available_width {
+                    break;
+                }
+                result.push(ch);
+                current_width += char_width;
+            }
+
+            // Should truncate appropriately without breaking double-byte characters
+            assert!(renderer.visual_length(&result) <= available_width);
+            assert!(!result.is_empty());
+
+            // Verify it contains some content but is truncated
+            assert!(result.contains("Hello"));
+            // The exact truncation point depends on character boundaries
+        }
+    }
+
+    #[test]
     fn response_pane_boundaries_should_calculate_correctly() {
         if let Ok(mut renderer) = TerminalRenderer::new() {
             renderer.update_size(80, 40); // 40 line terminal
@@ -1129,6 +1244,23 @@ mod tests {
 
             // Total should equal terminal height
             assert_eq!(request_height + 1 + response_height + 1, 40); // +1 for separator, +1 for status
+        }
+    }
+
+    #[test]
+    fn visual_length_should_handle_control_characters_safely() {
+        if let Ok(renderer) = TerminalRenderer::new() {
+            // Test newline character (should be ignored/zero width)
+            assert_eq!(renderer.visual_length("\n"), 0);
+
+            // Test tab character (should be ignored/zero width)
+            assert_eq!(renderer.visual_length("\t"), 0);
+
+            // Test mixed text with newlines (newlines should be ignored)
+            assert_eq!(renderer.visual_length("Hello\nWorld"), 10); // Only count printable chars
+
+            // Test empty string
+            assert_eq!(renderer.visual_length(""), 0);
         }
     }
 }

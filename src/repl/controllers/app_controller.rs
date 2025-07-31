@@ -25,7 +25,7 @@ use std::{
 /// The main application controller that orchestrates the MVVM pattern
 pub struct AppController {
     view_model: ViewModel,
-    view_renderer: TerminalRenderer,
+    view_renderer: TerminalRenderer<io::Stdout>,
     command_registry: CommandRegistry,
     #[allow(dead_code)]
     event_bus: SimpleEventBus,
@@ -232,15 +232,43 @@ impl AppController {
                 amount,
                 direction,
             } => {
-                for _ in 0..amount {
+                tracing::debug!(
+                    "🗑️  Processing TextDeleteRequested: amount={}, direction={:?}",
+                    amount,
+                    direction
+                );
+                for i in 0..amount {
                     match direction {
-                        MovementDirection::Left => self.view_model.delete_char_before_cursor()?,
-                        MovementDirection::Right => self.view_model.delete_char_after_cursor()?,
+                        MovementDirection::Left => {
+                            tracing::debug!(
+                                "🗑️  Attempting delete_char_before_cursor (iteration {})",
+                                i + 1
+                            );
+                            match self.view_model.delete_char_before_cursor() {
+                                Ok(_) => tracing::debug!("✅ delete_char_before_cursor succeeded"),
+                                Err(e) => {
+                                    tracing::error!("❌ delete_char_before_cursor failed: {}", e)
+                                }
+                            }
+                        }
+                        MovementDirection::Right => {
+                            tracing::debug!(
+                                "🗑️  Attempting delete_char_after_cursor (iteration {})",
+                                i + 1
+                            );
+                            match self.view_model.delete_char_after_cursor() {
+                                Ok(_) => tracing::debug!("✅ delete_char_after_cursor succeeded"),
+                                Err(e) => {
+                                    tracing::error!("❌ delete_char_after_cursor failed: {}", e)
+                                }
+                            }
+                        }
                         _ => {
                             tracing::warn!("Unsupported delete direction: {:?}", direction);
                         }
                     }
                 }
+                tracing::debug!("🗑️  TextDeleteRequested processing completed");
             }
             CommandEvent::ModeChangeRequested { new_mode } => {
                 tracing::debug!("Applying mode change request: {:?}", new_mode);

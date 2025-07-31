@@ -9,7 +9,7 @@ echo "📝 Formatting code..."
 cargo fmt
 
 echo "🔍 Running clippy fixes..."
-cargo clippy --fix --allow-dirty --all-targets --all-features
+cargo clippy --fix --allow-dirty --all-targets --allow-staged --all-features
 
 echo "✨ Verifying fixes..."
 cargo clippy --all-targets --all-features -- -D warnings

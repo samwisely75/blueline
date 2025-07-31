@@ -3,7 +3,7 @@
 //! Handles pane switching, mode changes, and pane-related state management.
 //! Contains the PaneManager struct that encapsulates all pane-related operations.
 
-use crate::repl::events::{LogicalPosition, Pane, ViewEvent};
+use crate::repl::events::{LogicalPosition, LogicalRange, Pane, ViewEvent};
 use crate::repl::view_models::pane_state::PaneState;
 
 /// Type alias for visual selection state to reduce complexity
@@ -295,9 +295,15 @@ impl PaneManager {
         self.panes[Pane::Request].update_dimensions(content_width, request_pane_height);
         self.panes[Pane::Response].update_dimensions(content_width, response_pane_height);
 
-        // Invalidate display caches for both panes
+        // Invalidate and rebuild display caches for both panes
+        // CRITICAL FIX: After invalidating caches, we must rebuild them immediately
+        // Otherwise rendering will show empty panes when caches are invalid
         self.panes[Pane::Request].display_cache.invalidate();
         self.panes[Pane::Response].display_cache.invalidate();
+
+        // Rebuild both caches with the new dimensions
+        self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
+        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
 
         tracing::debug!(
             "Terminal size updated: {}x{}, pane dimensions: Request={}x{}, Response={}x{}",
@@ -384,6 +390,20 @@ impl PaneManager {
     pub fn insert_char_in_request(&mut self, ch: char) -> Vec<ViewEvent> {
         if self.is_in_request_pane() {
             let _event = self.panes[Pane::Request].buffer.insert_char(ch);
+
+            // Rebuild display cache to ensure rendering sees the updated content
+            let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4); // Account for line numbers
+            self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
+
+            // Sync display cursor after cache rebuild
+            let logical = self.panes[Pane::Request].buffer.cursor();
+            if let Some(display_pos) = self.panes[Pane::Request]
+                .display_cache
+                .logical_to_display_position(logical.line, logical.column)
+            {
+                self.panes[Pane::Request].display_cursor = display_pos;
+            }
+
             vec![ViewEvent::RequestContentChanged]
         } else {
             vec![] // Can't edit in display area
@@ -392,22 +412,217 @@ impl PaneManager {
 
     /// Delete character before cursor in Request pane
     pub fn delete_char_before_cursor_in_request(&mut self) -> Vec<ViewEvent> {
-        if self.is_in_request_pane() {
-            // For now, return basic event - detailed deletion logic can be added later
-            vec![ViewEvent::RequestContentChanged]
-        } else {
-            vec![] // Can't edit in display area
+        tracing::debug!("🗑️  PaneManager::delete_char_before_cursor_in_request called");
+
+        if !self.is_in_request_pane() {
+            tracing::debug!("🗑️  Not in request pane, skipping deletion");
+            return vec![]; // Can't edit in display area
         }
+
+        tracing::debug!("🗑️  In request pane, performing actual deletion");
+
+        let request_pane = &mut self.panes[Pane::Request];
+        let current_cursor = request_pane.buffer.cursor();
+
+        tracing::debug!("🗑️  Current cursor position: {:?}", current_cursor);
+
+        if current_cursor.column > 0 {
+            // Delete character before cursor in the same line
+            tracing::debug!("🗑️  Deleting character before cursor in same line");
+
+            let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
+            let delete_end = LogicalPosition::new(current_cursor.line, current_cursor.column);
+            let delete_range = LogicalRange::new(delete_start, delete_end);
+
+            // Use the existing delete_range method
+            if let Some(_event) = request_pane
+                .buffer
+                .content_mut()
+                .delete_range(self.current_pane, delete_range)
+            {
+                // Move cursor left
+                let new_cursor =
+                    LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
+                request_pane.buffer.set_cursor(new_cursor);
+
+                tracing::debug!(
+                    "🗑️  Deleted character in line, new cursor: {:?}",
+                    new_cursor
+                );
+
+                // Rebuild display cache since content changed
+                let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+                request_pane.build_display_cache(content_width, self.wrap_enabled);
+
+                // Sync display cursor with new logical position after cache rebuild
+                if let Some(display_pos) = request_pane
+                    .display_cache
+                    .logical_to_display_position(new_cursor.line, new_cursor.column)
+                {
+                    request_pane.display_cursor = display_pos;
+                }
+
+                return vec![
+                    ViewEvent::RequestContentChanged,
+                    ViewEvent::ActiveCursorUpdateRequired,
+                    ViewEvent::CurrentAreaRedrawRequired,
+                ];
+            }
+        } else if current_cursor.line > 0 {
+            // At beginning of line, join with previous line (backspace at line start)
+            tracing::debug!("🗑️  At line start, joining with previous line");
+
+            // Get length of previous line to position cursor correctly
+            let prev_line_length = if let Some(prev_line) = request_pane
+                .buffer
+                .content()
+                .get_line(current_cursor.line - 1)
+            {
+                prev_line.len()
+            } else {
+                0
+            };
+
+            // Create range to delete the newline character (join lines)
+            // We delete from end of previous line to start of current line
+            let delete_start = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
+            let delete_end = LogicalPosition::new(current_cursor.line, 0);
+            let delete_range = LogicalRange::new(delete_start, delete_end);
+
+            // Use the existing delete_range method
+            if let Some(_event) = request_pane
+                .buffer
+                .content_mut()
+                .delete_range(self.current_pane, delete_range)
+            {
+                // Move cursor to end of previous line (where the join happened)
+                let new_cursor = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
+                request_pane.buffer.set_cursor(new_cursor);
+
+                tracing::debug!("🗑️  Joined lines, new cursor: {:?}", new_cursor);
+
+                // Rebuild display cache since content structure changed
+                let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+                request_pane.build_display_cache(content_width, self.wrap_enabled);
+
+                // Sync display cursor with new logical position after cache rebuild
+                if let Some(display_pos) = request_pane
+                    .display_cache
+                    .logical_to_display_position(new_cursor.line, new_cursor.column)
+                {
+                    request_pane.display_cursor = display_pos;
+                }
+
+                return vec![
+                    ViewEvent::RequestContentChanged,
+                    ViewEvent::ActiveCursorUpdateRequired,
+                    ViewEvent::CurrentAreaRedrawRequired,
+                ];
+            }
+        }
+
+        tracing::debug!("🗑️  No deletion performed - at start of buffer or invalid state");
+        vec![] // Nothing to delete (at start of first line)
     }
 
     /// Delete character after cursor in Request pane
     pub fn delete_char_after_cursor_in_request(&mut self) -> Vec<ViewEvent> {
-        if self.is_in_request_pane() {
-            // For now, return basic event - detailed deletion logic can be added later
-            vec![ViewEvent::RequestContentChanged]
-        } else {
-            vec![] // Can't edit in display area
+        tracing::debug!("🗑️  PaneManager::delete_char_after_cursor_in_request called");
+
+        if !self.is_in_request_pane() {
+            tracing::debug!("🗑️  Not in request pane, skipping deletion");
+            return vec![]; // Can't edit in display area
         }
+
+        tracing::debug!("🗑️  In request pane, performing actual deletion");
+
+        let request_pane = &mut self.panes[Pane::Request];
+        let current_cursor = request_pane.buffer.cursor();
+
+        tracing::debug!("🗑️  Current cursor position: {:?}", current_cursor);
+
+        // Get current line to check if we can delete within the line
+        if let Some(current_line) = request_pane.buffer.content().get_line(current_cursor.line) {
+            if current_cursor.column < current_line.len() {
+                // Delete character at cursor position (same line)
+                tracing::debug!("🗑️  Deleting character at cursor position in same line");
+
+                let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column);
+                let delete_end =
+                    LogicalPosition::new(current_cursor.line, current_cursor.column + 1);
+                let delete_range = LogicalRange::new(delete_start, delete_end);
+
+                // Use the existing delete_range method
+                if let Some(_event) = request_pane
+                    .buffer
+                    .content_mut()
+                    .delete_range(self.current_pane, delete_range)
+                {
+                    // Cursor stays in same position
+                    tracing::debug!("🗑️  Deleted character at cursor, cursor position unchanged");
+
+                    // Rebuild display cache since content changed
+                    let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+                    request_pane.build_display_cache(content_width, self.wrap_enabled);
+
+                    // Sync display cursor with logical position after cache rebuild
+                    let current_logical = request_pane.buffer.cursor();
+                    if let Some(display_pos) = request_pane
+                        .display_cache
+                        .logical_to_display_position(current_logical.line, current_logical.column)
+                    {
+                        request_pane.display_cursor = display_pos;
+                    }
+
+                    return vec![
+                        ViewEvent::RequestContentChanged,
+                        ViewEvent::ActiveCursorUpdateRequired,
+                        ViewEvent::CurrentAreaRedrawRequired,
+                    ];
+                }
+            } else if current_cursor.line + 1 < request_pane.buffer.content().line_count() {
+                // At end of line, join with next line (delete key at line end)
+                tracing::debug!("🗑️  At line end, joining with next line");
+
+                // Create range to delete the newline character (join lines)
+                // We delete from cursor position to start of next line
+                let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column);
+                let delete_end = LogicalPosition::new(current_cursor.line + 1, 0);
+                let delete_range = LogicalRange::new(delete_start, delete_end);
+
+                // Use the existing delete_range method
+                if let Some(_event) = request_pane
+                    .buffer
+                    .content_mut()
+                    .delete_range(self.current_pane, delete_range)
+                {
+                    // Cursor stays at current position (end of merged line)
+                    tracing::debug!("🗑️  Joined lines, cursor position unchanged");
+
+                    // Rebuild display cache since content structure changed
+                    let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+                    request_pane.build_display_cache(content_width, self.wrap_enabled);
+
+                    // Sync display cursor with logical position after cache rebuild
+                    let current_logical = request_pane.buffer.cursor();
+                    if let Some(display_pos) = request_pane
+                        .display_cache
+                        .logical_to_display_position(current_logical.line, current_logical.column)
+                    {
+                        request_pane.display_cursor = display_pos;
+                    }
+
+                    return vec![
+                        ViewEvent::RequestContentChanged,
+                        ViewEvent::ActiveCursorUpdateRequired,
+                        ViewEvent::CurrentAreaRedrawRequired,
+                    ];
+                }
+            }
+        }
+
+        tracing::debug!("🗑️  No deletion performed - at end of buffer or invalid state");
+        vec![] // Nothing to delete (at end of buffer)
     }
 
     /// Set cursor position in current area
@@ -419,6 +634,14 @@ impl PaneManager {
         self.panes[self.current_pane]
             .buffer
             .set_cursor(clamped_position);
+
+        // Sync display cursor with new logical position
+        if let Some(display_pos) = self.panes[self.current_pane]
+            .display_cache
+            .logical_to_display_position(clamped_position.line, clamped_position.column)
+        {
+            self.panes[self.current_pane].display_cursor = display_pos;
+        }
 
         // Update visual selection if active
         if self.panes[self.current_pane]
@@ -457,6 +680,11 @@ impl PaneManager {
             .buffer
             .content_mut()
             .set_text(text);
+
+        // Rebuild display cache to ensure rendering sees the updated content
+        let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4); // Same as Request pane
+        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
+
         vec![ViewEvent::ResponseContentChanged]
     }
 
@@ -479,10 +707,21 @@ impl PaneManager {
     /// Set display cursor position for current area
     pub fn set_current_display_cursor(&mut self, position: (usize, usize)) -> Vec<ViewEvent> {
         let _result = self.panes[self.current_pane].set_display_cursor(position);
-        vec![
+        
+        let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
-        ]
+        ];
+
+        // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+        if self.panes[self.current_pane].visual_selection_start.is_some() {
+            let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
+            self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
+            events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+            tracing::debug!("Display cursor movement updated visual selection end to {:?}", new_cursor_pos);
+        }
+
+        events
     }
 
     /// Handle horizontal scrolling in current area
@@ -512,6 +751,14 @@ impl PaneManager {
 
         if result.cursor_moved {
             events.push(ViewEvent::ActiveCursorUpdateRequired);
+            
+            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+            if self.panes[self.current_pane].visual_selection_start.is_some() {
+                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
+                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
+                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+                tracing::debug!("Page scroll updated visual selection end to {:?}", new_cursor_pos);
+            }
         }
 
         events
@@ -528,6 +775,14 @@ impl PaneManager {
 
         if result.cursor_moved {
             events.push(ViewEvent::ActiveCursorUpdateRequired);
+            
+            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+            if self.panes[self.current_pane].visual_selection_start.is_some() {
+                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
+                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
+                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+                tracing::debug!("Half-page scroll updated visual selection end to {:?}", new_cursor_pos);
+            }
         }
 
         events
@@ -612,9 +867,31 @@ impl PaneManager {
         }
 
         if moved {
+            // Sync logical cursor with new display position
+            let new_display_pos = self.get_current_display_cursor();
+            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+                .display_cache
+                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
+                self.panes[self.current_pane]
+                    .buffer
+                    .set_cursor(new_logical_pos);
+
+                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
+                if self.panes[self.current_pane]
+                    .visual_selection_start
+                    .is_some()
+                {
+                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
+                }
+            }
+
             vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
             ]
         } else {
             vec![]
@@ -624,34 +901,67 @@ impl PaneManager {
     /// Move cursor right in current area
     pub fn move_cursor_right(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
-        let display_cache = &self.panes[self.current_pane].display_cache;
 
         let mut moved = false;
+        let mut new_display_pos = current_display_pos;
 
-        // Get current display line
-        if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
+        // Check movement possibility first without borrowing display_cache
+        let can_move_right_in_line = if let Some(current_line) = self.panes[self.current_pane]
+            .display_cache
+            .get_display_line(current_display_pos.0)
+        {
             let line_char_count = current_line.content.chars().count();
+            current_display_pos.1 < line_char_count
+        } else {
+            false
+        };
 
-            // Check if we can move right within current display line
-            if current_display_pos.1 < line_char_count {
-                let new_display_pos = (current_display_pos.0, current_display_pos.1 + 1);
-                self.panes[self.current_pane].display_cursor = new_display_pos;
-                moved = true;
-            } else {
-                // Try to move to beginning of next display line
-                let next_display_line = current_display_pos.0 + 1;
-                if display_cache.get_display_line(next_display_line).is_some() {
-                    let new_display_pos = (next_display_line, 0);
-                    self.panes[self.current_pane].display_cursor = new_display_pos;
-                    moved = true;
-                }
-            }
+        let can_move_to_next_line = if !can_move_right_in_line {
+            let next_display_line = current_display_pos.0 + 1;
+            self.panes[self.current_pane]
+                .display_cache
+                .get_display_line(next_display_line)
+                .is_some()
+        } else {
+            false
+        };
+
+        // Perform the movement
+        if can_move_right_in_line {
+            new_display_pos = (current_display_pos.0, current_display_pos.1 + 1);
+            self.panes[self.current_pane].display_cursor = new_display_pos;
+            moved = true;
+        } else if can_move_to_next_line {
+            new_display_pos = (current_display_pos.0 + 1, 0);
+            self.panes[self.current_pane].display_cursor = new_display_pos;
+            moved = true;
         }
 
         if moved {
+            // Sync logical cursor with new display position
+            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+                .display_cache
+                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
+                self.panes[self.current_pane]
+                    .buffer
+                    .set_cursor(new_logical_pos);
+
+                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
+                if self.panes[self.current_pane]
+                    .visual_selection_start
+                    .is_some()
+                {
+                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
+                }
+            }
+
             vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
             ]
         } else {
             vec![]
@@ -665,9 +975,31 @@ impl PaneManager {
         if current_display_pos.0 > 0 {
             let new_display_pos = (current_display_pos.0 - 1, current_display_pos.1);
             self.panes[self.current_pane].display_cursor = new_display_pos;
+
+            // Sync logical cursor with new display position
+            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+                .display_cache
+                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
+                self.panes[self.current_pane]
+                    .buffer
+                    .set_cursor(new_logical_pos);
+
+                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
+                if self.panes[self.current_pane]
+                    .visual_selection_start
+                    .is_some()
+                {
+                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
+                }
+            }
+
             vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
             ]
         } else {
             vec![]
@@ -677,15 +1009,40 @@ impl PaneManager {
     /// Move cursor down in current area
     pub fn move_cursor_down(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
-        let display_cache = &self.panes[self.current_pane].display_cache;
 
         let next_display_line = current_display_pos.0 + 1;
-        if display_cache.get_display_line(next_display_line).is_some() {
+        if self.panes[self.current_pane]
+            .display_cache
+            .get_display_line(next_display_line)
+            .is_some()
+        {
             let new_display_pos = (next_display_line, current_display_pos.1);
             self.panes[self.current_pane].display_cursor = new_display_pos;
+
+            // Sync logical cursor with new display position
+            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+                .display_cache
+                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
+                self.panes[self.current_pane]
+                    .buffer
+                    .set_cursor(new_logical_pos);
+
+                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
+                if self.panes[self.current_pane]
+                    .visual_selection_start
+                    .is_some()
+                {
+                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
+                }
+            }
+
             vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
             ]
         } else {
             vec![]
@@ -694,40 +1051,87 @@ impl PaneManager {
 
     /// Move cursor to start of current line
     pub fn move_cursor_to_start_of_line(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let new_display_pos = (current_display_pos.0, 0);
-        self.panes[self.current_pane].display_cursor = new_display_pos;
+        // Get current logical position
+        let current_logical = self.panes[self.current_pane].buffer.cursor();
+        
+        // Create new logical position at start of current line (column 0)
+        let new_logical = LogicalPosition::new(current_logical.line, 0);
+        
+        // Update logical cursor first
+        self.panes[self.current_pane].buffer.set_cursor(new_logical);
+        
+        // Sync display cursor with logical cursor
+        self.panes[self.current_pane].sync_display_cursor_with_logical();
 
-        vec![
+        // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+        let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
-        ]
+        ];
+
+        if self.panes[self.current_pane].visual_selection_start.is_some() {
+            self.panes[self.current_pane].visual_selection_end = Some(new_logical);
+            events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+            tracing::debug!("Line start movement updated visual selection end to {:?}", new_logical);
+        }
+
+        events
     }
 
     /// Move cursor to end of current line
     pub fn move_cursor_to_end_of_line(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let display_cache = &self.panes[self.current_pane].display_cache;
-
-        if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
-            let line_char_count = current_line.content.chars().count();
-            let new_display_pos = (current_display_pos.0, line_char_count);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-        }
-
-        vec![
+        // Get current logical position
+        let current_logical = self.panes[self.current_pane].buffer.cursor();
+        
+        let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
-        ]
+        ];
+
+        // Get the current line content to find its length
+        if let Some(line) = self.panes[self.current_pane].buffer.content().get_line(current_logical.line) {
+            let line_length = line.chars().count();
+            
+            // Create new logical position at end of current line
+            let new_logical = LogicalPosition::new(current_logical.line, line_length);
+            
+            // Update logical cursor first
+            self.panes[self.current_pane].buffer.set_cursor(new_logical);
+            
+            // Sync display cursor with logical cursor
+            self.panes[self.current_pane].sync_display_cursor_with_logical();
+
+            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+            if self.panes[self.current_pane].visual_selection_start.is_some() {
+                self.panes[self.current_pane].visual_selection_end = Some(new_logical);
+                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+                tracing::debug!("Line end movement updated visual selection end to {:?}", new_logical);
+            }
+        }
+
+        events
     }
 
     /// Move cursor to start of document
     pub fn move_cursor_to_document_start(&mut self) -> Vec<ViewEvent> {
-        self.panes[self.current_pane].display_cursor = (0, 0);
-        vec![
+        // Use proper cursor positioning method to ensure logical/display sync
+        let start_position = (0, 0);
+        let _result = self.panes[self.current_pane].set_display_cursor(start_position);
+        
+        let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
-        ]
+        ];
+
+        // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+        if self.panes[self.current_pane].visual_selection_start.is_some() {
+            let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
+            self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
+            events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+            tracing::debug!("Document start movement updated visual selection end to {:?}", new_cursor_pos);
+        }
+
+        events
     }
 
     /// Move cursor to end of document
@@ -741,15 +1145,28 @@ impl PaneManager {
             idx += 1;
         }
 
-        if let Some(last_line) = display_cache.get_display_line(last_line_idx) {
-            let line_char_count = last_line.content.chars().count();
-            self.panes[self.current_pane].display_cursor = (last_line_idx, line_char_count);
-        }
-
-        vec![
+        let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
-        ]
+        ];
+
+        if let Some(last_line) = display_cache.get_display_line(last_line_idx) {
+            let line_char_count = last_line.content.chars().count();
+            let end_position = (last_line_idx, line_char_count);
+            
+            // Use proper cursor positioning method to ensure logical/display sync
+            let _result = self.panes[self.current_pane].set_display_cursor(end_position);
+
+            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+            if self.panes[self.current_pane].visual_selection_start.is_some() {
+                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
+                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
+                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+                tracing::debug!("Document end movement updated visual selection end to {:?}", new_cursor_pos);
+            }
+        }
+
+        events
     }
 
     /// Move cursor to specific line number (1-based)

@@ -1,4 +1,3 @@
-// TODO: Re-enable once adapted to MVVM architecture
-// pub mod mock_view;
 pub mod steps;
+pub mod terminal_state;
 pub mod world;

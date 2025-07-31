@@ -1,7 +1,7 @@
-Feature: Cursor Movement Commands
+Feature: Navigation Commands
   As a developer using blueline
-  I want to navigate through HTTP request text using vim-style cursor movement
-  So that I can efficiently position my cursor for editing
+  I want to navigate through HTTP request text using vim-style navigation commands
+  So that I can efficiently position my cursor for editing and viewing
 
   Background:
     Given blueline is running with default profile
@@ -40,6 +40,39 @@ Feature: Cursor Movement Commands
     When I press "$"
     Then the cursor moves to the end of the line
     And I am still in normal mode
+
+  Scenario: Move to next word in request buffer
+    Given the request buffer contains:
+      """
+      GET /api users
+      """
+    And the cursor is at column 0
+    When I press "w"
+    Then the cursor moves to column 4
+    When I press "w"
+    Then the cursor moves to column 8
+
+  Scenario: Move to next word wraps to next line
+    Given the request buffer contains:
+      """
+      GET /api
+      users
+      """
+    And the cursor is at column 8
+    When I press "w"
+    Then the cursor moves to line 1 column 0
+
+  Scenario: Move to next word in response buffer
+    Given there is a response in the response pane from:
+      """
+      foo bar baz
+      """
+    And I am in the response pane
+    And the cursor is at column 0
+    When I press "w"
+    Then the cursor moves to column 4
+    When I press "w"
+    Then the cursor moves to column 8
 
   Scenario: Navigate response content
     Given I have executed a request that returned a large JSON response from:
@@ -302,36 +335,3 @@ Feature: Cursor Movement Commands
     Then the cursor moves to the last line
     And the cursor is at column 0
     And I am still in normal mode
-
-  # TODO: Implement gg command sequence - currently not implemented in CommandRegistry
-  # Scenario: Cancel gg sequence with different key
-  #   Given the request buffer contains:
-  #     """
-  #     GET /api/users HTTP/1.1
-  #     Host: example.com
-  #     Authorization: Bearer token
-  #     """
-  #   And I am in normal mode
-  #   And the cursor is at line 2
-  #   When I press "g"
-  #   And I press "h"
-  #   Then the cursor moves left
-  #   And the cursor is still at line 2
-  #   And I am still in normal mode
-
-  # TODO: Implement gg and G commands in response pane - currently not implemented
-  # Scenario: gg and G work in response pane
-  #   Given I have executed a request that returned a large JSON response from:
-  #     """
-  #     http://httpbin.org/json
-  #     """
-  #   And I am in the response pane
-  #   And I am in normal mode
-  #   When I press "G"
-  #   Then the cursor moves to the last line of the response
-  #   And the cursor is at column 0
-  #   When I press "g"
-  #   And I press "g"
-  #   Then the cursor moves to the first line of the response
-  #   And the cursor is at column 0
-  #   And I am still in normal mode

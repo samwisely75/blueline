@@ -9,6 +9,8 @@ This file provides guidance to human developers and Generative AI Engines when w
   - [History](#history)
   - [Where Are We Now](#where-are-we-now)
   - [Where Are We Heading](#where-are-we-heading)
+- [Requirements](#requirements)
+- [Application Architecture](#application-architecture)
 - [Development Environment](#development-environment)
   - [Primary Repository](#primary-repository)
   - [IDE](#ide)
@@ -16,7 +18,6 @@ This file provides guidance to human developers and Generative AI Engines when w
   - [Coding Tools](#coding-tools)
   - [Test Tools](#test-tools)
   - [CI/CD Pipelines](#cicd-pipelines)
-  - [Documentation Guidelines](#documentation-guidelines)
   - [Issue Tracking](#issue-tracking)
 - [Development Guidelines](#development-guidelines)
   - [Coding Style](#coding-style)
@@ -53,6 +54,14 @@ MVVM transition is nearly complete and fixing the last few issues. The REPL inte
 ### Where Are We Heading
 
 Once all the basic vim commands are implemented, we will release it as v1.0.0. After that, we will make the app connect to other user's console and collaborate over the terminal. The goal is to make the app useful on the field of consulting, where clients needs consultant's help to update/troubleshoot their systems via REST APIs. The app will allow users to share their terminal session with others, making it easy to collaborate and troubleshoot issues in real-time.
+
+## Requirements
+
+All the requirements are documented in a form of Gherkin feature files under the `features/` directory. The feature files are written in a way that describes the expected behavior of the application in a human-readable format. The feature files are used to generate tests using the `cucumber` library, which allows us to run the tests against the application and verify that it behaves as expected.
+
+## Application Architecture
+
+The architecture of the application is based on the Model-View-ViewModel (MVVM) pattern, which allows for better separation of concerns and modularity. Please see `ARCHITECTURE.md` for the detail designs and implementations.
 
 ## Development Environment
 
