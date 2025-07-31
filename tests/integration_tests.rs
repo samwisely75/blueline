@@ -16,11 +16,14 @@ async fn main() {
 async fn run_features_sequentially() {
     let features = [
         "features/application.feature",
-        "features/mode_transitions.feature",
-        "features/movement.feature",
-        "features/editing.feature",
         "features/command_line.feature",
+        "features/double_byte_rendering_bug.feature",
         "features/integration.feature",
+        "features/mode_transitions.feature",
+        "features/navigation_command.feature",
+        "features/real_application_bug.feature",
+        "features/real_vte_bug_test.feature",
+        "features/text_editing.feature",
     ];
 
     // Run the main features first
