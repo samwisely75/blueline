@@ -4,6 +4,7 @@
 //! Contains the PaneManager struct that encapsulates all pane-related operations.
 
 use crate::repl::events::{LogicalPosition, LogicalRange, Pane, ViewEvent};
+use crate::repl::utils::character_navigation::{move_left_by_character, move_right_by_character};
 use crate::repl::view_models::pane_state::PaneState;
 
 /// Type alias for visual selection state to reduce complexity
@@ -870,9 +871,13 @@ impl PaneManager {
 
         // Check if we can move left within current display line
         if current_display_pos.1 > 0 {
-            let new_display_pos = (current_display_pos.0, current_display_pos.1 - 1);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-            moved = true;
+            // Use character-aware left movement
+            if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
+                let new_col = move_left_by_character(&current_line.content, current_display_pos.1);
+                let new_display_pos = (current_display_pos.0, new_col);
+                self.panes[self.current_pane].display_cursor = new_display_pos;
+                moved = true;
+            }
         } else if current_display_pos.0 > 0 {
             // Move to end of previous display line
             let prev_display_line = current_display_pos.0 - 1;
@@ -946,9 +951,16 @@ impl PaneManager {
 
         // Perform the movement
         if can_move_right_in_line {
-            new_display_pos = (current_display_pos.0, current_display_pos.1 + 1);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-            moved = true;
+            // Use character-aware right movement
+            if let Some(current_line) = self.panes[self.current_pane]
+                .display_cache
+                .get_display_line(current_display_pos.0)
+            {
+                let new_col = move_right_by_character(&current_line.content, current_display_pos.1);
+                new_display_pos = (current_display_pos.0, new_col);
+                self.panes[self.current_pane].display_cursor = new_display_pos;
+                moved = true;
+            }
         } else if can_move_to_next_line {
             new_display_pos = (current_display_pos.0 + 1, 0);
             self.panes[self.current_pane].display_cursor = new_display_pos;

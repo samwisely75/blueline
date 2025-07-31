@@ -5,6 +5,9 @@
 
 use crate::repl::events::{LogicalPosition, Pane};
 use crate::repl::models::{BufferModel, DisplayCache};
+use crate::repl::utils::character_navigation::{
+    find_end_of_word, find_next_word_boundary, find_previous_word_boundary,
+};
 use std::ops::{Index, IndexMut};
 
 /// Type alias for position coordinates (line, column)
@@ -463,6 +466,7 @@ impl PaneState {
 
     /// Find the position of the beginning of the next word from current position
     /// Returns None if no next word is found
+    /// Now supports Japanese characters as word characters
     pub fn find_next_word_position(&self, current_pos: Position) -> OptionalPosition {
         let mut current_line = current_pos.0;
         let mut current_col = current_pos.1;
@@ -470,42 +474,9 @@ impl PaneState {
         // Loop through display lines to find next word
         while current_line < self.display_cache.display_line_count() {
             if let Some(line_info) = self.display_cache.get_display_line(current_line) {
-                let chars: Vec<char> = line_info.content.chars().collect();
-
-                // If we're not at the end of this line, look for next word on current line
-                if current_col < chars.len() {
-                    let mut pos = current_col;
-
-                    // If we're on a word character, skip to end of current word
-                    if pos < chars.len() && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
-                        while pos < chars.len()
-                            && (chars[pos].is_alphanumeric() || chars[pos] == '_')
-                        {
-                            pos += 1;
-                        }
-                    }
-                    // If we're on whitespace or punctuation, skip it
-                    else if pos < chars.len()
-                        && !chars[pos].is_alphanumeric()
-                        && chars[pos] != '_'
-                    {
-                        while pos < chars.len()
-                            && !chars[pos].is_alphanumeric()
-                            && chars[pos] != '_'
-                        {
-                            pos += 1;
-                        }
-                    }
-
-                    // Skip any whitespace after word/punctuation
-                    while pos < chars.len() && chars[pos].is_whitespace() {
-                        pos += 1;
-                    }
-
-                    // If we found a word start on this line
-                    if pos < chars.len() {
-                        return Some((current_line, pos));
-                    }
+                // Try to find next word on current line
+                if let Some(new_col) = find_next_word_boundary(&line_info.content, current_col) {
+                    return Some((current_line, new_col));
                 }
 
                 // Move to next line and start at beginning
@@ -516,17 +487,8 @@ impl PaneState {
                 if current_line < self.display_cache.display_line_count() {
                     if let Some(next_line_info) = self.display_cache.get_display_line(current_line)
                     {
-                        let next_chars: Vec<char> = next_line_info.content.chars().collect();
-                        let mut pos = 0;
-
-                        // Skip leading whitespace
-                        while pos < next_chars.len() && next_chars[pos].is_whitespace() {
-                            pos += 1;
-                        }
-
-                        // If there's a word on this line
-                        if pos < next_chars.len() {
-                            return Some((current_line, pos));
+                        if let Some(new_col) = find_next_word_boundary(&next_line_info.content, 0) {
+                            return Some((current_line, new_col));
                         }
                     }
                 }
@@ -540,81 +502,34 @@ impl PaneState {
 
     /// Find the position of the beginning of the previous word from current position
     /// Returns None if no previous word is found
+    /// Now supports Japanese characters as word characters
     pub fn find_previous_word_position(&self, current_pos: Position) -> OptionalPosition {
         let mut current_line = current_pos.0;
         let mut current_col = current_pos.1;
 
         // Loop through display lines backwards to find previous word
-        // Complex control flow with multiple break conditions requires loop/if structure
-        #[allow(clippy::while_let_loop)]
-        loop {
-            if let Some(line_info) = self.display_cache.get_display_line(current_line) {
-                let chars: Vec<char> = line_info.content.chars().collect();
+        while let Some(line_info) = self.display_cache.get_display_line(current_line) {
+            // Try to find previous word on current line
+            if let Some(new_col) = find_previous_word_boundary(&line_info.content, current_col)
+            {
+                return Some((current_line, new_col));
+            }
 
-                // If we're at the beginning of this line, move to previous line
-                if current_col == 0 {
-                    if current_line > 0 {
-                        current_line -= 1;
-                        if let Some(prev_line_info) =
-                            self.display_cache.get_display_line(current_line)
-                        {
-                            current_col = prev_line_info.content.chars().count();
-                            continue;
-                        }
-                    }
-                    break; // Already at beginning of buffer
-                }
-
-                let mut pos = current_col.saturating_sub(1);
-
-                // Skip trailing whitespace if we're starting on whitespace
-                if pos < chars.len() && chars[pos].is_whitespace() {
-                    while pos > 0 && chars[pos].is_whitespace() {
-                        pos -= 1;
-                    }
-                    if pos == 0 && chars[pos].is_whitespace() {
-                        return Some((current_line, 0));
-                    }
-                }
-
-                // Now we're at the end of a word, skip to beginning
-                if pos < chars.len() && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
-                    while pos > 0 && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
-                        pos -= 1;
-                    }
-                    // If we stopped because of a non-word character, move forward one
-                    if pos < chars.len() && !chars[pos].is_alphanumeric() && chars[pos] != '_' {
-                        pos += 1;
-                    }
-                } else if pos < chars.len()
-                    && !chars[pos].is_alphanumeric()
-                    && chars[pos] != '_'
-                    && !chars[pos].is_whitespace()
+            // If we can't find a previous word on this line, move to previous line
+            if current_line > 0 {
+                current_line -= 1;
+                if let Some(prev_line_info) = self.display_cache.get_display_line(current_line)
                 {
-                    // Skip punctuation
-                    while pos > 0
-                        && !chars[pos].is_alphanumeric()
-                        && chars[pos] != '_'
-                        && !chars[pos].is_whitespace()
+                    current_col = prev_line_info.content.chars().count();
+                    // Try to find previous word from the end of the previous line
+                    if let Some(new_col) =
+                        find_previous_word_boundary(&prev_line_info.content, current_col)
                     {
-                        pos -= 1;
-                    }
-                    // If we stopped because of a word character, that's where we want to be
-                    if pos < chars.len() && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
-                        while pos > 0 && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
-                            pos -= 1;
-                        }
-                        if pos < chars.len() && !chars[pos].is_alphanumeric() && chars[pos] != '_' {
-                            pos += 1;
-                        }
-                    } else {
-                        pos += 1; // Move forward one from punctuation
+                        return Some((current_line, new_col));
                     }
                 }
-
-                return Some((current_line, pos));
             } else {
-                break;
+                break; // Already at beginning of buffer
             }
         }
 
@@ -623,6 +538,7 @@ impl PaneState {
 
     /// Find the position of the end of the current or next word from current position
     /// Returns None if no word end is found
+    /// Now supports Japanese characters as word characters
     pub fn find_end_of_word_position(&self, current_pos: Position) -> OptionalPosition {
         let mut current_line = current_pos.0;
         let mut current_col = current_pos.1;
@@ -630,77 +546,24 @@ impl PaneState {
         // Loop through display lines to find end of word
         while current_line < self.display_cache.display_line_count() {
             if let Some(line_info) = self.display_cache.get_display_line(current_line) {
-                let chars: Vec<char> = line_info.content.chars().collect();
-
-                // If we're at the end of this line, move to next line
-                if current_col >= chars.len() {
-                    current_line += 1;
-                    current_col = 0;
-                    continue;
-                }
-
-                let mut pos = current_col;
-
-                // If we're already at the end of a word, move forward to find the next word end
-                if pos < chars.len() {
-                    // If we're at the end of a word character, move to next word
-                    if chars[pos].is_alphanumeric() || chars[pos] == '_' {
-                        // Check if we're at the end of the current word
-                        if pos + 1 >= chars.len()
-                            || !(chars[pos + 1].is_alphanumeric() || chars[pos + 1] == '_')
-                        {
-                            // We're at the end of a word, move to the next word
-                            pos += 1;
-                        }
-                    }
-                    // If we're at the end of punctuation, move to next word
-                    else if !chars[pos].is_whitespace() {
-                        // Check if we're at the end of punctuation sequence
-                        if pos + 1 >= chars.len()
-                            || chars[pos + 1].is_whitespace()
-                            || chars[pos + 1].is_alphanumeric()
-                            || chars[pos + 1] == '_'
-                        {
-                            // We're at the end of punctuation, move to the next word
-                            pos += 1;
-                        }
-                    }
-                }
-
-                // Skip whitespace to find next word
-                while pos < chars.len() && chars[pos].is_whitespace() {
-                    pos += 1;
-                }
-
-                // Now find the end of the current word/punctuation
-                if pos < chars.len() && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
-                    // Move to end of word
-                    while pos < chars.len() && (chars[pos].is_alphanumeric() || chars[pos] == '_') {
-                        pos += 1;
-                    }
-                    // Move back one to be at the last character of the word
-                    pos = pos.saturating_sub(1);
-                } else if pos < chars.len() && !chars[pos].is_whitespace() {
-                    // Move to end of punctuation sequence
-                    while pos < chars.len()
-                        && !chars[pos].is_whitespace()
-                        && !chars[pos].is_alphanumeric()
-                        && chars[pos] != '_'
-                    {
-                        pos += 1;
-                    }
-                    // Move back one to be at the last punctuation character
-                    pos = pos.saturating_sub(1);
-                }
-
-                // If we found a valid position on this line and it's different from start
-                if pos < chars.len() && pos != current_col {
-                    return Some((current_line, pos));
+                // Try to find end of word on current line
+                if let Some(new_col) = find_end_of_word(&line_info.content, current_col) {
+                    return Some((current_line, new_col));
                 }
 
                 // Move to next line
                 current_line += 1;
                 current_col = 0;
+
+                // Try to find end of word on next line from beginning
+                if current_line < self.display_cache.display_line_count() {
+                    if let Some(next_line_info) = self.display_cache.get_display_line(current_line)
+                    {
+                        if let Some(new_col) = find_end_of_word(&next_line_info.content, 0) {
+                            return Some((current_line, new_col));
+                        }
+                    }
+                }
             } else {
                 break;
             }
