@@ -3,7 +3,7 @@
 //! Handles pane switching, mode changes, and pane-related state management.
 //! Contains the PaneManager struct that encapsulates all pane-related operations.
 
-use crate::repl::events::{LogicalPosition, Pane, ViewEvent};
+use crate::repl::events::{LogicalPosition, LogicalRange, Pane, ViewEvent};
 use crate::repl::view_models::pane_state::PaneState;
 
 /// Type alias for visual selection state to reduce complexity
@@ -406,22 +406,217 @@ impl PaneManager {
 
     /// Delete character before cursor in Request pane
     pub fn delete_char_before_cursor_in_request(&mut self) -> Vec<ViewEvent> {
-        if self.is_in_request_pane() {
-            // For now, return basic event - detailed deletion logic can be added later
-            vec![ViewEvent::RequestContentChanged]
-        } else {
-            vec![] // Can't edit in display area
+        tracing::debug!("🗑️  PaneManager::delete_char_before_cursor_in_request called");
+
+        if !self.is_in_request_pane() {
+            tracing::debug!("🗑️  Not in request pane, skipping deletion");
+            return vec![]; // Can't edit in display area
         }
+
+        tracing::debug!("🗑️  In request pane, performing actual deletion");
+
+        let request_pane = &mut self.panes[Pane::Request];
+        let current_cursor = request_pane.buffer.cursor();
+
+        tracing::debug!("🗑️  Current cursor position: {:?}", current_cursor);
+
+        if current_cursor.column > 0 {
+            // Delete character before cursor in the same line
+            tracing::debug!("🗑️  Deleting character before cursor in same line");
+
+            let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
+            let delete_end = LogicalPosition::new(current_cursor.line, current_cursor.column);
+            let delete_range = LogicalRange::new(delete_start, delete_end);
+
+            // Use the existing delete_range method
+            if let Some(_event) = request_pane
+                .buffer
+                .content_mut()
+                .delete_range(self.current_pane, delete_range)
+            {
+                // Move cursor left
+                let new_cursor =
+                    LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
+                request_pane.buffer.set_cursor(new_cursor);
+
+                tracing::debug!(
+                    "🗑️  Deleted character in line, new cursor: {:?}",
+                    new_cursor
+                );
+
+                // Rebuild display cache since content changed
+                let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+                request_pane.build_display_cache(content_width, self.wrap_enabled);
+
+                // Sync display cursor with new logical position after cache rebuild
+                if let Some(display_pos) = request_pane
+                    .display_cache
+                    .logical_to_display_position(new_cursor.line, new_cursor.column)
+                {
+                    request_pane.display_cursor = display_pos;
+                }
+
+                return vec![
+                    ViewEvent::RequestContentChanged,
+                    ViewEvent::ActiveCursorUpdateRequired,
+                    ViewEvent::CurrentAreaRedrawRequired,
+                ];
+            }
+        } else if current_cursor.line > 0 {
+            // At beginning of line, join with previous line (backspace at line start)
+            tracing::debug!("🗑️  At line start, joining with previous line");
+
+            // Get length of previous line to position cursor correctly
+            let prev_line_length = if let Some(prev_line) = request_pane
+                .buffer
+                .content()
+                .get_line(current_cursor.line - 1)
+            {
+                prev_line.len()
+            } else {
+                0
+            };
+
+            // Create range to delete the newline character (join lines)
+            // We delete from end of previous line to start of current line
+            let delete_start = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
+            let delete_end = LogicalPosition::new(current_cursor.line, 0);
+            let delete_range = LogicalRange::new(delete_start, delete_end);
+
+            // Use the existing delete_range method
+            if let Some(_event) = request_pane
+                .buffer
+                .content_mut()
+                .delete_range(self.current_pane, delete_range)
+            {
+                // Move cursor to end of previous line (where the join happened)
+                let new_cursor = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
+                request_pane.buffer.set_cursor(new_cursor);
+
+                tracing::debug!("🗑️  Joined lines, new cursor: {:?}", new_cursor);
+
+                // Rebuild display cache since content structure changed
+                let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+                request_pane.build_display_cache(content_width, self.wrap_enabled);
+
+                // Sync display cursor with new logical position after cache rebuild
+                if let Some(display_pos) = request_pane
+                    .display_cache
+                    .logical_to_display_position(new_cursor.line, new_cursor.column)
+                {
+                    request_pane.display_cursor = display_pos;
+                }
+
+                return vec![
+                    ViewEvent::RequestContentChanged,
+                    ViewEvent::ActiveCursorUpdateRequired,
+                    ViewEvent::CurrentAreaRedrawRequired,
+                ];
+            }
+        }
+
+        tracing::debug!("🗑️  No deletion performed - at start of buffer or invalid state");
+        vec![] // Nothing to delete (at start of first line)
     }
 
     /// Delete character after cursor in Request pane
     pub fn delete_char_after_cursor_in_request(&mut self) -> Vec<ViewEvent> {
-        if self.is_in_request_pane() {
-            // For now, return basic event - detailed deletion logic can be added later
-            vec![ViewEvent::RequestContentChanged]
-        } else {
-            vec![] // Can't edit in display area
+        tracing::debug!("🗑️  PaneManager::delete_char_after_cursor_in_request called");
+
+        if !self.is_in_request_pane() {
+            tracing::debug!("🗑️  Not in request pane, skipping deletion");
+            return vec![]; // Can't edit in display area
         }
+
+        tracing::debug!("🗑️  In request pane, performing actual deletion");
+
+        let request_pane = &mut self.panes[Pane::Request];
+        let current_cursor = request_pane.buffer.cursor();
+
+        tracing::debug!("🗑️  Current cursor position: {:?}", current_cursor);
+
+        // Get current line to check if we can delete within the line
+        if let Some(current_line) = request_pane.buffer.content().get_line(current_cursor.line) {
+            if current_cursor.column < current_line.len() {
+                // Delete character at cursor position (same line)
+                tracing::debug!("🗑️  Deleting character at cursor position in same line");
+
+                let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column);
+                let delete_end =
+                    LogicalPosition::new(current_cursor.line, current_cursor.column + 1);
+                let delete_range = LogicalRange::new(delete_start, delete_end);
+
+                // Use the existing delete_range method
+                if let Some(_event) = request_pane
+                    .buffer
+                    .content_mut()
+                    .delete_range(self.current_pane, delete_range)
+                {
+                    // Cursor stays in same position
+                    tracing::debug!("🗑️  Deleted character at cursor, cursor position unchanged");
+
+                    // Rebuild display cache since content changed
+                    let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+                    request_pane.build_display_cache(content_width, self.wrap_enabled);
+
+                    // Sync display cursor with logical position after cache rebuild
+                    let current_logical = request_pane.buffer.cursor();
+                    if let Some(display_pos) = request_pane
+                        .display_cache
+                        .logical_to_display_position(current_logical.line, current_logical.column)
+                    {
+                        request_pane.display_cursor = display_pos;
+                    }
+
+                    return vec![
+                        ViewEvent::RequestContentChanged,
+                        ViewEvent::ActiveCursorUpdateRequired,
+                        ViewEvent::CurrentAreaRedrawRequired,
+                    ];
+                }
+            } else if current_cursor.line + 1 < request_pane.buffer.content().line_count() {
+                // At end of line, join with next line (delete key at line end)
+                tracing::debug!("🗑️  At line end, joining with next line");
+
+                // Create range to delete the newline character (join lines)
+                // We delete from cursor position to start of next line
+                let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column);
+                let delete_end = LogicalPosition::new(current_cursor.line + 1, 0);
+                let delete_range = LogicalRange::new(delete_start, delete_end);
+
+                // Use the existing delete_range method
+                if let Some(_event) = request_pane
+                    .buffer
+                    .content_mut()
+                    .delete_range(self.current_pane, delete_range)
+                {
+                    // Cursor stays at current position (end of merged line)
+                    tracing::debug!("🗑️  Joined lines, cursor position unchanged");
+
+                    // Rebuild display cache since content structure changed
+                    let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+                    request_pane.build_display_cache(content_width, self.wrap_enabled);
+
+                    // Sync display cursor with logical position after cache rebuild
+                    let current_logical = request_pane.buffer.cursor();
+                    if let Some(display_pos) = request_pane
+                        .display_cache
+                        .logical_to_display_position(current_logical.line, current_logical.column)
+                    {
+                        request_pane.display_cursor = display_pos;
+                    }
+
+                    return vec![
+                        ViewEvent::RequestContentChanged,
+                        ViewEvent::ActiveCursorUpdateRequired,
+                        ViewEvent::CurrentAreaRedrawRequired,
+                    ];
+                }
+            }
+        }
+
+        tracing::debug!("🗑️  No deletion performed - at end of buffer or invalid state");
+        vec![] // Nothing to delete (at end of buffer)
     }
 
     /// Set cursor position in current area
