@@ -384,6 +384,20 @@ impl PaneManager {
     pub fn insert_char_in_request(&mut self, ch: char) -> Vec<ViewEvent> {
         if self.is_in_request_pane() {
             let _event = self.panes[Pane::Request].buffer.insert_char(ch);
+
+            // Rebuild display cache to ensure rendering sees the updated content
+            let content_width = self.terminal_dimensions.0 as usize - 4; // Account for line numbers
+            self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
+
+            // Sync display cursor after cache rebuild
+            let logical = self.panes[Pane::Request].buffer.cursor();
+            if let Some(display_pos) = self.panes[Pane::Request]
+                .display_cache
+                .logical_to_display_position(logical.line, logical.column)
+            {
+                self.panes[Pane::Request].display_cursor = display_pos;
+            }
+
             vec![ViewEvent::RequestContentChanged]
         } else {
             vec![] // Can't edit in display area
@@ -419,6 +433,14 @@ impl PaneManager {
         self.panes[self.current_pane]
             .buffer
             .set_cursor(clamped_position);
+
+        // Sync display cursor with new logical position
+        if let Some(display_pos) = self.panes[self.current_pane]
+            .display_cache
+            .logical_to_display_position(clamped_position.line, clamped_position.column)
+        {
+            self.panes[self.current_pane].display_cursor = display_pos;
+        }
 
         // Update visual selection if active
         if self.panes[self.current_pane]
@@ -457,6 +479,11 @@ impl PaneManager {
             .buffer
             .content_mut()
             .set_text(text);
+
+        // Rebuild display cache to ensure rendering sees the updated content
+        let content_width = self.terminal_dimensions.0 as usize - 4; // Same as Request pane
+        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
+
         vec![ViewEvent::ResponseContentChanged]
     }
 
@@ -624,31 +651,53 @@ impl PaneManager {
     /// Move cursor right in current area
     pub fn move_cursor_right(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
-        let display_cache = &self.panes[self.current_pane].display_cache;
 
         let mut moved = false;
+        let mut new_display_pos = current_display_pos;
 
-        // Get current display line
-        if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
+        // Check movement possibility first without borrowing display_cache
+        let can_move_right_in_line = if let Some(current_line) = self.panes[self.current_pane]
+            .display_cache
+            .get_display_line(current_display_pos.0)
+        {
             let line_char_count = current_line.content.chars().count();
+            current_display_pos.1 < line_char_count
+        } else {
+            false
+        };
 
-            // Check if we can move right within current display line
-            if current_display_pos.1 < line_char_count {
-                let new_display_pos = (current_display_pos.0, current_display_pos.1 + 1);
-                self.panes[self.current_pane].display_cursor = new_display_pos;
-                moved = true;
-            } else {
-                // Try to move to beginning of next display line
-                let next_display_line = current_display_pos.0 + 1;
-                if display_cache.get_display_line(next_display_line).is_some() {
-                    let new_display_pos = (next_display_line, 0);
-                    self.panes[self.current_pane].display_cursor = new_display_pos;
-                    moved = true;
-                }
-            }
+        let can_move_to_next_line = if !can_move_right_in_line {
+            let next_display_line = current_display_pos.0 + 1;
+            self.panes[self.current_pane]
+                .display_cache
+                .get_display_line(next_display_line)
+                .is_some()
+        } else {
+            false
+        };
+
+        // Perform the movement
+        if can_move_right_in_line {
+            new_display_pos = (current_display_pos.0, current_display_pos.1 + 1);
+            self.panes[self.current_pane].display_cursor = new_display_pos;
+            moved = true;
+        } else if can_move_to_next_line {
+            new_display_pos = (current_display_pos.0 + 1, 0);
+            self.panes[self.current_pane].display_cursor = new_display_pos;
+            moved = true;
         }
 
         if moved {
+            // Sync logical cursor with new display position
+            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+                .display_cache
+                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+            {
+                self.panes[self.current_pane]
+                    .buffer
+                    .set_cursor(LogicalPosition::new(logical_line, logical_col));
+            }
+
             vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
@@ -677,12 +726,26 @@ impl PaneManager {
     /// Move cursor down in current area
     pub fn move_cursor_down(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
-        let display_cache = &self.panes[self.current_pane].display_cache;
 
         let next_display_line = current_display_pos.0 + 1;
-        if display_cache.get_display_line(next_display_line).is_some() {
+        if self.panes[self.current_pane]
+            .display_cache
+            .get_display_line(next_display_line)
+            .is_some()
+        {
             let new_display_pos = (next_display_line, current_display_pos.1);
             self.panes[self.current_pane].display_cursor = new_display_pos;
+
+            // Sync logical cursor with new display position
+            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+                .display_cache
+                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+            {
+                self.panes[self.current_pane]
+                    .buffer
+                    .set_cursor(LogicalPosition::new(logical_line, logical_col));
+            }
+
             vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,

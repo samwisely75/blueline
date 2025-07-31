@@ -60,8 +60,13 @@ impl BufferContent {
             let text_lines: Vec<&str> = text.split('\n').collect();
             let current_line = &mut self.lines[position.line];
 
-            // Split current line at insertion point
-            let after_cursor = current_line.split_off(position.column);
+            // Split current line at insertion point (convert char index to byte index)
+            let byte_index = current_line
+                .char_indices()
+                .nth(position.column)
+                .map(|(i, _)| i)
+                .unwrap_or(current_line.len());
+            let after_cursor = current_line.split_off(byte_index);
 
             // Insert first part of new text
             current_line.push_str(text_lines[0]);
@@ -79,9 +84,14 @@ impl BufferContent {
                 }
             }
         } else {
-            // Single line insertion
+            // Single line insertion (convert char index to byte index)
             let line = &mut self.lines[position.line];
-            line.insert_str(position.column, text);
+            let byte_index = line
+                .char_indices()
+                .nth(position.column)
+                .map(|(i, _)| i)
+                .unwrap_or(line.len());
+            line.insert_str(byte_index, text);
         }
 
         ModelEvent::TextInserted {
@@ -266,8 +276,12 @@ impl BufferModel {
             .content
             .insert_text(self.pane, self.cursor, &ch.to_string());
 
-        // Move cursor forward
-        self.cursor = LogicalPosition::new(self.cursor.line, self.cursor.column + 1);
+        // Move cursor forward - handle newlines properly
+        if ch == '\n' {
+            self.cursor = LogicalPosition::new(self.cursor.line + 1, 0);
+        } else {
+            self.cursor = LogicalPosition::new(self.cursor.line, self.cursor.column + 1);
+        }
 
         event
     }
@@ -583,5 +597,41 @@ mod tests {
 
         let full_text = content.get_text();
         assert_eq!(full_text, "GET \n\n");
+    }
+
+    #[test]
+    fn buffer_content_should_handle_unicode_character_boundary_insertion() {
+        let mut content = BufferContent::new();
+
+        // Insert Japanese characters first
+        content.insert_text(Pane::Request, LogicalPosition::new(0, 0), "こんにちは");
+        assert_eq!(content.get_line(0), Some(&"こんにちは".to_string()));
+
+        // Insert text in the middle (character index 2, which is "に")
+        content.insert_text(Pane::Request, LogicalPosition::new(0, 2), "X");
+        assert_eq!(content.get_line(0), Some(&"こんXにちは".to_string()));
+
+        // Insert newline in the middle of Unicode text (after position 3, which is "に")
+        content.insert_text(Pane::Request, LogicalPosition::new(0, 4), "\n");
+        assert_eq!(content.line_count(), 2);
+        assert_eq!(content.get_line(0), Some(&"こんXに".to_string()));
+        assert_eq!(content.get_line(1), Some(&"ちは".to_string()));
+    }
+
+    #[test]
+    fn buffer_content_should_handle_mixed_ascii_unicode_insertion() {
+        let mut content = BufferContent::new();
+
+        // Insert mixed ASCII and Unicode
+        content.insert_text(Pane::Request, LogicalPosition::new(0, 0), "Hello");
+        content.insert_text(Pane::Request, LogicalPosition::new(0, 5), " こんにちは");
+        assert_eq!(content.get_line(0), Some(&"Hello こんにちは".to_string()));
+
+        // Insert text after Japanese characters (character position 11)
+        content.insert_text(Pane::Request, LogicalPosition::new(0, 11), " World");
+        assert_eq!(
+            content.get_line(0),
+            Some(&"Hello こんにちは World".to_string())
+        );
     }
 }
