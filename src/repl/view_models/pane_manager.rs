@@ -295,9 +295,15 @@ impl PaneManager {
         self.panes[Pane::Request].update_dimensions(content_width, request_pane_height);
         self.panes[Pane::Response].update_dimensions(content_width, response_pane_height);
 
-        // Invalidate display caches for both panes
+        // Invalidate and rebuild display caches for both panes
+        // CRITICAL FIX: After invalidating caches, we must rebuild them immediately
+        // Otherwise rendering will show empty panes when caches are invalid
         self.panes[Pane::Request].display_cache.invalidate();
         self.panes[Pane::Response].display_cache.invalidate();
+
+        // Rebuild both caches with the new dimensions
+        self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
+        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
 
         tracing::debug!(
             "Terminal size updated: {}x{}, pane dimensions: Request={}x{}, Response={}x{}",

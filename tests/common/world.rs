@@ -936,6 +936,28 @@ impl BluelineWorld {
         self.stdout_capture.lock().unwrap().clear();
     }
 
+    /// Synchronize the test world's request_buffer with the real ViewModel's content
+    /// This is critical for proper rendering when using real ViewModel components
+    pub fn sync_request_buffer_from_view_model(&mut self) {
+        if let Some(ref view_model) = self.view_model {
+            let request_text = view_model.get_request_text();
+            println!(
+                "🔄 Syncing request buffer from ViewModel: '{}'",
+                request_text
+            );
+
+            if request_text.trim().is_empty() {
+                self.request_buffer.clear();
+            } else {
+                self.request_buffer = request_text.lines().map(|s| s.to_string()).collect();
+            }
+
+            println!("📋 Synchronized request_buffer: {:?}", self.request_buffer);
+        } else {
+            println!("⚠️  No ViewModel available to sync from");
+        }
+    }
+
     /// Get terminal rendering statistics
     pub fn get_render_stats(&mut self) -> RenderStats {
         let terminal_state = self.get_terminal_state();
