@@ -33,6 +33,102 @@ Blueline implements a **Model-View-ViewModel (MVVM)** architecture pattern enhan
                                └─────────────┘
 ```
 
+## Component Architecture
+
+The following diagram shows the detailed breakdown of major components and their relationships:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                 Blueline MVVM                                      │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────┐              ┌─────────────────────────────────────────────┐   │
+│  │AppController│──Commands───>│                ViewModel                    │   │
+│  │             │              │  ┌─────────────────────────────────────────┐ │   │
+│  │ • Input     │              │  │              Core                      │ │   │
+│  │ • Commands  │<─ViewEvents──│  │ • Central Coordinator                  │ │   │
+│  │ • Rendering │              │  │ • Screen Buffer Management             │ │   │
+│  │             │              │  │ • Terminal Size Handling               │ │   │
+│  └─────────────┘              │  └─────────────────────────────────────────┘ │   │
+│                               │                                             │ │   │
+│                               │  ┌─────────────────────────────────────────┐ │   │
+│                               │  │           PaneManager                   │ │   │
+│                               │  │ • Complete Pane Abstraction             │ │   │
+│                               │  │ • Semantic Operations                   │ │   │
+│                               │  │ • Layout Calculations                   │ │   │
+│                               │  │ • Focus Management                      │ │   │
+│                               │  │                                         │ │   │
+│                               │  │    ┌──────────┐  ┌──────────┐          │ │   │
+│                               │  │    │PaneState │  │PaneState │          │ │   │
+│                               │  │    │(Request) │  │(Response)│          │ │   │
+│                               │  │    │          │  │          │          │ │   │
+│                               │  │    │•Buffer   │  │•Buffer   │          │ │   │
+│                               │  │    │•Display  │  │•Display  │          │ │   │
+│                               │  │    │•Cursor   │  │•Cursor   │          │ │   │
+│                               │  │    │•Selection│  │•Selection│          │ │   │
+│                               │  │    └──────────┘  └──────────┘          │ │   │
+│                               │  └─────────────────────────────────────────┘ │   │
+│                               │                                             │ │   │
+│                               │  ┌─────────────────────────────────────────┐ │   │
+│                               │  │            StatusLine                   │ │   │
+│                               │  │ • Mode Display                          │ │   │
+│                               │  │ • Position Indicator                    │ │   │
+│                               │  │ • Command Buffer                        │ │   │
+│                               │  │ • Status Messages                       │ │   │
+│                               │  └─────────────────────────────────────────┘ │   │
+│                               │                                             │ │   │
+│                               │  ┌─────────────────────────────────────────┐ │   │
+│                               │  │         Specialized Modules             │ │   │
+│                               │  │                                         │ │   │
+│                               │  │ ┌─────────────┐ ┌─────────────────────┐ │ │   │
+│                               │  │ │ModeManager  │ │ExCommandManager     │ │ │   │
+│                               │  │ │•Mode Trans  │ │•Command Parsing     │ │ │   │
+│                               │  │ │•Visual Mode │ │•Buffer Operations   │ │ │   │
+│                               │  │ └─────────────┘ └─────────────────────┘ │ │   │
+│                               │  │                                         │ │   │
+│                               │  │ ┌─────────────┐ ┌─────────────────────┐ │ │   │
+│                               │  │ │CursorMgr    │ │BufferOperations     │ │ │   │
+│                               │  │ │•Movement    │ │•Text Insert/Delete  │ │ │   │
+│                               │  │ │•Navigation  │ │•Content Management  │ │ │   │
+│                               │  │ └─────────────┘ └─────────────────────┘ │ │   │
+│                               │  └─────────────────────────────────────────┘ │   │
+│                               └─────────────────────────────────────────────┘   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                          Event System                                   │   │
+│  │                                                                         │   │
+│  │ ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────────┐   │   │
+│  │ │ViewEvents   │    │ModelEvents  │    │        EventBus             │   │   │
+│  │ │             │    │             │    │                             │   │   │
+│  │ │•Redraw      │    │•Data Change │    │ • Pub/Sub Coordinator       │   │   │
+│  │ │•Cursor      │    │•Mode Change │    │ • Event Routing             │   │   │
+│  │ │•Focus       │    │•Pane Switch │    │ • Decoupled Communication   │   │   │
+│  │ │•Content     │    │•Text Modify │    │                             │   │   │
+│  │ └─────────────┘    └─────────────┘    └─────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                         Models Layer                                    │   │
+│  │                                                                         │   │
+│  │ ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │   │
+│  │ │BufferModel  │  │ResponseModel│  │DisplayCache │  │     Other       │  │   │
+│  │ │             │  │             │  │             │  │    Models       │  │   │
+│  │ │•Content     │  │•HTTP Data   │  │•Line Wrap   │  │                 │  │   │
+│  │ │•Cursor      │  │•Status Code │  │•Coordinates │  │•StatusLineModel │  │   │
+│  │ │•Text Ops    │  │•Timing      │  │•Mapping     │  │•HttpConfig      │  │   │
+│  │ └─────────────┘  └─────────────┘  └─────────────┘  └─────────────────┘  │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+Key Relationships:
+• AppController orchestrates input and coordinates with ViewModel
+• ViewModel delegates to specialized modules for focused responsibilities  
+• PaneManager provides complete abstraction - no external pane array access
+• StatusLine encapsulates all status bar state and operations
+• EventBus enables decoupled communication between all components
+• Models contain pure data with no view logic or display calculations
+```
+
 ### Design Principles
 
 1. **Separation of Concerns**: Each layer has a distinct responsibility
