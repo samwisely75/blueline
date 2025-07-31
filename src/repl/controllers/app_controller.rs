@@ -25,7 +25,7 @@ use std::{
 /// The main application controller that orchestrates the MVVM pattern
 pub struct AppController {
     view_model: ViewModel,
-    view_renderer: TerminalRenderer,
+    view_renderer: TerminalRenderer<io::Stdout>,
     command_registry: CommandRegistry,
     #[allow(dead_code)]
     event_bus: SimpleEventBus,

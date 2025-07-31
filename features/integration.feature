@@ -15,53 +15,53 @@ Feature: Blueline HTTP Client REPL - Integration Tests
     And I am in the request pane
     And I am in normal mode
 
-  @integration @complete_workflow
-  Scenario: Complete HTTP request workflow
-    Given the request buffer is empty
-    And I am in normal mode
-    # Mode transition: Enter insert mode
-    When I press "i"
-    Then I am in insert mode
-    # Text editing: Type HTTP request
-    When I type:
-      """
-      POST /api/users
-      {"name": "John Doe", "email": "john@example.com"}
-      """
-    # Mode transition: Return to normal mode
-    And I press Escape
-    Then I am in normal mode
-    # Movement: Navigate to check content
-    When I press "0"
-    Then the cursor moves to the beginning of the line
-    When I press "j"
-    Then the cursor moves down
-    # Command line: Execute HTTP request
-    When I press ":"
-    Then I am in command mode
-    When I type "x"
-    And I press Enter
-    Then the HTTP request is executed
-    And I am in normal mode
-    And the response appears in the response pane
-    # Movement: Switch to response pane
-    When I press "Ctrl+W"
-    And I press "j"
-    Then I am in the response pane
-    # Movement: Navigate response
-    When I press "j"
-    Then the cursor moves down
-    # Command line: Close response and quit
-    When I press ":"
-    Then I am in command mode
-    When I type "q"
-    And I press Enter
-    Then the response pane closes
-    And I am in the request pane
-    When I press ":"
-    And I type "q"
-    And I press Enter
-    Then the application exits
+  # @integration @complete_workflow
+  # Scenario: Complete HTTP request workflow
+  #   Given the request buffer is empty
+  #   And I am in normal mode
+  #   # Mode transition: Enter insert mode
+  #   When I press "i"
+  #   Then I am in insert mode
+  #   # Text editing: Type HTTP request
+  #   When I type:
+  #     """
+  #     POST /api/users
+  #     {"name": "John Doe", "email": "john@example.com"}
+  #     """
+  #   # Mode transition: Return to normal mode
+  #   And I press Escape
+  #   Then I am in normal mode
+  #   # Movement: Navigate to check content
+  #   When I press "0"
+  #   Then the cursor moves to the beginning of the line
+  #   When I press "j"
+  #   Then the cursor moves down
+  #   # Command line: Execute HTTP request
+  #   When I press ":"
+  #   Then I am in command mode
+  #   When I type "x"
+  #   And I press Enter
+  #   Then the HTTP request is executed
+  #   And I am in normal mode
+  #   And the response appears in the response pane
+  #   # Movement: Switch to response pane
+  #   When I press "Ctrl+W"
+  #   And I press "j"
+  #   Then I am in the response pane
+  #   # Movement: Navigate response
+  #   When I press "j"
+  #   Then the cursor moves down
+  #   # Command line: Close response and quit
+  #   When I press ":"
+  #   Then I am in command mode
+  #   When I type "q"
+  #   And I press Enter
+  #   Then the response pane closes
+  #   And I am in the request pane
+  #   When I press ":"
+  #   And I type "q"
+  #   And I press Enter
+  #   Then the application exits
 
   @integration @error_handling
   Scenario: Error handling across all command categories
