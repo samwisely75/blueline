@@ -17,7 +17,7 @@ impl Command for InsertCharCommand {
         match event.code {
             KeyCode::Char(ch) => {
                 !event.modifiers.contains(KeyModifiers::CONTROL)
-                    && (!ch.is_control() || ch == ' ')
+                    && !ch.is_control()
                     && context.state.current_mode == EditorMode::Insert
                     && context.state.current_pane == Pane::Request
             }
@@ -140,6 +140,15 @@ mod tests {
         let context = create_test_context();
         let cmd = InsertCharCommand;
         let event = create_test_key_event(KeyCode::Char('a'));
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_char_should_be_relevant_for_space_in_insert_mode() {
+        let context = create_test_context();
+        let cmd = InsertCharCommand;
+        let event = create_test_key_event(KeyCode::Char(' '));
 
         assert!(cmd.is_relevant(&context, &event));
     }
