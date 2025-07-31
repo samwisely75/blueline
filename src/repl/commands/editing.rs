@@ -72,11 +72,26 @@ impl Command for DeleteCharCommand {
 
     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
         use super::MovementDirection;
+        tracing::debug!(
+            "🗑️  DeleteCharBeforeCursorCommand::execute - creating TextDeleteRequested event"
+        );
+        tracing::debug!(
+            "🗑️  Current cursor position: {:?}",
+            context.state.cursor_position
+        );
+        tracing::debug!(
+            "🗑️  Current mode: {:?}, pane: {:?}",
+            context.state.current_mode,
+            context.state.current_pane
+        );
+
         let delete_event = CommandEvent::TextDeleteRequested {
             position: context.state.cursor_position,
             amount: 1,
             direction: MovementDirection::Left,
         };
+
+        tracing::debug!("🗑️  Created TextDeleteRequested event: {:?}", delete_event);
         Ok(vec![delete_event])
     }
 
