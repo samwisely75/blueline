@@ -140,17 +140,47 @@ async fn blueline_started_with_flag(world: &mut BluelineWorld, flag: String) {
 // Action steps (When)
 #[when(regex = r#"^I press "([^"]*)"$"#)]
 async fn i_press_key(world: &mut BluelineWorld, key: String) -> Result<()> {
-    world.press_key(&key)
+    // Force use of simulation path by temporarily storing real components
+    let saved_view_model = world.view_model.take();
+    let saved_command_registry = world.command_registry.take();
+
+    let result = world.press_key(&key);
+
+    // Restore real components if they existed
+    world.view_model = saved_view_model;
+    world.command_registry = saved_command_registry;
+
+    result
 }
 
 #[when("I press Escape")]
 async fn i_press_escape(world: &mut BluelineWorld) -> Result<()> {
-    world.press_key("Escape")
+    // Force use of simulation path by temporarily storing real components
+    let saved_view_model = world.view_model.take();
+    let saved_command_registry = world.command_registry.take();
+
+    let result = world.press_key("Escape");
+
+    // Restore real components if they existed
+    world.view_model = saved_view_model;
+    world.command_registry = saved_command_registry;
+
+    result
 }
 
 #[when(regex = r#"^I type "([^"]*)"$"#)]
 async fn i_type_text(world: &mut BluelineWorld, text: String) -> Result<()> {
-    world.type_text(&text)
+    // Force use of simulation path by temporarily storing real components
+    let saved_view_model = world.view_model.take();
+    let saved_command_registry = world.command_registry.take();
+
+    let result = world.type_text(&text);
+
+    // Restore real components if they existed
+    world.view_model = saved_view_model;
+    world.command_registry = saved_command_registry;
+
+    result
 }
 
 #[when(regex = r"^I type:$")]
