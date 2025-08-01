@@ -401,10 +401,6 @@ async fn i_am_in_normal_mode_then(world: &mut BluelineWorld) {
     assert_eq!(world.mode, Mode::Normal);
 }
 
-#[then("I am in insert mode")]
-async fn i_am_in_insert_mode_then(world: &mut BluelineWorld) {
-    assert_eq!(world.mode, Mode::Insert);
-}
 
 #[then("the cursor style changes to a blinking bar")]
 async fn cursor_style_blinking_bar(world: &mut BluelineWorld) {
