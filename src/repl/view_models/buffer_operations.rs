@@ -2,7 +2,7 @@
 //!
 //! Handles text insertion, deletion, and buffer content manipulation.
 
-use crate::repl::events::{EditorMode, ViewEvent};
+use crate::repl::events::EditorMode;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 
@@ -14,22 +14,9 @@ impl ViewModel {
             return Ok(());
         }
 
-        // Use semantic insertion from PaneManager
+        // Use semantic insertion from PaneManager (handles visibility and all events)
         let events = self.pane_manager.insert_char_in_request(ch);
-
-        // Ensure cursor is visible after insertion
-        let content_width = self.get_content_width();
-        let visibility_events = self
-            .pane_manager
-            .ensure_current_cursor_visible(content_width);
-
-        // Emit all events
-        let mut all_events = events;
-        all_events.extend(visibility_events);
-        all_events.push(ViewEvent::ActiveCursorUpdateRequired);
-        all_events.push(ViewEvent::PositionIndicatorUpdateRequired);
-
-        self.emit_view_event(all_events);
+        self.emit_view_event(events)?;
 
         Ok(())
     }
@@ -79,27 +66,7 @@ impl ViewModel {
             events.len()
         );
 
-        // Ensure cursor is visible after deletion
-        let content_width = self.get_content_width();
-        let visibility_events = self
-            .pane_manager
-            .ensure_current_cursor_visible(content_width);
-        tracing::debug!(
-            "🗑️  Cursor visibility returned {} events",
-            visibility_events.len()
-        );
-
-        // Emit all events
-        let mut all_events = events;
-        all_events.extend(visibility_events);
-        all_events.push(ViewEvent::ActiveCursorUpdateRequired);
-        all_events.push(ViewEvent::PositionIndicatorUpdateRequired);
-
-        tracing::debug!(
-            "🗑️  Emitting {} total events for delete operation",
-            all_events.len()
-        );
-        self.emit_view_event(all_events);
+        self.emit_view_event(events)?;
 
         tracing::debug!("🗑️  delete_char_before_cursor completed successfully");
         Ok(())
@@ -114,20 +81,7 @@ impl ViewModel {
 
         // Use semantic deletion from PaneManager
         let events = self.pane_manager.delete_char_after_cursor_in_request();
-
-        // Ensure cursor is visible after deletion
-        let content_width = self.get_content_width();
-        let visibility_events = self
-            .pane_manager
-            .ensure_current_cursor_visible(content_width);
-
-        // Emit all events
-        let mut all_events = events;
-        all_events.extend(visibility_events);
-        all_events.push(ViewEvent::ActiveCursorUpdateRequired);
-        all_events.push(ViewEvent::PositionIndicatorUpdateRequired);
-
-        self.emit_view_event(all_events);
+        self.emit_view_event(events)?;
 
         Ok(())
     }

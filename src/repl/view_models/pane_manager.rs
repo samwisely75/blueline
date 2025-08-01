@@ -4,7 +4,6 @@
 //! Contains the PaneManager struct that encapsulates all pane-related operations.
 
 use crate::repl::events::{LogicalPosition, LogicalRange, Pane, ViewEvent};
-use crate::repl::utils::character_navigation::{move_left_by_character, move_right_by_character};
 use crate::repl::view_models::pane_state::PaneState;
 
 /// Type alias for visual selection state to reduce complexity
@@ -317,10 +316,25 @@ impl PaneManager {
         );
     }
 
-    /// Rebuild display caches for both panes
+    /// Rebuild display caches for both panes with provided content width
     pub fn rebuild_display_caches(&mut self, content_width: usize) {
         self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
         self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
+    }
+
+    /// Rebuild display caches for both panes and sync cursors (complete rebuild process)
+    pub fn rebuild_display_caches_and_sync(&mut self) -> Vec<ViewEvent> {
+        let content_width = self.get_content_width();
+
+        // Rebuild display caches
+        self.rebuild_display_caches(content_width);
+
+        // Sync display cursors to ensure they're still valid after cache rebuild
+        self.sync_display_cursors();
+
+        // Ensure current cursor is visible after potential layout changes
+
+        self.ensure_current_cursor_visible(content_width)
     }
 
     /// Sync display cursors for both panes
@@ -393,7 +407,7 @@ impl PaneManager {
             let _event = self.panes[Pane::Request].buffer.insert_char(ch);
 
             // Rebuild display cache to ensure rendering sees the updated content
-            let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4); // Account for line numbers
+            let content_width = self.get_content_width();
             self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
 
             // Sync display cursor after cache rebuild
@@ -405,7 +419,17 @@ impl PaneManager {
                 self.panes[Pane::Request].display_cursor = display_pos;
             }
 
-            vec![ViewEvent::RequestContentChanged]
+            let mut events = vec![
+                ViewEvent::RequestContentChanged,
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::PositionIndicatorUpdateRequired,
+            ];
+
+            // Ensure cursor is visible after insertion
+            let visibility_events = self.ensure_current_cursor_visible(content_width);
+            events.extend(visibility_events);
+
+            events
         } else {
             vec![] // Can't edit in display area
         }
@@ -463,11 +487,18 @@ impl PaneManager {
                     request_pane.display_cursor = display_pos;
                 }
 
-                return vec![
+                let mut events = vec![
                     ViewEvent::RequestContentChanged,
                     ViewEvent::ActiveCursorUpdateRequired,
                     ViewEvent::CurrentAreaRedrawRequired,
                 ];
+
+                // Ensure cursor is visible after deletion
+                let content_width = self.get_content_width();
+                let visibility_events = self.ensure_current_cursor_visible(content_width);
+                events.extend(visibility_events);
+
+                return events;
             }
         } else if current_cursor.line > 0 {
             // At beginning of line, join with previous line (backspace at line start)
@@ -652,10 +683,17 @@ impl PaneManager {
             self.panes[self.current_pane].visual_selection_end = Some(clamped_position);
         }
 
-        vec![
+        let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
-        ]
+        ];
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
+        events
     }
 
     /// Clear editable content (semantic operation)
@@ -873,7 +911,7 @@ impl PaneManager {
         if current_display_pos.1 > 0 {
             // Use character-aware left movement
             if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
-                let new_col = move_left_by_character(&current_line.content, current_display_pos.1);
+                let new_col = current_line.move_left_by_character(current_display_pos.1);
                 let new_display_pos = (current_display_pos.0, new_col);
                 self.panes[self.current_pane].display_cursor = new_display_pos;
                 moved = true;
@@ -882,7 +920,7 @@ impl PaneManager {
             // Move to end of previous display line
             let prev_display_line = current_display_pos.0 - 1;
             if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
-                let new_col = prev_line.content.chars().count().saturating_sub(1);
+                let new_col = prev_line.char_count().saturating_sub(1);
                 let new_display_pos = (prev_display_line, new_col);
                 self.panes[self.current_pane].display_cursor = new_display_pos;
                 moved = true;
@@ -911,11 +949,18 @@ impl PaneManager {
                 }
             }
 
-            vec![
+            let mut events = vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
                 ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ]
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let content_width = self.get_content_width();
+            let visibility_events = self.ensure_current_cursor_visible(content_width);
+            events.extend(visibility_events);
+
+            events
         } else {
             vec![]
         }
@@ -933,7 +978,7 @@ impl PaneManager {
             .display_cache
             .get_display_line(current_display_pos.0)
         {
-            let line_char_count = current_line.content.chars().count();
+            let line_char_count = current_line.char_count();
             current_display_pos.1 < line_char_count
         } else {
             false
@@ -956,7 +1001,7 @@ impl PaneManager {
                 .display_cache
                 .get_display_line(current_display_pos.0)
             {
-                let new_col = move_right_by_character(&current_line.content, current_display_pos.1);
+                let new_col = current_line.move_right_by_character(current_display_pos.1);
                 new_display_pos = (current_display_pos.0, new_col);
                 self.panes[self.current_pane].display_cursor = new_display_pos;
                 moved = true;
@@ -988,11 +1033,18 @@ impl PaneManager {
                 }
             }
 
-            vec![
+            let mut events = vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
                 ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ]
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let content_width = self.get_content_width();
+            let visibility_events = self.ensure_current_cursor_visible(content_width);
+            events.extend(visibility_events);
+
+            events
         } else {
             vec![]
         }
@@ -1026,11 +1078,18 @@ impl PaneManager {
                 }
             }
 
-            vec![
+            let mut events = vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
                 ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ]
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let content_width = self.get_content_width();
+            let visibility_events = self.ensure_current_cursor_visible(content_width);
+            events.extend(visibility_events);
+
+            events
         } else {
             vec![]
         }
@@ -1069,11 +1128,18 @@ impl PaneManager {
                 }
             }
 
-            vec![
+            let mut events = vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
                 ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ]
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let content_width = self.get_content_width();
+            let visibility_events = self.ensure_current_cursor_visible(content_width);
+            events.extend(visibility_events);
+
+            events
         } else {
             vec![]
         }
@@ -1110,6 +1176,11 @@ impl PaneManager {
                 new_logical
             );
         }
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
 
         events
     }
@@ -1155,6 +1226,11 @@ impl PaneManager {
             }
         }
 
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
         events
     }
 
@@ -1183,6 +1259,11 @@ impl PaneManager {
             );
         }
 
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
         events
     }
 
@@ -1203,7 +1284,7 @@ impl PaneManager {
         ];
 
         if let Some(last_line) = display_cache.get_display_line(last_line_idx) {
-            let line_char_count = last_line.content.chars().count();
+            let line_char_count = last_line.char_count();
             let end_position = (last_line_idx, line_char_count);
 
             // Use proper cursor positioning method to ensure logical/display sync
@@ -1224,6 +1305,11 @@ impl PaneManager {
             }
         }
 
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
         events
     }
 
@@ -1238,10 +1324,17 @@ impl PaneManager {
 
         if display_cache.get_display_line(target_line_idx).is_some() {
             self.panes[self.current_pane].display_cursor = (target_line_idx, 0);
-            vec![
+            let mut events = vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
-            ]
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let content_width = self.get_content_width();
+            let visibility_events = self.ensure_current_cursor_visible(content_width);
+            events.extend(visibility_events);
+
+            events
         } else {
             vec![]
         }

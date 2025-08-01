@@ -39,10 +39,10 @@ impl ViewModel {
 
             if let Some(display_line) = display_cache.get_display_line(display_line_idx) {
                 // Apply horizontal scrolling to content
-                let visible_content = if horizontal_scroll_offset < display_line.content.len() {
-                    let end_pos =
-                        (horizontal_scroll_offset + content_width).min(display_line.content.len());
-                    display_line.content[horizontal_scroll_offset..end_pos].to_string()
+                let content = display_line.content();
+                let visible_content = if horizontal_scroll_offset < content.len() {
+                    let end_pos = (horizontal_scroll_offset + content_width).min(content.len());
+                    content[horizontal_scroll_offset..end_pos].to_string()
                 } else {
                     String::new()
                 };
@@ -123,25 +123,11 @@ impl ViewModel {
     pub fn set_wrap_enabled(&mut self, enabled: bool) -> Result<(), anyhow::Error> {
         if self.pane_manager.is_wrap_enabled() != enabled {
             self.pane_manager.set_wrap_enabled(enabled);
-            self.rebuild_display_caches()?;
-            self.emit_view_event([ViewEvent::FullRedrawRequired]);
+            let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
+            let mut events = vec![ViewEvent::FullRedrawRequired];
+            events.extend(visibility_events);
+            self.emit_view_event(events)?;
         }
-        Ok(())
-    }
-
-    /// Rebuild display caches for both panes
-    fn rebuild_display_caches(&mut self) -> Result<(), anyhow::Error> {
-        let content_width = self.get_content_width();
-        self.pane_manager.rebuild_display_caches(content_width);
-
-        // Sync display cursors to ensure they're still valid after cache rebuild
-        self.pane_manager.sync_display_cursors();
-
-        // Ensure current cursor is visible after potential layout changes
-        let _visibility_events = self
-            .pane_manager
-            .ensure_current_cursor_visible(content_width);
-
         Ok(())
     }
 }

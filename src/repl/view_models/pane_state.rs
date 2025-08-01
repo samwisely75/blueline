@@ -5,9 +5,6 @@
 
 use crate::repl::events::{LogicalPosition, Pane};
 use crate::repl::models::{BufferModel, DisplayCache};
-use crate::repl::utils::character_navigation::{
-    find_end_of_word, find_next_word_boundary, find_previous_word_boundary,
-};
 use std::ops::{Index, IndexMut};
 
 /// Type alias for position coordinates (line, column)
@@ -475,7 +472,7 @@ impl PaneState {
         while current_line < self.display_cache.display_line_count() {
             if let Some(line_info) = self.display_cache.get_display_line(current_line) {
                 // Try to find next word on current line
-                if let Some(new_col) = find_next_word_boundary(&line_info.content, current_col) {
+                if let Some(new_col) = line_info.find_next_word_boundary(current_col) {
                     return Some((current_line, new_col));
                 }
 
@@ -487,7 +484,7 @@ impl PaneState {
                 if current_line < self.display_cache.display_line_count() {
                     if let Some(next_line_info) = self.display_cache.get_display_line(current_line)
                     {
-                        if let Some(new_col) = find_next_word_boundary(&next_line_info.content, 0) {
+                        if let Some(new_col) = next_line_info.find_next_word_boundary(0) {
                             return Some((current_line, new_col));
                         }
                     }
@@ -510,7 +507,7 @@ impl PaneState {
         // Loop through display lines backwards to find previous word
         while let Some(line_info) = self.display_cache.get_display_line(current_line) {
             // Try to find previous word on current line
-            if let Some(new_col) = find_previous_word_boundary(&line_info.content, current_col) {
+            if let Some(new_col) = line_info.find_previous_word_boundary(current_col) {
                 return Some((current_line, new_col));
             }
 
@@ -518,11 +515,9 @@ impl PaneState {
             if current_line > 0 {
                 current_line -= 1;
                 if let Some(prev_line_info) = self.display_cache.get_display_line(current_line) {
-                    current_col = prev_line_info.content.chars().count();
+                    current_col = prev_line_info.char_count();
                     // Try to find previous word from the end of the previous line
-                    if let Some(new_col) =
-                        find_previous_word_boundary(&prev_line_info.content, current_col)
-                    {
+                    if let Some(new_col) = prev_line_info.find_previous_word_boundary(current_col) {
                         return Some((current_line, new_col));
                     }
                 }
@@ -545,7 +540,7 @@ impl PaneState {
         while current_line < self.display_cache.display_line_count() {
             if let Some(line_info) = self.display_cache.get_display_line(current_line) {
                 // Try to find end of word on current line
-                if let Some(new_col) = find_end_of_word(&line_info.content, current_col) {
+                if let Some(new_col) = line_info.find_end_of_word(current_col) {
                     return Some((current_line, new_col));
                 }
 
@@ -557,7 +552,7 @@ impl PaneState {
                 if current_line < self.display_cache.display_line_count() {
                     if let Some(next_line_info) = self.display_cache.get_display_line(current_line)
                     {
-                        if let Some(new_col) = find_end_of_word(&next_line_info.content, 0) {
+                        if let Some(new_col) = next_line_info.find_end_of_word(0) {
                             return Some((current_line, new_col));
                         }
                     }

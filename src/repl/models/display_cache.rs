@@ -18,8 +18,8 @@ pub type LogicalPosition = (usize, usize);
 /// Pre-calculated display line with positioning metadata
 #[derive(Debug, Clone, PartialEq)]
 pub struct DisplayLine {
-    /// The text content to display on this line
-    pub content: String,
+    /// The display characters for this line with styling and positioning info
+    pub chars: Vec<crate::repl::models::display_char::DisplayChar>,
     /// Index of the logical line this display line represents
     pub logical_line: usize,
     /// Starting column position in the logical line
@@ -28,6 +28,306 @@ pub struct DisplayLine {
     pub logical_end_col: usize,
     /// True if this is a continuation of a wrapped line
     pub is_continuation: bool,
+}
+
+impl DisplayLine {
+    /// Create a new DisplayLine from content string (for backward compatibility)
+    pub fn from_content(
+        content: &str,
+        logical_line: usize,
+        logical_start_col: usize,
+        logical_end_col: usize,
+        is_continuation: bool,
+    ) -> Self {
+        use crate::repl::models::buffer_char::BufferLine;
+        use crate::repl::models::display_char::DisplayChar;
+
+        // Convert content to BufferLine first
+        let buffer_line = BufferLine::from_string(content);
+
+        // Convert BufferLine to DisplayChars
+        let mut chars = Vec::new();
+        let mut current_screen_col = 0;
+
+        for buffer_char in buffer_line.chars() {
+            let display_char = DisplayChar::from_buffer_char(
+                buffer_char.clone(),
+                (0, current_screen_col), // screen_position (row, col)
+            );
+            current_screen_col += display_char.display_width();
+            chars.push(display_char);
+        }
+
+        Self {
+            chars,
+            logical_line,
+            logical_start_col,
+            logical_end_col,
+            is_continuation,
+        }
+    }
+
+    /// Get the content as a plain string (for backward compatibility)
+    pub fn content(&self) -> String {
+        self.chars.iter().map(|dc| dc.ch()).collect()
+    }
+
+    /// Get character count
+    pub fn char_count(&self) -> usize {
+        self.chars.len()
+    }
+
+    /// Get display width (total columns needed)
+    pub fn display_width(&self) -> usize {
+        self.chars.iter().map(|dc| dc.display_width()).sum()
+    }
+
+    /// Get character at display column
+    pub fn char_at_display_col(
+        &self,
+        display_col: usize,
+    ) -> Option<&crate::repl::models::display_char::DisplayChar> {
+        for display_char in &self.chars {
+            let start = display_char.screen_col();
+            let end = start + display_char.display_width();
+            if start <= display_col && display_col < end {
+                return Some(display_char);
+            }
+        }
+        None
+    }
+
+    /// Apply highlighting to a range of characters
+    pub fn highlight_range(&mut self, start_col: usize, end_col: usize) {
+        for display_char in &mut self.chars {
+            let char_start = display_char.screen_col();
+            let char_end = char_start + display_char.display_width();
+
+            // Check if this character overlaps with the highlight range
+            if char_start < end_col && char_end > start_col {
+                display_char.set_highlighted(true);
+            }
+        }
+    }
+
+    /// Convert to rendered string with ANSI codes
+    pub fn to_ansi_string(&self) -> String {
+        let mut result = String::new();
+        for display_char in &self.chars {
+            result.push_str(&display_char.ansi_style_start());
+            result.push(display_char.ch());
+            result.push_str(&display_char.ansi_style_end());
+        }
+        result
+    }
+
+    /// Move left by one character from the given display column position
+    pub fn move_left_by_character(&self, current_display_col: usize) -> usize {
+        if current_display_col == 0 {
+            return 0;
+        }
+
+        let mut current_display_pos = 0;
+        let mut prev_display_pos = 0;
+
+        for display_char in &self.chars {
+            let char_width = display_char.display_width();
+
+            // If we've reached or passed the current position, return the previous position
+            if current_display_pos >= current_display_col {
+                return prev_display_pos;
+            }
+
+            prev_display_pos = current_display_pos;
+            current_display_pos += char_width;
+        }
+
+        // If we're past the end, return the last valid position
+        prev_display_pos
+    }
+
+    /// Move right by one character from the given display column position
+    pub fn move_right_by_character(&self, current_display_col: usize) -> usize {
+        let mut current_display_pos = 0;
+
+        for display_char in &self.chars {
+            let char_width = display_char.display_width();
+
+            // Check if we're within this character's display range
+            if current_display_pos <= current_display_col
+                && current_display_col < current_display_pos + char_width
+            {
+                // Move to the next character
+                return current_display_pos + char_width;
+            }
+            current_display_pos += char_width;
+        }
+
+        // If we're past the end, return current position
+        current_display_col
+    }
+
+    /// Find the next word boundary from the current display column position
+    pub fn find_next_word_boundary(&self, current_display_col: usize) -> Option<usize> {
+        use crate::repl::models::buffer_char::CharacterType;
+
+        let mut current_display_pos = 0;
+        let mut found_current_char = false;
+        let mut in_word = false;
+
+        for display_char in &self.chars {
+            let char_width = display_char.display_width();
+
+            // Check if we're at or past the current position
+            if current_display_pos >= current_display_col
+                || (current_display_pos <= current_display_col
+                    && current_display_col < current_display_pos + char_width)
+            {
+                found_current_char = true;
+
+                let char_type = display_char.buffer_char.character_type();
+
+                if !in_word
+                    && (char_type == CharacterType::Word
+                        || char_type == CharacterType::DoubleByteChar)
+                {
+                    // Found start of a word
+                    return Some(current_display_pos);
+                } else if in_word
+                    && char_type != CharacterType::Word
+                    && char_type != CharacterType::DoubleByteChar
+                {
+                    // End of current word, look for next word
+                    in_word = false;
+                } else if char_type == CharacterType::Word
+                    || char_type == CharacterType::DoubleByteChar
+                {
+                    in_word = true;
+                }
+            } else if found_current_char {
+                // We've passed the current position, continue searching
+                let char_type = display_char.buffer_char.character_type();
+                if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
+                    return Some(current_display_pos);
+                }
+            }
+
+            current_display_pos += char_width;
+        }
+
+        None
+    }
+
+    /// Find the previous word boundary from the current display column position  
+    pub fn find_previous_word_boundary(&self, current_display_col: usize) -> Option<usize> {
+        use crate::repl::models::buffer_char::CharacterType;
+
+        if current_display_col == 0 {
+            return None;
+        }
+
+        #[allow(clippy::type_complexity)]
+        let mut positions: Vec<(usize, &crate::repl::models::display_char::DisplayChar)> =
+            Vec::new();
+        let mut current_display_pos = 0;
+
+        // Collect positions up to current_display_col
+        for display_char in &self.chars {
+            if current_display_pos >= current_display_col {
+                break;
+            }
+            positions.push((current_display_pos, display_char));
+            current_display_pos += display_char.display_width();
+        }
+
+        // Search backwards for word boundary
+        let mut in_word = false;
+        for (pos, display_char) in positions.iter().rev() {
+            let char_type = display_char.buffer_char.character_type();
+
+            if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
+                if !in_word {
+                    // Found beginning of a word
+                    return Some(*pos);
+                }
+                in_word = true;
+            } else {
+                in_word = false;
+            }
+        }
+
+        None
+    }
+
+    /// Find the end of the current or next word from the current display column position
+    pub fn find_end_of_word(&self, current_display_col: usize) -> Option<usize> {
+        use crate::repl::models::buffer_char::CharacterType;
+
+        let mut current_display_pos = 0;
+        let mut found_word_start = false;
+
+        for display_char in &self.chars {
+            let char_width = display_char.display_width();
+
+            // Skip to current position
+            if current_display_pos < current_display_col {
+                current_display_pos += char_width;
+                continue;
+            }
+
+            let char_type = display_char.buffer_char.character_type();
+
+            if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
+                found_word_start = true;
+            } else if found_word_start {
+                // Found end of word, return position of last character in word
+                return Some(current_display_pos.saturating_sub(1));
+            }
+
+            current_display_pos += char_width;
+        }
+
+        // If we found a word but reached end of line, return last position
+        if found_word_start {
+            return Some(current_display_pos.saturating_sub(1));
+        }
+
+        None
+    }
+
+    /// Convert display column to logical character index within this display line
+    pub fn display_col_to_logical_index(&self, display_col: usize) -> usize {
+        let mut current_display_col = 0;
+
+        for display_char in &self.chars {
+            let char_width = display_char.display_width();
+
+            // Check if the display column falls within this character
+            if current_display_col <= display_col && display_col < current_display_col + char_width
+            {
+                return display_char.buffer_char.logical_index;
+            }
+            current_display_col += char_width;
+        }
+
+        // If past the end, return the character count
+        self.chars.len()
+    }
+
+    /// Convert logical character index to display column within this display line
+    pub fn logical_index_to_display_col(&self, logical_index: usize) -> usize {
+        let mut display_col = 0;
+
+        for display_char in &self.chars {
+            if display_char.buffer_char.logical_index >= logical_index {
+                return display_col;
+            }
+            display_col += display_char.display_width();
+        }
+
+        // If logical_index is at or past the end, return total display width
+        display_col
+    }
 }
 
 /// Cache for pre-calculated display lines with fast lookup
@@ -150,7 +450,7 @@ impl DisplayCache {
         // Fallback to last display line of this logical line
         if let Some(&last_display_idx) = display_indices.last() {
             if let Some(display_line) = self.display_lines.get(last_display_idx) {
-                let display_col = (display_line.content.chars().count())
+                let display_col = (display_line.char_count())
                     .min(logical_col.saturating_sub(display_line.logical_start_col));
                 return Some((last_display_idx, display_col));
             }
@@ -177,7 +477,7 @@ impl DisplayCache {
         // For a line with N characters, valid cursor positions are 0 to N-1 (on each character).
         // Position N would be after the last character and can trigger unwanted horizontal scrolling.
         // When moving across wrapped line segments, display_col might exceed valid positions.
-        let content_length = display_info.content.chars().count();
+        let content_length = display_info.char_count();
         let clamped_display_col = display_col.min(content_length);
         let logical_col = display_info.logical_start_col + clamped_display_col;
 
@@ -212,7 +512,7 @@ impl DisplayCache {
         let target_display_info = self.display_lines.get(target_display_line)?;
 
         // Try to maintain column position, but clamp to line length
-        let target_col = desired_col.min(target_display_info.content.chars().count());
+        let target_col = desired_col.min(target_display_info.char_count());
 
         Some((target_display_line, target_col))
     }
@@ -231,7 +531,7 @@ impl DisplayCache {
         let target_display_info = self.display_lines.get(target_display_line)?;
 
         // Try to maintain column position, but clamp to line length
-        let target_col = desired_col.min(target_display_info.content.chars().count());
+        let target_col = desired_col.min(target_display_info.char_count());
 
         Some((target_display_line, target_col))
     }
@@ -293,13 +593,13 @@ pub fn build_display_cache(
             let display_idx = display_lines.len();
             display_indices.push(display_idx);
 
-            let display_line = DisplayLine {
-                content: segment_info.content.clone(),
-                logical_line: logical_idx,
-                logical_start_col: segment_info.logical_start,
-                logical_end_col: segment_info.logical_end,
-                is_continuation: segment_idx > 0,
-            };
+            let display_line = DisplayLine::from_content(
+                &segment_info.content,
+                logical_idx,
+                segment_info.logical_start,
+                segment_info.logical_end,
+                segment_idx > 0,
+            );
 
             display_lines.push(display_line);
         }
@@ -319,7 +619,7 @@ pub fn build_display_cache(
     })
 }
 
-/// Wrap a line into segments with accurate position tracking
+/// Wrap a line into segments with accurate position tracking using character display widths
 fn wrap_line_with_positions(line: &str, content_width: usize) -> Vec<WrappedSegment> {
     if content_width == 0 {
         return vec![WrappedSegment {
@@ -329,57 +629,87 @@ fn wrap_line_with_positions(line: &str, content_width: usize) -> Vec<WrappedSegm
         }];
     }
 
+    // Convert line to BufferChars for accurate display width calculation
+    use crate::repl::models::buffer_char::BufferLine;
+    let buffer_line = BufferLine::from_string(line);
+    let buffer_chars = buffer_line.chars();
+
     let mut segments = Vec::new();
-    let mut current_pos = 0;
-    let chars: Vec<char> = line.chars().collect();
+    let mut current_char_pos = 0;
+    let total_chars = buffer_chars.len();
 
-    while current_pos < chars.len() {
-        let remaining_chars = chars.len() - current_pos;
+    while current_char_pos < total_chars {
+        let mut current_display_width = 0;
+        let mut segment_end_char_pos = current_char_pos;
+        let mut last_word_boundary_char_pos = None;
 
-        if remaining_chars <= content_width {
-            // Remaining text fits in one line
-            let segment = WrappedSegment {
-                content: chars[current_pos..].iter().collect(),
-                logical_start: current_pos,
-                logical_end: chars.len(),
-            };
-            segments.push(segment);
+        // Find how many characters fit within content_width display columns
+        while segment_end_char_pos < total_chars && current_display_width < content_width {
+            let buffer_char = &buffer_chars[segment_end_char_pos];
+            use unicode_width::UnicodeWidthChar;
+            let char_display_width = UnicodeWidthChar::width(buffer_char.ch).unwrap_or(0);
+
+            // Check if adding this character would exceed the content width
+            if current_display_width + char_display_width > content_width {
+                break;
+            }
+
+            // Track word boundaries (spaces and tabs) for intelligent wrapping
+            if buffer_char.ch == ' ' || buffer_char.ch == '\t' {
+                last_word_boundary_char_pos = Some(segment_end_char_pos);
+            }
+
+            current_display_width += char_display_width;
+            segment_end_char_pos += 1;
+        }
+
+        // If we've processed all characters, create final segment
+        if segment_end_char_pos >= total_chars {
+            let segment_content: String = buffer_chars[current_char_pos..total_chars]
+                .iter()
+                .map(|bc| bc.ch)
+                .collect();
+
+            segments.push(WrappedSegment {
+                content: segment_content,
+                logical_start: current_char_pos,
+                logical_end: total_chars,
+            });
             break;
         }
 
-        // Calculate the end position for this segment
-        let segment_end = (current_pos + content_width).min(chars.len());
-        let mut break_point = content_width;
+        // Determine where to break: prefer word boundary if available
+        let mut actual_break_pos = segment_end_char_pos;
 
-        // Look backwards from the segment end for a space or word boundary
-        for i in (current_pos..segment_end).rev() {
-            if chars[i] == ' ' || chars[i] == '\t' {
-                break_point = i - current_pos;
-                break;
+        // If we found a word boundary and breaking there wouldn't create an empty segment
+        if let Some(word_boundary_pos) = last_word_boundary_char_pos {
+            if word_boundary_pos > current_char_pos {
+                actual_break_pos = word_boundary_pos;
             }
         }
 
-        // If no word boundary found and we would break a word, force break at content_width
-        if break_point == content_width && current_pos + content_width < chars.len() {
-            // This is correct - break at content_width
-        }
+        // Create segment content
+        let segment_content: String = buffer_chars[current_char_pos..actual_break_pos]
+            .iter()
+            .map(|bc| bc.ch)
+            .collect();
 
-        let actual_end = current_pos + break_point;
-        let segment_content: String = chars[current_pos..actual_end].iter().collect();
-
-        let segment = WrappedSegment {
+        segments.push(WrappedSegment {
             content: segment_content,
-            logical_start: current_pos,
-            logical_end: actual_end,
-        };
-        segments.push(segment);
+            logical_start: current_char_pos,
+            logical_end: actual_break_pos,
+        });
 
-        current_pos = actual_end;
+        current_char_pos = actual_break_pos;
 
-        // Skip whitespace at the beginning of next line, but track this in positions
-        while current_pos < chars.len() && (chars[current_pos] == ' ' || chars[current_pos] == '\t')
-        {
-            current_pos += 1;
+        // Skip whitespace at the beginning of next line
+        while current_char_pos < total_chars {
+            let buffer_char = &buffer_chars[current_char_pos];
+            if buffer_char.ch == ' ' || buffer_char.ch == '\t' {
+                current_char_pos += 1;
+            } else {
+                break;
+            }
         }
     }
 
@@ -423,8 +753,8 @@ mod tests {
         assert!(cache.is_valid);
         assert!(!cache.wrap_enabled);
         assert_eq!(cache.display_lines.len(), 2);
-        assert_eq!(cache.display_lines[0].content, "Line 1");
-        assert_eq!(cache.display_lines[1].content, "Line 2");
+        assert_eq!(cache.display_lines[0].content(), "Line 1");
+        assert_eq!(cache.display_lines[1].content(), "Line 2");
         assert!(!cache.display_lines[0].is_continuation);
         assert!(!cache.display_lines[1].is_continuation);
     }

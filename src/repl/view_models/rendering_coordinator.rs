@@ -8,14 +8,18 @@ use crate::repl::view_models::core::ViewModel;
 impl ViewModel {
     /// Emit view events (adds to pending events collection)
     /// Accepts single events, vectors, arrays, or any iterator of ViewEvent
-    pub(super) fn emit_view_event<E>(&mut self, events: E)
+    pub(super) fn emit_view_event<E>(&mut self, events: E) -> Result<(), anyhow::Error>
     where
         E: IntoIterator<Item = ViewEvent>,
     {
-        for event in events {
-            self.pending_view_events.push(event);
-            tracing::debug!("View event emitted: {:?}", self.pending_view_events.last());
+        let event_vec: Vec<ViewEvent> = events.into_iter().collect();
+        if !event_vec.is_empty() {
+            for event in event_vec {
+                self.pending_view_events.push(event);
+                tracing::debug!("View event emitted: {:?}", self.pending_view_events.last());
+            }
         }
+        Ok(())
     }
 
     /// Collect and clear pending view events
@@ -42,8 +46,7 @@ impl ViewModel {
         let events = self
             .pane_manager
             .scroll_current_horizontally(direction, amount);
-        self.emit_view_event(events);
-        Ok(())
+        self.emit_view_event(events)
     }
 
     /// Handle vertical page scrolling (Ctrl+f, Ctrl+b) in current area
@@ -55,8 +58,7 @@ impl ViewModel {
         let events = self
             .pane_manager
             .scroll_current_vertically_by_page(direction);
-        self.emit_view_event(events);
-        Ok(())
+        self.emit_view_event(events)
     }
 
     /// Handle vertical half-page scrolling (Ctrl+d, Ctrl+u) in current area
@@ -68,7 +70,6 @@ impl ViewModel {
         let events = self
             .pane_manager
             .scroll_current_vertically_by_half_page(direction);
-        self.emit_view_event(events);
-        Ok(())
+        self.emit_view_event(events)
     }
 }

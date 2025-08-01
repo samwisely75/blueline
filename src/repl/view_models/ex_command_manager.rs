@@ -16,14 +16,14 @@ impl ViewModel {
     /// Add character to ex command buffer
     pub fn add_ex_command_char(&mut self, ch: char) -> Result<()> {
         self.status_line.append_to_command_buffer(ch);
-        self.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
+        let _ = self.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
         Ok(())
     }
 
     /// Remove last character from ex command buffer
     pub fn backspace_ex_command(&mut self) -> Result<()> {
         self.status_line.backspace_command_buffer();
-        self.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
+        let _ = self.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
         Ok(())
     }
 
@@ -45,16 +45,18 @@ impl ViewModel {
             "set wrap" => {
                 // Enable word wrap
                 self.pane_manager.set_wrap_enabled(true);
-                let content_width = self.get_content_width();
-                self.pane_manager.rebuild_display_caches(content_width);
-                self.emit_view_event([ViewEvent::FullRedrawRequired]);
+                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
+                let mut events = vec![ViewEvent::FullRedrawRequired];
+                events.extend(visibility_events);
+                let _ = self.emit_view_event(events);
             }
             "set nowrap" => {
                 // Disable word wrap
                 self.pane_manager.set_wrap_enabled(false);
-                let content_width = self.get_content_width();
-                self.pane_manager.rebuild_display_caches(content_width);
-                self.emit_view_event([ViewEvent::FullRedrawRequired]);
+                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
+                let mut events = vec![ViewEvent::FullRedrawRequired];
+                events.extend(visibility_events);
+                let _ = self.emit_view_event(events);
             }
             "show profile" => {
                 // Show profile information in status bar

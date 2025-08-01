@@ -4,94 +4,65 @@
 //! Handles text storage, cursor management, and basic editing operations.
 
 use crate::repl::events::{LogicalPosition, LogicalRange, ModelEvent, Pane};
+use crate::repl::models::buffer_char::CharacterBuffer;
 
-/// Content of a text buffer
+/// Content of a text buffer with character-aware positioning
 #[derive(Debug, Clone, PartialEq)]
 pub struct BufferContent {
-    lines: Vec<String>,
+    buffer: CharacterBuffer,
 }
 
 impl BufferContent {
     /// Create new empty buffer
     pub fn new() -> Self {
         Self {
-            lines: vec![String::new()],
+            buffer: CharacterBuffer::new(),
         }
     }
 
     /// Create buffer from existing lines
     pub fn from_lines(lines: Vec<String>) -> Self {
-        if lines.is_empty() {
-            Self::new()
-        } else {
-            Self { lines }
+        Self {
+            buffer: CharacterBuffer::from_lines(&lines),
         }
     }
 
-    /// Get all lines as slice
-    pub fn lines(&self) -> &[String] {
-        &self.lines
+    /// Get all lines as slice (for compatibility)
+    pub fn lines(&self) -> Vec<String> {
+        self.buffer.to_string_lines()
     }
 
     /// Get number of lines
     pub fn line_count(&self) -> usize {
-        self.lines.len()
+        self.buffer.line_count()
     }
 
     /// Get specific line
-    pub fn get_line(&self, index: usize) -> Option<&String> {
-        self.lines.get(index)
+    pub fn get_line(&self, index: usize) -> Option<String> {
+        self.buffer.get_line(index).map(|line| line.to_string())
     }
 
-    /// Get line length (character count)
+    /// Get line length (logical character count)
     pub fn line_length(&self, index: usize) -> usize {
-        self.lines.get(index).map_or(0, |line| line.len())
+        self.buffer
+            .get_line(index)
+            .map_or(0, |line| line.char_count())
     }
 
     /// Insert text at position, returning event
     pub fn insert_text(&mut self, pane: Pane, position: LogicalPosition, text: &str) -> ModelEvent {
-        // Ensure we have enough lines
-        while self.lines.len() <= position.line {
-            self.lines.push(String::new());
-        }
+        // Use CharacterBuffer's character-aware insertion
+        let mut current_line = position.line;
+        let mut current_col = position.column;
 
-        if text.contains('\n') {
-            // Multi-line insertion
-            let text_lines: Vec<&str> = text.split('\n').collect();
-            let current_line = &mut self.lines[position.line];
-
-            // Split current line at insertion point (convert char index to byte index)
-            let byte_index = current_line
-                .char_indices()
-                .nth(position.column)
-                .map(|(i, _)| i)
-                .unwrap_or(current_line.len());
-            let after_cursor = current_line.split_off(byte_index);
-
-            // Insert first part of new text
-            current_line.push_str(text_lines[0]);
-
-            // Insert middle lines
-            for (i, line) in text_lines.iter().enumerate().skip(1) {
-                if i == text_lines.len() - 1 {
-                    // Last line - append the text that was after cursor
-                    let mut last_line = line.to_string();
-                    last_line.push_str(&after_cursor);
-                    self.lines.insert(position.line + i, last_line);
-                } else {
-                    // Middle lines
-                    self.lines.insert(position.line + i, line.to_string());
-                }
+        for ch in text.chars() {
+            self.buffer.insert_char(current_line, current_col, ch);
+            if ch == '\n' {
+                current_line += 1;
+                current_col = 0;
+            } else {
+                current_col += 1;
             }
-        } else {
-            // Single line insertion (convert char index to byte index)
-            let line = &mut self.lines[position.line];
-            let byte_index = line
-                .char_indices()
-                .nth(position.column)
-                .map(|(i, _)| i)
-                .unwrap_or(line.len());
-            line.insert_str(byte_index, text);
         }
 
         ModelEvent::TextInserted {
@@ -103,7 +74,9 @@ impl BufferContent {
 
     /// Delete text in range, returning event if successful
     pub fn delete_range(&mut self, pane: Pane, range: LogicalRange) -> Option<ModelEvent> {
-        if range.start.line >= self.lines.len() || range.end.line >= self.lines.len() {
+        if range.start.line >= self.buffer.line_count()
+            || range.end.line >= self.buffer.line_count()
+        {
             return None;
         }
 
@@ -111,32 +84,29 @@ impl BufferContent {
             return None; // Nothing to delete
         }
 
-        if range.start.line == range.end.line {
-            // Single line deletion
-            let line = &mut self.lines[range.start.line];
-            if range.end.column <= line.len() {
-                line.drain(range.start.column..range.end.column);
-            }
-        } else {
-            // Multi-line deletion
-            let end_line_content = if range.end.line < self.lines.len() {
-                self.lines[range.end.line][range.end.column..].to_string()
-            } else {
-                String::new()
-            };
-
-            // Truncate start line
-            self.lines[range.start.line].truncate(range.start.column);
-
-            // Remove lines in between
-            for _ in range.start.line + 1..=range.end.line {
-                if range.start.line + 1 < self.lines.len() {
-                    self.lines.remove(range.start.line + 1);
+        // Use CharacterBuffer's character-aware deletion
+        // For now, implement a simple character-by-character deletion
+        // This ensures proper handling of multi-byte characters
+        let mut current_pos = range.end;
+        while current_pos != range.start {
+            // Move backwards through the range
+            if current_pos.column > 0 {
+                current_pos.column -= 1;
+                self.buffer
+                    .delete_char(current_pos.line, current_pos.column);
+            } else if current_pos.line > range.start.line {
+                // Move to end of previous line
+                current_pos.line -= 1;
+                if let Some(line) = self.buffer.get_line(current_pos.line) {
+                    current_pos.column = line.char_count();
+                    if current_pos.line + 1 < self.buffer.line_count() {
+                        // Delete the newline (join lines)
+                        self.buffer.delete_char(current_pos.line + 1, 0);
+                    }
                 }
+            } else {
+                break;
             }
-
-            // Append remaining content from end line
-            self.lines[range.start.line].push_str(&end_line_content);
         }
 
         Some(ModelEvent::TextDeleted { pane, range })
@@ -144,28 +114,37 @@ impl BufferContent {
 
     /// Check if position is valid within this buffer
     pub fn is_valid_position(&self, position: LogicalPosition) -> bool {
-        position.line < self.lines.len() && position.column <= self.line_length(position.line)
+        position.line < self.buffer.line_count()
+            && position.column <= self.line_length(position.line)
     }
 
     /// Clamp position to valid bounds
     pub fn clamp_position(&self, position: LogicalPosition) -> LogicalPosition {
-        let line = position.line.min(self.lines.len().saturating_sub(1));
+        let line = position
+            .line
+            .min(self.buffer.line_count().saturating_sub(1));
         let column = position.column.min(self.line_length(line));
         LogicalPosition::new(line, column)
     }
 
     /// Get text content as single string
     pub fn get_text(&self) -> String {
-        self.lines.join("\n")
+        self.buffer.to_string_lines().join("\n")
     }
 
     /// Set entire content from string
     pub fn set_text(&mut self, text: &str) {
-        self.lines = if text.is_empty() {
+        let lines: Vec<String> = if text.is_empty() {
             vec![String::new()]
         } else {
             text.lines().map(|s| s.to_string()).collect()
         };
+        self.buffer = CharacterBuffer::from_lines(&lines);
+    }
+
+    /// Get access to the underlying character buffer for display layer
+    pub fn character_buffer(&self) -> &CharacterBuffer {
+        &self.buffer
     }
 }
 
@@ -290,21 +269,73 @@ impl BufferModel {
     pub fn insert_text(&mut self, text: &str) -> ModelEvent {
         let event = self.content.insert_text(self.pane, self.cursor, text);
 
-        // Update cursor position based on inserted text
+        // Update cursor position based on inserted text (character-aware)
         if text.contains('\n') {
             let lines: Vec<&str> = text.split('\n').collect();
             let new_line = self.cursor.line + lines.len() - 1;
             let new_column = if lines.len() > 1 {
-                lines.last().unwrap().len()
+                lines.last().unwrap().chars().count() // Character count, not byte count
             } else {
-                self.cursor.column + text.len()
+                self.cursor.column + text.chars().count()
             };
             self.cursor = LogicalPosition::new(new_line, new_column);
         } else {
-            self.cursor = LogicalPosition::new(self.cursor.line, self.cursor.column + text.len());
+            self.cursor =
+                LogicalPosition::new(self.cursor.line, self.cursor.column + text.chars().count());
         }
 
         event
+    }
+
+    /// Move cursor to next word boundary, returning new position and event
+    pub fn move_cursor_to_next_word(&mut self) -> Option<ModelEvent> {
+        let current = self.cursor;
+
+        if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
+            if let Some(next_pos) = buffer_line.find_next_word_boundary(current.column) {
+                return self.set_cursor(LogicalPosition::new(current.line, next_pos));
+            }
+        }
+
+        // If no word boundary found on current line, move to beginning of next line
+        if current.line + 1 < self.content.line_count() {
+            self.set_cursor(LogicalPosition::new(current.line + 1, 0))
+        } else {
+            None
+        }
+    }
+
+    /// Move cursor to previous word boundary, returning new position and event
+    pub fn move_cursor_to_previous_word(&mut self) -> Option<ModelEvent> {
+        let current = self.cursor;
+
+        if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
+            if let Some(prev_pos) = buffer_line.find_previous_word_boundary(current.column) {
+                return self.set_cursor(LogicalPosition::new(current.line, prev_pos));
+            }
+        }
+
+        // If no word boundary found on current line, move to end of previous line
+        if current.line > 0 {
+            let prev_line = current.line - 1;
+            let line_length = self.content.line_length(prev_line);
+            self.set_cursor(LogicalPosition::new(prev_line, line_length))
+        } else {
+            None
+        }
+    }
+
+    /// Move cursor to end of current or next word, returning new position and event
+    pub fn move_cursor_to_end_of_word(&mut self) -> Option<ModelEvent> {
+        let current = self.cursor;
+
+        if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
+            if let Some(end_pos) = buffer_line.find_end_of_word(current.column) {
+                return self.set_cursor(LogicalPosition::new(current.line, end_pos));
+            }
+        }
+
+        None // If no end of word found, stay at current position
     }
 }
 
@@ -316,7 +347,7 @@ mod tests {
     fn buffer_content_should_create_with_empty_line() {
         let content = BufferContent::new();
         assert_eq!(content.line_count(), 1);
-        assert_eq!(content.get_line(0), Some(&String::new()));
+        assert_eq!(content.get_line(0), Some(String::new()));
     }
 
     #[test]
@@ -337,8 +368,8 @@ mod tests {
         content.insert_text(Pane::Request, pos, "hello\nworld");
 
         assert_eq!(content.line_count(), 2);
-        assert_eq!(content.get_line(0), Some(&"hello".to_string()));
-        assert_eq!(content.get_line(1), Some(&"world".to_string()));
+        assert_eq!(content.get_line(0), Some("hello".to_string()));
+        assert_eq!(content.get_line(1), Some("world".to_string()));
     }
 
     #[test]
@@ -417,8 +448,8 @@ mod tests {
         content.insert_text(Pane::Request, pos, "こんにちは\n世界");
 
         assert_eq!(content.line_count(), 2);
-        assert_eq!(content.get_line(0), Some(&"こんにちは".to_string()));
-        assert_eq!(content.get_line(1), Some(&"世界".to_string()));
+        assert_eq!(content.get_line(0), Some("こんにちは".to_string()));
+        assert_eq!(content.get_line(1), Some("世界".to_string()));
     }
 
     #[test]
@@ -458,15 +489,15 @@ mod tests {
         assert_eq!(content.line_count(), 10);
         assert_eq!(
             content.get_line(0),
-            Some(&"これはとても長い日本語のテストです。".to_string())
+            Some("これはとても長い日本語のテストです。".to_string())
         );
         assert_eq!(
             content.get_line(1),
-            Some(&"プログラミングにおいて、文字エンコーディングは重要な概念です。".to_string())
+            Some("プログラミングにおいて、文字エンコーディングは重要な概念です。".to_string())
         );
         assert_eq!(
             content.get_line(9),
-            Some(&"ダブルバイト文字で正しく動作する必要があります。".to_string())
+            Some("ダブルバイト文字で正しく動作する必要があります。".to_string())
         );
     }
 
@@ -503,7 +534,7 @@ mod tests {
         content.insert_text(Pane::Request, pos, &long_line);
 
         assert_eq!(content.line_count(), 1);
-        assert_eq!(content.line_length(0), long_line.len()); // Character count, not visual width
+        assert_eq!(content.line_length(0), long_line.chars().count()); // Character count, not byte length
         assert_eq!(content.get_text(), long_line);
     }
 
@@ -518,7 +549,7 @@ mod tests {
         content.insert_text(Pane::Request, pos, &mixed_long_line);
 
         assert_eq!(content.line_count(), 1);
-        assert_eq!(content.line_length(0), mixed_long_line.len());
+        assert_eq!(content.line_length(0), mixed_long_line.chars().count()); // Character count, not byte length
         assert_eq!(content.get_text(), mixed_long_line);
 
         // Test that mixed content is preserved correctly
@@ -591,9 +622,9 @@ mod tests {
 
         // Should have 3 lines: "GET ", "", ""
         assert_eq!(content.line_count(), 3);
-        assert_eq!(content.get_line(0), Some(&"GET ".to_string()));
-        assert_eq!(content.get_line(1), Some(&"".to_string()));
-        assert_eq!(content.get_line(2), Some(&"".to_string()));
+        assert_eq!(content.get_line(0), Some("GET ".to_string()));
+        assert_eq!(content.get_line(1), Some("".to_string()));
+        assert_eq!(content.get_line(2), Some("".to_string()));
 
         let full_text = content.get_text();
         assert_eq!(full_text, "GET \n\n");
@@ -605,17 +636,17 @@ mod tests {
 
         // Insert Japanese characters first
         content.insert_text(Pane::Request, LogicalPosition::new(0, 0), "こんにちは");
-        assert_eq!(content.get_line(0), Some(&"こんにちは".to_string()));
+        assert_eq!(content.get_line(0), Some("こんにちは".to_string()));
 
         // Insert text in the middle (character index 2, which is "に")
         content.insert_text(Pane::Request, LogicalPosition::new(0, 2), "X");
-        assert_eq!(content.get_line(0), Some(&"こんXにちは".to_string()));
+        assert_eq!(content.get_line(0), Some("こんXにちは".to_string()));
 
         // Insert newline in the middle of Unicode text (after position 3, which is "に")
         content.insert_text(Pane::Request, LogicalPosition::new(0, 4), "\n");
         assert_eq!(content.line_count(), 2);
-        assert_eq!(content.get_line(0), Some(&"こんXに".to_string()));
-        assert_eq!(content.get_line(1), Some(&"ちは".to_string()));
+        assert_eq!(content.get_line(0), Some("こんXに".to_string()));
+        assert_eq!(content.get_line(1), Some("ちは".to_string()));
     }
 
     #[test]
@@ -625,13 +656,53 @@ mod tests {
         // Insert mixed ASCII and Unicode
         content.insert_text(Pane::Request, LogicalPosition::new(0, 0), "Hello");
         content.insert_text(Pane::Request, LogicalPosition::new(0, 5), " こんにちは");
-        assert_eq!(content.get_line(0), Some(&"Hello こんにちは".to_string()));
+        assert_eq!(content.get_line(0), Some("Hello こんにちは".to_string()));
 
         // Insert text after Japanese characters (character position 11)
         content.insert_text(Pane::Request, LogicalPosition::new(0, 11), " World");
         assert_eq!(
             content.get_line(0),
-            Some(&"Hello こんにちは World".to_string())
+            Some("Hello こんにちは World".to_string())
         );
+    }
+
+    #[test]
+    fn buffer_model_should_navigate_by_word_boundaries() {
+        let mut buffer = BufferModel::new(Pane::Request);
+        buffer.insert_text("hello こんにちは world");
+        buffer.set_cursor(LogicalPosition::new(0, 0));
+
+        // Move to next word (should go to "こんにちは" at position 6)
+        let event = buffer.move_cursor_to_next_word();
+        assert!(event.is_some());
+        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 6));
+
+        // Move to next word (should go to "world" at position 12)
+        let event = buffer.move_cursor_to_next_word();
+        assert!(event.is_some());
+        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 12));
+
+        // Move to previous word (should go back to "こんにちは" at position 6)
+        let event = buffer.move_cursor_to_previous_word();
+        assert!(event.is_some());
+        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 6));
+    }
+
+    #[test]
+    fn buffer_model_should_find_end_of_word() {
+        let mut buffer = BufferModel::new(Pane::Request);
+        buffer.insert_text("hello こんにちは world");
+        buffer.set_cursor(LogicalPosition::new(0, 0));
+
+        // Move to end of "hello" (should go to position 4)
+        let event = buffer.move_cursor_to_end_of_word();
+        assert!(event.is_some());
+        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 4));
+
+        // Move cursor to start of Japanese word and find its end
+        buffer.set_cursor(LogicalPosition::new(0, 6));
+        let event = buffer.move_cursor_to_end_of_word();
+        assert!(event.is_some());
+        assert_eq!(buffer.cursor(), LogicalPosition::new(0, 10)); // End of "こんにちは"
     }
 }
