@@ -215,7 +215,8 @@ impl DisplayLine {
         if current_type == CharacterType::Word || current_type == CharacterType::DoubleByteChar {
             while i < char_positions.len() {
                 let char_type = char_positions[i].1.buffer_char.character_type();
-                if char_type != CharacterType::Word && char_type != CharacterType::DoubleByteChar {
+                // Stop if we hit a different character type (including transition between Word and DoubleByteChar)
+                if char_type != current_type {
                     break;
                 }
                 i += 1;
@@ -287,12 +288,11 @@ impl DisplayLine {
         // If we found a word character, find the beginning of this word
         let char_type = char_positions[i].1.buffer_char.character_type();
         if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
-            // Move backwards to find beginning of current word
+            // Move backwards to find beginning of current word (same character type)
             while i > 0 {
                 let prev_char_type = char_positions[i - 1].1.buffer_char.character_type();
-                if prev_char_type != CharacterType::Word
-                    && prev_char_type != CharacterType::DoubleByteChar
-                {
+                // Stop if we hit a different character type (including transition between Word and DoubleByteChar)
+                if prev_char_type != char_type {
                     break;
                 }
                 i -= 1;
@@ -882,5 +882,30 @@ mod tests {
         assert!(cache.is_valid_for(calculate_content_hash(&lines), 80, false));
         assert!(!cache.is_valid_for(calculate_content_hash(&lines), 60, false)); // Different width
         assert!(!cache.is_valid_for(calculate_content_hash(&lines), 80, true)); // Different wrap mode
+    }
+
+    #[test]
+    fn mixed_language_word_boundaries_should_work() {
+        // Test mixed Japanese-English text like "こんにちは Borat です"
+        let mixed_text = "こんにちは Borat です";
+        let display_line = DisplayLine::from_content(mixed_text, 0, 0, mixed_text.chars().count(), false);
+
+        // From start (position 0), 'w' should go to "Borat" (after Japanese text and space)
+        let next_word = display_line.find_next_word_boundary(0);
+        assert!(next_word.is_some());
+        
+        // The boundary should be at the start of "Borat" 
+        // Japanese chars "こんにちは" (5 chars) + space (1 char) = position should be around 6
+        let borat_start = next_word.unwrap();
+        
+        // From "Borat", 'w' should go to "です" (after English word and space)
+        let after_borat = display_line.find_next_word_boundary(borat_start + 1);
+        assert!(after_borat.is_some());
+
+        // From "です", 'b' should go back to "Borat"
+        let desu_start = after_borat.unwrap();
+        let back_to_borat = display_line.find_previous_word_boundary(desu_start);
+        assert!(back_to_borat.is_some());
+        assert_eq!(back_to_borat.unwrap(), borat_start);
     }
 }
