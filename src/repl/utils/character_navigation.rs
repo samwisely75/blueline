@@ -19,32 +19,68 @@ pub enum CharacterType {
     Whitespace,
 }
 
-/// Move cursor left by one display character from the given position
-/// Returns the new column position, accounting for multi-byte characters
-pub fn move_left_by_character(text: &str, current_col: usize) -> usize {
-    if current_col == 0 {
+/// Move cursor left by one display character from the given display column position
+/// Returns the new display column position, accounting for multi-byte characters
+pub fn move_left_by_character(text: &str, current_display_col: usize) -> usize {
+    if current_display_col == 0 {
         return 0;
     }
 
-    let chars: Vec<char> = text.chars().collect();
-    if current_col > chars.len() {
-        return chars.len().saturating_sub(1).max(0);
+    let mut display_pos = 0;
+    let mut prev_display_pos = 0;
+
+    // Find the character that contains or is just before the current display position
+    for ch in text.chars() {
+        let char_width = get_char_display_width(ch);
+
+        // If we've reached or passed the current position, return the previous position
+        if display_pos >= current_display_col {
+            return prev_display_pos;
+        }
+
+        prev_display_pos = display_pos;
+        display_pos += char_width;
     }
 
-    current_col.saturating_sub(1)
+    // If we're past the end, return the last valid position
+    prev_display_pos
 }
 
-/// Move cursor right by one display character from the given position
-/// Returns the new column position, accounting for multi-byte characters
-pub fn move_right_by_character(text: &str, current_col: usize) -> usize {
-    let chars: Vec<char> = text.chars().collect();
-    let max_pos = chars.len();
+/// Move cursor right by one display character from the given display column position
+/// Returns the new display column position, accounting for multi-byte characters
+pub fn move_right_by_character(text: &str, current_display_col: usize) -> usize {
+    let mut display_pos = 0;
+    let mut target_char_index = None;
 
-    if current_col >= max_pos {
-        return max_pos;
+    // First, find which character we're currently on
+    for (idx, ch) in text.chars().enumerate() {
+        let char_width = get_char_display_width(ch);
+
+        // Check if we're at or past the current display position
+        if display_pos <= current_display_col && current_display_col < display_pos + char_width {
+            // We're on this character, move to the next one
+            target_char_index = Some(idx + 1);
+            break;
+        }
+        display_pos += char_width;
     }
 
-    (current_col + 1).min(max_pos)
+    // If we didn't find a character (cursor is at end), return current position
+    if target_char_index.is_none() {
+        return current_display_col;
+    }
+
+    // Now calculate the display position of the target character
+    let mut new_display_pos = 0;
+    for (idx, ch) in text.chars().enumerate() {
+        if idx == target_char_index.unwrap() {
+            return new_display_pos;
+        }
+        new_display_pos += get_char_display_width(ch);
+    }
+
+    // If target is beyond end, return the total display width
+    new_display_pos
 }
 
 /// Determine the character type for navigation purposes
@@ -246,10 +282,26 @@ mod tests {
 
     #[test]
     fn test_move_left_right_by_character() {
+        // Test with Japanese text "きんようび" (5 chars, 10 display columns)
         let text = "きんようび";
-        assert_eq!(move_right_by_character(text, 0), 1);
-        assert_eq!(move_left_by_character(text, 1), 0);
-        assert_eq!(move_right_by_character(text, 4), 5); // Move to end
-        assert_eq!(move_left_by_character(text, 5), 4); // Move from end
+
+        // Moving right from start (display col 0) should go to display col 2 (after 'き')
+        assert_eq!(move_right_by_character(text, 0), 2);
+
+        // Moving left from display col 2 should go back to 0
+        assert_eq!(move_left_by_character(text, 2), 0);
+
+        // Moving right from display col 2 should go to display col 4 (after 'ん')
+        assert_eq!(move_right_by_character(text, 2), 4);
+
+        // Moving from middle of a character should work correctly
+        assert_eq!(move_right_by_character(text, 1), 2); // From middle of 'き' to after 'き'
+        assert_eq!(move_left_by_character(text, 3), 2); // From middle of 'ん' to start of 'ん'
+
+        // Test with mixed text
+        let mixed = "Hello きん";
+        assert_eq!(move_right_by_character(mixed, 5), 6); // After space
+        assert_eq!(move_right_by_character(mixed, 6), 8); // After 'き'
+        assert_eq!(move_left_by_character(mixed, 8), 6); // Back to before 'き'
     }
 }
