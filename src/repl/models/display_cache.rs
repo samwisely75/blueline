@@ -319,7 +319,45 @@ impl DisplayLine {
         use crate::repl::models::buffer_char::CharacterType;
 
         let mut current_display_pos = 0;
+
+        // First, determine if we're currently at the end of a word
+        let mut at_word_end = false;
+        for display_char in &self.chars {
+            let char_width = display_char.display_width();
+            if current_display_pos == current_display_col {
+                let char_type = display_char.buffer_char.character_type();
+                let is_word =
+                    char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar;
+
+                // Check if next character is non-word (indicating we're at word end)
+                if is_word {
+                    let next_pos = current_display_pos + char_width;
+                    let mut next_display_pos = 0;
+                    for next_char in &self.chars {
+                        let next_char_width = next_char.display_width();
+                        if next_display_pos == next_pos {
+                            let next_char_type = next_char.buffer_char.character_type();
+                            let next_is_word = next_char_type == CharacterType::Word
+                                || next_char_type == CharacterType::DoubleByteChar;
+                            at_word_end = !next_is_word;
+                            break;
+                        }
+                        next_display_pos += next_char_width;
+                    }
+                    // If we're at the last character, we're at word end
+                    if next_pos >= self.chars.len() {
+                        at_word_end = true;
+                    }
+                }
+                break;
+            }
+            current_display_pos += char_width;
+        }
+
+        // Now find the end of the next word
+        current_display_pos = 0;
         let mut found_word_start = false;
+        let mut skipping_current_word = at_word_end;
 
         for display_char in &self.chars {
             let char_width = display_char.display_width();
@@ -331,8 +369,19 @@ impl DisplayLine {
             }
 
             let char_type = display_char.buffer_char.character_type();
+            let is_word =
+                char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar;
 
-            if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
+            // If we're at word end, skip past current word and any whitespace
+            if skipping_current_word {
+                if !is_word {
+                    skipping_current_word = false;
+                }
+                current_display_pos += char_width;
+                continue;
+            }
+
+            if is_word {
                 found_word_start = true;
             } else if found_word_start {
                 // Found end of word, return position of last character in word

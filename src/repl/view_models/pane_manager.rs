@@ -364,10 +364,18 @@ impl PaneManager {
     pub fn ensure_current_cursor_visible(&mut self, content_width: usize) -> Vec<ViewEvent> {
         let result = self.panes[self.current_pane].ensure_cursor_visible(content_width);
 
-        if result.vertical_changed {
+        if result.vertical_changed || result.horizontal_changed {
+            // For horizontal scrolling, use horizontal offsets; for vertical scrolling, use vertical offsets
+            // If both changed, prioritize horizontal since it's more common in response navigation
+            let (old_offset, new_offset) = if result.horizontal_changed {
+                (result.old_horizontal_offset, result.new_horizontal_offset)
+            } else {
+                (result.old_vertical_offset, result.new_vertical_offset)
+            };
+
             vec![ViewEvent::CurrentAreaScrollChanged {
-                old_offset: result.old_vertical_offset,
-                new_offset: result.new_vertical_offset,
+                old_offset,
+                new_offset,
             }]
         } else {
             vec![]
