@@ -109,10 +109,10 @@ impl<W: Write> TerminalRenderer<W> {
             } else if !in_escape {
                 // Use unicode-width to get proper display width
                 // Most double-byte characters (CJK) have width 2
-                match unicode_width::UnicodeWidthChar::width(ch) {
-                    Some(w) => length += w,
-                    None => {} // Control characters and zero-width characters
+                if let Some(w) = unicode_width::UnicodeWidthChar::width(ch) {
+                    length += w;
                 }
+                // Control characters and zero-width characters have no width
             }
         }
 

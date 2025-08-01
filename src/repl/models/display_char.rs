@@ -157,10 +157,10 @@ impl DisplayChar {
 
         // Colors
         if let Some(fg) = self.fg_color {
-            codes.push(format!("38;5;{}", fg));
+            codes.push(format!("38;5;{fg}"));
         }
         if let Some(bg) = self.bg_color {
-            codes.push(format!("48;5;{}", bg));
+            codes.push(format!("48;5;{bg}"));
         }
 
         // Special highlighting
