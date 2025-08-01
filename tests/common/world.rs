@@ -349,7 +349,7 @@ impl BluelineWorld {
                 // This would trigger HTTP execution
                 println!("🌐 HTTP Request: {} {} (body: {:?})", method, url, body);
                 // For now, just record the request
-                self.last_request = Some(format!("{} {}", method, url));
+                self.last_request = Some(format!("{method} {url}"));
             }
             _ => {
                 println!("⚠️  CommandEvent {:?} not yet implemented in tests", event);
@@ -955,7 +955,7 @@ impl BluelineWorld {
             }
             unknown => {
                 // Unknown command
-                self.last_error = Some(format!("Unknown command: {}", unknown));
+                self.last_error = Some(format!("Unknown command: {unknown}"));
             }
         }
         self.command_buffer.clear();
@@ -1059,10 +1059,7 @@ impl BluelineWorld {
     pub fn sync_request_buffer_from_view_model(&mut self) {
         if let Some(ref view_model) = self.view_model {
             let request_text = view_model.get_request_text();
-            println!(
-                "🔄 Syncing request buffer from ViewModel: '{}'",
-                request_text
-            );
+            println!("🔄 Syncing request buffer from ViewModel: '{request_text}'");
 
             if request_text.trim().is_empty() {
                 self.request_buffer.clear();
@@ -1194,7 +1191,7 @@ impl BluelineWorld {
         );
 
         // Reverse video for status line
-        let status_line = format!("\x1b[7m{}\x1b[0m\r\n", padded_status);
+        let status_line = format!("\x1b[7m{padded_status}\x1b[0m\r\n");
         self.capture_stdout(status_line.as_bytes());
     }
 
