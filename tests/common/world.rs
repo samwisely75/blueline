@@ -228,9 +228,20 @@ impl BluelineWorld {
 
     /// Process key press using real blueline command system
     pub fn press_key(&mut self, key: &str) -> Result<()> {
+        println!("🔑 press_key called with: '{}'", key);
+        println!(
+            "   Current state: mode={:?}, pane={:?}",
+            self.mode, self.active_pane
+        );
         // TEMPORARY FIX: Always use simulation to avoid stdout/stdin issues
         // TODO: Properly separate real application tests from simulation tests
-        self.process_simulated_key_event(key)
+        let result = self.process_simulated_key_event(key);
+        println!(
+            "   After press_key: mode={:?}, result={:?}",
+            self.mode,
+            result.is_ok()
+        );
+        result
 
         // OLD CODE: Check if we have real application components
         // if self.view_model.is_some() && self.command_registry.is_some() {
@@ -713,7 +724,11 @@ impl BluelineWorld {
             }
 
             _ => {
-                // For unhandled key combinations, do nothing
+                // For unhandled key combinations, print debug info
+                println!(
+                    "⚠️  Unhandled key combination: mode={:?}, pane={:?}, key={}",
+                    self.mode, self.active_pane, key
+                );
             }
         }
         Ok(())
