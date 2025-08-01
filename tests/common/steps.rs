@@ -1315,21 +1315,25 @@ async fn capture_terminal_state_for_debugging(world: &mut BluelineWorld) {
     println!("\n=== TERMINAL STATE DEBUG CAPTURE ===");
     println!(
         "Terminal Size: {}x{}",
-        terminal_state.width,
-        terminal_state.height
+        terminal_state.width, terminal_state.height
     );
     println!(
         "Cursor Position: ({}, {})",
-        terminal_state.cursor.0,
-        terminal_state.cursor.1
+        terminal_state.cursor.0, terminal_state.cursor.1
     );
-    println!("Cursor Visible: {visible}", visible = terminal_state.cursor_visible);
+    println!(
+        "Cursor Visible: {visible}",
+        visible = terminal_state.cursor_visible
+    );
     println!(
         "Render Stats: full={full_redraws}, partial={partial_redraws}, cursor={cursor_updates}, clear={clear_count}"
     );
 
     let screen_content = terminal_state.get_full_text();
-    println!("Screen Content Length: {len} chars", len = screen_content.len());
+    println!(
+        "Screen Content Length: {len} chars",
+        len = screen_content.len()
+    );
     println!("Screen Content Preview (first 200 chars):");
     println!("{:?}", screen_content.chars().take(200).collect::<String>());
     println!("=== END DEBUG CAPTURE ===\n");
@@ -1427,7 +1431,10 @@ async fn verify_request_pane_visual_content(world: &mut BluelineWorld) {
 
     println!("\n=== REQUEST PANE VERIFICATION ===");
     println!("Looking for request content: 'GET _search'");
-    println!("Screen contains 'GET': {contains_get}", contains_get = screen_content.contains("GET"));
+    println!(
+        "Screen contains 'GET': {contains_get}",
+        contains_get = screen_content.contains("GET")
+    );
     println!(
         "Screen contains '_search': {}",
         screen_content.contains("_search")
@@ -1453,14 +1460,26 @@ async fn verify_response_pane_visual_content(world: &mut BluelineWorld) {
 
     println!("\n=== RESPONSE PANE VERIFICATION ===");
     println!("Looking for response content indicators");
-    println!("Screen contains '{{': {contains_brace}", contains_brace = screen_content.contains("{"));
-    println!("Screen contains '}}': {contains_brace}", contains_brace = screen_content.contains("}"));
-    println!("Screen contains 'id': {contains_id}", contains_id = screen_content.contains("id"));
+    println!(
+        "Screen contains '{{': {contains_brace}",
+        contains_brace = screen_content.contains("{")
+    );
+    println!(
+        "Screen contains '}}': {contains_brace}",
+        contains_brace = screen_content.contains("}")
+    );
+    println!(
+        "Screen contains 'id': {contains_id}",
+        contains_id = screen_content.contains("id")
+    );
     println!(
         "Screen contains 'name': {}",
         screen_content.contains("name")
     );
-    println!("Screen contains '200': {contains_200}", contains_200 = screen_content.contains("200"));
+    println!(
+        "Screen contains '200': {contains_200}",
+        contains_200 = screen_content.contains("200")
+    );
 
     // Find lines that might contain response data
     for (i, line) in screen_content.lines().enumerate() {
@@ -1505,15 +1524,16 @@ async fn verify_cursor_position_correctness(world: &mut BluelineWorld) {
     println!("\n=== CURSOR POSITION VERIFICATION ===");
     println!(
         "Terminal cursor: ({}, {})",
-        terminal_state.cursor.0,
-        terminal_state.cursor.1
+        terminal_state.cursor.0, terminal_state.cursor.1
     );
     println!(
         "World cursor: ({}, {})",
-        world.cursor_position.line,
-        world.cursor_position.column
+        world.cursor_position.line, world.cursor_position.column
     );
-    println!("Cursor visible: {visible}", visible = terminal_state.cursor_visible);
+    println!(
+        "Cursor visible: {visible}",
+        visible = terminal_state.cursor_visible
+    );
 
     // Check if cursor is within terminal bounds
     assert!(
@@ -1728,10 +1748,12 @@ async fn capture_detailed_rendering_statistics(world: &mut BluelineWorld) {
     );
     println!(
         "Cursor Position: ({}, {})",
-        terminal_state.cursor.0,
-        terminal_state.cursor.1
+        terminal_state.cursor.0, terminal_state.cursor.1
     );
-    println!("Cursor Visible: {visible}", visible = terminal_state.cursor_visible);
+    println!(
+        "Cursor Visible: {visible}",
+        visible = terminal_state.cursor_visible
+    );
     println!("Full Redraws: {full_redraws}");
     println!("Partial Redraws: {partial_redraws}");
     println!("Cursor Updates: {cursor_updates}");
@@ -2008,7 +2030,10 @@ async fn should_see_request_pane_content(world: &mut BluelineWorld) {
     let screen_content = terminal_state.get_full_text();
 
     println!("📺 Screen content (first 500 chars):");
-    println!("{preview}", preview = screen_content.chars().take(500).collect::<String>());
+    println!(
+        "{preview}",
+        preview = screen_content.chars().take(500).collect::<String>()
+    );
 
     // Check if we can see "GET _search" in the request pane
     let request_visible = screen_content.contains("GET _search")
@@ -2198,9 +2223,7 @@ async fn move_cursor_to_select_text(world: &mut BluelineWorld) {
 
         // Check final visual selection
         let selection = view_model.get_visual_selection();
-        println!(
-            "🎯 Final visual selection after cursor movement: {selection:?}"
-        );
+        println!("🎯 Final visual selection after cursor movement: {selection:?}");
     } else {
         panic!("Real application not initialized");
     }
@@ -2231,9 +2254,7 @@ async fn should_see_visual_selection_highlighting(world: &mut BluelineWorld) {
         let selection = view_model.get_visual_selection();
         let (start, end, pane) = selection;
 
-        println!(
-            "🎯 Visual selection state: start={start:?}, end={end:?}, pane={pane:?}"
-        );
+        println!("🎯 Visual selection state: start={start:?}, end={end:?}, pane={pane:?}");
 
         // Verify selection exists
         assert!(start.is_some(), "Visual selection start should be set");
@@ -2278,9 +2299,7 @@ async fn visual_selection_should_be_visible_on_screen(world: &mut BluelineWorld)
     let has_visual_indicators = screen_content.contains("-- VISUAL --") || // Status line
                                screen_content.contains("VISUAL"); // Mode indicator
 
-    println!(
-        "🔍 Screen contains visual indicators: {has_visual_indicators}"
-    );
+    println!("🔍 Screen contains visual indicators: {has_visual_indicators}");
     if has_visual_indicators {
         println!("✅ Found visual mode indicators on screen");
     } else {
@@ -2357,9 +2376,7 @@ async fn real_view_model_should_contain_text(world: &mut BluelineWorld) {
 async fn real_application_should_execute_http_request(world: &mut BluelineWorld) {
     // Check if HTTP request was triggered through the real application
     if let Some(ref last_request) = world.last_request {
-        println!(
-            "🌐 Real application executed HTTP request: {last_request}"
-        );
+        println!("🌐 Real application executed HTTP request: {last_request}");
         assert!(
             last_request.contains("GET"),
             "Expected HTTP GET request to be executed, but got: {last_request}"
@@ -2407,9 +2424,7 @@ async fn vte_should_capture_actual_rendering(world: &mut BluelineWorld) {
         "Expected some VTE rendering activity, but got zero activity"
     );
 
-    println!(
-        "✅ VTE captured {total_activity} total rendering operations"
-    );
+    println!("✅ VTE captured {total_activity} total rendering operations");
 }
 
 #[then("both panes should be rendered by real components")]
@@ -2418,7 +2433,10 @@ async fn both_panes_should_be_rendered_by_real_components(world: &mut BluelineWo
     let screen_content = terminal_state.get_full_text();
 
     println!("🖥️  Checking dual-pane rendering from real components...");
-    println!("Screen content length: {len} characters", len = screen_content.len());
+    println!(
+        "Screen content length: {len} characters",
+        len = screen_content.len()
+    );
 
     // Check for evidence of dual-pane layout
     assert!(
@@ -2898,7 +2916,11 @@ async fn cursor_is_at_column(world: &mut BluelineWorld, column: String) {
     world.cursor_position.column = col_num;
 
     // Simulate cursor positioning
-    let cursor_pos = format!("\x1b[{line};{col}H", line = world.cursor_position.line + 1, col = col_num + 1);
+    let cursor_pos = format!(
+        "\x1b[{line};{col}H",
+        line = world.cursor_position.line + 1,
+        col = col_num + 1
+    );
     world.capture_stdout(cursor_pos.as_bytes());
 }
 
@@ -2919,7 +2941,8 @@ async fn cursor_moves_to_column(world: &mut BluelineWorld, column: String) {
 
     // Verify cursor is at expected column
     assert_eq!(
-        world.cursor_position.column, expected_col,
+        world.cursor_position.column,
+        expected_col,
         "Expected cursor at column {expected_col}, but got column {actual_col}",
         actual_col = world.cursor_position.column
     );
@@ -2935,17 +2958,23 @@ async fn cursor_moves_to_line_column(world: &mut BluelineWorld, line: String, co
     world.cursor_position.column = expected_col;
 
     // Simulate cursor positioning in terminal output
-    let cursor_pos = format!("\x1b[{line};{col}H", line = expected_line + 1, col = expected_col + 1);
+    let cursor_pos = format!(
+        "\x1b[{line};{col}H",
+        line = expected_line + 1,
+        col = expected_col + 1
+    );
     world.capture_stdout(cursor_pos.as_bytes());
 
     // Verify cursor is at expected position
     assert_eq!(
-        world.cursor_position.line, expected_line,
+        world.cursor_position.line,
+        expected_line,
         "Expected cursor at line {expected_line}, but got line {actual_line}",
         actual_line = world.cursor_position.line
     );
     assert_eq!(
-        world.cursor_position.column, expected_col,
+        world.cursor_position.column,
+        expected_col,
         "Expected cursor at column {expected_col}, but got column {actual_col}",
         actual_col = world.cursor_position.column
     );
@@ -2978,7 +3007,11 @@ async fn cursor_is_in_front_of_character(world: &mut BluelineWorld, character: S
         world.cursor_position.column = char_pos;
 
         // Simulate cursor positioning
-        let cursor_pos = format!("\x1b[{line};{col}H", line = world.cursor_position.line + 1, col = char_pos + 1);
+        let cursor_pos = format!(
+            "\x1b[{line};{col}H",
+            line = world.cursor_position.line + 1,
+            col = char_pos + 1
+        );
         world.capture_stdout(cursor_pos.as_bytes());
     }
 }
@@ -3018,9 +3051,7 @@ async fn cursor_moves_in_front_of_character(world: &mut BluelineWorld, character
             actual_col = world.cursor_position.column
         );
     } else {
-        panic!(
-            "Character '{character}' not found in buffer content: '{content}'"
-        );
+        panic!("Character '{character}' not found in buffer content: '{content}'");
     }
 }
 

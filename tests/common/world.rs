@@ -268,7 +268,10 @@ impl BluelineWorld {
         // Process the key event through the real command registry
         match command_registry.process_event(key_event, &context) {
             Ok(events) => {
-                println!("🔧 Real key '{key}' generated {count} events", count = events.len());
+                println!(
+                    "🔧 Real key '{key}' generated {count} events",
+                    count = events.len()
+                );
 
                 // Apply events to the real view model
                 for event in events {
@@ -812,7 +815,8 @@ impl BluelineWorld {
             (Mode::Normal, ActivePane::Response, "$") => {
                 if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
                     self.cursor_position.column = line.chars().count();
-                    let cursor_end = format!("\x1b[{position}G", position = line.chars().count() + 1);
+                    let cursor_end =
+                        format!("\x1b[{position}G", position = line.chars().count() + 1);
                     self.capture_stdout(cursor_end.as_bytes());
                 } else {
                     let cursor_end = "\x1b[1G"; // Move to column 1
@@ -1066,7 +1070,10 @@ impl BluelineWorld {
                 self.request_buffer = request_text.lines().map(|s| s.to_string()).collect();
             }
 
-            println!("📋 Synchronized request_buffer: {request_buffer:?}", request_buffer = self.request_buffer);
+            println!(
+                "📋 Synchronized request_buffer: {request_buffer:?}",
+                request_buffer = self.request_buffer
+            );
         } else {
             println!("⚠️  No ViewModel available to sync from");
         }
