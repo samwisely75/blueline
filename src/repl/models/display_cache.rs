@@ -193,7 +193,6 @@ impl DisplayLine {
             }
         }
 
-
         // Vim 'w' behavior: move to start of next word
         // 1. If we're in a word, skip to end of current word
         // 2. Skip any whitespace/punctuation
@@ -894,8 +893,7 @@ mod tests {
         let display_line =
             DisplayLine::from_content(mixed_text, 0, 0, mixed_text.chars().count(), false);
 
-
-        // From start (position 0), 'w' should go to "Borat" 
+        // From start (position 0), 'w' should go to "Borat"
         let next_word = display_line.find_next_word_boundary(0);
         assert!(next_word.is_some());
         let borat_start = next_word.unwrap();
@@ -910,6 +908,10 @@ mod tests {
         // From "です", 'b' should go back to "Borat"
         let back_to_borat = display_line.find_previous_word_boundary(desu_start);
         assert!(back_to_borat.is_some());
-        assert_eq!(back_to_borat.unwrap(), borat_start, "Should go back to 'Borat'");
+        assert_eq!(
+            back_to_borat.unwrap(),
+            borat_start,
+            "Should go back to 'Borat'"
+        );
     }
 }
