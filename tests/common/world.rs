@@ -228,7 +228,7 @@ impl BluelineWorld {
 
     /// Process key press using real blueline command system
     pub fn press_key(&mut self, key: &str) -> Result<()> {
-        println!("🔑 press_key called with: '{}'", key);
+        println!("🔑 press_key called with: '{key}'");
         println!(
             "   Current state: mode={:?}, pane={:?}",
             self.mode, self.active_pane
@@ -268,11 +268,11 @@ impl BluelineWorld {
         // Process the key event through the real command registry
         match command_registry.process_event(key_event, &context) {
             Ok(events) => {
-                println!("🔧 Real key '{}' generated {} events", key, events.len());
+                println!("🔧 Real key '{key}' generated {count} events", count = events.len());
 
                 // Apply events to the real view model
                 for event in events {
-                    println!("  📝 Applying event: {:?}", event);
+                    println!("  📝 Applying event: {event:?}");
                     self.apply_command_event_to_view_model(event)?;
                 }
 
@@ -282,7 +282,7 @@ impl BluelineWorld {
                 Ok(())
             }
             Err(e) => {
-                println!("❌ Error processing key '{}': {}", key, e);
+                println!("❌ Error processing key '{key}': {e}");
                 Err(e)
             }
         }
@@ -300,7 +300,7 @@ impl BluelineWorld {
             "k" => KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE),
             "l" => KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE),
             ":" => KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE),
-            _ => return Err(anyhow::anyhow!("Unsupported key: {}", key)),
+            _ => return Err(anyhow::anyhow!("Unsupported key: {key}")),
         };
         Ok(key_event)
     }
@@ -321,8 +321,7 @@ impl BluelineWorld {
                             view_model.move_cursor_to_start_of_line()?
                         }
                         _ => println!(
-                            "⚠️  Movement direction {:?} not yet implemented in tests",
-                            direction
+                            "⚠️  Movement direction {direction:?} not yet implemented in tests"
                         ),
                     }
                 }
@@ -347,12 +346,12 @@ impl BluelineWorld {
                 body,
             } => {
                 // This would trigger HTTP execution
-                println!("🌐 HTTP Request: {} {} (body: {:?})", method, url, body);
+                println!("🌐 HTTP Request: {method} {url} (body: {body:?})");
                 // For now, just record the request
                 self.last_request = Some(format!("{method} {url}"));
             }
             _ => {
-                println!("⚠️  CommandEvent {:?} not yet implemented in tests", event);
+                println!("⚠️  CommandEvent {event:?} not yet implemented in tests");
             }
         }
         Ok(())
@@ -366,7 +365,7 @@ impl BluelineWorld {
             // Capture current view model state as terminal output
             let view_model = self.view_model.as_ref().unwrap();
             let mode = view_model.get_mode();
-            let output = format!("Real ViewModel State: Mode={:?}\r\n", mode);
+            let output = format!("Real ViewModel State: Mode={mode:?}\r\n");
             self.capture_stdout(output.as_bytes());
 
             // Also emit mode-specific cursor styling
@@ -559,7 +558,7 @@ impl BluelineWorld {
                     let line_char_count = line.chars().count();
                     self.cursor_position.column = line_char_count;
                     // Simulate cursor to end of line
-                    let cursor_end = format!("\x1b[{}G", line_char_count + 1);
+                    let cursor_end = format!("\x1b[{position}G", position = line_char_count + 1);
                     self.capture_stdout(cursor_end.as_bytes());
                 } else {
                     // If no line content, still emit escape sequence for cursor positioning
@@ -611,7 +610,7 @@ impl BluelineWorld {
                     }
                 }
                 // Simulate half page up movement
-                let half_page_up = format!("\x1b[{}A", half_page);
+                let half_page_up = format!("\x1b[{half_page}A");
                 self.capture_stdout(half_page_up.as_bytes());
             }
             (Mode::Normal, ActivePane::Request, "Ctrl+D") => {
@@ -624,7 +623,7 @@ impl BluelineWorld {
                     }
                 }
                 // Simulate half page down movement
-                let half_page_down = format!("\x1b[{}B", half_page);
+                let half_page_down = format!("\x1b[{half_page}B");
                 self.capture_stdout(half_page_down.as_bytes());
             }
             (Mode::Normal, ActivePane::Request, "Ctrl+F")
@@ -638,7 +637,7 @@ impl BluelineWorld {
                     }
                 }
                 // Simulate full page down movement
-                let full_page_down = format!("\x1b[{}B", full_page);
+                let full_page_down = format!("\x1b[{full_page}B");
                 self.capture_stdout(full_page_down.as_bytes());
             }
             (Mode::Normal, ActivePane::Request, "Ctrl+B")
@@ -651,7 +650,7 @@ impl BluelineWorld {
                     }
                 }
                 // Simulate full page up movement
-                let full_page_up = format!("\x1b[{}A", full_page);
+                let full_page_up = format!("\x1b[{full_page}A");
                 self.capture_stdout(full_page_up.as_bytes());
             }
             (Mode::Normal, ActivePane::Request, "g") => {
@@ -674,7 +673,7 @@ impl BluelineWorld {
                 self.cursor_position.line = last_line.saturating_sub(1);
                 self.cursor_position.column = 0;
                 // Simulate cursor to last line
-                let cursor_last = format!("\x1b[{};1H", last_line);
+                let cursor_last = format!("\x1b[{last_line};1H");
                 self.capture_stdout(cursor_last.as_bytes());
             }
 
@@ -813,7 +812,7 @@ impl BluelineWorld {
             (Mode::Normal, ActivePane::Response, "$") => {
                 if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
                     self.cursor_position.column = line.chars().count();
-                    let cursor_end = format!("\x1b[{}G", line.chars().count() + 1);
+                    let cursor_end = format!("\x1b[{position}G", position = line.chars().count() + 1);
                     self.capture_stdout(cursor_end.as_bytes());
                 } else {
                     let cursor_end = "\x1b[1G"; // Move to column 1
@@ -845,7 +844,7 @@ impl BluelineWorld {
 
     /// Type text using real command processing
     fn type_text_real(&mut self, text: &str) -> Result<()> {
-        println!("⌨️  Typing '{}' using real application logic", text);
+        println!("⌨️  Typing '{text}' using real application logic");
 
         for ch in text.chars() {
             let key_event = KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE);
@@ -860,14 +859,14 @@ impl BluelineWorld {
             match command_registry.process_event(key_event, &context) {
                 Ok(events) => {
                     for event in events {
-                        println!("  📝 Character '{}' event: {:?}", ch, event);
+                        println!("  📝 Character '{ch}' event: {event:?}");
                         self.apply_command_event_to_view_model(event)?;
                     }
                     // Render after each character
                     self.render_real_view_model()?;
                 }
                 Err(e) => {
-                    println!("❌ Error typing character '{}': {}", ch, e);
+                    println!("❌ Error typing character '{ch}': {e}");
                 }
             }
         }
@@ -1067,7 +1066,7 @@ impl BluelineWorld {
                 self.request_buffer = request_text.lines().map(|s| s.to_string()).collect();
             }
 
-            println!("📋 Synchronized request_buffer: {:?}", self.request_buffer);
+            println!("📋 Synchronized request_buffer: {request_buffer:?}", request_buffer = self.request_buffer);
         } else {
             println!("⚠️  No ViewModel available to sync from");
         }
