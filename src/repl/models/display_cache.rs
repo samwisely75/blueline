@@ -193,6 +193,7 @@ impl DisplayLine {
             }
         }
 
+
         // Vim 'w' behavior: move to start of next word
         // 1. If we're in a word, skip to end of current word
         // 2. Skip any whitespace/punctuation
@@ -217,16 +218,18 @@ impl DisplayLine {
                 let char_type = char_positions[i].1.buffer_char.character_type();
                 // Stop if we hit a different character type (including transition between Word and DoubleByteChar)
                 if char_type != current_type {
+                    // Now we're at the end of current word, break to find next word
                     break;
                 }
                 i += 1;
             }
         }
 
-        // Skip whitespace and punctuation
+        // Skip whitespace and punctuation to find next word
         while i < char_positions.len() {
             let char_type = char_positions[i].1.buffer_char.character_type();
             if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
+                // Found start of next word
                 return Some(char_positions[i].0);
             }
             i += 1;
@@ -888,24 +891,25 @@ mod tests {
     fn mixed_language_word_boundaries_should_work() {
         // Test mixed Japanese-English text like "こんにちは Borat です"
         let mixed_text = "こんにちは Borat です";
-        let display_line = DisplayLine::from_content(mixed_text, 0, 0, mixed_text.chars().count(), false);
+        let display_line =
+            DisplayLine::from_content(mixed_text, 0, 0, mixed_text.chars().count(), false);
 
-        // From start (position 0), 'w' should go to "Borat" (after Japanese text and space)
+
+        // From start (position 0), 'w' should go to "Borat" 
         let next_word = display_line.find_next_word_boundary(0);
         assert!(next_word.is_some());
-        
-        // The boundary should be at the start of "Borat" 
-        // Japanese chars "こんにちは" (5 chars) + space (1 char) = position should be around 6
         let borat_start = next_word.unwrap();
-        
-        // From "Borat", 'w' should go to "です" (after English word and space)
+        assert_eq!(borat_start, 11, "Should jump to 'B' in 'Borat'");
+
+        // From inside "Borat", 'w' should go to "です"
         let after_borat = display_line.find_next_word_boundary(borat_start + 1);
-        assert!(after_borat.is_some());
+        assert!(after_borat.is_some(), "Should find 'です' after 'Borat'");
+        let desu_start = after_borat.unwrap();
+        assert_eq!(desu_start, 17, "Should jump to 'で' in 'です'");
 
         // From "です", 'b' should go back to "Borat"
-        let desu_start = after_borat.unwrap();
         let back_to_borat = display_line.find_previous_word_boundary(desu_start);
         assert!(back_to_borat.is_some());
-        assert_eq!(back_to_borat.unwrap(), borat_start);
+        assert_eq!(back_to_borat.unwrap(), borat_start, "Should go back to 'Borat'");
     }
 }
