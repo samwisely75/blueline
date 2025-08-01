@@ -40,12 +40,16 @@ impl ViewModel {
             if let Some(display_line) = display_cache.get_display_line(display_line_idx) {
                 // Apply horizontal scrolling to content
                 let content = display_line.content();
-                let visible_content = if horizontal_scroll_offset < content.len() {
-                    let end_pos = (horizontal_scroll_offset + content_width).min(content.len());
-                    content[horizontal_scroll_offset..end_pos].to_string()
-                } else {
-                    String::new()
-                };
+                let visible_content =
+                    if horizontal_scroll_offset > 0 || content.len() > content_width {
+                        // Use character-aware slicing to avoid UTF-8 boundary issues
+                        let chars: Vec<char> = content.chars().collect();
+                        let start_char = horizontal_scroll_offset.min(chars.len());
+                        let end_char = (horizontal_scroll_offset + content_width).min(chars.len());
+                        chars[start_char..end_char].iter().collect()
+                    } else {
+                        content.to_string()
+                    };
 
                 // Show logical line number only for first segment of wrapped lines
                 let line_number = if display_line.is_continuation {

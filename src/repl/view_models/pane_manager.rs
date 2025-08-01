@@ -1055,7 +1055,19 @@ impl PaneManager {
         let current_display_pos = self.get_current_display_cursor();
 
         if current_display_pos.0 > 0 {
-            let new_display_pos = (current_display_pos.0 - 1, current_display_pos.1);
+            let new_line = current_display_pos.0 - 1;
+
+            // Clamp column to the length of the new line to prevent cursor going beyond line end
+            let new_col = if let Some(display_line) = self.panes[self.current_pane]
+                .display_cache
+                .get_display_line(new_line)
+            {
+                current_display_pos.1.min(display_line.display_width())
+            } else {
+                current_display_pos.1
+            };
+
+            let new_display_pos = (new_line, new_col);
             self.panes[self.current_pane].display_cursor = new_display_pos;
 
             // Sync logical cursor with new display position
@@ -1100,12 +1112,14 @@ impl PaneManager {
         let current_display_pos = self.get_current_display_cursor();
 
         let next_display_line = current_display_pos.0 + 1;
-        if self.panes[self.current_pane]
+        if let Some(display_line) = self.panes[self.current_pane]
             .display_cache
             .get_display_line(next_display_line)
-            .is_some()
         {
-            let new_display_pos = (next_display_line, current_display_pos.1);
+            // Clamp column to the length of the new line to prevent cursor going beyond line end
+            let new_col = current_display_pos.1.min(display_line.display_width());
+            let new_display_pos = (next_display_line, new_col);
+
             self.panes[self.current_pane].display_cursor = new_display_pos;
 
             // Sync logical cursor with new display position

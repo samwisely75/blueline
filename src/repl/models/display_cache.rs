@@ -171,48 +171,64 @@ impl DisplayLine {
     pub fn find_next_word_boundary(&self, current_display_col: usize) -> Option<usize> {
         use crate::repl::models::buffer_char::CharacterType;
 
-        let mut current_display_pos = 0;
-        let mut found_current_char = false;
-        let mut in_word = false;
+        // Build character positions array
+        let mut char_positions = Vec::new();
+        let mut current_pos = 0;
 
         for display_char in &self.chars {
-            let char_width = display_char.display_width();
+            char_positions.push((current_pos, display_char));
+            current_pos += display_char.display_width();
+        }
 
-            // Check if we're at or past the current position
-            if current_display_pos >= current_display_col
-                || (current_display_pos <= current_display_col
-                    && current_display_col < current_display_pos + char_width)
-            {
-                found_current_char = true;
+        if char_positions.is_empty() {
+            return None;
+        }
 
-                let char_type = display_char.buffer_char.character_type();
-
-                if !in_word
-                    && (char_type == CharacterType::Word
-                        || char_type == CharacterType::DoubleByteChar)
-                {
-                    // Found start of a word
-                    return Some(current_display_pos);
-                } else if in_word
-                    && char_type != CharacterType::Word
-                    && char_type != CharacterType::DoubleByteChar
-                {
-                    // End of current word, look for next word
-                    in_word = false;
-                } else if char_type == CharacterType::Word
-                    || char_type == CharacterType::DoubleByteChar
-                {
-                    in_word = true;
-                }
-            } else if found_current_char {
-                // We've passed the current position, continue searching
-                let char_type = display_char.buffer_char.character_type();
-                if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
-                    return Some(current_display_pos);
-                }
+        // Find current character index
+        let mut current_index = 0;
+        for (i, &(pos, _)) in char_positions.iter().enumerate() {
+            if pos >= current_display_col {
+                current_index = i;
+                break;
             }
+        }
 
-            current_display_pos += char_width;
+        // Vim 'w' behavior: move to start of next word
+        // 1. If we're in a word, skip to end of current word
+        // 2. Skip any whitespace/punctuation
+        // 3. Stop at beginning of next word
+
+        let mut i = current_index;
+
+        // If we're at the last character, no next word
+        if i >= char_positions.len() {
+            return None;
+        }
+
+        // Skip current character position to avoid staying in place
+        if i < char_positions.len() - 1 {
+            i += 1;
+        }
+
+        // Skip to end of current word if we're in one
+        let current_type = char_positions[current_index].1.buffer_char.character_type();
+        if current_type == CharacterType::Word || current_type == CharacterType::DoubleByteChar {
+            while i < char_positions.len() {
+                let char_type = char_positions[i].1.buffer_char.character_type();
+                if char_type != CharacterType::Word && char_type != CharacterType::DoubleByteChar {
+                    break;
+                }
+                i += 1;
+            }
+        }
+
+        // Skip whitespace and punctuation
+        while i < char_positions.len() {
+            let char_type = char_positions[i].1.buffer_char.character_type();
+            if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
+                return Some(char_positions[i].0);
+            }
+            i += 1;
         }
 
         None
@@ -226,34 +242,71 @@ impl DisplayLine {
             return None;
         }
 
-        #[allow(clippy::type_complexity)]
-        let mut positions: Vec<(usize, &crate::repl::models::display_char::DisplayChar)> =
-            Vec::new();
-        let mut current_display_pos = 0;
+        // Build character positions array
+        let mut char_positions = Vec::new();
+        let mut current_pos = 0;
 
-        // Collect positions up to current_display_col
         for display_char in &self.chars {
-            if current_display_pos >= current_display_col {
-                break;
-            }
-            positions.push((current_display_pos, display_char));
-            current_display_pos += display_char.display_width();
+            char_positions.push((current_pos, display_char));
+            current_pos += display_char.display_width();
         }
 
-        // Search backwards for word boundary
-        let mut in_word = false;
-        for (pos, display_char) in positions.iter().rev() {
-            let char_type = display_char.buffer_char.character_type();
+        if char_positions.is_empty() {
+            return None;
+        }
 
-            if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
-                if !in_word {
-                    // Found beginning of a word
-                    return Some(*pos);
-                }
-                in_word = true;
-            } else {
-                in_word = false;
+        // Find current character index
+        let mut current_index = 0;
+        for (i, &(pos, _)) in char_positions.iter().enumerate() {
+            if pos >= current_display_col {
+                current_index = i;
+                break;
             }
+        }
+
+        // Vim 'b' behavior: move to beginning of current or previous word
+        // 1. If we're in a word, move to beginning of current word
+        // 2. If we're not in a word, skip backwards through non-word chars to find previous word
+
+        // Start from the character just before current position
+        let mut i = if current_index > 0 {
+            current_index - 1
+        } else {
+            0
+        };
+
+        // Skip backwards through current non-word characters (whitespace/punctuation)
+        while i > 0 {
+            let char_type = char_positions[i].1.buffer_char.character_type();
+            if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
+                break;
+            }
+            i -= 1;
+        }
+
+        // If we found a word character, find the beginning of this word
+        let char_type = char_positions[i].1.buffer_char.character_type();
+        if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
+            // Move backwards to find beginning of current word
+            while i > 0 {
+                let prev_char_type = char_positions[i - 1].1.buffer_char.character_type();
+                if prev_char_type != CharacterType::Word
+                    && prev_char_type != CharacterType::DoubleByteChar
+                {
+                    break;
+                }
+                i -= 1;
+            }
+            return Some(char_positions[i].0);
+        }
+
+        // If we're at position 0 and it's not a word character, return None
+        if i == 0 {
+            let char_type = char_positions[0].1.buffer_char.character_type();
+            if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
+                return Some(0);
+            }
+            return None;
         }
 
         None

@@ -418,7 +418,7 @@ impl BluelineWorld {
             }
             (Mode::Normal, ActivePane::Request, "l") => {
                 if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                    if self.cursor_position.column < line.len() {
+                    if self.cursor_position.column < line.chars().count() {
                         self.cursor_position.column += 1;
                     }
                 }
@@ -431,8 +431,9 @@ impl BluelineWorld {
                     self.cursor_position.line += 1;
                     // Adjust column if new line is shorter
                     if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                        if self.cursor_position.column > line.len() {
-                            self.cursor_position.column = line.len();
+                        let line_char_count = line.chars().count();
+                        if self.cursor_position.column > line_char_count {
+                            self.cursor_position.column = line_char_count;
                         }
                     }
                 }
@@ -445,8 +446,9 @@ impl BluelineWorld {
                     self.cursor_position.line -= 1;
                     // Adjust column if new line is shorter
                     if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                        if self.cursor_position.column > line.len() {
-                            self.cursor_position.column = line.len();
+                        let line_char_count = line.chars().count();
+                        if self.cursor_position.column > line_char_count {
+                            self.cursor_position.column = line_char_count;
                         }
                     }
                 }
@@ -465,7 +467,7 @@ impl BluelineWorld {
             }
             (_, ActivePane::Request, "Right") => {
                 if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                    if self.cursor_position.column < line.len() {
+                    if self.cursor_position.column < line.chars().count() {
                         self.cursor_position.column += 1;
                     }
                 }
@@ -554,9 +556,10 @@ impl BluelineWorld {
             }
             (Mode::Normal, ActivePane::Request, "$") => {
                 if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
-                    self.cursor_position.column = line.len();
+                    let line_char_count = line.chars().count();
+                    self.cursor_position.column = line_char_count;
                     // Simulate cursor to end of line
-                    let cursor_end = format!("\x1b[{}G", line.len() + 1);
+                    let cursor_end = format!("\x1b[{}G", line_char_count + 1);
                     self.capture_stdout(cursor_end.as_bytes());
                 } else {
                     // If no line content, still emit escape sequence for cursor positioning
@@ -721,6 +724,101 @@ impl BluelineWorld {
             (Mode::Command, _, "Enter") => {
                 self.execute_command()?;
                 self.mode = Mode::Normal;
+            }
+
+            // Word navigation - Request pane
+            (Mode::Normal, ActivePane::Request, "w") => {
+                self.move_to_next_word_request();
+                let cursor_right = "\x1b[1C"; // Basic cursor movement for visual feedback
+                self.capture_stdout(cursor_right.as_bytes());
+            }
+            (Mode::Normal, ActivePane::Request, "b") => {
+                self.move_to_previous_word_request();
+                let cursor_left = "\x1b[1D"; // Basic cursor movement for visual feedback
+                self.capture_stdout(cursor_left.as_bytes());
+            }
+            (Mode::Normal, ActivePane::Request, "e") => {
+                self.move_to_end_of_word_request();
+                let cursor_right = "\x1b[1C"; // Basic cursor movement for visual feedback
+                self.capture_stdout(cursor_right.as_bytes());
+            }
+
+            // Word navigation - Response pane
+            (Mode::Normal, ActivePane::Response, "w") => {
+                self.move_to_next_word_response();
+                let cursor_right = "\x1b[1C"; // Basic cursor movement for visual feedback
+                self.capture_stdout(cursor_right.as_bytes());
+            }
+            (Mode::Normal, ActivePane::Response, "b") => {
+                self.move_to_previous_word_response();
+                let cursor_left = "\x1b[1D"; // Basic cursor movement for visual feedback
+                self.capture_stdout(cursor_left.as_bytes());
+            }
+            (Mode::Normal, ActivePane::Response, "e") => {
+                self.move_to_end_of_word_response();
+                let cursor_right = "\x1b[1C"; // Basic cursor movement for visual feedback
+                self.capture_stdout(cursor_right.as_bytes());
+            }
+
+            // Response pane line movement (like request pane but for response)
+            (Mode::Normal, ActivePane::Response, "h") => {
+                if self.cursor_position.column > 0 {
+                    self.cursor_position.column -= 1;
+                }
+                let cursor_left = "\x1b[1D";
+                self.capture_stdout(cursor_left.as_bytes());
+            }
+            (Mode::Normal, ActivePane::Response, "l") => {
+                if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
+                    if self.cursor_position.column < line.chars().count() {
+                        self.cursor_position.column += 1;
+                    }
+                }
+                let cursor_right = "\x1b[1C";
+                self.capture_stdout(cursor_right.as_bytes());
+            }
+            (Mode::Normal, ActivePane::Response, "j") => {
+                if self.cursor_position.line < self.response_buffer.len().saturating_sub(1) {
+                    self.cursor_position.line += 1;
+                    // Clamp column to line length to fix issue #3
+                    if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
+                        let line_char_count = line.chars().count();
+                        if self.cursor_position.column > line_char_count {
+                            self.cursor_position.column = line_char_count;
+                        }
+                    }
+                }
+                let cursor_down = "\x1b[1B";
+                self.capture_stdout(cursor_down.as_bytes());
+            }
+            (Mode::Normal, ActivePane::Response, "k") => {
+                if self.cursor_position.line > 0 {
+                    self.cursor_position.line -= 1;
+                    // Clamp column to line length to fix issue #3
+                    if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
+                        let line_char_count = line.chars().count();
+                        if self.cursor_position.column > line_char_count {
+                            self.cursor_position.column = line_char_count;
+                        }
+                    }
+                }
+                let cursor_up = "\x1b[1A";
+                self.capture_stdout(cursor_up.as_bytes());
+            }
+            (Mode::Normal, ActivePane::Response, "0") => {
+                self.cursor_position.column = 0;
+                let cursor_home = "\x1b[1G";
+                self.capture_stdout(cursor_home.as_bytes());
+            }
+            (Mode::Normal, ActivePane::Response, "$") => {
+                if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
+                    self.cursor_position.column = line.chars().count();
+                    let cursor_end = format!("\x1b[{}G", line.chars().count() + 1);
+                    self.capture_stdout(cursor_end.as_bytes());
+                } else {
+                    let cursor_end = "\x1b[1G"; // Move to column 1
+                    self.capture_stdout(cursor_end.as_bytes());
+                }
             }
 
             _ => {
@@ -1098,6 +1196,195 @@ impl BluelineWorld {
         // Reverse video for status line
         let status_line = format!("\x1b[7m{}\x1b[0m\r\n", padded_status);
         self.capture_stdout(status_line.as_bytes());
+    }
+
+    /// Move to next word in request pane
+    fn move_to_next_word_request(&mut self) {
+        if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
+            if let Some(next_pos) = self.find_next_word_boundary(line, self.cursor_position.column)
+            {
+                self.cursor_position.column = next_pos;
+                return;
+            }
+        }
+        // If no word boundary found on current line, move to beginning of next line
+        if self.cursor_position.line + 1 < self.request_buffer.len() {
+            self.cursor_position.line += 1;
+            self.cursor_position.column = 0;
+        }
+    }
+
+    /// Move to previous word in request pane
+    fn move_to_previous_word_request(&mut self) {
+        if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
+            if let Some(prev_pos) =
+                self.find_previous_word_boundary(line, self.cursor_position.column)
+            {
+                self.cursor_position.column = prev_pos;
+                return;
+            }
+        }
+        // If no word boundary found, move to end of previous line
+        if self.cursor_position.line > 0 {
+            self.cursor_position.line -= 1;
+            if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
+                self.cursor_position.column = line.chars().count();
+            }
+        }
+    }
+
+    /// Move to end of word in request pane
+    fn move_to_end_of_word_request(&mut self) {
+        if let Some(line) = self.request_buffer.get(self.cursor_position.line) {
+            if let Some(end_pos) = self.find_end_of_word(line, self.cursor_position.column) {
+                self.cursor_position.column = end_pos;
+            }
+        }
+    }
+
+    /// Move to next word in response pane
+    fn move_to_next_word_response(&mut self) {
+        if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
+            if let Some(next_pos) = self.find_next_word_boundary(line, self.cursor_position.column)
+            {
+                self.cursor_position.column = next_pos;
+                return;
+            }
+        }
+        // If no word boundary found on current line, move to beginning of next line
+        if self.cursor_position.line + 1 < self.response_buffer.len() {
+            self.cursor_position.line += 1;
+            self.cursor_position.column = 0;
+        }
+    }
+
+    /// Move to previous word in response pane
+    fn move_to_previous_word_response(&mut self) {
+        if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
+            if let Some(prev_pos) =
+                self.find_previous_word_boundary(line, self.cursor_position.column)
+            {
+                self.cursor_position.column = prev_pos;
+                return;
+            }
+        }
+        // If no word boundary found, move to end of previous line
+        if self.cursor_position.line > 0 {
+            self.cursor_position.line -= 1;
+            if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
+                self.cursor_position.column = line.chars().count();
+            }
+        }
+    }
+
+    /// Move to end of word in response pane
+    fn move_to_end_of_word_response(&mut self) {
+        if let Some(line) = self.response_buffer.get(self.cursor_position.line) {
+            if let Some(end_pos) = self.find_end_of_word(line, self.cursor_position.column) {
+                self.cursor_position.column = end_pos;
+            }
+        }
+    }
+
+    /// Find next word boundary in a line (character-aware for Japanese text)
+    fn find_next_word_boundary(&self, line: &str, current_col: usize) -> Option<usize> {
+        let chars: Vec<char> = line.chars().collect();
+        if current_col >= chars.len() {
+            return None;
+        }
+
+        let mut pos = current_col;
+        let mut in_word = false;
+
+        // Skip current character and find next word
+        for (i, &ch) in chars.iter().enumerate().skip(current_col + 1) {
+            if self.is_word_char(ch) {
+                if !in_word {
+                    return Some(i); // Found start of next word
+                }
+                in_word = true;
+            } else {
+                in_word = false;
+            }
+            pos = i;
+        }
+
+        // If we're at the end, return the end position
+        if pos < chars.len() {
+            Some(chars.len())
+        } else {
+            None
+        }
+    }
+
+    /// Find previous word boundary in a line (character-aware for Japanese text)
+    fn find_previous_word_boundary(&self, line: &str, current_col: usize) -> Option<usize> {
+        if current_col == 0 {
+            return None;
+        }
+
+        let chars: Vec<char> = line.chars().collect();
+        let mut in_word = false;
+
+        // Search backwards for word boundary
+        for i in (0..current_col).rev() {
+            let ch = chars[i];
+
+            if self.is_word_char(ch) {
+                if !in_word {
+                    return Some(i); // Found beginning of a word
+                }
+                in_word = true;
+            } else {
+                in_word = false;
+            }
+        }
+
+        Some(0) // Return beginning of line if no word found
+    }
+
+    /// Find end of current or next word
+    fn find_end_of_word(&self, line: &str, current_col: usize) -> Option<usize> {
+        let chars: Vec<char> = line.chars().collect();
+        if current_col >= chars.len() {
+            return None;
+        }
+
+        let mut found_word_start = false;
+
+        // Find end of current or next word
+        for (i, &ch) in chars.iter().enumerate().skip(current_col) {
+            if self.is_word_char(ch) {
+                found_word_start = true;
+            } else if found_word_start {
+                return Some(i.saturating_sub(1)); // End of word (last character of word)
+            }
+        }
+
+        // If we found a word that extends to end of line
+        if found_word_start {
+            Some(chars.len().saturating_sub(1))
+        } else {
+            None
+        }
+    }
+
+    /// Check if character is part of a word (supports Japanese characters)
+    fn is_word_char(&self, ch: char) -> bool {
+        ch.is_alphanumeric() || ch == '_' || self.is_japanese_char(ch)
+    }
+
+    /// Check if character is a Japanese character (Hiragana, Katakana, Kanji)
+    fn is_japanese_char(&self, ch: char) -> bool {
+        let code = ch as u32;
+        (0x3040..=0x309F).contains(&code) // Hiragana
+            || (0x30A0..=0x30FF).contains(&code) // Katakana
+            || (0x4E00..=0x9FAF).contains(&code) // CJK Unified Ideographs
+            || (0x3400..=0x4DBF).contains(&code) // CJK Extension A
+            || (0x20000..=0x2A6DF).contains(&code) // CJK Extension B
+            || (0xF900..=0xFAFF).contains(&code) // CJK Compatibility Ideographs
+            || (0xFF00..=0xFFEF).contains(&code) // Full-width characters
+            || (0xAC00..=0xD7AF).contains(&code) // Hangul (Korean)
     }
 }
 
