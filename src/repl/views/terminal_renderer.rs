@@ -88,7 +88,16 @@ impl TerminalRenderer<io::Stdout> {
 impl<W: Write> TerminalRenderer<W> {
     /// Create new terminal renderer with custom writer (for testing)
     pub fn with_writer(writer: W) -> Result<Self> {
-        let terminal_size = crossterm::terminal::size().unwrap_or((80, 24));
+        // In CI environments or when there's no TTY, use default size
+        // Check CI environment variable or if we can get terminal size
+        let terminal_size = if std::env::var_os("CI").is_some() {
+            // CI environment detected, use default size
+            (80, 24)
+        } else {
+            // Try to get terminal size, fallback to default if it fails
+            crossterm::terminal::size().unwrap_or((80, 24))
+        };
+
         Ok(Self {
             writer,
             terminal_size,
@@ -109,10 +118,10 @@ impl<W: Write> TerminalRenderer<W> {
             } else if !in_escape {
                 // Use unicode-width to get proper display width
                 // Most double-byte characters (CJK) have width 2
-                match unicode_width::UnicodeWidthChar::width(ch) {
-                    Some(w) => length += w,
-                    None => {} // Control characters and zero-width characters
+                if let Some(w) = unicode_width::UnicodeWidthChar::width(ch) {
+                    length += w;
                 }
+                // Control characters and zero-width characters have no width
             }
         }
 
@@ -1084,6 +1093,23 @@ mod tests {
         if crossterm::terminal::size().is_ok() {
             let renderer = TerminalRenderer::new();
             assert!(renderer.is_ok());
+        }
+    }
+
+    #[test]
+    fn terminal_renderer_with_writer_should_work_in_ci() {
+        // Save current CI env var state
+        let ci_was_set = std::env::var_os("CI").is_some();
+
+        // Test with CI=true
+        std::env::set_var("CI", "true");
+        let writer = Vec::new();
+        let renderer = TerminalRenderer::with_writer(writer);
+        assert!(renderer.is_ok(), "Should create renderer in CI environment");
+
+        // Restore original state
+        if !ci_was_set {
+            std::env::remove_var("CI");
         }
     }
 

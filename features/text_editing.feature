@@ -11,9 +11,9 @@ Feature: Text Editing Operations
   
   Scenario: Enter insert mode and type basic text
     Given I am in normal mode
-    When I press "i" to enter insert mode
+    When I press "i"
     And I type "GET /api/users"
-    And I press Escape to exit insert mode
+    And I press Escape
     Then the screen should not be blank
     And I should see "GET /api/users" in the request pane
     And the cursor should be positioned correctly

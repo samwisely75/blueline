@@ -170,7 +170,7 @@ impl ViewModel {
             // Update status line pane
             self.status_line
                 .set_current_pane(self.pane_manager.current_pane_type());
-            self.emit_view_event(events);
+            let _ = self.emit_view_event(events);
         }
     }
 
@@ -179,7 +179,7 @@ impl ViewModel {
         let events = self.pane_manager.switch_to_request_pane();
         if !events.is_empty() {
             self.status_line.set_current_pane(Pane::Request);
-            self.emit_view_event(events);
+            let _ = self.emit_view_event(events);
         }
     }
 
@@ -188,7 +188,7 @@ impl ViewModel {
         let events = self.pane_manager.switch_to_response_pane();
         if !events.is_empty() {
             self.status_line.set_current_pane(Pane::Response);
-            self.emit_view_event(events);
+            let _ = self.emit_view_event(events);
         }
     }
 

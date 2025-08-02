@@ -52,7 +52,7 @@ impl ViewModel {
             ViewEvent::ActiveCursorUpdateRequired,
         ]);
 
-        self.emit_view_event(events);
+        let _ = self.emit_view_event(events);
 
         tracing::info!(
             "Successfully changed mode from {:?} to {:?}",

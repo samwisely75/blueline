@@ -335,3 +335,64 @@ Feature: Navigation Commands
     Then the cursor moves to the last line
     And the cursor is at column 0
     And I am still in normal mode
+
+  Scenario: Navigate right through Japanese characters in request pane
+    Given the request buffer contains "きんようび"
+    And cursor is in front of `き`
+    When I press "l"
+    Then the cursor moves in front of `ん`
+    When I press "l"
+    Then the cursor moves in front of `よ`
+    When I press "l"
+    Then the cursor moves in front of `う`
+    When I press "l"
+    Then the cursor moves in front of `び`
+
+  Scenario: Navigate left through Japanese characters in response pane
+    Given there is a response in the response pane from "きんようび"
+    And I am in the response pane
+    And cursor is in front of `び`
+    When I press "h"
+    Then the cursor moves in front of `う`
+    When I press "h"
+    Then the cursor moves in front of `よ`
+    When I press "h"
+    Then the cursor moves in front of `ん`
+    When I press "h"
+    Then the cursor moves in front of `き`
+
+  Scenario: Word movement with Japanese text in request pane
+    Given the request buffer contains "こんにちは。私、名前 Borat です"
+    And cursor is in front of `こ`
+    When I press "w"
+    Then the cursor moves in front of `私` by skipping the series of regular characters and termination char `。`
+    When I press "w"
+    Then the cursor moves in front of `名前` by skipping Japanese punctuation character `、`
+    When I press "w"
+    Then the cursor moves in front of `Borat`
+    When I press "w"
+    Then the cursor moves in front of `です`
+
+  Scenario: Backward word movement with Japanese text in request pane
+    Given the request buffer contains "こんにちは。私、名前 Borat です"
+    And cursor is in front of `Borat`
+    When I press "b"
+    Then the cursor moves in front of `名前` by skipping Japanese punctuation character `、`
+    When I press "b"
+    Then the cursor moves in front of `私`
+    When I press "b"
+    Then the cursor moves in front of `こ`
+
+  Scenario: End of word movement with Japanese text
+    Given the request buffer contains "こんにちは。私、名前 Borat です"
+    And cursor is in front of `こ`
+    When I press "e"
+    Then the cursor moves to end of `こんにちは`
+    When I press "e"
+    Then the cursor moves to end of `私`
+    When I press "e"
+    Then the cursor moves to end of `名前`
+    When I press "e"
+    Then the cursor moves to end of `Borat`
+    When I press "e"
+    Then the cursor moves to end of `です`

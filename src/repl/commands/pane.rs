@@ -2,7 +2,7 @@
 //!
 //! Commands for switching between request and response panes
 
-use crate::repl::events::Pane;
+use crate::repl::events::{EditorMode, Pane};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
@@ -12,8 +12,8 @@ use super::{Command, CommandContext, CommandEvent};
 pub struct SwitchPaneCommand;
 
 impl Command for SwitchPaneCommand {
-    fn is_relevant(&self, _context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Tab)
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Tab) && context.state.current_mode == EditorMode::Normal
     }
 
     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {

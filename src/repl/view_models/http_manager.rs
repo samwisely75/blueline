@@ -42,7 +42,7 @@ impl ViewModel {
             tracing::debug!("Request execution finished");
         }
         // Emit status bar update to reflect execution state
-        self.emit_view_event([crate::repl::events::ViewEvent::StatusBarUpdateRequired]);
+        let _ = self.emit_view_event([crate::repl::events::ViewEvent::StatusBarUpdateRequired]);
     }
 
     /// Get session headers
@@ -88,7 +88,7 @@ impl ViewModel {
 
         // Full redraw is needed when response first appears to draw the response pane
         // This will also update the status bar with TAT and message
-        self.emit_view_event([crate::repl::events::ViewEvent::FullRedrawRequired]);
+        let _ = self.emit_view_event([crate::repl::events::ViewEvent::FullRedrawRequired]);
 
         tracing::debug!(
             "Response set from HTTP response: status={}, duration={}ms",
@@ -112,7 +112,7 @@ impl ViewModel {
         tracing::debug!("Pane dimensions updated after manual response");
 
         // Full redraw is needed when response first appears
-        self.emit_view_event([crate::repl::events::ViewEvent::FullRedrawRequired]);
+        let _ = self.emit_view_event([crate::repl::events::ViewEvent::FullRedrawRequired]);
 
         tracing::debug!(
             "Response set: status={}, content_length={}",
