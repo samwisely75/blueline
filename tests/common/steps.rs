@@ -2766,12 +2766,6 @@ async fn both_panes_should_be_rendered_by_real_components(world: &mut BluelineWo
 
 // ===== NEW GIVEN STEPS =====
 
-#[given(regex = r#"^the request buffer contains "([^"]*)"$"#)]
-async fn request_buffer_contains_text(world: &mut BluelineWorld, text: String) -> Result<()> {
-    world.set_request_buffer(&text).await?;
-    Ok(())
-}
-
 #[given("the text wraps to a second line due to terminal width")]
 async fn text_wraps_to_second_line(world: &mut BluelineWorld) {
     // Simulate text wrapping behavior - we'll just mark that wrapping is expected

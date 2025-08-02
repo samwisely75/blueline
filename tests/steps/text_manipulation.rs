@@ -31,9 +31,9 @@ async fn i_am_in_request_pane_with_buffer(world: &mut BluelineWorld, step: &Step
 }
 
 #[given(regex = r#"^the request buffer contains "([^"]*)"$"#)]
-async fn request_buffer_contains_text(world: &mut BluelineWorld, text: String) {
-    world.request_buffer = vec![text];
-    world.set_cursor_position(0, 0);
+async fn request_buffer_contains_text(world: &mut BluelineWorld, text: String) -> Result<()> {
+    world.set_request_buffer(&text).await?;
+    Ok(())
 }
 
 // ===== TEXT TYPING ACTIONS =====
