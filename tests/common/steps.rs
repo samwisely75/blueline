@@ -124,16 +124,7 @@ async fn i_should_see_line_numbers_in_request_pane(world: &mut BluelineWorld) {
     );
 }
 
-#[then("I should see the status bar at the bottom")]
-async fn i_should_see_status_bar_at_bottom(world: &mut BluelineWorld) {
-    // Verify status bar presence through captured output
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected status bar at bottom"
-    );
-}
+// Status bar step definitions moved to tests/steps/status_bar.rs
 
 #[then(regex = r#"I should see "([^"]*)" in the request pane"#)]
 async fn i_should_see_text_in_request_pane(world: &mut BluelineWorld, expected_text: String) {
@@ -217,16 +208,7 @@ async fn character_at_cursor_should_be_removed(world: &mut BluelineWorld) {
     );
 }
 
-#[then(regex = r#"the status bar should show "([^"]*)"#)]
-async fn status_bar_should_show_mode(world: &mut BluelineWorld, expected_mode: String) {
-    // For now, just verify we have output that could contain mode info
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected status bar to show mode: {expected_mode}"
-    );
-}
+// Status bar mode display step definitions moved to tests/steps/status_bar.rs
 
 #[when(regex = r#"I type rapidly "([^"]*)" without delays"#)]
 async fn i_type_rapidly_without_delays(world: &mut BluelineWorld, text: String) -> Result<()> {
