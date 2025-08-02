@@ -21,10 +21,8 @@ This file provides guidance to human developers and Generative AI Engines when w
   - [Issue Tracking](#issue-tracking)
 - [Development Guidelines](#development-guidelines)
   - [Coding Style](#coding-style)
-  - [Error Handling](#error-handling)
-  - [Build and Test](#build-and-test)
+  - [Build, Test and Debug](#build-test-and-debug)
   - [Release Process](#release-process)
-  - [Coding Guidelines](#coding-guidelines)
 - [Documentation Guidelines](#documentation-guidelines)
 
 ## Application Overview
@@ -107,45 +105,23 @@ Since this is a command line tool, it does not have a CD pipeline. CI and releas
 
 ### Issue Tracking
 
-Currently we are using `docs/ISSUES.md` to track issues and feature requests. We will migrate to GitHub Issues once the project is stable.
+We use GitHub Issues for tracking bugs, feature requests, and tasks. The issues are organized into a Kanban board using GitHub Projects. Please check the [Development Workflow](docs/DEV_WORKFLOW.md) for the details of the workflow.
 
 ## Development Guidelines
 
 ### Coding Style
 
-We strictly follow Rust's official style guide. Plus use `cargo fmt` for formatting, and `cargo clippy` for linting with strict warnings.
+We strictly follow Rust's official style guide. Plus use `cargo fmt` for formatting, and `cargo clippy` for linting with strict warnings. We also follow the coding guidelines in [Coding Guidelines](docs/DEV_CODING.md) to ensure code quality, maintainability, and consistency across the project. These guidelines are sacred and must be strictly followed to ensure code quality, maintainability, and consistency across the project.
 
-### Error Handling
+### Build, Test and Debug
 
-- Uses `anyhow::Result` for error propagation
-- Commands return `Result<()>` and errors are displayed in status bar
-- Network errors show detailed connection information in verbose mode
+The strategy for building and debugging the application is documented in the [Debugging Strategy](docs/DEV_DEBUG.md). The strategy includes:
 
-### Build and Test
+- Terminal emulation
+- Debug logging
+- Cursor position tracking
 
-Run the following commands before commiting any chanages to repository:
-
-```bash
-# Build
-cargo build
-cargo build --release
-
-# Run tests
-cargo test
-cargo test --test integration_tests
-
-# Linting and formatting (REQUIRED before commits)
-cargo fmt                   # Format code
-cargo clippy --all-targets --all-features -- -D warnings  # Lint check
-```
-
-The project uses pre-commit hooks that enforce code quality:
-
-- Automatically runs `cargo fmt` check
-- Runs `cargo clippy` with strict warnings
-- Rejects commits with any warnings
-
-Install hooks: `./scripts/install-hooks.sh`
+The precheck for the git commit is automated. Please run `./scripts/git-commit-precheck.sh` before commiting any chanages to repository.
 
 ### Release Process
 
@@ -157,60 +133,7 @@ The release process is automated using GitHub Actions. We can trigger a release 
 - Publish the release to GitHub
 - Publish Homebrew formula to `samwisely75/tap` repository
 
-### Coding Guidelines
-
-Everyone, including Generative AI Engine like Copilot and Claude Code, must follow these guidelines when making changes to the codebase. These guidelines are sacred and must be strictly followed to ensure code quality, maintainability, and consistency across the project.
-
-1. **Keep the change minimal**: Always respect and embrace the KISS, YAGNI, and DRY principles. Do not make large changes in one go. Make small, incremental changes that can be easily tested and reviewed. You must ensure the code compiles and passes tests at every change in a file, before moving on to the next. NEVER DO ANY EXTRA CHANGES OUTSIDE OF MY ORIGINAL REQUEST WITHOUT MY EXPLICIT PERMISSION. Inadequate is better than over-engineering.
-
-1. **Ask for clarification first**: Before making ANY changes, ask specific questions like the followings. Never assume you know what the user wants without confirming:
-   - "Which specific parts should I remove?"
-   - "Should I preserve the existing functionality while removing only the unused abstractions?"
-   - "Are you referring to removing unused interfaces or actual working features?"
-   - "Do you also want me to implement Y to support a corner case Z?"
-
-   Please display your questions in a bold text with a question mark icon in the beginning. If you ask multiple questions, please use a numbered list for me to answer them with the number. And if you ask questions, do not proceed any further until you receive a clear answer.
-
-1. **Preserve the original functionality**: Always keep the original functionality intact unless explicitly asked to remove it. If you are unsure about what to remove, ask for clarification. Do not remove any working methods, data structures, or functionality unless it is confirmed that they are not needed.
-
-1. **Answer the question**: If you are asked a question, provide a direct answer. You don't know if that's meant to be a change request so NEVER change the code. If you see a point of improvement by the question, just suggest it and ask if I want to make the change.
-
-1. **Keep the code clean**: We do refactoring a lot during the implementations and some codes would be remained unused. Always review your changes and unused warnings, and remove any unused code, imports, or variables. Do not leave any commented-out code in the final version. If you are unsure about whether to remove something, ask for clarification. Avoid using `#[allow(unused)]` attributes unless absolutely necessary.
-
-1. **Test it, test it, test it**: Always write unit tests. For **all** functions, without exception. The test codes will be a specification of the app. All the instructions I give must be written somewhere as the test code. Name the test functions to dictate the expected behavior clearly, e.g., `X_should_do_Y_and_return_Z()` where X is the target function. Sometimes you may need to write multiple tests for the same function to cover different scenarios. Do not persist inputs like profile INI and test request in a file; You must create them in the test code itself.
-
-1. **Leave notes for others and future self**: Write comments that explain the purpose of the code and what problems it solves, focusing on consequences rather than just descriptions. Combine the objective and reasoning into natural, flowing explanations that describe what would happen without the code. For example, instead of saying "This validates input," explain "Validate input to prevent SQL injection attacks that would compromise the database." Use comments to explain the big picture and the reasoning behind complex logic, not what the code does line by line. The code itself should be self-documenting through descriptive function and variable names. Avoid marketing language like "sophisticated" or "advanced" - stick to technical facts. Always assume the reader has no prior knowledge of the code or libraries. Use `//!` for module-level documentation and `///` for function-level documentation.
-
-1. **Handle errors in a standard way**: Use Rust's `Result` and `Option` types for error handling. Propagate errors using the `?` operator. Use anyhow as a standard error type for convenience. Use anyhow::Result for functions that can return errors.
-
-1. **Use embedded expressions for format! macro**: Use embedded expressions for string formatting, e.g., `format!("Hello, {name}")` instead of `format!("Hello, {}", name)`. The latter is deprecated in Rust 2021 edition.
-
-1. **Measure before claiming victory**: Run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` before you say it's complete to ensure code quality and consistency at every change you make. I.e., do not have me stuck at the pre-commit stage and ask you to run these commands again and again.
-
-1. **Git commit message**: If the terminal command is too long, contains backtick and emojis, or contains special characters like `|`, `&`, `;`, or `>`, it may not be rendered correctly in the terminal. Git commit is the primary use case for this issue. In such cases, you can use the following workaround:
-   - Use a single backtick for inline code formatting, e.g., \`command\`.
-   - Use triple backticks for code blocks, e.g., \`\`\`bash
-     command
-     \`\`\`.
-   - If the command is too long, split it into multiple lines using `\` at the end of each line.
-
 ## Documentation Guidelines
 
 1. **Document Store**: All documents except `README.md` and `CLAUDE.md` are managed under `docs/` directory.
-1. **Markdown**: All documents are written in Markdown format. Use standard Markdown syntax for headings, lists, code blocks, and links. Always leave an empty line after a heading to ensure proper rendering in Markdown viewers. Use markdownlint to check the Markdown files for any issues.
-
-## Defintion of Done
-
-The product owner and developer agree to consider the work is done when the following conditions are met:
-
-1. Gherkin feature files are updated with the new functionality.
-1. Unit tests are written for all major functions and they are passing
-1. The integration tests are updated based on the update in the feature file and they are passing.
-1. The code is formatted using `cargo fmt` and passes `cargo clippy` with strict warnings.
-1. The `docs/COMMANDS.md` is updated with the new functionality.
-1. The `docs/ARCHITECTURE.md` is updated with the new components and their relationships if they are added/changed.
-1. The `README.md` is updated as needed.
-1. A pull request is created with a link to the commits that contains the changes.
-1. The code is merged into the develop branch by a pull request and is ready for release.
-1. The CI pipeline is passing without any errors.
-1. The issue is In Review or Close in the GitHub Kanban board.
+1. **Markdown**: All documents are written in Markdown format. Use standard Markdown syntax for headings, lists, code blocks, and links. Always leave an empty line after a heading to ensure proper rendering in Markdown viewers. Use `markdownlint` command to check and fix the Markdown syntax errors.
