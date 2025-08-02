@@ -152,8 +152,7 @@ async fn response_pane_should_display_content(world: &mut BluelineWorld) {
 
     assert!(
         has_response_content,
-        "Expected response pane to show HTTP response content. Screen: {}",
-        screen_content
+        "Expected response pane to show HTTP response content. Screen: {screen_content}"
     );
 
     // Look for HTTP response indicators

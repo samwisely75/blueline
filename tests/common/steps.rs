@@ -12,7 +12,6 @@ use cucumber::{gherkin::Step, given, then, when};
 
 // Buffer setup steps
 
-
 // HTTP response setup step definitions moved to tests/steps/http_interaction.rs
 
 // NOTE: Response pane setup function moved to tests/steps/pane_management.rs
@@ -122,7 +121,6 @@ async fn i_should_see_line_numbers_in_request_pane(world: &mut BluelineWorld) {
 
 // Status bar step definitions moved to tests/steps/status_bar.rs
 
-
 #[then("the cursor should be visible")]
 async fn the_cursor_should_be_visible(_world: &mut BluelineWorld) {
     // Cursor visibility is always assumed valid in test environment
@@ -157,15 +155,11 @@ async fn i_have_some_content_in_request_pane(world: &mut BluelineWorld) -> Resul
     world.press_key("Escape").await // Return to normal mode
 }
 
-
 #[given("I have typed some text")]
 async fn i_have_typed_some_text(world: &mut BluelineWorld) -> Result<()> {
     world.press_key("i").await?; // Enter insert mode
     world.type_text("Hello World").await
 }
-
-
-
 
 // Status bar mode display step definitions moved to tests/steps/status_bar.rs
 
@@ -852,18 +846,7 @@ async fn cursor_does_not_move(world: &mut BluelineWorld) {
 
 // ===== BUFFER CONTENT VERIFICATION STEPS =====
 
-
-#[given("the request buffer contains \"GET /api/userss\"")]
-async fn request_buffer_contains_get_api_userss(world: &mut BluelineWorld) -> Result<()> {
-    world.set_request_buffer("GET /api/userss").await?;
-    Ok(())
-}
-
-#[given("the request buffer contains \"GET /appi/users\"")]
-async fn request_buffer_contains_get_appi_users(world: &mut BluelineWorld) -> Result<()> {
-    world.set_request_buffer("GET /appi/users").await?;
-    Ok(())
-}
+// Note: specific "the request buffer contains" steps replaced by generic regex in tests/steps/text_manipulation.rs
 
 // ===== CURSOR POSITIONING STEPS =====
 
@@ -2099,20 +2082,7 @@ async fn i_press_escape_to_exit_insert_mode(world: &mut BluelineWorld) -> Result
     Ok(())
 }
 
-#[when("I press Enter to create a new line")]
-async fn i_press_enter_to_create_new_line(world: &mut BluelineWorld) -> Result<()> {
-    // Force use of simulation path by temporarily storing real components
-    let saved_view_model = world.view_model.take();
-    let saved_command_registry = world.command_registry.take();
-
-    let result = world.press_key("Enter").await;
-
-    // Restore real components if they existed
-    world.view_model = saved_view_model;
-    world.command_registry = saved_command_registry;
-
-    result
-}
+// Note: "I press Enter to create a new line" step moved to tests/steps/text_manipulation.rs
 
 #[when(regex = r#"^I press backspace (\d+) times$"#)]
 async fn i_press_backspace_multiple_times(world: &mut BluelineWorld, count: String) -> Result<()> {
@@ -2132,38 +2102,9 @@ async fn i_press_backspace_multiple_times(world: &mut BluelineWorld, count: Stri
     Ok(())
 }
 
-#[when("I press Backspace")]
-async fn i_press_backspace(world: &mut BluelineWorld) -> Result<()> {
-    // Force use of simulation path by temporarily storing real components
-    let saved_view_model = world.view_model.take();
-    let saved_command_registry = world.command_registry.take();
+// Note: "I press Backspace" step moved to tests/steps/text_manipulation.rs
 
-    let result = world.press_key("Backspace").await;
-
-    // Restore real components if they existed
-    world.view_model = saved_view_model;
-    world.command_registry = saved_command_registry;
-
-    result
-}
-
-#[when(regex = r#"^I press the delete key (\d+) times$"#)]
-async fn i_press_delete_key_multiple_times(world: &mut BluelineWorld, count: String) -> Result<()> {
-    // Force use of simulation path by temporarily storing real components
-    let saved_view_model = world.view_model.take();
-    let saved_command_registry = world.command_registry.take();
-
-    let count_num: usize = count.parse().expect("Invalid count");
-    for _ in 0..count_num {
-        world.press_key("Delete").await?;
-    }
-
-    // Restore real components if they existed
-    world.view_model = saved_view_model;
-    world.command_registry = saved_command_registry;
-
-    Ok(())
-}
+// Note: "I press the delete key (\d+) times" step moved to tests/steps/text_manipulation.rs
 
 #[when(regex = r#"^I press "([^"]*)" to move down$"#)]
 async fn i_press_key_to_move_down(world: &mut BluelineWorld, key: String) -> Result<()> {
@@ -2211,13 +2152,7 @@ async fn i_press_key_to_go_to_line_end(world: &mut BluelineWorld, key: String) -
     world.press_key(&key).await
 }
 
-#[when("I delete part of the text")]
-async fn i_delete_part_of_text(world: &mut BluelineWorld) -> Result<()> {
-    world.press_key("Backspace").await?;
-    world.press_key("Backspace").await?;
-    world.press_key("Backspace").await?;
-    Ok(())
-}
+// Note: "I delete part of the text" step moved to tests/steps/text_manipulation.rs
 
 #[when(regex = r#"^I press "([^"]*)" for undo$"#)]
 async fn i_press_key_for_undo(world: &mut BluelineWorld, key: String) -> Result<()> {

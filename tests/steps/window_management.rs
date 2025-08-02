@@ -114,7 +114,10 @@ async fn response_pane_height_remains_unchanged(world: &mut BluelineWorld) {
     // Verify that no resize occurred due to constraints
     let terminal_state = world.get_terminal_state();
     let has_content = !terminal_state.grid.iter().all(|row| row.is_empty());
-    assert!(has_content, "Expected response pane height to remain unchanged");
+    assert!(
+        has_content,
+        "Expected response pane height to remain unchanged"
+    );
 }
 
 #[then("the request pane height remains unchanged")]
@@ -122,7 +125,10 @@ async fn request_pane_height_remains_unchanged(world: &mut BluelineWorld) {
     // Verify that no resize occurred due to constraints
     let terminal_state = world.get_terminal_state();
     let has_content = !terminal_state.grid.iter().all(|row| row.is_empty());
-    assert!(has_content, "Expected request pane height to remain unchanged");
+    assert!(
+        has_content,
+        "Expected request pane height to remain unchanged"
+    );
 }
 
 // ===== NO-OP VERIFICATION =====
@@ -132,7 +138,10 @@ async fn nothing_happens(world: &mut BluelineWorld) {
     // Verify that commands without valid context don't cause errors
     let terminal_state = world.get_terminal_state();
     let has_content = !terminal_state.grid.iter().all(|row| row.is_empty());
-    assert!(has_content, "Expected commands to be safely ignored when no response pane exists");
+    assert!(
+        has_content,
+        "Expected commands to be safely ignored when no response pane exists"
+    );
 }
 
 // Note: "I am still in normal mode" is handled by other modules to avoid conflicts

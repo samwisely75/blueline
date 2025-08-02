@@ -302,10 +302,13 @@ async fn then_no_other_render_methods_called(world: &mut BluelineWorld) {
 #[when("I press Escape to return to normal mode")]
 async fn i_press_escape_to_return_to_normal_mode(world: &mut BluelineWorld) {
     // Press Escape key to return to normal mode
-    world.press_key("Escape").await.expect("Failed to press Escape key");
-    
+    world
+        .press_key("Escape")
+        .await
+        .expect("Failed to press Escape key");
+
     // Update the mode state to Normal
     world.mode = Mode::Normal;
-    
+
     println!("⎋ Pressed Escape to return to normal mode");
 }

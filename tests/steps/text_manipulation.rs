@@ -40,17 +40,10 @@ async fn request_buffer_contains_text(world: &mut BluelineWorld, text: String) -
 
 #[when(regex = r#"^I type "([^"]*)"$"#)]
 async fn i_type_text(world: &mut BluelineWorld, text: String) -> Result<()> {
-    // Force use of simulation path by temporarily storing real components
-    let saved_view_model = world.view_model.take();
-    let saved_command_registry = world.command_registry.take();
-
-    let result = world.type_text(&text).await;
-
-    // Restore real components if they existed
-    world.view_model = saved_view_model;
-    world.command_registry = saved_command_registry;
-
-    result
+    // Directly call type_text without component manipulation
+    // The current architecture uses AppController with its own ViewModel
+    println!("📝 Step: typing text '{}'", text);
+    world.type_text(&text).await
 }
 
 #[when(regex = r"^I type:$")]
@@ -214,4 +207,3 @@ async fn cursor_at_end_of_text(world: &mut BluelineWorld) {
         );
     }
 }
-

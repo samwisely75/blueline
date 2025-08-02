@@ -183,7 +183,7 @@ async fn cursor_position_should_be_valid(world: &mut BluelineWorld) {
     // Verify that cursor position is within valid bounds
     let terminal_state = world.get_terminal_state();
     let grid_height = terminal_state.grid.len();
-    
+
     // Check line bounds
     assert!(
         world.cursor_position.line < grid_height,
@@ -191,7 +191,7 @@ async fn cursor_position_should_be_valid(world: &mut BluelineWorld) {
         world.cursor_position.line,
         grid_height
     );
-    
+
     // Check column bounds if there's content
     if !terminal_state.grid.is_empty() && world.cursor_position.line < terminal_state.grid.len() {
         let line_length = terminal_state.grid[world.cursor_position.line].len();
@@ -343,14 +343,15 @@ async fn i_press_l_to_move_right(world: &mut BluelineWorld) {
 
 #[when(regex = r#"I navigate using vim keys "([hjkl",\s]+)" rapidly"#)]
 async fn i_navigate_using_vim_keys_rapidly(world: &mut BluelineWorld, keys: String) {
-    println!("🚀 Rapidly navigating with vim keys: {}", keys);
-    
+    println!("🚀 Rapidly navigating with vim keys: {keys}");
+
     // Parse the keys string which comes in format like: "h", "j", "k", "l"
     // Extract individual keys by looking for single characters
-    let individual_keys: Vec<char> = keys.chars()
+    let individual_keys: Vec<char> = keys
+        .chars()
         .filter(|&c| c == 'h' || c == 'j' || c == 'k' || c == 'l')
         .collect();
-    
+
     // Execute each key in sequence rapidly
     for key_char in individual_keys {
         match key_char {
@@ -371,14 +372,14 @@ async fn i_navigate_using_vim_keys_rapidly(world: &mut BluelineWorld, keys: Stri
                 println!("➡️ Pressed 'l'");
             }
             _ => {
-                println!("⚠️ Ignoring unsupported navigation key: {}", key_char);
+                println!("⚠️ Ignoring unsupported navigation key: {key_char}");
             }
         }
-        
+
         // Small delay to simulate rapid but not instantaneous key presses
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
     }
-    
+
     println!("✅ Completed rapid vim key navigation sequence");
 }
 
@@ -389,46 +390,46 @@ async fn cursor_movements_should_be_smooth(world: &mut BluelineWorld) {
     let terminal_state = world.get_terminal_state();
     let captured_output = world.stdout_capture.lock().unwrap().clone();
     let output_str = String::from_utf8_lossy(&captured_output);
-    
+
     // Verify that cursor movements occurred smoothly
     assert!(
         terminal_state.cursor_visible,
         "Expected cursor to remain visible during smooth movements"
     );
-    
+
     // Check for proper cursor positioning updates
     assert!(
         !output_str.trim().is_empty(),
         "Expected terminal output indicating cursor movements occurred"
     );
-    
+
     // Verify cursor is within valid terminal bounds
     assert!(
         terminal_state.cursor.0 < terminal_state.height
             && terminal_state.cursor.1 < terminal_state.width,
         "Expected cursor to remain within terminal bounds during movements"
     );
-    
+
     println!("✅ Cursor movements verified as smooth without artifacts");
 }
 
 #[then("the cursor should remain visible at all times")]
 async fn cursor_should_remain_visible_at_all_times(world: &mut BluelineWorld) {
     let terminal_state = world.get_terminal_state();
-    
+
     // Primary assertion: cursor should be visible
     assert!(
         terminal_state.cursor_visible,
         "Expected cursor to remain visible throughout navigation"
     );
-    
+
     // Additional check: cursor should be properly positioned
     assert!(
         terminal_state.cursor.0 < terminal_state.height
             && terminal_state.cursor.1 < terminal_state.width,
         "Expected cursor to be positioned within terminal bounds"
     );
-    
+
     println!("✅ Cursor visibility maintained throughout movements");
 }
 
@@ -436,25 +437,26 @@ async fn cursor_should_remain_visible_at_all_times(world: &mut BluelineWorld) {
 async fn no_screen_flickering_should_occur(world: &mut BluelineWorld) {
     let terminal_state = world.get_terminal_state();
     let (screen_updates, _, cursor_updates, _) = world.get_render_stats();
-    
+
     // Check that screen updates are reasonable (not excessive which could cause flickering)
     assert!(
         screen_updates < 50, // Reasonable threshold for non-flickering behavior
         "Expected reasonable number of screen updates to avoid flickering, got {screen_updates}"
     );
-    
+
     // Verify cursor updates occurred (showing movement was processed)
     assert!(
         cursor_updates > 0,
         "Expected cursor updates to occur during navigation"
     );
-    
+
     // Ensure terminal state is stable
     assert!(
         terminal_state.cursor_visible,
         "Expected stable cursor visibility (no flickering)"
     );
-    
-    println!("✅ No screen flickering detected - {} screen updates, {} cursor updates", 
-             screen_updates, cursor_updates);
+
+    println!(
+        "✅ No screen flickering detected - {screen_updates} screen updates, {cursor_updates} cursor updates"
+    );
 }

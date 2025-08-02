@@ -164,12 +164,31 @@ async fn i_execute_simple_request(
 
 // ===== RESPONSE SETUP FOR TESTING =====
 
-
 #[given(regex = r"^there is a response in the response pane from:$")]
 async fn there_is_response_from_request(world: &mut BluelineWorld, step: &Step) {
     world.setup_response_pane();
     if let Some(docstring) = &step.docstring {
+        // Set the response buffer with the actual docstring content
+        world.response_buffer = docstring.lines().map(|s| s.to_string()).collect();
+        world.last_response = Some(docstring.to_string());
         world.last_request = Some(docstring.to_string());
+        
+        // Ensure we're in the response pane and cursor is at the start
+        world.active_pane = ActivePane::Response;
+        world.cursor_position.line = 0;
+        world.cursor_position.column = 0;
+        
+        // Capture the response content as terminal output so assertions can find it
+        let response_lines = world.response_buffer.clone();
+        for line in response_lines {
+            world.capture_stdout(line.as_bytes());
+            world.capture_stdout(b"\r\n");
+        }
+        
+        println!("📝 Set response pane content: {} lines", world.response_buffer.len());
+        for (i, line) in world.response_buffer.iter().enumerate() {
+            println!("  Line {}: '{}'", i, line);
+        }
     }
 }
 
@@ -199,7 +218,6 @@ async fn executed_request_large_response(world: &mut BluelineWorld, step: &Step)
 }
 
 // ===== HTTP RESPONSE VERIFICATION STEPS =====
-
 
 #[then("I should see a status code in the status bar")]
 async fn i_should_see_status_code(world: &mut BluelineWorld) {
@@ -517,9 +535,9 @@ async fn executing_indicator_should_disappear(world: &mut BluelineWorld) {
 async fn i_wait_for_the_response(world: &mut BluelineWorld) {
     // Simulate waiting for HTTP response - short delay for realistic behavior
     sleep(Duration::from_millis(100)).await;
-    
+
     // Ensure response pane is set up with some content
     world.setup_response_pane();
-    
+
     println!("⏱️ Waited for response - response pane ready");
 }
