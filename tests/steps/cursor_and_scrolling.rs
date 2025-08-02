@@ -2,7 +2,7 @@
 
 use crate::common::world::BluelineWorld;
 use anyhow::Result;
-use cucumber::{given, then};
+use cucumber::{given, then, when};
 
 // ===== CURSOR POSITION SETUP =====
 
@@ -167,6 +167,44 @@ async fn cursor_moves_to_beginning(world: &mut BluelineWorld) {
     );
 }
 
+// ===== CURSOR POSITION VERIFICATION =====
+
+#[then(regex = r"the cursor is at line (\d+)")]
+async fn cursor_is_at_line_verification(world: &mut BluelineWorld, expected_line: usize) {
+    let actual_line = world.cursor_position.line;
+    assert_eq!(
+        actual_line, expected_line,
+        "Expected cursor to be at line {expected_line}, but was at line {actual_line}"
+    );
+}
+
+#[then("the cursor position should be valid")]
+async fn cursor_position_should_be_valid(world: &mut BluelineWorld) {
+    // Verify that cursor position is within valid bounds
+    let terminal_state = world.get_terminal_state();
+    let grid_height = terminal_state.grid.len();
+    
+    // Check line bounds
+    assert!(
+        world.cursor_position.line < grid_height,
+        "Cursor line {} is out of bounds (grid height: {})",
+        world.cursor_position.line,
+        grid_height
+    );
+    
+    // Check column bounds if there's content
+    if !terminal_state.grid.is_empty() && world.cursor_position.line < terminal_state.grid.len() {
+        let line_length = terminal_state.grid[world.cursor_position.line].len();
+        assert!(
+            world.cursor_position.column <= line_length,
+            "Cursor column {} is out of bounds for line {} (line length: {})",
+            world.cursor_position.column,
+            world.cursor_position.line,
+            line_length
+        );
+    }
+}
+
 #[then("the cursor moves to the end of the line")]
 async fn cursor_moves_to_end(world: &mut BluelineWorld) {
     let terminal_state = world.get_terminal_state();
@@ -287,4 +325,136 @@ async fn cursor_should_be_positioned_correctly(world: &mut BluelineWorld) {
             && terminal_state.cursor.1 < terminal_state.width,
         "Expected cursor to be within terminal bounds"
     );
+}
+
+#[when("I press \"h\" to move left")]
+async fn i_press_h_to_move_left(world: &mut BluelineWorld) {
+    // Press 'h' key to move cursor left in vim-like navigation
+    world.press_key("h").await.expect("Failed to press 'h' key");
+    println!("⬅️ Pressed 'h' to move cursor left");
+}
+
+#[when("I press \"l\" to move right")]
+async fn i_press_l_to_move_right(world: &mut BluelineWorld) {
+    // Press 'l' key to move cursor right in vim-like navigation
+    world.press_key("l").await.expect("Failed to press 'l' key");
+    println!("➡️ Pressed 'l' to move cursor right");
+}
+
+#[when(regex = r#"I navigate using vim keys "([hjkl",\s]+)" rapidly"#)]
+async fn i_navigate_using_vim_keys_rapidly(world: &mut BluelineWorld, keys: String) {
+    println!("🚀 Rapidly navigating with vim keys: {}", keys);
+    
+    // Parse the keys string which comes in format like: "h", "j", "k", "l"
+    // Extract individual keys by looking for single characters
+    let individual_keys: Vec<char> = keys.chars()
+        .filter(|&c| c == 'h' || c == 'j' || c == 'k' || c == 'l')
+        .collect();
+    
+    // Execute each key in sequence rapidly
+    for key_char in individual_keys {
+        match key_char {
+            'h' => {
+                world.press_key("h").await.expect("Failed to press 'h' key");
+                println!("⬅️ Pressed 'h'");
+            }
+            'j' => {
+                world.press_key("j").await.expect("Failed to press 'j' key");
+                println!("⬇️ Pressed 'j'");
+            }
+            'k' => {
+                world.press_key("k").await.expect("Failed to press 'k' key");
+                println!("⬆️ Pressed 'k'");
+            }
+            'l' => {
+                world.press_key("l").await.expect("Failed to press 'l' key");
+                println!("➡️ Pressed 'l'");
+            }
+            _ => {
+                println!("⚠️ Ignoring unsupported navigation key: {}", key_char);
+            }
+        }
+        
+        // Small delay to simulate rapid but not instantaneous key presses
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
+    
+    println!("✅ Completed rapid vim key navigation sequence");
+}
+
+// ===== CURSOR SMOOTHNESS AND FLICKER ASSERTIONS =====
+
+#[then("cursor movements should be smooth without visual artifacts")]
+async fn cursor_movements_should_be_smooth(world: &mut BluelineWorld) {
+    let terminal_state = world.get_terminal_state();
+    let captured_output = world.stdout_capture.lock().unwrap().clone();
+    let output_str = String::from_utf8_lossy(&captured_output);
+    
+    // Verify that cursor movements occurred smoothly
+    assert!(
+        terminal_state.cursor_visible,
+        "Expected cursor to remain visible during smooth movements"
+    );
+    
+    // Check for proper cursor positioning updates
+    assert!(
+        !output_str.trim().is_empty(),
+        "Expected terminal output indicating cursor movements occurred"
+    );
+    
+    // Verify cursor is within valid terminal bounds
+    assert!(
+        terminal_state.cursor.0 < terminal_state.height
+            && terminal_state.cursor.1 < terminal_state.width,
+        "Expected cursor to remain within terminal bounds during movements"
+    );
+    
+    println!("✅ Cursor movements verified as smooth without artifacts");
+}
+
+#[then("the cursor should remain visible at all times")]
+async fn cursor_should_remain_visible_at_all_times(world: &mut BluelineWorld) {
+    let terminal_state = world.get_terminal_state();
+    
+    // Primary assertion: cursor should be visible
+    assert!(
+        terminal_state.cursor_visible,
+        "Expected cursor to remain visible throughout navigation"
+    );
+    
+    // Additional check: cursor should be properly positioned
+    assert!(
+        terminal_state.cursor.0 < terminal_state.height
+            && terminal_state.cursor.1 < terminal_state.width,
+        "Expected cursor to be positioned within terminal bounds"
+    );
+    
+    println!("✅ Cursor visibility maintained throughout movements");
+}
+
+#[then("no screen flickering should occur")]
+async fn no_screen_flickering_should_occur(world: &mut BluelineWorld) {
+    let terminal_state = world.get_terminal_state();
+    let (screen_updates, _, cursor_updates, _) = world.get_render_stats();
+    
+    // Check that screen updates are reasonable (not excessive which could cause flickering)
+    assert!(
+        screen_updates < 50, // Reasonable threshold for non-flickering behavior
+        "Expected reasonable number of screen updates to avoid flickering, got {screen_updates}"
+    );
+    
+    // Verify cursor updates occurred (showing movement was processed)
+    assert!(
+        cursor_updates > 0,
+        "Expected cursor updates to occur during navigation"
+    );
+    
+    // Ensure terminal state is stable
+    assert!(
+        terminal_state.cursor_visible,
+        "Expected stable cursor visibility (no flickering)"
+    );
+    
+    println!("✅ No screen flickering detected - {} screen updates, {} cursor updates", 
+             screen_updates, cursor_updates);
 }

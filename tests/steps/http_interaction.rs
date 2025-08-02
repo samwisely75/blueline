@@ -5,6 +5,7 @@ use anyhow::Result;
 use blueline::ViewRenderer;
 use cucumber::gherkin::Step;
 use cucumber::{given, then, when};
+use tokio::time::{sleep, Duration};
 
 // ===== HTTP REQUEST SETUP STEPS =====
 
@@ -163,10 +164,6 @@ async fn i_execute_simple_request(
 
 // ===== RESPONSE SETUP FOR TESTING =====
 
-#[given("there is a response in the response pane")]
-async fn there_is_response_in_response_pane(world: &mut BluelineWorld) {
-    world.setup_response_pane();
-}
 
 #[given(regex = r"^there is a response in the response pane from:$")]
 async fn there_is_response_from_request(world: &mut BluelineWorld, step: &Step) {
@@ -203,11 +200,6 @@ async fn executed_request_large_response(world: &mut BluelineWorld, step: &Step)
 
 // ===== HTTP RESPONSE VERIFICATION STEPS =====
 
-#[then("I wait for the response")]
-async fn i_wait_for_the_response(_world: &mut BluelineWorld) {
-    // In tests, responses are simulated immediately
-    // This step is mainly for documentation/readability
-}
 
 #[then("I should see a status code in the status bar")]
 async fn i_should_see_status_code(world: &mut BluelineWorld) {
@@ -519,4 +511,15 @@ async fn executing_indicator_should_disappear(world: &mut BluelineWorld) {
         !screen_content.contains("Executing...") && !screen_content.contains("Loading..."),
         "Expected executing indicator to disappear after response arrives"
     );
+}
+
+#[when("I wait for the response")]
+async fn i_wait_for_the_response(world: &mut BluelineWorld) {
+    // Simulate waiting for HTTP response - short delay for realistic behavior
+    sleep(Duration::from_millis(100)).await;
+    
+    // Ensure response pane is set up with some content
+    world.setup_response_pane();
+    
+    println!("⏱️ Waited for response - response pane ready");
 }

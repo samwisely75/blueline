@@ -12,10 +12,6 @@ use cucumber::{gherkin::Step, given, then, when};
 
 // Buffer setup steps
 
-#[given("there is a response in the response pane")]
-async fn there_is_response_in_response_pane(world: &mut BluelineWorld) {
-    world.setup_response_pane();
-}
 
 // HTTP response setup step definitions moved to tests/steps/http_interaction.rs
 
@@ -126,15 +122,6 @@ async fn i_should_see_line_numbers_in_request_pane(world: &mut BluelineWorld) {
 
 // Status bar step definitions moved to tests/steps/status_bar.rs
 
-#[then(regex = r#"I should see "([^"]*)" in the request pane"#)]
-async fn i_should_see_text_in_request_pane(world: &mut BluelineWorld, expected_text: String) {
-    // Check if the text is in the request buffer
-    let request_content = world.request_buffer.join(" ");
-    assert!(
-        request_content.contains(&expected_text) || !world.request_buffer.is_empty(),
-        "Expected to see '{expected_text}' in request pane"
-    );
-}
 
 #[then("the cursor should be visible")]
 async fn the_cursor_should_be_visible(_world: &mut BluelineWorld) {
@@ -170,11 +157,6 @@ async fn i_have_some_content_in_request_pane(world: &mut BluelineWorld) -> Resul
     world.press_key("Escape").await // Return to normal mode
 }
 
-#[then("the cursor position should change appropriately")]
-async fn cursor_position_should_change_appropriately(_world: &mut BluelineWorld) {
-    // Cursor position is always valid - no assertion needed
-    // Actual movement testing is done in navigation features
-}
 
 #[given("I have typed some text")]
 async fn i_have_typed_some_text(world: &mut BluelineWorld) -> Result<()> {
@@ -182,106 +164,24 @@ async fn i_have_typed_some_text(world: &mut BluelineWorld) -> Result<()> {
     world.type_text("Hello World").await
 }
 
-#[then("the last character should be removed")]
-async fn the_last_character_should_be_removed(world: &mut BluelineWorld) {
-    // Check that request buffer content has been modified
-    let request_content = world.request_buffer.join("");
-    // For this test, just verify we have some content (actual backspace logic tested elsewhere)
-    assert!(
-        request_content.len() <= 11, // "Hello World" minus one character or similar
-        "Expected last character to be removed"
-    );
-}
 
-#[when("I press the delete key")]
-async fn i_press_the_delete_key(world: &mut BluelineWorld) -> Result<()> {
-    world.press_key("Delete").await
-}
 
-#[then("the character at cursor should be removed")]
-async fn character_at_cursor_should_be_removed(world: &mut BluelineWorld) {
-    // Verify that some character deletion has occurred
-    let request_content = world.request_buffer.join("");
-    assert!(
-        request_content.len() <= 10, // Account for character deletion
-        "Expected character at cursor to be removed"
-    );
-}
 
 // Status bar mode display step definitions moved to tests/steps/status_bar.rs
 
-#[when(regex = r#"I type rapidly "([^"]*)" without delays"#)]
-async fn i_type_rapidly_without_delays(world: &mut BluelineWorld, text: String) -> Result<()> {
-    // Type each character rapidly without delays
-    for ch in text.chars() {
-        world.press_key(&ch.to_string()).await?;
-    }
-    Ok(())
-}
+// Note: "I type rapidly [text] without delays" step moved to tests/steps/text_manipulation.rs
 
-#[then("all typed characters should be visible")]
-async fn all_typed_characters_should_be_visible(world: &mut BluelineWorld) {
-    // Check that we have content in the request buffer
-    let request_content = world.request_buffer.join("");
-    assert!(
-        request_content.len() >= 20, // Expect at least some of the alphabet
-        "Expected all typed characters to be visible"
-    );
-}
+// Note: "all typed characters should be visible" step moved to tests/steps/text_manipulation.rs
 
-#[then("the cursor should be at the end of the text")]
-async fn cursor_should_be_at_end_of_text(world: &mut BluelineWorld) {
-    // Verify cursor is positioned appropriately
-    let request_content = world.request_buffer.join("");
-    assert!(
-        world.cursor_position.column >= request_content.len() || !request_content.is_empty(),
-        "Expected cursor to be at end of text"
-    );
-}
+// Note: "the cursor should be at the end of the text" step moved to tests/steps/text_manipulation.rs
 
-#[given("I have content in both request and response panes")]
-async fn i_have_content_in_both_panes(world: &mut BluelineWorld) -> Result<()> {
-    // Add content to request pane
-    world.press_key("i").await?;
-    world.type_text("GET /api/test").await?;
-    world.press_key("Escape").await?;
+// Note: "I have content in both request and response panes" step moved to tests/steps/pane_management.rs
 
-    // Execute to get response content
-    world.press_key("Enter").await?;
+// Note: "the terminal is resized to [width]x[height]" step moved to tests/steps/pane_management.rs
 
-    // Add some mock response content
-    world.response_buffer.push("Response: 200 OK".to_string());
-    Ok(())
-}
+// Note: "content should still be visible" step moved to tests/steps/pane_management.rs
 
-#[when(regex = r"the terminal is resized to (\d+)x(\d+)")]
-async fn terminal_is_resized_to_dimensions(world: &mut BluelineWorld, width: u16, height: u16) {
-    // Mock terminal resize by updating stored dimensions
-    world.terminal_size = (width, height);
-    println!("📏 Terminal resized to {width}x{height}");
-}
-
-#[then("content should still be visible")]
-async fn content_should_still_be_visible(world: &mut BluelineWorld) {
-    // Verify both panes still have content
-    assert!(
-        !world.request_buffer.is_empty(),
-        "Expected request content to still be visible"
-    );
-    assert!(
-        !world.response_buffer.is_empty(),
-        "Expected response content to still be visible"
-    );
-}
-
-#[then("pane boundaries should be recalculated correctly")]
-async fn pane_boundaries_should_be_recalculated(world: &mut BluelineWorld) {
-    // For now, just verify terminal size was updated
-    assert!(
-        world.terminal_size.0 > 0 && world.terminal_size.1 > 0,
-        "Expected pane boundaries to be recalculated after resize"
-    );
-}
+// Note: "pane boundaries should be recalculated correctly" step moved to tests/steps/pane_management.rs
 
 // Cursor Visibility step definitions
 
@@ -373,15 +273,9 @@ async fn i_use_vim_navigation_keys(world: &mut BluelineWorld) -> Result<()> {
 
 // NOTE: Cursor style functions moved to tests/steps/mode_transitions.rs
 
-#[then("I am in the response pane")]
-async fn i_am_in_response_pane_then(world: &mut BluelineWorld) {
-    assert_eq!(world.active_pane, ActivePane::Response);
-}
+// Note: "I am in the response pane" step moved to tests/steps/pane_management.rs
 
-#[then("I am in the request pane")]
-async fn i_am_in_request_pane_then(world: &mut BluelineWorld) {
-    assert_eq!(world.active_pane, ActivePane::Request);
-}
+// Note: "I am in the request pane" step moved to tests/steps/pane_management.rs
 
 #[then("the response pane shows the last response")]
 async fn response_pane_shows_last_response(world: &mut BluelineWorld) {
@@ -958,11 +852,6 @@ async fn cursor_does_not_move(world: &mut BluelineWorld) {
 
 // ===== BUFFER CONTENT VERIFICATION STEPS =====
 
-#[given("the request buffer contains \"GET /api/users\"")]
-async fn request_buffer_contains_get_api_users(world: &mut BluelineWorld) -> Result<()> {
-    world.set_request_buffer("GET /api/users").await?;
-    Ok(())
-}
 
 #[given("the request buffer contains \"GET /api/userss\"")]
 async fn request_buffer_contains_get_api_userss(world: &mut BluelineWorld) -> Result<()> {
@@ -2187,26 +2076,7 @@ async fn i_have_text(world: &mut BluelineWorld, text: String) -> Result<()> {
 
 // ===== NEW WHEN STEPS =====
 
-#[when(regex = r#"^I press "([^"]*)" to enter insert mode$"#)]
-async fn i_press_key_to_enter_insert_mode(world: &mut BluelineWorld, key: String) -> Result<()> {
-    // Force use of simulation path by temporarily storing real components
-    let saved_view_model = world.view_model.take();
-    let saved_command_registry = world.command_registry.take();
-
-    // Now press_key will use simulation path
-    world.press_key(&key).await?;
-    world.mode = Mode::Insert;
-
-    // Restore real components if they existed
-    world.view_model = saved_view_model;
-    world.command_registry = saved_command_registry;
-
-    // Simulate cursor style change for insert mode
-    let cursor_bar = "\x1b[5 q"; // Change cursor to blinking bar (insert mode)
-    world.capture_stdout(cursor_bar.as_bytes());
-
-    Ok(())
-}
+// Note: "I press [key] to enter insert mode" step moved to tests/steps/mode_transitions.rs
 
 #[when(regex = r#"^I press Escape to exit insert mode$"#)]
 async fn i_press_escape_to_exit_insert_mode(world: &mut BluelineWorld) -> Result<()> {

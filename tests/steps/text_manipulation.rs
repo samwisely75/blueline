@@ -83,6 +83,11 @@ async fn i_press_backspace(world: &mut BluelineWorld) -> Result<()> {
     world.press_key("Backspace").await
 }
 
+#[when("I press backspace")]
+async fn i_press_backspace_lowercase(world: &mut BluelineWorld) -> Result<()> {
+    world.press_key("Backspace").await
+}
+
 // Note: "I press backspace N times" is handled by tests/common/steps.rs to avoid duplication
 
 #[when("I press the delete key")]
@@ -209,3 +214,4 @@ async fn cursor_at_end_of_text(world: &mut BluelineWorld) {
         );
     }
 }
+

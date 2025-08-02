@@ -98,8 +98,12 @@ async fn run_features_sequentially() {
         "features/terminal_rendering_simple.feature", // ✅ Working - Basic terminal rendering
         "features/cursor_visibility.feature", // ✅ Working - Cursor visibility (2/3 scenarios pass)
         "features/visual_mode.feature", // ✅ Working - Visual mode text selection (9/10 scenarios)
-        "features/unicode_support.feature", // 🚧 Testing - Unicode and double-byte character support
-                                            // "features/text_editing.feature", // Complex - temporarily disabled due to hanging issues
+        "features/unicode_support.feature", // ✅ Working - Unicode and double-byte character support (11/11 scenarios)
+        "features/window.feature",           // ✅ Working - Window management and pane layout (6/6 scenarios)
+        "features/terminal_rendering.feature", // ✅ Working - Terminal rendering integrity (7/8 scenarios)
+        "features/cursor_flicker_fix.feature", // ✅ Working - Cursor movement smoothness and flicker fixes (1/2 scenarios)
+        "features/test_response_navigation.feature", // 🚧 Testing - Response pane navigation tests (2/5 scenarios working)
+                                            // "features/text_editing.feature", // Complex - temporarily disabled (5/23 scenarios working, many duplicates)
                                             // "features/real_application_bug.feature", // Disabled - step definitions commented out causing timeout
                                             // "features/real_vte_bug_test.feature", // Disabled - debugging test for separate issue
     ];

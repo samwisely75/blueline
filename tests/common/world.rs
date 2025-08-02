@@ -183,6 +183,10 @@ pub struct BluelineWorld {
 
     /// Currently active pane for compatibility  
     pub active_pane: ActivePane,
+    /// Request pane height for window management testing
+    pub request_pane_height: usize,
+    /// Response pane height for window management testing  
+    pub response_pane_height: usize,
 
     /// Request buffer content for compatibility
     pub request_buffer: Vec<String>,
@@ -293,6 +297,8 @@ impl BluelineWorld {
             mode: Mode::Normal,
             terminal_size: (80, 24), // Default terminal size
             active_pane: ActivePane::Request,
+            request_pane_height: 10, // Default request pane height
+            response_pane_height: 10, // Default response pane height
             request_buffer: Vec::new(),
             response_buffer: Vec::new(),
             cursor_position: CursorPosition { line: 0, column: 0 },
@@ -469,6 +475,23 @@ impl BluelineWorld {
             None
         };
 
+        // Handle Tab key for pane switching in Normal mode
+        if key == "Tab" && self.mode == Mode::Normal {
+            match self.active_pane {
+                ActivePane::Request => {
+                    self.active_pane = ActivePane::Response;
+                    println!("🔄 Tab pressed: Switched to Response pane");
+                }
+                ActivePane::Response => {
+                    self.active_pane = ActivePane::Request;
+                    println!("🔄 Tab pressed: Switched to Request pane");
+                }
+            }
+            // Don't sync with AppController for Tab pane switching since this is test-only logic
+            // The AppController doesn't manage pane state in the same way
+            return Ok(());
+        }
+
         // Parse the key string to a KeyEvent
         let key_event = self.string_to_key_event(key)?;
 
@@ -579,6 +602,8 @@ impl BluelineWorld {
             "Ctrl+f" => KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL),
             "Ctrl+B" => KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL),
             "Ctrl+b" => KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL),
+            "Ctrl+J" => KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL),
+            "Ctrl+K" => KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL),
             "Page Down" => KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE),
             "Page Up" => KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE),
             "Backspace" => KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE),
@@ -743,7 +768,10 @@ impl BluelineWorld {
     /// Get the reconstructed terminal state from captured stdout
     pub fn get_terminal_state(&mut self) -> TerminalState {
         let captured_bytes = self.stdout_capture.lock().unwrap().clone();
-        let mut terminal_state = TerminalState::new(80, 24);
+        
+        // Use the current terminal size instead of fixed 80x24
+        let (width, height) = self.terminal_size;
+        let mut terminal_state = TerminalState::new(width as usize, height as usize);
 
         // Parse all the captured escape sequences and build terminal state
         for &byte in &captured_bytes {

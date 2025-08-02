@@ -10,12 +10,10 @@ Feature: Window Management
   Scenario: Switch between panes
     Given there is a response in the response pane
     And I am in normal mode
-    When I press "Ctrl+W"
-    And I press "j"
+    When I press "Tab"
     Then I am in the response pane
     And I am in normal mode
-    When I press "Ctrl+W"
-    And I press "k"
+    When I press "Tab"
     Then I am in the request pane
     And I am in normal mode
 

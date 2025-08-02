@@ -1,7 +1,7 @@
 // Status bar display and mode indicators step definitions
 
 use crate::common::world::BluelineWorld;
-use cucumber::{then};
+use cucumber::then;
 
 // ===== STATUS BAR VISIBILITY AND DISPLAY =====
 
@@ -9,12 +9,9 @@ use cucumber::{then};
 async fn i_should_see_status_bar_at_bottom(world: &mut BluelineWorld) {
     // Verify status bar presence through captured output
     let terminal_state = world.get_terminal_state();
-    
+
     // Check that we have terminal output indicating a status bar
-    assert!(
-        terminal_state.height > 1,
-        "Expected status bar at bottom"
-    );
+    assert!(terminal_state.height > 1, "Expected status bar at bottom");
 }
 
 #[then(regex = r#"the status bar should show "([^"]*)"#)]
