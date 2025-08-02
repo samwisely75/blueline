@@ -2,6 +2,7 @@
 
 use crate::common::world::{ActivePane, BluelineWorld};
 use anyhow::Result;
+use blueline::ViewRenderer;
 use cucumber::gherkin::Step;
 use cucumber::{given, then, when};
 
@@ -88,6 +89,10 @@ async fn i_execute_request(world: &mut BluelineWorld, step: &Step) -> Result<()>
                     .view_model_mut()
                     .insert_text(headers_text)
                     .ok();
+                // Trigger terminal rendering to ensure headers appear
+                if let Some(renderer) = &mut world.terminal_renderer {
+                    renderer.render_full(app_controller.view_model()).ok();
+                }
             }
             // Also update the legacy request_buffer for compatibility
             world.request_buffer.push("".to_string());
@@ -137,6 +142,10 @@ async fn i_execute_simple_request(
                 .view_model_mut()
                 .insert_text(staging_text)
                 .ok();
+            // Trigger terminal rendering to ensure staging info appears
+            if let Some(renderer) = &mut world.terminal_renderer {
+                renderer.render_full(app_controller.view_model()).ok();
+            }
         }
         // Also update the legacy request_buffer for compatibility
         world.request_buffer.push("".to_string());

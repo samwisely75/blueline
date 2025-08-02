@@ -17,36 +17,7 @@ async fn there_is_response_in_response_pane(world: &mut BluelineWorld) {
     world.setup_response_pane();
 }
 
-#[given(regex = r"^there is a response in the response pane from:$")]
-async fn there_is_response_from_request(world: &mut BluelineWorld, step: &Step) {
-    world.setup_response_pane();
-    if let Some(docstring) = &step.docstring {
-        world.last_request = Some(docstring.to_string());
-    }
-}
-
-#[given(regex = r"^I have executed a request that returned a large JSON response from:$")]
-async fn executed_request_large_response(world: &mut BluelineWorld, step: &Step) {
-    // Set up a large JSON response for testing navigation
-    let large_response = serde_json::json!({
-        "users": (1..=50).map(|i| serde_json::json!({
-            "id": i,
-            "name": format!("User {i}"),
-            "email": format!("user{i}@example.com")
-        })).collect::<Vec<_>>(),
-        "total": 50,
-        "page": 1,
-        "per_page": 50
-    })
-    .to_string();
-
-    world.response_buffer = large_response.lines().map(|s| s.to_string()).collect();
-    world.last_response = Some(large_response);
-    world.active_pane = ActivePane::Response;
-    if let Some(docstring) = &step.docstring {
-        world.last_request = Some(docstring.to_string());
-    }
-}
+// HTTP response setup step definitions moved to tests/steps/http_interaction.rs
 
 // NOTE: Response pane setup function moved to tests/steps/pane_management.rs
 
