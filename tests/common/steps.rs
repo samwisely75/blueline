@@ -1,6 +1,6 @@
 use super::world::{ActivePane, BluelineWorld, Mode};
 use anyhow::Result;
-use blueline::repl::events::{EditorMode, Pane};
+// Removed unused imports EditorMode and Pane
 use blueline::ViewRenderer;
 use cucumber::{gherkin::Step, given, then, when};
 
@@ -1916,186 +1916,15 @@ async fn switch_to_response_pane(world: &mut BluelineWorld) {
     }
 }
 
-#[when(regex = r#"I send key "([^"]*)" to enter visual mode"#)]
-async fn send_key_to_enter_visual_mode(world: &mut BluelineWorld, key: String) {
-    println!("👁️ Sending key '{key}' to enter visual mode");
+// Visual mode step definitions moved to tests/steps/visual_mode.rs
 
-    if world.view_model.is_none() {
-        panic!("Real application not initialized");
-    }
+// Visual mode cursor movement step definitions moved to tests/steps/visual_mode.rs
 
-    // Send the key through the real command system
-    match world.press_key(&key).await {
-        Ok(()) => {
-            println!("✅ Successfully sent key '{key}' to enter visual mode");
+// Visual mode state verification step definitions moved to tests/steps/visual_mode.rs
 
-            // Verify we're in visual mode
-            if let Some(ref view_model) = world.view_model {
-                let mode = view_model.get_mode();
-                println!("📊 Current mode after key press: {mode:?}");
-                assert_eq!(
-                    mode,
-                    EditorMode::Visual,
-                    "Expected Visual mode after pressing '{key}'"
-                );
+// Visual mode selection highlighting step definitions moved to tests/steps/visual_mode.rs
 
-                // Check visual selection state
-                let selection = view_model.get_visual_selection();
-                println!("🎯 Visual selection state: {selection:?}");
-            }
-        }
-        Err(e) => {
-            println!("❌ Failed to send key '{key}': {e}");
-            panic!("Failed to send key to enter visual mode: {e}");
-        }
-    }
-}
-
-#[when("I move cursor to select some text")]
-async fn move_cursor_to_select_text(world: &mut BluelineWorld) {
-    println!("➡️ Moving cursor to select text");
-
-    if let Some(ref mut view_model) = world.view_model {
-        // Check current cursor position and response content first
-        let cursor_pos = view_model.get_cursor_position();
-        println!("📍 Current cursor position: {cursor_pos:?}");
-
-        // Get response content to see what we're navigating through
-        let response_status = view_model.get_response_status_code();
-        println!("📋 Response status: {response_status:?}");
-
-        // Try to get response text length for debugging
-        if let Some(response_status) = response_status {
-            println!("🔍 Response exists with status: {response_status}");
-        }
-
-        // Move cursor right a few positions to create a selection
-        for i in 0..5 {
-            let pos_before = view_model.get_cursor_position();
-            match view_model.move_cursor_right() {
-                Ok(()) => {
-                    let pos_after = view_model.get_cursor_position();
-                    println!(
-                        "✅ Moved cursor right {}: {:?} -> {:?}",
-                        i + 1,
-                        pos_before,
-                        pos_after
-                    );
-
-                    // Check visual selection after each movement
-                    let selection = view_model.get_visual_selection();
-                    println!("   🎯 Visual selection: {selection:?}");
-                }
-                Err(e) => {
-                    println!("⚠️ Cursor movement {index} failed: {e}", index = i + 1);
-                    break;
-                }
-            }
-        }
-
-        // Render after cursor movements
-        if let Some(ref mut renderer) = world.terminal_renderer {
-            renderer.render_full(view_model).ok();
-        }
-
-        // Check final visual selection
-        let selection = view_model.get_visual_selection();
-        println!("🎯 Final visual selection after cursor movement: {selection:?}");
-    } else {
-        panic!("Real application not initialized");
-    }
-}
-
-#[then("I should be in visual mode")]
-async fn should_be_in_visual_mode(world: &mut BluelineWorld) {
-    println!("🔍 Checking if in visual mode");
-
-    if let Some(ref view_model) = world.view_model {
-        let mode = view_model.get_mode();
-        assert_eq!(
-            mode,
-            EditorMode::Visual,
-            "Expected Visual mode but got {mode:?}"
-        );
-        println!("✅ Confirmed Visual mode");
-    } else {
-        panic!("Real application not initialized");
-    }
-}
-
-#[then("I should see visual selection highlighting in the response pane")]
-async fn should_see_visual_selection_highlighting(world: &mut BluelineWorld) {
-    println!("🔍 Checking for visual selection highlighting in response pane");
-
-    if let Some(ref view_model) = world.view_model {
-        let selection = view_model.get_visual_selection();
-        let (start, end, pane) = selection;
-
-        println!("🎯 Visual selection state: start={start:?}, end={end:?}, pane={pane:?}");
-
-        // Verify selection exists
-        assert!(start.is_some(), "Visual selection start should be set");
-        assert!(end.is_some(), "Visual selection end should be set");
-        assert_eq!(
-            pane,
-            Some(Pane::Response),
-            "Visual selection should be in Response pane"
-        );
-
-        // Verify selection range
-        let start_pos = start.unwrap();
-        let end_pos = end.unwrap();
-
-        assert!(
-            start_pos != end_pos,
-            "Visual selection should span multiple positions"
-        );
-
-        println!(
-            "✅ Visual selection highlighting verified: {}:{} to {}:{}",
-            start_pos.line, start_pos.column, end_pos.line, end_pos.column
-        );
-    } else {
-        panic!("Real application not initialized");
-    }
-}
-
-#[then("the visual selection should be visible on screen")]
-async fn visual_selection_should_be_visible_on_screen(world: &mut BluelineWorld) {
-    println!("🔍 Checking if visual selection is visible on screen");
-
-    // Get terminal state
-    let terminal_state = world.get_terminal_state();
-    let screen_content = terminal_state.get_full_text();
-
-    println!("📺 Screen content for visual selection check:");
-    println!("{screen_content}");
-
-    // Look for visual selection indicators in the screen content
-    // Since we can't access raw ANSI codes, look for visual mode indicators
-    let has_visual_indicators = screen_content.contains("-- VISUAL --") || // Status line
-                               screen_content.contains("VISUAL"); // Mode indicator
-
-    println!("🔍 Screen contains visual indicators: {has_visual_indicators}");
-    if has_visual_indicators {
-        println!("✅ Found visual mode indicators on screen");
-    } else {
-        println!("❌ No visual mode indicators found on screen");
-    }
-
-    // Also check that we have response content to select from
-    let has_response_content = screen_content.contains("Response")
-        && (screen_content.contains("{") || screen_content.contains("id"));
-
-    if !has_response_content {
-        println!("⚠️ No response content found to select from");
-    }
-
-    assert!(has_visual_indicators,
-           "❌ VISUAL MODE BUG: No visual selection highlighting found on screen!\nScreen content:\n{screen_content}");
-
-    println!("✅ Visual selection highlighting is visible on screen");
-}
+// Visual mode screen visibility step definitions moved to tests/steps/visual_mode.rs
 
 // === REAL VTE APPLICATION TEST STEPS ===
 
@@ -2525,12 +2354,7 @@ async fn i_press_key_for_undo(world: &mut BluelineWorld, key: String) -> Result<
     world.press_key(&key).await
 }
 
-#[when("I select the text in visual mode")]
-async fn i_select_text_in_visual_mode(world: &mut BluelineWorld) -> Result<()> {
-    world.press_key("v").await?; // Enter visual mode
-    world.press_key("$").await?; // Select to end of line
-    Ok(())
-}
+// Visual mode text selection step definitions moved to tests/steps/visual_mode.rs
 
 #[when(regex = r#"^I copy it with "([^"]*)"$"#)]
 async fn i_copy_with_key(world: &mut BluelineWorld, key: String) -> Result<()> {
