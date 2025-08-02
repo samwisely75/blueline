@@ -11,28 +11,6 @@ use cucumber::{gherkin::Step, given, then, when};
 // - tests/steps/mode_transitions.rs
 
 // Buffer setup steps
-#[given(regex = r"^the request buffer contains:$")]
-async fn request_buffer_contains(world: &mut BluelineWorld, step: &Step) -> Result<()> {
-    if let Some(docstring) = &step.docstring {
-        world.set_request_buffer(docstring).await?;
-    }
-    Ok(())
-}
-
-#[given("the request buffer is empty")]
-async fn request_buffer_is_empty(world: &mut BluelineWorld) {
-    world.request_buffer.clear();
-    world.set_cursor_position(0, 0);
-}
-
-#[given(regex = r"^I am in the request pane with the buffer containing:$")]
-async fn i_am_in_request_pane_with_buffer(world: &mut BluelineWorld, step: &Step) -> Result<()> {
-    world.active_pane = ActivePane::Request;
-    if let Some(docstring) = &step.docstring {
-        world.set_request_buffer(docstring).await?;
-    }
-    Ok(())
-}
 
 #[given("there is a response in the response pane")]
 async fn there_is_response_in_response_pane(world: &mut BluelineWorld) {
@@ -681,30 +659,6 @@ async fn the_executing_indicator_should_disappear(world: &mut BluelineWorld) {
     );
 }
 
-#[when(regex = r#"^I type "([^"]*)"$"#)]
-async fn i_type_text(world: &mut BluelineWorld, text: String) -> Result<()> {
-    // Force use of simulation path by temporarily storing real components
-    let saved_view_model = world.view_model.take();
-    let saved_command_registry = world.command_registry.take();
-
-    let result = world.type_text(&text).await;
-
-    // Restore real components if they existed
-    world.view_model = saved_view_model;
-    world.command_registry = saved_command_registry;
-
-    result
-}
-
-#[when(regex = r"^I type:$")]
-async fn i_type_multiline(world: &mut BluelineWorld, step: &Step) -> Result<()> {
-    if let Some(docstring) = &step.docstring {
-        world.type_text(docstring).await
-    } else {
-        Ok(())
-    }
-}
-
 #[when("I use vim navigation keys")]
 async fn i_use_vim_navigation_keys(world: &mut BluelineWorld) -> Result<()> {
     // For response pane, navigation should stay within the response pane
@@ -915,27 +869,6 @@ async fn cursor_moves_to_end(world: &mut BluelineWorld) {
 
 // NOTE: Cursor style functions moved to tests/steps/mode_transitions.rs
 
-#[then("the text appears in the request buffer")]
-async fn text_appears_in_request_buffer(world: &mut BluelineWorld) {
-    let terminal_state = world.get_terminal_state();
-    let screen_text = terminal_state.get_full_text();
-
-    // Verify text is actually visible on the terminal screen
-    assert!(
-        !screen_text.trim().is_empty(),
-        "Expected text to be visible in terminal output, but screen appears empty"
-    );
-
-    // Also check that characters were written to terminal
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-
-    assert!(
-        !output_str.is_empty(),
-        "Expected terminal output to contain text, but no output was captured"
-    );
-}
-
 #[then("I am in the response pane")]
 async fn i_am_in_response_pane_then(world: &mut BluelineWorld) {
     assert_eq!(world.active_pane, ActivePane::Response);
@@ -1040,12 +973,6 @@ async fn command_buffer_cleared(world: &mut BluelineWorld) {
 #[then(regex = r#"^I see an error message "([^"]*)"$"#)]
 async fn i_see_error_message(world: &mut BluelineWorld, expected_error: String) {
     assert_eq!(world.last_error, Some(expected_error));
-}
-
-#[then("the request buffer contains the multiline request")]
-async fn request_buffer_contains_multiline(world: &mut BluelineWorld) {
-    assert!(!world.request_buffer.is_empty());
-    assert!(world.request_buffer.len() > 1);
 }
 
 #[then("the POST request is executed with the JSON body")]
