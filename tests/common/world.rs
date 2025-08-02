@@ -1,8 +1,9 @@
 use super::terminal_state::TerminalState;
 use anyhow::Result;
 use blueline::cmd_args::CommandLineArgs;
-use blueline::repl::events::TestEventSource;
+use blueline::repl::events::{TestEventSource, TestEventSourceTrait};
 use blueline::{AppController, TerminalRenderer};
+use crossterm::event::Event;
 use cucumber::World;
 use std::collections::HashMap;
 use std::io::{self, Write};
@@ -641,6 +642,10 @@ impl BluelineWorld {
 
         // Parse the key string to a KeyEvent
         let key_event = self.string_to_key_event(key)?;
+
+        // CRITICAL: Add the key event to the TestEventSource before processing
+        // This prevents hangs if the AppController internally tries to read from the event source
+        self.event_source.push_event(Event::Key(key_event));
 
         // Process the key event through the AppController
         if let Some(app_controller) = &mut self.app_controller {
