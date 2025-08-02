@@ -97,10 +97,11 @@ async fn run_features_sequentially() {
         "features/http_request_flow.feature",    // ✅ Working
         "features/terminal_rendering_simple.feature", // ✅ Working - Basic terminal rendering
         "features/cursor_visibility.feature", // ✅ Working - Cursor visibility (2/3 scenarios pass)
-        "features/visual_mode.feature",       // 🚧 Testing - Visual mode text selection
-                                              // "features/real_application_bug.feature", // Disabled - step definitions commented out causing timeout
-                                              // "features/real_vte_bug_test.feature", // Disabled - debugging test for separate issue
-                                              // "features/text_editing.feature", // Known issues - temporarily disabled
+        "features/visual_mode.feature", // ✅ Working - Visual mode text selection (9/10 scenarios)
+        "features/unicode_support.feature", // 🚧 Testing - Unicode and double-byte character support
+                                            // "features/text_editing.feature", // Complex - temporarily disabled due to hanging issues
+                                            // "features/real_application_bug.feature", // Disabled - step definitions commented out causing timeout
+                                            // "features/real_vte_bug_test.feature", // Disabled - debugging test for separate issue
     ];
 
     // Run the main features first

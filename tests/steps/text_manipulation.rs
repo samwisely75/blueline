@@ -83,13 +83,7 @@ async fn i_press_backspace(world: &mut BluelineWorld) -> Result<()> {
     world.press_key("Backspace").await
 }
 
-#[when(regex = r#"^I press backspace (\d+) times$"#)]
-async fn i_press_backspace_multiple(world: &mut BluelineWorld, count: usize) -> Result<()> {
-    for _ in 0..count {
-        world.press_key("Backspace").await?;
-    }
-    Ok(())
-}
+// Note: "I press backspace N times" is handled by tests/common/steps.rs to avoid duplication
 
 #[when("I press the delete key")]
 async fn i_press_delete_key(world: &mut BluelineWorld) -> Result<()> {

@@ -7,6 +7,7 @@ pub mod mode_transitions;
 pub mod pane_management;
 pub mod status_bar;
 pub mod text_manipulation;
+pub mod unicode_support;
 pub mod visual_mode;
 
 // Re-export all step functions
