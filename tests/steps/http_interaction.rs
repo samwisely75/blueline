@@ -172,22 +172,25 @@ async fn there_is_response_from_request(world: &mut BluelineWorld, step: &Step) 
         world.response_buffer = docstring.lines().map(|s| s.to_string()).collect();
         world.last_response = Some(docstring.to_string());
         world.last_request = Some(docstring.to_string());
-        
+
         // Ensure we're in the response pane and cursor is at the start
         world.active_pane = ActivePane::Response;
         world.cursor_position.line = 0;
         world.cursor_position.column = 0;
-        
+
         // Capture the response content as terminal output so assertions can find it
         let response_lines = world.response_buffer.clone();
         for line in response_lines {
             world.capture_stdout(line.as_bytes());
             world.capture_stdout(b"\r\n");
         }
-        
-        println!("📝 Set response pane content: {} lines", world.response_buffer.len());
+
+        println!(
+            "📝 Set response pane content: {} lines",
+            world.response_buffer.len()
+        );
         for (i, line) in world.response_buffer.iter().enumerate() {
-            println!("  Line {}: '{}'", i, line);
+            println!("  Line {i}: '{line}'");
         }
     }
 }

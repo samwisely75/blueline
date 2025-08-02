@@ -505,19 +505,21 @@ impl BluelineWorld {
                     if self.cursor_position.line < max_line {
                         let old_line = self.cursor_position.line;
                         self.cursor_position.line += 1;
-                        
+
                         // Clamp column to the length of the new line
                         if self.cursor_position.line < self.response_buffer.len() {
-                            let new_line_len = self.response_buffer[self.cursor_position.line].chars().count();
+                            let new_line_len = self.response_buffer[self.cursor_position.line]
+                                .chars()
+                                .count();
                             if self.cursor_position.column > new_line_len {
                                 self.cursor_position.column = new_line_len;
                             }
                         }
-                        
+
                         println!("🔽 Response pane: moved cursor down from line {} to line {}, column {}", 
                                 old_line, self.cursor_position.line, self.cursor_position.column);
                     }
-                    
+
                     // Save state for persistence
                     self.sync_to_persistent_state();
                     return Ok(());
@@ -527,17 +529,21 @@ impl BluelineWorld {
                     if self.cursor_position.line > 0 {
                         let old_line = self.cursor_position.line;
                         self.cursor_position.line -= 1;
-                        
+
                         // Clamp column to the length of the new line
                         if self.cursor_position.line < self.response_buffer.len() {
-                            let new_line_len = self.response_buffer[self.cursor_position.line].chars().count();
+                            let new_line_len = self.response_buffer[self.cursor_position.line]
+                                .chars()
+                                .count();
                             if self.cursor_position.column > new_line_len {
                                 self.cursor_position.column = new_line_len;
                             }
                         }
-                        
-                        println!("🔼 Response pane: moved cursor up from line {} to line {}, column {}", 
-                                old_line, self.cursor_position.line, self.cursor_position.column);
+
+                        println!(
+                            "🔼 Response pane: moved cursor up from line {} to line {}, column {}",
+                            old_line, self.cursor_position.line, self.cursor_position.column
+                        );
                     }
                     self.sync_to_persistent_state();
                     return Ok(());
@@ -546,7 +552,10 @@ impl BluelineWorld {
                     // Move cursor left in response pane
                     if self.cursor_position.column > 0 {
                         self.cursor_position.column -= 1;
-                        println!("⬅️ Response pane: moved cursor left to column {}", self.cursor_position.column);
+                        println!(
+                            "⬅️ Response pane: moved cursor left to column {}",
+                            self.cursor_position.column
+                        );
                     }
                     self.sync_to_persistent_state();
                     return Ok(());
@@ -554,10 +563,15 @@ impl BluelineWorld {
                 "l" => {
                     // Move cursor right in response pane
                     if self.cursor_position.line < self.response_buffer.len() {
-                        let line_len = self.response_buffer[self.cursor_position.line].chars().count();
+                        let line_len = self.response_buffer[self.cursor_position.line]
+                            .chars()
+                            .count();
                         if self.cursor_position.column < line_len {
                             self.cursor_position.column += 1;
-                            println!("➡️ Response pane: moved cursor right to column {}", self.cursor_position.column);
+                            println!(
+                                "➡️ Response pane: moved cursor right to column {}",
+                                self.cursor_position.column
+                            );
                         }
                     }
                     self.sync_to_persistent_state();
@@ -569,7 +583,7 @@ impl BluelineWorld {
                         let line = &self.response_buffer[self.cursor_position.line];
                         let chars: Vec<char> = line.chars().collect();
                         let mut pos = self.cursor_position.column;
-                        
+
                         // Skip current word
                         while pos < chars.len() && !chars[pos].is_whitespace() {
                             pos += 1;
@@ -578,16 +592,21 @@ impl BluelineWorld {
                         while pos < chars.len() && chars[pos].is_whitespace() {
                             pos += 1;
                         }
-                        
+
                         self.cursor_position.column = pos;
-                        println!("🔤 Response pane: moved cursor to next word at column {}", self.cursor_position.column);
+                        println!(
+                            "🔤 Response pane: moved cursor to next word at column {}",
+                            self.cursor_position.column
+                        );
                     }
                     self.sync_to_persistent_state();
                     return Ok(());
                 }
                 "b" => {
                     // Move to previous word in response pane
-                    if self.cursor_position.line < self.response_buffer.len() && self.cursor_position.column > 0 {
+                    if self.cursor_position.line < self.response_buffer.len()
+                        && self.cursor_position.column > 0
+                    {
                         let line = &self.response_buffer[self.cursor_position.line];
                         let chars: Vec<char> = line.chars().collect();
                         let mut pos = if self.cursor_position.column > 0 {
@@ -595,7 +614,7 @@ impl BluelineWorld {
                         } else {
                             0
                         };
-                        
+
                         // Skip whitespace backwards
                         while pos > 0 && chars[pos].is_whitespace() {
                             pos -= 1;
@@ -604,9 +623,12 @@ impl BluelineWorld {
                         while pos > 0 && !chars[pos - 1].is_whitespace() {
                             pos -= 1;
                         }
-                        
+
                         self.cursor_position.column = pos;
-                        println!("🔤 Response pane: moved cursor to previous word at column {}", self.cursor_position.column);
+                        println!(
+                            "🔤 Response pane: moved cursor to previous word at column {}",
+                            self.cursor_position.column
+                        );
                     }
                     self.sync_to_persistent_state();
                     return Ok(());

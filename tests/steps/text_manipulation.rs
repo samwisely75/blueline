@@ -42,7 +42,7 @@ async fn request_buffer_contains_text(world: &mut BluelineWorld, text: String) -
 async fn i_type_text(world: &mut BluelineWorld, text: String) -> Result<()> {
     // Directly call type_text without component manipulation
     // The current architecture uses AppController with its own ViewModel
-    println!("📝 Step: typing text '{}'", text);
+    println!("📝 Step: typing text '{text}'");
     world.type_text(&text).await
 }
 
