@@ -12,7 +12,9 @@ use vte::Parser;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 // Global state persistence to work around cucumber World recreation
-static PERSISTENT_STATE: OnceLock<Arc<Mutex<PersistentTestState>>> = OnceLock::new();
+type PersistentStateRef = Arc<Mutex<PersistentTestState>>;
+#[allow(clippy::type_complexity)]
+static PERSISTENT_STATE: OnceLock<PersistentStateRef> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 struct PersistentTestState {
@@ -166,6 +168,7 @@ pub struct BluelineWorld {
     pub terminal_renderer: Option<TerminalRenderer<VteWriter>>,
 
     /// Real AppController with TestEventSource for headless testing
+    #[allow(clippy::type_complexity)]
     pub app_controller: Option<AppController<TestEventSource, VteWriter>>,
 
     /// Test event source for injecting key events
@@ -219,6 +222,7 @@ impl BluelineWorld {
     }
 
     /// Sync current World with persistent state
+    #[allow(dead_code)]
     fn sync_from_persistent_state(&mut self) {
         let state = Self::init_persistent_state();
         if let Ok(persistent) = state.lock() {
@@ -478,7 +482,7 @@ impl BluelineWorld {
 
             if !known_commands.contains(&command.as_str()) && !is_line_number && !command.is_empty()
             {
-                self.last_error = Some(format!("Unknown command: {}", command));
+                self.last_error = Some(format!("Unknown command: {command}"));
             } else {
                 self.last_error = None; // Clear error for known commands
             }
@@ -572,6 +576,11 @@ impl BluelineWorld {
             "Page Up" => KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE),
             "Backspace" => KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE),
             "Delete" => KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE),
+            // Arrow keys for arrow_keys_all_modes.feature
+            "Left" => KeyEvent::new(KeyCode::Left, KeyModifiers::NONE),
+            "Right" => KeyEvent::new(KeyCode::Right, KeyModifiers::NONE),
+            "Up" => KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+            "Down" => KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
             _ => return Err(anyhow::anyhow!("Unsupported key: {key}")),
         };
         Ok(key_event)
@@ -676,7 +685,7 @@ impl BluelineWorld {
                 .view_model_mut()
                 .set_cursor_position(cursor_pos)
             {
-                println!("❌ Failed to set cursor position in ViewModel: {}", e);
+                println!("❌ Failed to set cursor position in ViewModel: {e}");
             } else {
                 println!(
                     "✅ Successfully set cursor position in ViewModel to ({}, {})",
@@ -788,6 +797,7 @@ impl BluelineWorld {
     }
 
     /// Execute HTTP request from normal mode (Enter key)
+    #[allow(dead_code)]
     fn execute_http_request(&mut self) {
         if !self.request_buffer.is_empty() {
             let request = self.request_buffer.join("\n");
@@ -815,6 +825,7 @@ impl BluelineWorld {
     }
 
     /// Get the content of the current line based on active pane and cursor position
+    #[allow(dead_code)]
     fn get_current_line_content(&self) -> String {
         let buffer = match self.active_pane {
             ActivePane::Request => &self.request_buffer,
@@ -829,6 +840,7 @@ impl BluelineWorld {
     }
 
     /// Get the total number of lines in the current buffer
+    #[allow(dead_code)]
     fn get_buffer_line_count(&self) -> usize {
         match self.active_pane {
             ActivePane::Request => self.request_buffer.len().max(1), // At least 1 line
@@ -837,6 +849,7 @@ impl BluelineWorld {
     }
 
     /// Move cursor to next word
+    #[allow(dead_code)]
     fn move_to_next_word(&mut self) {
         let current_line = self.get_current_line_content();
         let current_col = self.cursor_position.column;
@@ -867,6 +880,7 @@ impl BluelineWorld {
     }
 
     /// Move cursor to previous word
+    #[allow(dead_code)]
     fn move_to_previous_word(&mut self) {
         let current_line = self.get_current_line_content();
         let current_col = self.cursor_position.column;
@@ -894,6 +908,7 @@ impl BluelineWorld {
     }
 
     /// Move cursor to end of current word
+    #[allow(dead_code)]
     fn move_to_end_of_word(&mut self) {
         let current_line = self.get_current_line_content();
         let current_col = self.cursor_position.column;
@@ -914,6 +929,7 @@ impl BluelineWorld {
     }
 
     /// Emit cursor position as terminal escape sequence
+    #[allow(dead_code)]
     fn emit_cursor_position(&mut self) {
         let escape_seq = format!(
             "\x1b[{};{}H",
@@ -924,6 +940,7 @@ impl BluelineWorld {
     }
 
     /// Execute a command from command mode (legacy compatibility)
+    #[allow(dead_code)]
     fn execute_command(&mut self) {
         match self.command_buffer.as_str() {
             "q" => {
