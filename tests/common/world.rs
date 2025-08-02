@@ -178,6 +178,9 @@ pub struct BluelineWorld {
     /// Current mode for compatibility
     pub mode: Mode,
 
+    /// Terminal size for resize testing
+    pub terminal_size: (u16, u16),
+
     /// Currently active pane for compatibility  
     pub active_pane: ActivePane,
 
@@ -288,6 +291,7 @@ impl BluelineWorld {
             event_source: TestEventSource::new(),
             // Legacy compatibility fields - start with clean defaults
             mode: Mode::Normal,
+            terminal_size: (80, 24), // Default terminal size
             active_pane: ActivePane::Request,
             request_buffer: Vec::new(),
             response_buffer: Vec::new(),
