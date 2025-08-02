@@ -50,7 +50,6 @@ async fn executed_request_large_response(world: &mut BluelineWorld, step: &Step)
 
 // NOTE: Response pane setup function moved to tests/steps/pane_management.rs
 
-
 // CLI flag steps
 #[given(regex = r#"^blueline is started with "([^"]*)" flag$"#)]
 async fn blueline_started_with_flag(world: &mut BluelineWorld, flag: String) {
@@ -728,11 +727,6 @@ async fn i_execute_simple_request(world: &mut BluelineWorld, request: String) ->
 
 // Assertion steps (Then)
 
-
-
-
-
-
 // NOTE: Mode verification functions moved to tests/steps/mode_transitions.rs
 
 // NOTE: Cursor style functions moved to tests/steps/mode_transitions.rs
@@ -1372,7 +1366,6 @@ async fn cursor_on_blank_line_3(world: &mut BluelineWorld) {
     world.capture_stdout(cursor_pos.as_bytes());
 }
 
-
 // ===== ENTER KEY AND MULTILINE STEPS =====
 
 #[when("I press Enter")]
@@ -1923,7 +1916,6 @@ async fn request_pane_should_show_text(world: &mut BluelineWorld, expected_text:
         "❌ Request pane should show '{expected_text}' but not found in screen content: {screen_content:?} or buffer content: {buffer_content:?}"
     );
 }
-
 
 #[then("I capture detailed rendering statistics")]
 async fn capture_detailed_rendering_statistics(world: &mut BluelineWorld) {
@@ -3027,40 +3019,6 @@ async fn text_should_be_duplicated(world: &mut BluelineWorld) {
 }
 
 // ===== NAVIGATION COMMAND STEP IMPLEMENTATIONS =====
-
-
-
-#[then(regex = r"^the cursor moves to line (\d+) column (\d+)$")]
-async fn cursor_moves_to_line_column(world: &mut BluelineWorld, line: String, column: String) {
-    let expected_line: usize = line.parse().expect("Invalid line number");
-    let expected_col: usize = column.parse().expect("Invalid column number");
-
-    // Update world state to reflect the cursor movement
-    world.cursor_position.line = expected_line;
-    world.cursor_position.column = expected_col;
-
-    // Simulate cursor positioning in terminal output
-    let cursor_pos = format!(
-        "\x1b[{line};{col}H",
-        line = expected_line + 1,
-        col = expected_col + 1
-    );
-    world.capture_stdout(cursor_pos.as_bytes());
-
-    // Verify cursor is at expected position
-    assert_eq!(
-        world.cursor_position.line,
-        expected_line,
-        "Expected cursor at line {expected_line}, but got line {actual_line}",
-        actual_line = world.cursor_position.line
-    );
-    assert_eq!(
-        world.cursor_position.column,
-        expected_col,
-        "Expected cursor at column {expected_col}, but got column {actual_col}",
-        actual_col = world.cursor_position.column
-    );
-}
 
 // ===== JAPANESE CHARACTER NAVIGATION STEP IMPLEMENTATIONS =====
 
