@@ -180,23 +180,7 @@ async fn the_cursor_should_be_visible(_world: &mut BluelineWorld) {
     // Actual cursor rendering is tested through terminal output validation
 }
 
-#[given("I have typed a simple HTTP request")]
-async fn i_have_typed_a_simple_http_request(world: &mut BluelineWorld) -> Result<()> {
-    world.press_key("i").await?; // Enter insert mode
-    world.type_text("GET /api/test").await
-}
-
-#[when("I execute the request by pressing Enter")]
-async fn i_execute_request_by_pressing_enter(world: &mut BluelineWorld) -> Result<()> {
-    world.press_key("Escape").await?; // Exit insert mode
-    world.press_key("Enter").await
-}
-
-#[when("I wait for the response")]
-async fn i_wait_for_the_response(_world: &mut BluelineWorld) {
-    // Simulate waiting for response - in testing, this is immediate
-    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-}
+// HTTP step definitions moved to tests/steps/http_interaction.rs
 
 #[then("the request pane should still show my request")]
 async fn request_pane_should_still_show_my_request(world: &mut BluelineWorld) {
@@ -387,262 +371,23 @@ async fn render_full_should_be_called_again(world: &mut BluelineWorld) {
     );
 }
 
-// HTTP Request Flow step definitions
-#[given(regex = r"^I type a GET request:$")]
-async fn i_type_a_get_request(world: &mut BluelineWorld, step: &Step) -> Result<()> {
-    let request_text = step.docstring().map_or("", |v| v);
-    world.type_text(request_text).await
-}
-
-#[given(regex = r"^I type a POST request:$")]
-async fn i_type_a_post_request(world: &mut BluelineWorld, step: &Step) -> Result<()> {
-    let request_text = step.docstring().map_or("", |v| v);
-    world.type_text(request_text).await
-}
-
-#[given(regex = r"^I type a request with Japanese text:$")]
-async fn i_type_a_request_with_japanese_text(world: &mut BluelineWorld, step: &Step) -> Result<()> {
-    let request_text = step.docstring().map_or("", |v| v);
-    world.type_text(request_text).await
-}
-
-#[given(regex = r"^I type a request to an invalid host:$")]
-async fn i_type_a_request_to_invalid_host(world: &mut BluelineWorld, step: &Step) -> Result<()> {
-    let request_text = step.docstring().map_or("", |v| v);
-    world.type_text(request_text).await
-}
-
-#[given(regex = r"^I type a request that returns large data:$")]
-async fn i_type_a_request_large_data(world: &mut BluelineWorld, step: &Step) -> Result<()> {
-    let request_text = step.docstring().map_or("", |v| v);
-    world.type_text(request_text).await
-}
-
-#[given("I have typed a valid request")]
-async fn i_have_typed_a_valid_request(world: &mut BluelineWorld) -> Result<()> {
-    world.type_text("GET /api/health").await
-}
-
-#[when("I execute the request")]
-async fn i_execute_the_request(world: &mut BluelineWorld) -> Result<()> {
-    // Switch to normal mode first, then press Enter to execute
-    world.press_key("Escape").await?;
-    world.press_key("Enter").await
-}
+// HTTP Request Flow step definitions moved to tests/steps/http_interaction.rs
 
 // NOTE: Response pane appearance function moved to tests/steps/pane_management.rs
 
-#[then("I should see a status code in the status bar")]
-async fn i_should_see_status_code(world: &mut BluelineWorld) {
-    // For now, just verify that we have some output that could include a status
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected status bar to show status code"
-    );
-}
-
-#[then("the original request should still be visible")]
-async fn the_original_request_should_be_visible(world: &mut BluelineWorld) {
-    // Verify that the request pane still contains the original request
-    assert!(
-        !world.request_buffer.is_empty(),
-        "Expected original request to still be visible"
-    );
-}
-
-// Additional HTTP Request Flow step definitions
-#[then("the response should show the posted data")]
-async fn the_response_should_show_posted_data(world: &mut BluelineWorld) {
-    // Check that we have response content in the captured output
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected response to show posted data"
-    );
-}
+// HTTP status code and response step definitions moved to tests/steps/http_interaction.rs
 
 // NOTE: Both panes visible function moved to tests/steps/pane_management.rs
 
-#[then("the Japanese characters should be visible in the request")]
-async fn japanese_characters_should_be_visible_in_request(world: &mut BluelineWorld) {
-    // Check that request buffer contains Japanese characters
-    let request_content = world.request_buffer.join(" ");
-    assert!(
-        request_content.contains("こんにちは"),
-        "Expected Japanese characters in request"
-    );
-}
+// Japanese text handling step definitions moved to tests/steps/http_interaction.rs
 
-#[then("the response should echo the Japanese text correctly")]
-async fn response_should_echo_japanese_text(world: &mut BluelineWorld) {
-    // For now, just verify we have some response
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected response with Japanese text"
-    );
-}
+// Multiple request handling step definitions moved to tests/steps/http_interaction.rs
 
-#[given("I execute a first request successfully")]
-async fn i_execute_a_first_request_successfully(world: &mut BluelineWorld) -> Result<()> {
-    world.type_text("GET /api/first").await?;
-    world.press_key("Escape").await?;
-    world.press_key("Enter").await
-}
+// Error handling and request validation step definitions moved to tests/steps/http_interaction.rs
 
-#[when("I clear the request pane")]
-async fn i_clear_the_request_pane(world: &mut BluelineWorld) -> Result<()> {
-    // Select all and delete to clear the request pane
-    world.press_key("Escape").await?; // Ensure normal mode
-                                      // Use vim commands to clear the buffer (select all and delete)
-    world.type_text("ggdG").await // Go to top, delete to end
-}
+// Large response and JSON handling step definitions moved to tests/steps/http_interaction.rs
 
-#[when("I type a second different request")]
-async fn i_type_a_second_different_request(world: &mut BluelineWorld) -> Result<()> {
-    world.press_key("i").await?; // Enter insert mode
-    world.type_text("GET /api/second").await
-}
-
-#[when("I execute the second request")]
-async fn i_execute_the_second_request(world: &mut BluelineWorld) -> Result<()> {
-    world.press_key("Escape").await?;
-    world.press_key("Enter").await
-}
-
-#[then("the new response should replace the old one")]
-async fn the_new_response_should_replace_the_old_one(world: &mut BluelineWorld) {
-    // Check that we have new response content
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected new response to replace old one"
-    );
-}
-
-#[then("the request pane should show the new request")]
-async fn the_request_pane_should_show_new_request(world: &mut BluelineWorld) {
-    // Check that request buffer contains the new request
-    let request_content = world.request_buffer.join(" ");
-    assert!(
-        request_content.contains("second") || !request_content.is_empty(),
-        "Expected request pane to show new request"
-    );
-}
-
-#[then("the response pane should show an error message")]
-async fn response_pane_should_show_error_message(world: &mut BluelineWorld) {
-    // Check for error indicators in the output
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected error message in response pane"
-    );
-}
-
-#[then("the error should be human-readable")]
-async fn the_error_should_be_human_readable(world: &mut BluelineWorld) {
-    // For now, just verify we have some output that could be an error
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected human-readable error"
-    );
-}
-
-#[then("the response pane should show the JSON data")]
-async fn response_pane_should_show_json_data(world: &mut BluelineWorld) {
-    // Check for JSON-like content in the output
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected JSON data in response pane"
-    );
-}
-
-#[then("I should be able to scroll through the response")]
-async fn i_should_be_able_to_scroll_through_response(world: &mut BluelineWorld) {
-    // For now, just verify we have response content
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected scrollable response content"
-    );
-}
-
-#[then("the request pane should remain visible")]
-async fn the_request_pane_should_remain_visible(world: &mut BluelineWorld) {
-    // For this basic test implementation, just verify we have some terminal output
-    // indicating the request pane is still visible
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected request pane to remain visible"
-    );
-}
-
-#[then(regex = r#"the status bar should immediately show "([^"]*)"#)]
-async fn status_bar_should_show(world: &mut BluelineWorld, expected: String) {
-    // For now, just verify we have some output that could include the status
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected status bar to show: {expected}"
-    );
-}
-
-#[then("the screen should not be blank during execution")]
-async fn screen_should_not_be_blank_during_execution(world: &mut BluelineWorld) {
-    // Check that we have some output during execution
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected screen to have content during execution"
-    );
-}
-
-#[when("the response arrives")]
-async fn when_the_response_arrives(world: &mut BluelineWorld) {
-    // This is more of a timing step, for now just ensure we have some output
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(!output_str.trim().is_empty(), "Expected response to arrive");
-}
-
-#[then("the status bar should show the response status code")]
-async fn status_bar_should_show_response_status_code(world: &mut BluelineWorld) {
-    // Check for status code indicators in the output
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected status code in status bar"
-    );
-}
-
-#[then("the executing indicator should disappear")]
-async fn the_executing_indicator_should_disappear(world: &mut BluelineWorld) {
-    // For now, just verify we have some output
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected executing indicator to disappear"
-    );
-}
+// HTTP status bar and execution flow step definitions moved to tests/steps/http_interaction.rs
 
 #[when("I use vim navigation keys")]
 async fn i_use_vim_navigation_keys(world: &mut BluelineWorld) -> Result<()> {
@@ -667,58 +412,7 @@ async fn i_use_vim_navigation_keys(world: &mut BluelineWorld) -> Result<()> {
     Ok(())
 }
 
-#[when(regex = r#"^I execute a request:$"#)]
-async fn i_execute_request(world: &mut BluelineWorld, step: &Step) -> Result<()> {
-    if let Some(docstring) = &step.docstring {
-        world.set_request_buffer(docstring).await?;
-        world.press_key(":").await?;
-        world.type_text("x").await?;
-        world.press_key("Enter").await?;
-
-        // Mark that a request was executed
-        world.last_request = Some(docstring.to_string());
-
-        // Simulate mock response (for now)
-        let mock_response = r#"{"status": "ok", "message": "Request executed successfully"}"#;
-        world.last_response = Some(mock_response.to_string());
-
-        // Simulate response headers and timing being displayed if in verbose mode
-        if world.cli_flags.contains(&"-v".to_string()) {
-            let headers_output = "Content-Type: application/json\r\nServer: nginx/1.20.1\r\nDate: Wed, 01 Jan 2025 12:00:00 GMT\r\n";
-            world.capture_stdout(headers_output.as_bytes());
-
-            let timing_output = "Request completed in 125ms\r\n";
-            world.capture_stdout(timing_output.as_bytes());
-        }
-    }
-    Ok(())
-}
-
-#[when(regex = r#"^I execute "([^"]*)"$"#)]
-async fn i_execute_simple_request(world: &mut BluelineWorld, request: String) -> Result<()> {
-    world.set_request_buffer(&request).await?;
-    world.press_key(":").await?;
-    world.type_text("x").await?;
-    world.press_key("Enter").await?;
-
-    // Mark that a request was executed
-    world.last_request = Some(request.clone());
-
-    // Simulate mock response
-    let mock_response = r#"{"status": "ok", "message": "Simple request executed"}"#;
-    world.last_response = Some(mock_response.to_string());
-
-    // Simulate staging profile URL being shown if using staging profile
-    if world.cli_flags.contains(&"-p".to_string())
-        || world.cli_flags.contains(&"staging".to_string())
-    {
-        let staging_output =
-            "Using staging profile: https://staging-api.example.com/api/status\r\n";
-        world.capture_stdout(staging_output.as_bytes());
-    }
-
-    Ok(())
-}
+// Request execution step definitions moved to tests/steps/http_interaction.rs
 
 // Assertion steps (Then)
 
