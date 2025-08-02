@@ -8,6 +8,12 @@ pub use common::world::BluelineWorld;
 /// Run with: cargo test --test integration_tests
 #[tokio::main]
 async fn main() {
+    // Skip integration tests in CI environments as they require TTY interaction
+    if std::env::var_os("CI").is_some() {
+        println!("⏭️  Skipping integration tests in CI environment");
+        return;
+    }
+
     // Serialize feature execution to prevent resource conflicts
     run_features_sequentially().await;
 }
@@ -47,6 +53,12 @@ mod tests {
 
     #[tokio::test]
     async fn run_integration_tests() {
+        // Skip integration tests in CI environments as they require TTY interaction
+        if std::env::var_os("CI").is_some() {
+            println!("⏭️  Skipping integration tests in CI environment");
+            return;
+        }
+
         // Run features sequentially in tests as well
         run_features_sequentially().await;
     }
