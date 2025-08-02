@@ -104,7 +104,7 @@ async fn run_features_sequentially() {
         "features/cursor_flicker_fix.feature", // ✅ Working - Cursor movement smoothness and flicker fixes (1/2 scenarios)
         "features/test_response_navigation.feature", // 🚧 Testing - Response pane navigation tests (2/5 scenarios working)
         "features/terminal_rendering_working.feature", // ✅ Working - Terminal rendering integrity (similar to terminal_rendering.feature)
-                                                       // "features/text_editing.feature", // 🚧 DISABLED - Text editing hanging on type step
+                                                       // "features/text_editing.feature", // 🚧 DISABLED - Hangs after 'When I press "i"' step
                                                        // "features/real_application_bug.feature", // Disabled - step definitions commented out causing timeout
                                                        // "features/real_vte_bug_test.feature", // Disabled - debugging test for separate issue
     ];
