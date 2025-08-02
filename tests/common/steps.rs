@@ -4,71 +4,11 @@ use blueline::repl::events::{EditorMode, Pane};
 use blueline::ViewRenderer;
 use cucumber::{gherkin::Step, given, then, when};
 
-// Background steps
-#[given("blueline is running with default profile")]
-async fn blueline_running_default_profile(world: &mut BluelineWorld) {
-    // Set up default state
-    world.mode = Mode::Normal;
-    // Only set active pane to Request if it hasn't been specifically set to Response
-    if world.active_pane != ActivePane::Response {
-        world.active_pane = ActivePane::Request;
-    }
+// Background steps - NOTE: Application lifecycle functions moved to tests/steps/application_lifecycle.rs
 
-    // Initialize the AppController with default settings
-    world
-        .init_real_application()
-        .expect("Failed to initialize blueline application");
-    world
-        .setup_mock_server()
-        .await
-        .expect("Failed to setup mock server");
-}
-
-#[given("I initialize the real blueline application")]
-async fn initialize_real_blueline_application(world: &mut BluelineWorld) {
-    world
-        .init_real_application()
-        .expect("Failed to initialize real blueline application");
-    println!("✅ Real blueline application components initialized");
-}
-
-#[given("I am in the request pane")]
-async fn i_am_in_request_pane(world: &mut BluelineWorld) {
-    // Only set to Request pane if not specifically set to Response pane
-    if world.active_pane != ActivePane::Response {
-        world.active_pane = ActivePane::Request;
-    }
-}
-
-#[given("I am in normal mode")]
-fn i_am_in_normal_mode(world: &mut BluelineWorld) {
-    println!(
-        "🔍 Setting normal mode - cursor before: ({}, {})",
-        world.cursor_position.line, world.cursor_position.column
-    );
-    world.mode = Mode::Normal;
-    println!(
-        "🔍 Setting normal mode - cursor after: ({}, {})",
-        world.cursor_position.line, world.cursor_position.column
-    );
-}
-
-#[given("I am in insert mode")]
-async fn given_i_am_in_insert_mode(world: &mut BluelineWorld) {
-    world.mode = Mode::Insert;
-}
-
-#[given("I am in visual mode")]
-async fn given_i_am_in_visual_mode(world: &mut BluelineWorld) {
-    world.mode = Mode::Normal; // Visual mode maps to Normal mode for legacy compatibility
-    println!("🔍 Setting visual mode (mapped to Normal for compatibility)");
-}
-
-#[given("I am in command mode")]
-async fn given_i_am_in_command_mode(world: &mut BluelineWorld) {
-    world.mode = Mode::Command;
-    println!("🔍 Setting command mode");
-}
+// NOTE: Pane management and mode transition functions moved to:
+// - tests/steps/pane_management.rs
+// - tests/steps/mode_transitions.rs
 
 // Buffer setup steps
 #[given(regex = r"^the request buffer contains:$")]
@@ -130,16 +70,7 @@ async fn executed_request_large_response(world: &mut BluelineWorld, step: &Step)
     }
 }
 
-#[given("I am in the response pane")]
-async fn i_am_in_response_pane(world: &mut BluelineWorld) {
-    world.active_pane = ActivePane::Response;
-
-    // Also switch the pane in the AppController
-    if let Some(app_controller) = &mut world.app_controller {
-        app_controller.view_model_mut().switch_to_response_pane();
-        println!("✅ Switched to response pane in AppController");
-    }
-}
+// NOTE: Response pane setup function moved to tests/steps/pane_management.rs
 
 #[given(regex = r"the cursor is at line (\d+)")]
 async fn cursor_is_at_line(world: &mut BluelineWorld, line: String) {
@@ -226,13 +157,7 @@ async fn i_press_down(world: &mut BluelineWorld) -> Result<()> {
     world.press_key("Down").await
 }
 
-// Terminal Rendering step definitions
-#[given("blueline is launched in a terminal")]
-async fn blueline_is_launched_in_terminal(world: &mut BluelineWorld) {
-    // This is equivalent to the default setup, just ensure app is initialized
-    let _ = world.init_real_application();
-    println!("🚀 Blueline launched in terminal");
-}
+// NOTE: Terminal launch function moved to tests/steps/application_lifecycle.rs
 
 #[given("the initial screen is rendered")]
 async fn the_initial_screen_is_rendered(world: &mut BluelineWorld) {
@@ -542,18 +467,7 @@ async fn i_execute_the_request(world: &mut BluelineWorld) -> Result<()> {
     world.press_key("Enter").await
 }
 
-#[then("the response pane should appear")]
-async fn the_response_pane_should_appear(world: &mut BluelineWorld) {
-    // Check that we have some response content by looking at the captured output
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-
-    // Look for indicators that a response pane is present
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected response pane to appear with content"
-    );
-}
+// NOTE: Response pane appearance function moved to tests/steps/pane_management.rs
 
 #[then("I should see a status code in the status bar")]
 async fn i_should_see_status_code(world: &mut BluelineWorld) {
@@ -588,20 +502,7 @@ async fn the_response_should_show_posted_data(world: &mut BluelineWorld) {
     );
 }
 
-#[then("both panes should remain visible")]
-async fn both_panes_should_remain_visible(world: &mut BluelineWorld) {
-    // Verify both request and response content are present
-    assert!(
-        !world.request_buffer.is_empty(),
-        "Expected request pane to remain visible"
-    );
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected response pane to remain visible"
-    );
-}
+// NOTE: Both panes visible function moved to tests/steps/pane_management.rs
 
 #[then("the Japanese characters should be visible in the request")]
 async fn japanese_characters_should_be_visible_in_request(world: &mut BluelineWorld) {
@@ -1010,67 +911,9 @@ async fn cursor_moves_to_end(world: &mut BluelineWorld) {
     );
 }
 
-#[then("I am still in normal mode")]
-async fn i_am_still_in_normal_mode(world: &mut BluelineWorld) {
-    assert_eq!(world.mode, Mode::Normal);
-}
+// NOTE: Mode verification functions moved to tests/steps/mode_transitions.rs
 
-#[then("I am in insert mode")]
-async fn i_am_in_insert_mode(world: &mut BluelineWorld) {
-    assert_eq!(world.mode, Mode::Insert);
-}
-
-#[then("I am in command mode")]
-async fn i_am_in_command_mode(world: &mut BluelineWorld) {
-    assert_eq!(world.mode, Mode::Command);
-}
-
-#[then("I am in normal mode")]
-async fn i_am_in_normal_mode_then(world: &mut BluelineWorld) {
-    assert_eq!(world.mode, Mode::Normal);
-}
-
-#[then("the cursor style changes to a blinking bar")]
-async fn cursor_style_blinking_bar(world: &mut BluelineWorld) {
-    // Check for cursor style escape sequences in terminal output
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-
-    // Look for cursor style escape sequences:
-    // \x1b[5 q = blinking bar, \x1b[6 q = steady bar
-    // \x1b[1 q = blinking block, \x1b[2 q = steady block
-    assert!(
-        output_str.contains("\x1b[5 q")
-            || output_str.contains("\x1b[6 q")
-            || output_str.contains("blinking")
-            || output_str.contains("bar"),
-        "Expected terminal to show cursor style change to blinking bar. Output: {output}",
-        output = output_str.chars().take(200).collect::<String>()
-    );
-}
-
-#[then("the cursor style changes to a steady block")]
-async fn cursor_style_steady_block(world: &mut BluelineWorld) {
-    // In normal mode, the cursor should be a steady block
-    // Since we're already checking that we're in normal mode, we can verify
-    // that the mode change was successful by checking the mode
-    assert_eq!(
-        world.mode,
-        Mode::Normal,
-        "Expected to be in normal mode with steady block cursor"
-    );
-
-    // Also check that we have some terminal output indicating the mode change occurred
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-
-    // We should have some content in the terminal output, indicating rendering occurred
-    assert!(
-        !output_str.trim().is_empty(),
-        "Expected terminal to show some output after mode change. Output: {output}",
-        output = output_str.chars().take(200).collect::<String>()
-    );
-}
+// NOTE: Cursor style functions moved to tests/steps/mode_transitions.rs
 
 #[then("the text appears in the request buffer")]
 async fn text_appears_in_request_buffer(world: &mut BluelineWorld) {
@@ -1163,10 +1006,7 @@ async fn i_can_see_status_code(world: &mut BluelineWorld) {
     );
 }
 
-#[then("the application exits")]
-async fn application_exits(world: &mut BluelineWorld) {
-    assert!(world.app_exited);
-}
+// NOTE: Application exit functions moved to tests/steps/application_lifecycle.rs
 
 #[then("the response pane closes")]
 async fn response_pane_closes(world: &mut BluelineWorld) {
@@ -1190,11 +1030,7 @@ async fn request_pane_maximized(world: &mut BluelineWorld) {
     );
 }
 
-#[then("the application exits without saving")]
-async fn application_exits_without_saving(world: &mut BluelineWorld) {
-    assert!(world.app_exited);
-    assert!(world.force_quit);
-}
+// NOTE: Application exit without saving function moved to tests/steps/application_lifecycle.rs
 
 #[then("the command buffer is cleared")]
 async fn command_buffer_cleared(world: &mut BluelineWorld) {
@@ -1350,19 +1186,7 @@ async fn given_repl_controller_with_terminal_capture(world: &mut BluelineWorld) 
     world.active_pane = ActivePane::Request;
 }
 
-#[given("the controller has started up")]
-async fn given_controller_has_started_up(world: &mut BluelineWorld) {
-    // Use the actual terminal renderer to generate startup output
-    if let Some(ref mut renderer) = world.terminal_renderer {
-        renderer
-            .initialize()
-            .expect("Failed to initialize terminal renderer");
-    } else {
-        // Fallback: simulate startup output
-        let init_output = "\x1b[2J\x1b[H"; // Clear screen and move cursor to home
-        world.capture_stdout(init_output.as_bytes());
-    }
-}
+// NOTE: Controller startup function moved to tests/steps/application_lifecycle.rs
 
 #[when("the controller starts up")]
 async fn when_controller_starts_up(world: &mut BluelineWorld) {
@@ -1784,22 +1608,7 @@ async fn i_type_complex_json_with_literal_newline(world: &mut BluelineWorld) -> 
 // ===== MOCK RENDERER REPLACEMENT STEPS =====
 // These replace the old mock renderer steps with VTE-based equivalents
 
-#[given("a REPL controller with mock view renderer")]
-async fn given_repl_controller_with_mock_renderer(world: &mut BluelineWorld) {
-    // Replace mock renderer with VTE-based terminal capture
-    world.clear_terminal_capture();
-    world
-        .init_terminal_renderer()
-        .expect("Failed to initialize terminal renderer");
-
-    // Set up initial state for terminal output verification
-    world.mode = Mode::Normal;
-    world.active_pane = ActivePane::Request;
-
-    // Simulate controller initialization
-    let init_output = "\x1b[2J\x1b[H"; // Clear screen and move cursor to home
-    world.capture_stdout(init_output.as_bytes());
-}
+// NOTE: Mock view renderer function moved to tests/steps/application_lifecycle.rs
 
 // ===== SCROLL OFFSET STEPS =====
 
@@ -1978,30 +1787,7 @@ async fn capture_terminal_state_for_debugging(world: &mut BluelineWorld) {
     println!("=== END DEBUG CAPTURE ===\n");
 }
 
-#[then("the response pane should display content")]
-async fn response_pane_should_display_content(world: &mut BluelineWorld) {
-    let terminal_state = world.get_terminal_state();
-    let screen_content = terminal_state.get_full_text();
-
-    // The response pane should show some HTTP response content
-    // It should not be completely empty
-    assert!(
-        !screen_content.trim().is_empty(),
-        "❌ BUG DETECTED: Response pane appears to be completely empty!\nScreen content: {screen_content:?}"
-    );
-
-    // Look for typical HTTP response indicators
-    let has_response_content = screen_content.contains("{") // JSON response
-        || screen_content.contains("200") // Status code
-        || screen_content.contains("id") // Common JSON field
-        || screen_content.contains("name") // Common JSON field
-        || screen_content.len() > 50; // Some reasonable content length
-
-    assert!(
-        has_response_content,
-        "❌ BUG DETECTED: Response pane doesn't appear to contain HTTP response content!\nScreen content: {screen_content:?}"
-    );
-}
+// NOTE: Response pane display functions moved to tests/steps/pane_management.rs
 
 #[then("the request pane should not be blacked out")]
 async fn request_pane_should_not_be_blacked_out(world: &mut BluelineWorld) {
@@ -2418,55 +2204,9 @@ async fn capture_detailed_rendering_statistics(world: &mut BluelineWorld) {
     println!("=== END DETAILED STATISTICS ===\n");
 }
 
-#[then("both panes should be properly rendered")]
-async fn both_panes_should_be_properly_rendered(world: &mut BluelineWorld) {
-    let terminal_state = world.get_terminal_state();
-    let screen_content = terminal_state.get_full_text();
+// NOTE: Both panes rendering function moved to tests/steps/pane_management.rs
 
-    // This is the main assertion for the bug we're trying to catch
-    let total_visible_content = screen_content
-        .chars()
-        .filter(|&c| c != ' ' && c != '\n')
-        .count();
-
-    assert!(
-        total_visible_content > 50,
-        "❌ BUG DETECTED: Insufficient content for two panes! Visible chars: {total_visible_content}\nScreen: {screen_content:?}"
-    );
-
-    // Check for both request and response content indicators
-    let has_request_indicators =
-        screen_content.contains("GET") || screen_content.contains("_search");
-    let has_response_indicators = screen_content.contains("{")
-        || screen_content.contains("id")
-        || screen_content.contains("name");
-
-    if !has_request_indicators {
-        println!("⚠️  WARNING: No request content indicators found");
-    }
-
-    if !has_response_indicators {
-        println!("⚠️  WARNING: No response content indicators found");
-    }
-}
-
-#[then("the response pane should show HTTP response content")]
-async fn response_pane_should_show_http_response_content(world: &mut BluelineWorld) {
-    let terminal_state = world.get_terminal_state();
-    let screen_content = terminal_state.get_full_text();
-
-    // Look for typical HTTP response content
-    let has_http_response = screen_content.contains("{") // JSON
-        || screen_content.contains("id") // Common field
-        || screen_content.contains("name") // Common field
-        || screen_content.contains("200") // Status code
-        || screen_content.contains("HTTP"); // HTTP protocol
-
-    assert!(
-        has_http_response,
-        "❌ BUG DETECTED: No HTTP response content found in response pane!\nScreen: {screen_content:?}"
-    );
-}
+// NOTE: HTTP response content function moved to tests/steps/pane_management.rs
 
 #[then(regex = r#"the request pane should still show "([^"]*)"#)]
 async fn request_pane_should_still_show_text(world: &mut BluelineWorld, expected_text: String) {

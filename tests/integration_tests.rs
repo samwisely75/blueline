@@ -1,6 +1,7 @@
 use cucumber::World;
 
 pub mod common;
+pub mod steps;
 
 pub use common::world::BluelineWorld;
 

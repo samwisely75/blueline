@@ -1,23 +1,12 @@
-//! Organized step definitions for Cucumber tests
-//!
-//! This module reorganizes the step definitions into logical groups
-//! to improve maintainability and readability.
+// Feature-based step definitions organized by user-facing behavior
 
-pub mod assertions;
-pub mod editing;
-pub mod http;
-pub mod mode;
-pub mod navigation;
-pub mod rendering;
-pub mod setup;
-pub mod visual;
+pub mod application_lifecycle;
+pub mod cursor_and_scrolling;
+pub mod http_interaction;
+pub mod mode_transitions;
+pub mod pane_management;
+pub mod status_bar;
+pub mod text_manipulation;
+pub mod visual_mode;
 
-// Re-export all step definitions so they're available when importing this module
-pub use assertions::*;
-pub use editing::*;
-pub use http::*;
-pub use mode::*;
-pub use navigation::*;
-pub use rendering::*;
-pub use setup::*;
-pub use visual::*;
+// Re-export all step functions
