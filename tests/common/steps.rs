@@ -347,11 +347,6 @@ async fn pane_boundaries_should_be_recalculated(world: &mut BluelineWorld) {
 }
 
 // Cursor Visibility step definitions
-#[given("the cursor is visible")]
-async fn the_cursor_is_visible(_world: &mut BluelineWorld) {
-    // Cursor is visible by default in normal mode
-    // This step just validates the initial state
-}
 
 #[then("the cursor should be hidden")]
 async fn the_cursor_should_be_hidden(world: &mut BluelineWorld) {
