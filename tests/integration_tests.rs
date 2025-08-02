@@ -49,6 +49,14 @@ pub use common::world::BluelineWorld;
 /// Run with: cargo test --test integration_tests
 #[tokio::main]
 async fn main() {
+    // Initialize tracing for debug output in CI
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_writer(std::io::stderr)
+        .init();
+
+    eprintln!("🚀 Running integration tests (CI compatible via EventSource abstraction)");
+
     // Integration tests now work in CI environments thanks to EventSource abstraction
     // No TTY dependency - tests use TestEventSource instead of crossterm::event::read()
     println!("🚀 Running integration tests (CI compatible via EventSource abstraction)");

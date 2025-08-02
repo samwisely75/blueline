@@ -467,6 +467,8 @@ impl BluelineWorld {
     /// Process key press using real blueline AppController
     pub async fn press_key(&mut self, key: &str) -> Result<()> {
         println!("🔑 press_key called with: '{key}'");
+        eprintln!("DEBUG: press_key called with: '{key}'");
+        tracing::info!("press_key called with: '{key}'");
 
         // Check if we're pressing Enter in command mode to execute a command
         let is_command_execution = key == "Enter" && self.mode == Mode::Command;
@@ -641,18 +643,30 @@ impl BluelineWorld {
         }
 
         // Parse the key string to a KeyEvent
+        eprintln!("DEBUG: Parsing key string '{key}' to KeyEvent");
         let key_event = self.string_to_key_event(key)?;
+        eprintln!("DEBUG: Parsed key event: {key_event:?}");
 
         // CRITICAL: Add the key event to the TestEventSource before processing
         // This prevents hangs if the AppController internally tries to read from the event source
+        eprintln!("DEBUG: Adding key event to TestEventSource");
         self.event_source.push_event(Event::Key(key_event));
+        eprintln!(
+            "DEBUG: TestEventSource now has {} events",
+            self.event_source.pending_count()
+        );
 
         // Process the key event through the AppController
         if let Some(app_controller) = &mut self.app_controller {
+            eprintln!("DEBUG: About to call app_controller.process_key_event({key_event:?})");
             app_controller.process_key_event(key_event).await?;
+            eprintln!("DEBUG: app_controller.process_key_event completed successfully");
         } else {
+            eprintln!("DEBUG: AppController not initialized - returning error");
             return Err(anyhow::anyhow!("AppController not initialized"));
         }
+
+        eprintln!("DEBUG: press_key completed successfully for '{key}'");
 
         // If we just executed a command, check if it was unknown
         if let Some(command) = command_to_execute {
