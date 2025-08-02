@@ -15,7 +15,6 @@ Feature: Navigation Commands
 
       {"name": "John Doe"}
       """
-    And I am in normal mode
     When I press "h"
     Then the cursor moves left
     When I press "l"

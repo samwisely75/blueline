@@ -6,13 +6,19 @@
 
 // Import event modules
 pub mod event_bus;
+pub mod event_source;
 pub mod model_events;
+pub mod terminal_event_source;
+pub mod test_event_source;
 pub mod types;
 pub mod view_events;
 
 // Re-export all types for easy access
 pub use event_bus::{EventBus, ModelEventHandler, SimpleEventBus, ViewEventHandler};
+pub use event_source::{EventSource, TestEventSource as TestEventSourceTrait};
 pub use model_events::ModelEvent;
+pub use terminal_event_source::TerminalEventSource;
+pub use test_event_source::TestEventSource;
 pub use types::{EditorMode, LogicalPosition, LogicalRange, Pane};
 pub use view_events::{InputEvent, ViewEvent};
 
