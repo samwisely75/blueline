@@ -50,15 +50,6 @@ async fn executed_request_large_response(world: &mut BluelineWorld, step: &Step)
 
 // NOTE: Response pane setup function moved to tests/steps/pane_management.rs
 
-#[given(regex = r"the cursor is at line (\d+)")]
-async fn cursor_is_at_line(world: &mut BluelineWorld, line: String) {
-    let line_num: usize = line.parse().expect("Invalid line number");
-    world.cursor_position.line = if line_num > 0 { line_num - 1 } else { 0 }; // Convert to 0-based indexing
-
-    // Simulate cursor positioning with escape sequence
-    let cursor_pos = format!("\x1b[{line_num};1H"); // Move to line N, column 1
-    world.capture_stdout(cursor_pos.as_bytes());
-}
 
 // CLI flag steps
 #[given(regex = r#"^blueline is started with "([^"]*)" flag$"#)]
@@ -736,134 +727,11 @@ async fn i_execute_simple_request(world: &mut BluelineWorld, request: String) ->
 }
 
 // Assertion steps (Then)
-#[then("the cursor moves left")]
-async fn cursor_moves_left(world: &mut BluelineWorld) {
-    // Check the ViewModel cursor position to verify left movement occurred
-    // This is more reliable than checking terminal escape sequences in tests
-    println!(
-        "🔍 Cursor position after left movement: line={}, column={}",
-        world.cursor_position.line, world.cursor_position.column
-    );
 
-    // Since we can't easily track the "before" position in this step,
-    // we'll verify that cursor movement is working by checking the captured output
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
 
-    // Either check for escape sequence OR that the cursor position has been updated
-    let has_escape_seq = output_str.contains("\x1b[D") || output_str.contains("\x1b[");
-    let terminal_has_output = !output_str.trim().is_empty();
 
-    assert!(
-        has_escape_seq || terminal_has_output,
-        "Expected either cursor movement escape sequence or terminal output indicating cursor movement"
-    );
-}
 
-#[then("the cursor moves right")]
-async fn cursor_moves_right(world: &mut BluelineWorld) {
-    let terminal_state = world.get_terminal_state();
-    let (_, _, cursor_updates, _) = world.get_render_stats();
 
-    // Verify cursor movement was reflected in terminal output
-    assert!(
-        cursor_updates > 0,
-        "Expected cursor movement to be visible in terminal output"
-    );
-
-    // Check for cursor right movement (escape sequences like \x1b[1C or position change)
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-
-    assert!(
-        output_str.contains("\x1b[") || terminal_state.cursor.1 > 0, // Either escape seq or cursor moved
-        "Expected terminal to show cursor movement right"
-    );
-}
-
-#[then("the cursor moves down")]
-async fn cursor_moves_down(world: &mut BluelineWorld) {
-    let terminal_state = world.get_terminal_state();
-    let (_, _, cursor_updates, _) = world.get_render_stats();
-
-    // Verify cursor movement was reflected in terminal output
-    assert!(
-        cursor_updates > 0,
-        "Expected cursor movement to be visible in terminal output"
-    );
-
-    // Check for cursor down movement (escape sequences like \x1b[1B or position change)
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-
-    assert!(
-        output_str.contains("\x1b[") || terminal_state.cursor.0 > 0, // Either escape seq or cursor moved
-        "Expected terminal to show cursor movement down"
-    );
-}
-
-#[then("the cursor moves up")]
-async fn cursor_moves_up(world: &mut BluelineWorld) {
-    let terminal_state = world.get_terminal_state();
-    let (_, _, cursor_updates, _) = world.get_render_stats();
-
-    // Verify cursor movement was reflected in terminal output
-    assert!(
-        cursor_updates > 0,
-        "Expected cursor movement to be visible in terminal output"
-    );
-
-    // Check for cursor up movement (escape sequences like \x1b[1A or position change)
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-
-    assert!(
-        output_str.contains("\x1b[") || terminal_state.cursor.0 < 24, // Either escape seq or cursor moved
-        "Expected terminal to show cursor movement up"
-    );
-}
-
-#[then("the cursor moves to the beginning of the line")]
-async fn cursor_moves_to_beginning(world: &mut BluelineWorld) {
-    let terminal_state = world.get_terminal_state();
-
-    // First check the ViewModel cursor position which should be authoritative
-    assert_eq!(
-        world.cursor_position.column, 0,
-        "Expected cursor to be at column 0 in ViewModel: actual cursor=({}, {})",
-        world.cursor_position.line, world.cursor_position.column
-    );
-
-    // Check for home/beginning escape sequences like \x1b[1G or \x1b[H
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-
-    assert!(
-        output_str.contains("\x1b[") || terminal_state.cursor.1 == 0,
-        "Expected terminal to show cursor at beginning of line"
-    );
-}
-
-#[then("the cursor moves to the end of the line")]
-async fn cursor_moves_to_end(world: &mut BluelineWorld) {
-    let terminal_state = world.get_terminal_state();
-
-    // Check that cursor moved toward end of line (we can't know exact position without content)
-    let (_, _, cursor_updates, _) = world.get_render_stats();
-    assert!(
-        cursor_updates > 0,
-        "Expected cursor movement to be visible in terminal"
-    );
-
-    // Verify cursor movement was captured in terminal output
-    let captured_output = world.stdout_capture.lock().unwrap().clone();
-    let output_str = String::from_utf8_lossy(&captured_output);
-
-    assert!(
-        output_str.contains("\x1b[") || terminal_state.cursor.1 > 0,
-        "Expected terminal to show cursor movement toward end of line"
-    );
-}
 
 // NOTE: Mode verification functions moved to tests/steps/mode_transitions.rs
 
@@ -1504,18 +1372,6 @@ async fn cursor_on_blank_line_3(world: &mut BluelineWorld) {
     world.capture_stdout(cursor_pos.as_bytes());
 }
 
-#[given(regex = r"my cursor is at line (\d+), column (\d+)")]
-async fn cursor_at_line_column(world: &mut BluelineWorld, line: String, column: String) {
-    let line_num: usize = line.parse().expect("Invalid line number");
-    let col_num: usize = column.parse().expect("Invalid column number");
-
-    world.cursor_position.line = if line_num > 0 { line_num - 1 } else { 0 }; // Convert to 0-based
-    world.cursor_position.column = if col_num > 0 { col_num - 1 } else { 0 }; // Convert to 0-based
-
-    // Simulate cursor positioning
-    let cursor_pos = format!("\x1b[{line_num};{col_num}H");
-    world.capture_stdout(cursor_pos.as_bytes());
-}
 
 // ===== ENTER KEY AND MULTILINE STEPS =====
 
@@ -2068,25 +1924,6 @@ async fn request_pane_should_show_text(world: &mut BluelineWorld, expected_text:
     );
 }
 
-#[then("the cursor should be positioned correctly")]
-async fn cursor_should_be_positioned_correctly(world: &mut BluelineWorld) {
-    let terminal_state = world.get_terminal_state();
-
-    // Just verify cursor is within bounds - we can't know exact position without more context
-    assert!(
-        terminal_state.cursor.0 < terminal_state.height,
-        "❌ Cursor row {} out of bounds for height {}",
-        terminal_state.cursor.0,
-        terminal_state.height
-    );
-
-    assert!(
-        terminal_state.cursor.1 < terminal_state.width,
-        "❌ Cursor column {} out of bounds for width {}",
-        terminal_state.cursor.1,
-        terminal_state.width
-    );
-}
 
 #[then("I capture detailed rendering statistics")]
 async fn capture_detailed_rendering_statistics(world: &mut BluelineWorld) {
@@ -3191,43 +3028,7 @@ async fn text_should_be_duplicated(world: &mut BluelineWorld) {
 
 // ===== NAVIGATION COMMAND STEP IMPLEMENTATIONS =====
 
-#[given(regex = r"^the cursor is at column (\d+)$")]
-async fn cursor_is_at_column(world: &mut BluelineWorld, column: String) {
-    let col_num: usize = column.parse().expect("Invalid column number");
-    world.cursor_position.column = col_num;
 
-    // Simulate cursor positioning
-    let cursor_pos = format!(
-        "\x1b[{line};{col}H",
-        line = world.cursor_position.line + 1,
-        col = col_num + 1
-    );
-    world.capture_stdout(cursor_pos.as_bytes());
-}
-
-#[then(regex = r"^the cursor moves to column (\d+)$")]
-async fn cursor_moves_to_column(world: &mut BluelineWorld, column: String) {
-    let expected_col: usize = column.parse().expect("Invalid column number");
-
-    // Update world state to reflect the cursor movement
-    world.cursor_position.column = expected_col;
-
-    // Simulate cursor positioning in terminal output
-    let cursor_pos = format!(
-        "\x1b[{};{}H",
-        world.cursor_position.line + 1,
-        expected_col + 1
-    );
-    world.capture_stdout(cursor_pos.as_bytes());
-
-    // Verify cursor is at expected column
-    assert_eq!(
-        world.cursor_position.column,
-        expected_col,
-        "Expected cursor at column {expected_col}, but got column {actual_col}",
-        actual_col = world.cursor_position.column
-    );
-}
 
 #[then(regex = r"^the cursor moves to line (\d+) column (\d+)$")]
 async fn cursor_moves_to_line_column(world: &mut BluelineWorld, line: String, column: String) {
