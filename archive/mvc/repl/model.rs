@@ -1,0 +1,2057 @@
+//! # Model - Application State and Data Structures
+//!
+//! This module contains all data structures for the REPL including buffers,
+//! application state, and enums for modes and configuration.
+//!
+//! ## Design Principles
+//!
+//! - **Data Only**: Models store state but don't process commands
+//! - **Observable**: Models can notify observers when they change  
+//! - **Immutable Methods**: Prefer methods that return new states over mutation
+//! - **Clear Ownership**: Each piece of state has a clear owner
+
+use crate::repl::display_cache::{CacheManager, Position};
+use std::collections::HashMap;
+use std::time::Instant;
+
+/// Editor modes matching vim behavior
+#[derive(Debug, Clone, PartialEq)]
+pub enum EditorMode {
+    Normal,
+    Insert,
+    Command,
+    Visual,
+    VisualLine,
+}
+
+/// Active pane in the dual-pane interface
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Pane {
+    Request,
+    Response,
+}
+
+/// Visual selection state for vim-style text selection
+#[derive(Debug, Clone, PartialEq)]
+pub struct VisualSelection {
+    pub start_line: usize,
+    pub start_col: usize,
+    pub end_line: usize,
+    pub end_col: usize,
+}
+
+/// Request buffer containing HTTP request content.
+///
+/// This is the editable buffer where users compose HTTP requests.
+/// It only manages content and cursor position - no key processing logic.
+#[derive(Debug, Clone)]
+pub struct RequestBuffer {
+    pub lines: Vec<String>,
+    // Logical position (for line numbers and internal consistency)
+    pub cursor_line: usize,
+    pub cursor_col: usize,
+    pub scroll_offset: usize,
+    // Display position (for cursor rendering and movement)
+    pub display_cursor_line: usize,
+    pub display_cursor_col: usize,
+    pub display_scroll_offset: usize,
+}
+
+impl RequestBuffer {
+    /// Create a new empty request buffer
+    pub fn new() -> Self {
+        Self {
+            lines: vec![String::new()],
+            cursor_line: 0,
+            cursor_col: 0,
+            scroll_offset: 0,
+            display_cursor_line: 0,
+            display_cursor_col: 0,
+            display_scroll_offset: 0,
+        }
+    }
+
+    /// Get the complete text content as a single string
+    pub fn get_text(&self) -> String {
+        self.lines.join("\n")
+    }
+
+    /// Get the current line content
+    pub fn current_line(&self) -> &str {
+        self.lines.get(self.cursor_line).map_or("", |s| s.as_str())
+    }
+
+    /// Get the number of lines
+    pub fn line_count(&self) -> usize {
+        self.lines.len()
+    }
+
+    /// Check if cursor is at valid position
+    pub fn is_cursor_valid(&self) -> bool {
+        self.cursor_line < self.lines.len()
+            && self.cursor_col <= self.lines.get(self.cursor_line).map_or(0, |l| l.len())
+    }
+
+    /// Ensure cursor is within valid bounds
+    pub fn clamp_cursor(&mut self) {
+        if self.cursor_line >= self.lines.len() {
+            self.cursor_line = self.lines.len().saturating_sub(1);
+        }
+
+        if let Some(line) = self.lines.get(self.cursor_line) {
+            if self.cursor_col > line.len() {
+                self.cursor_col = line.len();
+            }
+        }
+    }
+
+    /// Update display cursor position and derive logical position from display cache
+    pub fn set_display_cursor(
+        &mut self,
+        display_line: usize,
+        display_col: usize,
+        cache: &crate::repl::display_cache::DisplayCache,
+    ) {
+        self.display_cursor_line = display_line;
+        self.display_cursor_col = display_col;
+
+        // Derive logical position from display position
+        if let Some((logical_line, logical_col)) =
+            cache.display_to_logical_position(display_line, display_col)
+        {
+            self.cursor_line = logical_line;
+            self.cursor_col = logical_col;
+        }
+    }
+
+    /// Update display scroll offset and derive logical scroll offset from display cache
+    pub fn set_display_scroll(
+        &mut self,
+        display_scroll: usize,
+        cache: &crate::repl::display_cache::DisplayCache,
+    ) {
+        self.display_scroll_offset = display_scroll;
+
+        // Derive logical scroll offset from display position
+        if let Some((logical_scroll, _)) = cache.display_to_logical_position(display_scroll, 0) {
+            self.scroll_offset = logical_scroll;
+        }
+    }
+
+    /// Sync display positions from logical positions using cache
+    pub fn sync_display_from_logical(&mut self, cache: &crate::repl::display_cache::DisplayCache) {
+        // Update display cursor from logical cursor
+        if let Some((display_line, display_col)) =
+            cache.logical_to_display_position(self.cursor_line, self.cursor_col)
+        {
+            self.display_cursor_line = display_line;
+            self.display_cursor_col = display_col;
+        }
+
+        // Update display scroll from logical scroll
+        if let Some((display_scroll, _)) = cache.logical_to_display_position(self.scroll_offset, 0)
+        {
+            self.display_scroll_offset = display_scroll;
+        }
+    }
+
+    /// Generic scroll function that handles both directions
+    ///
+    /// Scrolls the buffer by the specified number of lines. Positive values scroll down,
+    /// negative values scroll up. The cursor is positioned at the top of the newly visible
+    /// area following vim behavior.
+    pub fn scroll(&mut self, lines: i32, page_height: usize) {
+        if lines == 0 {
+            return;
+        }
+
+        if lines > 0 {
+            // Scroll down - increase scroll_offset
+            let max_scroll = self.lines.len().saturating_sub(page_height);
+            let scroll_amount = (lines as usize).min(max_scroll.saturating_sub(self.scroll_offset));
+
+            if scroll_amount == 0 {
+                return;
+            }
+
+            self.scroll_offset += scroll_amount;
+        } else {
+            // Scroll up - decrease scroll_offset
+            let scroll_amount = ((-lines) as usize).min(self.scroll_offset);
+
+            if scroll_amount == 0 {
+                return;
+            }
+
+            self.scroll_offset -= scroll_amount;
+        }
+
+        // Move cursor to top of newly visible area (vim behavior)
+        self.cursor_line = self.scroll_offset;
+
+        // Ensure cursor column is within line bounds
+        self.clamp_cursor();
+    }
+
+    /// Scroll up by half a page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_half_page_up(&mut self, half_page_size: usize) {
+        self.scroll(-(half_page_size as i32), half_page_size * 2);
+    }
+
+    /// Scroll down by half a page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_half_page_down(&mut self, half_page_size: usize) {
+        self.scroll(half_page_size as i32, half_page_size * 2);
+    }
+
+    /// Scroll up by a full page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_full_page_up(&mut self, page_size: usize) {
+        self.scroll(-(page_size as i32), page_size);
+    }
+
+    /// Scroll down by a full page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_full_page_down(&mut self, page_size: usize) {
+        self.scroll(page_size as i32, page_size);
+    }
+
+    /// Get visible line range for given viewport height
+    pub fn visible_range(&self, viewport_height: usize) -> (usize, usize) {
+        let start = self.scroll_offset;
+        let end = (start + viewport_height).min(self.lines.len());
+        (start, end)
+    }
+}
+
+impl Default for RequestBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Response buffer containing HTTP response content (read-only).
+///
+/// This buffer displays HTTP response data and allows navigation
+/// but no editing. It's essentially a read-only view of response content.
+#[derive(Debug, Clone)]
+pub struct ResponseBuffer {
+    #[allow(dead_code)]
+    content: String,
+    pub lines: Vec<String>,
+    // Logical position (for line numbers and internal consistency)
+    pub scroll_offset: usize,
+    pub cursor_line: usize,
+    pub cursor_col: usize,
+    // Display position (for cursor rendering and movement)
+    pub display_cursor_line: usize,
+    pub display_cursor_col: usize,
+    pub display_scroll_offset: usize,
+}
+
+impl ResponseBuffer {
+    /// Create a new response buffer from content string
+    pub fn new(content: String) -> Self {
+        let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
+        Self {
+            content,
+            lines,
+            scroll_offset: 0,
+            cursor_line: 0,
+            cursor_col: 0,
+            display_cursor_line: 0,
+            display_cursor_col: 0,
+            display_scroll_offset: 0,
+        }
+    }
+
+    /// Get the current line content
+    pub fn current_line(&self) -> &str {
+        self.lines.get(self.cursor_line).map_or("", |s| s.as_str())
+    }
+
+    /// Get the number of lines
+    pub fn line_count(&self) -> usize {
+        self.lines.len()
+    }
+
+    /// Get visible line range for given viewport height
+    pub fn visible_range(&self, viewport_height: usize) -> (usize, usize) {
+        let start = self.scroll_offset;
+        let end = (start + viewport_height).min(self.lines.len());
+        (start, end)
+    }
+
+    /// Check if cursor is at valid position
+    pub fn is_cursor_valid(&self) -> bool {
+        self.cursor_line < self.lines.len()
+            && self.cursor_col <= self.lines.get(self.cursor_line).map_or(0, |l| l.len())
+    }
+
+    /// Ensure cursor is within valid bounds
+    pub fn clamp_cursor(&mut self) {
+        if self.cursor_line >= self.lines.len() && !self.lines.is_empty() {
+            self.cursor_line = self.lines.len() - 1;
+        }
+
+        if let Some(line) = self.lines.get(self.cursor_line) {
+            if self.cursor_col > line.len() {
+                self.cursor_col = line.len();
+            }
+        }
+    }
+
+    /// Update display cursor position and derive logical position from display cache
+    pub fn set_display_cursor(
+        &mut self,
+        display_line: usize,
+        display_col: usize,
+        cache: &crate::repl::display_cache::DisplayCache,
+    ) {
+        self.display_cursor_line = display_line;
+        self.display_cursor_col = display_col;
+
+        // Derive logical position from display position
+        if let Some((logical_line, logical_col)) =
+            cache.display_to_logical_position(display_line, display_col)
+        {
+            self.cursor_line = logical_line;
+            self.cursor_col = logical_col;
+        }
+    }
+
+    /// Update display scroll offset and derive logical scroll offset from display cache
+    pub fn set_display_scroll(
+        &mut self,
+        display_scroll: usize,
+        cache: &crate::repl::display_cache::DisplayCache,
+    ) {
+        self.display_scroll_offset = display_scroll;
+
+        // Derive logical scroll offset from display position
+        if let Some((logical_scroll, _)) = cache.display_to_logical_position(display_scroll, 0) {
+            self.scroll_offset = logical_scroll;
+        }
+    }
+
+    /// Sync display positions from logical positions using cache
+    pub fn sync_display_from_logical(&mut self, cache: &crate::repl::display_cache::DisplayCache) {
+        // Update display cursor from logical cursor
+        if let Some((display_line, display_col)) =
+            cache.logical_to_display_position(self.cursor_line, self.cursor_col)
+        {
+            self.display_cursor_line = display_line;
+            self.display_cursor_col = display_col;
+        }
+
+        // Update display scroll from logical scroll
+        if let Some((display_scroll, _)) = cache.logical_to_display_position(self.scroll_offset, 0)
+        {
+            self.display_scroll_offset = display_scroll;
+        }
+    }
+
+    /// Generic scroll function that handles both directions
+    ///
+    /// Scrolls the buffer by the specified number of lines. Positive values scroll down,
+    /// negative values scroll up. The cursor is positioned at the top of the newly visible
+    /// area following vim behavior.
+    pub fn scroll(&mut self, lines: i32, page_height: usize) {
+        if lines == 0 {
+            return;
+        }
+
+        if lines > 0 {
+            // Scroll down - increase scroll_offset
+            let max_scroll = self.lines.len().saturating_sub(page_height);
+            let scroll_amount = (lines as usize).min(max_scroll.saturating_sub(self.scroll_offset));
+
+            if scroll_amount == 0 {
+                return;
+            }
+
+            self.scroll_offset += scroll_amount;
+        } else {
+            // Scroll up - decrease scroll_offset
+            let scroll_amount = ((-lines) as usize).min(self.scroll_offset);
+
+            if scroll_amount == 0 {
+                return;
+            }
+
+            self.scroll_offset -= scroll_amount;
+        }
+
+        // Move cursor to top of newly visible area (vim behavior)
+        self.cursor_line = self.scroll_offset;
+
+        // Ensure cursor column is within line bounds
+        self.clamp_cursor();
+    }
+
+    /// Scroll up by half a page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_half_page_up(&mut self, half_page_size: usize) {
+        self.scroll(-(half_page_size as i32), half_page_size * 2);
+    }
+
+    /// Scroll down by half a page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_half_page_down(&mut self, half_page_size: usize) {
+        self.scroll(half_page_size as i32, half_page_size * 2);
+    }
+
+    /// Scroll up by a full page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_full_page_up(&mut self, page_size: usize) {
+        self.scroll(-(page_size as i32), page_size);
+    }
+
+    /// Scroll down by a full page, moving cursor to top of newly visible area (vim behavior)
+    pub fn scroll_full_page_down(&mut self, page_size: usize) {
+        self.scroll(page_size as i32, page_size);
+    }
+}
+
+/// Complete application state.
+///
+/// This is the central state container that holds all mutable state
+/// for the REPL application. Commands operate on this state, and
+/// observers watch it for changes.
+#[derive(Debug)]
+pub struct AppState {
+    // Editor state
+    pub mode: EditorMode,
+    pub current_pane: Pane,
+    pub visual_selection: Option<VisualSelection>,
+
+    // Buffers
+    pub request_buffer: RequestBuffer,
+    pub response_buffer: Option<ResponseBuffer>,
+    pub response_pane_visible: bool, // Controls whether response pane is shown even when response_buffer exists
+
+    // Display cache for high-performance word wrapping
+    pub cache_manager: CacheManager,
+
+    // UI state
+    pub terminal_size: (u16, u16),
+    pub request_pane_height: usize,
+    pub status_message: String,
+    pub command_buffer: String,
+
+    // Session state
+    pub session_headers: HashMap<String, String>,
+    pub clipboard: String,
+
+    // Vim state tracking
+    pub pending_g: bool,
+    pub pending_ctrl_w: bool,
+
+    // Request timing
+    pub last_response_status: Option<String>,
+    pub request_start_time: Option<Instant>,
+    pub last_request_duration: Option<u64>, // in milliseconds
+
+    // Request execution flag for async operations
+    pub execute_request_flag: bool,
+
+    // Application lifecycle
+    pub should_quit: bool,
+
+    // Configuration
+    pub verbose: bool,
+}
+
+impl AppState {
+    /// Create new application state with default values
+    pub fn new(terminal_size: (u16, u16), verbose: bool) -> Self {
+        let height = terminal_size.1 as usize;
+        let total_content_height = height.saturating_sub(2); // Minus separator and status line
+        let initial_request_pane_height = total_content_height / 2;
+
+        Self {
+            mode: EditorMode::Normal, // Start in normal mode for vim-like behavior
+            current_pane: Pane::Request,
+            visual_selection: None,
+            request_buffer: RequestBuffer::new(),
+            response_buffer: None,
+            response_pane_visible: true, // Default to visible when response exists
+            cache_manager: CacheManager::new(),
+            terminal_size,
+            request_pane_height: initial_request_pane_height,
+            status_message: "".to_string(), // Empty for normal mode
+            command_buffer: String::new(),
+            session_headers: HashMap::new(),
+            clipboard: String::new(),
+            pending_g: false,
+            pending_ctrl_w: false,
+            last_response_status: None,
+            request_start_time: None,
+            last_request_duration: None,
+            execute_request_flag: false,
+            should_quit: false,
+            verbose,
+        }
+    }
+
+    /// Sync display positions from logical positions for all buffers
+    pub fn sync_display_positions(&mut self) {
+        // Sync request buffer display positions
+        let request_cache = self.cache_manager.get_request_cache();
+        self.request_buffer
+            .sync_display_from_logical(&request_cache);
+
+        // Sync response buffer display positions if it exists
+        if let Some(ref mut response_buffer) = self.response_buffer {
+            let response_cache = self.cache_manager.get_response_cache();
+            response_buffer.sync_display_from_logical(&response_cache);
+        }
+    }
+
+    /// Get the height of the request pane in lines
+    /// Uses full available space when there's no response buffer or when response pane is hidden
+    pub fn get_request_pane_height(&self) -> usize {
+        // Use full available space when there's no response buffer or response pane is hidden
+        if self.response_buffer.is_none() || !self.response_pane_visible {
+            let total_height = self.terminal_size.1 as usize;
+            return total_height.saturating_sub(2); // Minus separator and status
+        }
+
+        self.request_pane_height
+    }
+
+    /// Get the height of the response pane in lines
+    /// Returns 0 when there's no response or when response pane is hidden
+    pub fn get_response_pane_height(&self) -> usize {
+        // Hide response pane when there's no response buffer or when visibility is disabled
+        if self.response_buffer.is_none() || !self.response_pane_visible {
+            return 0;
+        }
+
+        let total_height = self.terminal_size.1 as usize;
+        let total_content_height = total_height.saturating_sub(2); // Minus separator and status
+        total_content_height.saturating_sub(self.request_pane_height)
+    }
+
+    /// Update terminal size and adjust pane heights proportionally
+    pub fn update_terminal_size(&mut self, new_size: (u16, u16)) {
+        let old_height = self.terminal_size.1 as usize;
+        let old_total_content_height = old_height.saturating_sub(2);
+        let new_height = new_size.1 as usize;
+        let new_total_content_height = new_height.saturating_sub(2);
+
+        // Maintain proportional split
+        if old_total_content_height > 0 {
+            let proportion = self.request_pane_height as f64 / old_total_content_height as f64;
+            self.request_pane_height = ((new_total_content_height as f64 * proportion) as usize)
+                .max(3) // Minimum input height
+                .min(new_total_content_height.saturating_sub(3)); // Leave 3 for output
+        }
+
+        self.terminal_size = new_size;
+    }
+
+    /// Set response content and create response buffer
+    pub fn set_response(&mut self, content: String) {
+        self.response_buffer = Some(ResponseBuffer::new(content));
+        self.response_pane_visible = true; // Ensure response pane is visible when setting new response
+
+        // Update response cache for proper wrapping
+        if let Some(ref mut response_buffer) = self.response_buffer {
+            let content_width = self.terminal_size.0 as usize - 4; // Account for borders
+            let _ = self
+                .cache_manager
+                .update_response_cache(&response_buffer.lines, content_width);
+
+            // Sync display positions from logical positions after cache update
+            let cache = self.cache_manager.get_response_cache();
+            response_buffer.sync_display_from_logical(&cache);
+        }
+    }
+
+    /// Clear response buffer
+    pub fn clear_response(&mut self) {
+        self.response_buffer = None;
+    }
+
+    /// Expand response pane by shrinking request pane by one line
+    /// Minimum request pane height is 3 lines
+    pub fn expand_response_pane(&mut self) {
+        const MIN_REQUEST_HEIGHT: usize = 3;
+
+        if self.request_pane_height > MIN_REQUEST_HEIGHT {
+            self.request_pane_height = (self.request_pane_height - 1).max(MIN_REQUEST_HEIGHT);
+
+            // Clamp cursor if it goes beyond the new visible area of the request pane
+            let new_request_height = self.get_request_pane_height();
+            let (_visible_start, visible_end) =
+                self.request_buffer.visible_range(new_request_height);
+
+            // If cursor is beyond the visible area, move it to the last visible line
+            if self.request_buffer.cursor_line >= visible_end && visible_end > 0 {
+                self.request_buffer.cursor_line = visible_end - 1;
+                // Ensure the cursor column is valid for the new line
+                self.request_buffer.clamp_cursor();
+            }
+        }
+    }
+
+    /// Shrink response pane by expanding request pane by one line  
+    /// Minimum response pane height is 3 lines
+    pub fn shrink_response_pane(&mut self) {
+        const MIN_RESPONSE_HEIGHT: usize = 3;
+        let total_content_height = self.terminal_size.1 as usize - 2; // Minus separator and status line
+        let max_request_height = total_content_height.saturating_sub(MIN_RESPONSE_HEIGHT);
+
+        if self.request_pane_height < max_request_height {
+            self.request_pane_height = (self.request_pane_height + 1).min(max_request_height);
+
+            // Clamp cursor if it goes beyond the new visible area of the response pane
+            if let Some(ref mut response_buffer) = self.response_buffer {
+                // Calculate new response height manually to avoid borrow conflicts
+                let new_response_height =
+                    total_content_height.saturating_sub(self.request_pane_height);
+                let (_visible_start, visible_end) =
+                    response_buffer.visible_range(new_response_height);
+
+                // If cursor is beyond the visible area, move it to the last visible line
+                if response_buffer.cursor_line >= visible_end && visible_end > 0 {
+                    response_buffer.cursor_line = visible_end - 1;
+                    // Ensure the cursor column is valid for the new line
+                    response_buffer.clamp_cursor();
+                }
+            }
+        }
+    }
+
+    /// Check if there's an active response
+    pub fn has_response(&self) -> bool {
+        self.response_buffer.is_some()
+    }
+
+    /// Get mutable reference to current buffer based on active pane
+    pub fn current_buffer_mut(&mut self) -> CurrentBufferMut {
+        match self.current_pane {
+            Pane::Request => CurrentBufferMut::Request(&mut self.request_buffer),
+            Pane::Response => {
+                if let Some(ref mut response) = self.response_buffer {
+                    CurrentBufferMut::Response(response)
+                } else {
+                    // If no response buffer, fall back to request buffer
+                    CurrentBufferMut::Request(&mut self.request_buffer)
+                }
+            }
+        }
+    }
+
+    /// Get immutable reference to current buffer based on active pane
+    pub fn current_buffer(&self) -> CurrentBuffer {
+        match self.current_pane {
+            Pane::Request => CurrentBuffer::Request(&self.request_buffer),
+            Pane::Response => {
+                if let Some(ref response) = self.response_buffer {
+                    CurrentBuffer::Response(response)
+                } else {
+                    // If no response buffer, fall back to request buffer
+                    CurrentBuffer::Request(&self.request_buffer)
+                }
+            }
+        }
+    }
+
+    /// Update display cache for current pane's content and return cache
+    /// This ensures the cache is fresh before cursor positioning operations
+    pub fn update_display_cache(&mut self, content_width: usize) -> anyhow::Result<()> {
+        match self.current_pane {
+            Pane::Request => {
+                // Sync update for request content to avoid rendering lag
+                self.cache_manager
+                    .update_request_cache_sync(&self.request_buffer.lines, content_width)?;
+            }
+            Pane::Response => {
+                // Sync update for infrequently-changing response content
+                if let Some(ref response_buffer) = self.response_buffer {
+                    self.cache_manager
+                        .update_response_cache(&response_buffer.lines, content_width)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Convert logical cursor position to display position using cache
+    /// Returns None if cache is not ready or position is invalid
+    pub fn logical_to_display_position(
+        &self,
+        logical_line: usize,
+        logical_col: usize,
+    ) -> Option<Position> {
+        match self.current_pane {
+            Pane::Request => {
+                let cache = self.cache_manager.get_request_cache();
+                cache.logical_to_display_position(logical_line, logical_col)
+            }
+            Pane::Response => {
+                let cache = self.cache_manager.get_response_cache();
+                cache.logical_to_display_position(logical_line, logical_col)
+            }
+        }
+    }
+
+    /// Convert display position to logical position using cache
+    /// Returns None if cache is not ready or position is invalid
+    pub fn display_to_logical_position(
+        &self,
+        display_line: usize,
+        display_col: usize,
+    ) -> Option<Position> {
+        match self.current_pane {
+            Pane::Request => {
+                let cache = self.cache_manager.get_request_cache();
+                cache.display_to_logical_position(display_line, display_col)
+            }
+            Pane::Response => {
+                let cache = self.cache_manager.get_response_cache();
+                cache.display_to_logical_position(display_line, display_col)
+            }
+        }
+    }
+
+    /// Move cursor up one display line using cache for accurate positioning
+    /// Returns new logical position or None if movement isn't possible
+    pub fn move_cursor_up_display_line(&self, desired_col: usize) -> Option<Position> {
+        let current_buffer = self.current_buffer();
+        let logical_line = current_buffer.cursor_line();
+        let logical_col = current_buffer.cursor_col();
+
+        // Convert current logical position to display position
+        let (current_display_line, _) =
+            self.logical_to_display_position(logical_line, logical_col)?;
+
+        // Move up one display line
+        let cache = match self.current_pane {
+            Pane::Request => self.cache_manager.get_request_cache(),
+            Pane::Response => self.cache_manager.get_response_cache(),
+        };
+
+        let (new_display_line, new_display_col) =
+            cache.move_up(current_display_line, desired_col)?;
+
+        // Convert back to logical position
+        self.display_to_logical_position(new_display_line, new_display_col)
+    }
+
+    /// Move cursor down one display line using cache for accurate positioning
+    /// Returns new logical position or None if movement isn't possible
+    pub fn move_cursor_down_display_line(&self, desired_col: usize) -> Option<Position> {
+        let current_buffer = self.current_buffer();
+        let logical_line = current_buffer.cursor_line();
+        let logical_col = current_buffer.cursor_col();
+
+        // Convert current logical position to display position
+        let (current_display_line, _) =
+            self.logical_to_display_position(logical_line, logical_col)?;
+
+        // Move down one display line
+        let cache = match self.current_pane {
+            Pane::Request => self.cache_manager.get_request_cache(),
+            Pane::Response => self.cache_manager.get_response_cache(),
+        };
+
+        let (new_display_line, new_display_col) =
+            cache.move_down(current_display_line, desired_col)?;
+
+        // Convert back to logical position
+        self.display_to_logical_position(new_display_line, new_display_col)
+    }
+
+    /// Invalidate all display caches (e.g., on window resize)
+    pub fn invalidate_display_caches(&mut self) {
+        self.cache_manager.invalidate_all();
+    }
+
+    /// Calculate content width for the current pane (accounting for borders)
+    pub fn calculate_content_width(&self) -> usize {
+        let total_width = self.terminal_size.0 as usize;
+        total_width.saturating_sub(4) // Account for borders and padding
+    }
+
+    /// Update display cache with proper content width calculation
+    pub fn update_display_cache_auto(&mut self) -> anyhow::Result<()> {
+        let content_width = self.calculate_content_width();
+        self.update_display_cache(content_width)
+    }
+
+    /// Debug function to dump cache state to files
+    pub fn debug_dump_caches(&self) -> anyhow::Result<()> {
+        let request_cache = self.cache_manager.get_request_cache();
+        let response_cache = self.cache_manager.get_response_cache();
+
+        request_cache.debug_dump("debug_request_cache.txt")?;
+        response_cache.debug_dump("debug_response_cache.txt")?;
+
+        println!("Cache debug dumps saved to debug_request_cache.txt and debug_response_cache.txt");
+        Ok(())
+    }
+}
+
+/// Enum for mutable access to current buffer
+pub enum CurrentBufferMut<'a> {
+    Request(&'a mut RequestBuffer),
+    Response(&'a mut ResponseBuffer),
+}
+
+/// Enum for immutable access to current buffer  
+pub enum CurrentBuffer<'a> {
+    Request(&'a RequestBuffer),
+    Response(&'a ResponseBuffer),
+}
+
+impl CurrentBuffer<'_> {
+    pub fn cursor_line(&self) -> usize {
+        match self {
+            CurrentBuffer::Request(buf) => buf.cursor_line,
+            CurrentBuffer::Response(buf) => buf.cursor_line,
+        }
+    }
+
+    pub fn cursor_col(&self) -> usize {
+        match self {
+            CurrentBuffer::Request(buf) => buf.cursor_col,
+            CurrentBuffer::Response(buf) => buf.cursor_col,
+        }
+    }
+
+    pub fn line_count(&self) -> usize {
+        match self {
+            CurrentBuffer::Request(buf) => buf.line_count(),
+            CurrentBuffer::Response(buf) => buf.line_count(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_buffer_new_should_create_empty_buffer_with_single_empty_line() {
+        let buffer = RequestBuffer::new();
+
+        assert_eq!(buffer.lines.len(), 1);
+        assert_eq!(buffer.lines[0], "");
+        assert_eq!(buffer.cursor_line, 0);
+        assert_eq!(buffer.cursor_col, 0);
+        assert_eq!(buffer.scroll_offset, 0);
+    }
+
+    #[test]
+    fn request_buffer_default_should_work_like_new() {
+        let buffer = RequestBuffer::default();
+        let new_buffer = RequestBuffer::new();
+
+        assert_eq!(buffer.lines, new_buffer.lines);
+        assert_eq!(buffer.cursor_line, new_buffer.cursor_line);
+        assert_eq!(buffer.cursor_col, new_buffer.cursor_col);
+        assert_eq!(buffer.scroll_offset, new_buffer.scroll_offset);
+    }
+
+    #[test]
+    fn request_buffer_get_text_should_join_lines_with_newlines() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "GET /api/users".to_string(),
+            "Host: example.com".to_string(),
+            "".to_string(),
+            "{\"test\": true}".to_string(),
+        ];
+
+        let text = buffer.get_text();
+        assert_eq!(
+            text,
+            "GET /api/users\nHost: example.com\n\n{\"test\": true}"
+        );
+    }
+
+    #[test]
+    fn request_buffer_get_text_should_handle_single_line() {
+        let buffer = RequestBuffer::new();
+        assert_eq!(buffer.get_text(), "");
+    }
+
+    #[test]
+    fn request_buffer_current_line_should_return_line_at_cursor_position() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["first line".to_string(), "second line".to_string()];
+        buffer.cursor_line = 1;
+
+        assert_eq!(buffer.current_line(), "second line");
+    }
+
+    #[test]
+    fn request_buffer_current_line_should_return_empty_for_invalid_position() {
+        let mut buffer = RequestBuffer::new();
+        buffer.cursor_line = 10; // Out of bounds
+
+        assert_eq!(buffer.current_line(), "");
+    }
+
+    #[test]
+    fn request_buffer_line_count_should_return_number_of_lines() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line1".to_string(),
+            "line2".to_string(),
+            "line3".to_string(),
+        ];
+
+        assert_eq!(buffer.line_count(), 3);
+    }
+
+    #[test]
+    fn request_buffer_is_cursor_valid_should_return_true_for_valid_position() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["hello world".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 5;
+
+        assert!(buffer.is_cursor_valid());
+    }
+
+    #[test]
+    fn request_buffer_is_cursor_valid_should_return_false_for_invalid_line() {
+        let mut buffer = RequestBuffer::new();
+        buffer.cursor_line = 10;
+
+        assert!(!buffer.is_cursor_valid());
+    }
+
+    #[test]
+    fn request_buffer_is_cursor_valid_should_return_false_for_invalid_column() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["hello".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 10; // Beyond line length
+
+        assert!(!buffer.is_cursor_valid());
+    }
+
+    #[test]
+    fn request_buffer_clamp_cursor_should_fix_invalid_line_position() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line1".to_string(), "line2".to_string()];
+        buffer.cursor_line = 10; // Out of bounds
+
+        buffer.clamp_cursor();
+        assert_eq!(buffer.cursor_line, 1); // Should be clamped to last line
+    }
+
+    #[test]
+    fn request_buffer_clamp_cursor_should_fix_invalid_column_position() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["hello".to_string()];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 10; // Beyond line length
+
+        buffer.clamp_cursor();
+        assert_eq!(buffer.cursor_col, 5); // Should be clamped to line end
+    }
+
+    #[test]
+    fn request_buffer_visible_range_should_return_correct_range() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "1".to_string(),
+            "2".to_string(),
+            "3".to_string(),
+            "4".to_string(),
+            "5".to_string(),
+        ];
+        buffer.scroll_offset = 1;
+
+        let (start, end) = buffer.visible_range(3);
+        assert_eq!(start, 1);
+        assert_eq!(end, 4);
+    }
+
+    #[test]
+    fn request_buffer_visible_range_should_not_exceed_line_count() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["1".to_string(), "2".to_string()];
+        buffer.scroll_offset = 0;
+
+        let (start, end) = buffer.visible_range(10);
+        assert_eq!(start, 0);
+        assert_eq!(end, 2); // Clamped to actual line count
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_handle_zero_lines() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(0, 10); // No scroll
+
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 1);
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_scroll_down_and_move_cursor_to_top() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+            "line 4".to_string(),
+            "line 5".to_string(),
+        ];
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(2, 4); // Scroll down 2 lines with page height 4
+
+        assert_eq!(buffer.scroll_offset, 2);
+        assert_eq!(buffer.cursor_line, 2); // Cursor moves to top of visible area
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_scroll_up_and_move_cursor_to_top() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+            "line 4".to_string(),
+            "line 5".to_string(),
+        ];
+        buffer.cursor_line = 4;
+        buffer.scroll_offset = 3;
+
+        buffer.scroll(-2, 4); // Scroll up 2 lines with page height 4
+
+        assert_eq!(buffer.scroll_offset, 1);
+        assert_eq!(buffer.cursor_line, 1); // Cursor moves to top of visible area
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_limit_scroll_down_to_available_space() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+        ];
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(10, 2); // Request more than available (max scroll would be 1)
+
+        assert_eq!(buffer.scroll_offset, 1); // Limited to max available
+        assert_eq!(buffer.cursor_line, 1);
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_limit_scroll_up_to_available_offset() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+        ];
+        buffer.cursor_line = 2;
+        buffer.scroll_offset = 1;
+
+        buffer.scroll(-10, 2); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // Limited to available offset
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_handle_no_scroll_down_when_at_bottom() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0; // Already showing all content
+
+        buffer.scroll(5, 2); // Try to scroll down
+
+        assert_eq!(buffer.scroll_offset, 0); // No change
+        assert_eq!(buffer.cursor_line, 1); // No change
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_handle_no_scroll_up_when_at_top() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(-5, 2); // Try to scroll up
+
+        assert_eq!(buffer.scroll_offset, 0); // No change
+        assert_eq!(buffer.cursor_line, 0); // No change
+    }
+
+    #[test]
+    fn request_buffer_scroll_should_clamp_cursor_column_after_scroll() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "long line here".to_string(),
+            "short".to_string(),
+            "another long line here".to_string(),
+        ];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 10; // Valid for first line
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(1, 2); // Scroll down 1 line
+
+        assert_eq!(buffer.scroll_offset, 1);
+        assert_eq!(buffer.cursor_line, 1); // Move to top of visible area
+        assert_eq!(buffer.cursor_col, 5); // Clamped to "short".len()
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_up_should_scroll_and_move_cursor() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+            "line 4".to_string(),
+            "line 5".to_string(),
+        ];
+        buffer.cursor_line = 4;
+        buffer.cursor_col = 2;
+        buffer.scroll_offset = 2;
+
+        buffer.scroll_half_page_up(2);
+
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 0); // Cursor moves to top of visible area (vim behavior)
+        assert_eq!(buffer.cursor_col, 2);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_up_should_handle_zero_scroll_offset() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_up(5);
+
+        // Should not change anything when already at top
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 1); // Cursor should remain unchanged
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_up_should_clamp_cursor_to_scroll_offset_when_needed() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+        ];
+        buffer.cursor_line = 1; // Close to top
+        buffer.cursor_col = 3;
+        buffer.scroll_offset = 3;
+
+        buffer.scroll_half_page_up(2);
+
+        assert_eq!(buffer.scroll_offset, 1);
+        assert_eq!(buffer.cursor_line, 1); // Should move to top of visible area (scroll_offset)
+        assert_eq!(buffer.cursor_col, 3);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_up_should_limit_scroll_to_available_offset() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 1;
+
+        buffer.scroll_half_page_up(10); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // Should only scroll available amount
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_up_should_clamp_cursor_column_to_line_bounds() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["short".to_string(), "longer line".to_string()];
+        buffer.cursor_line = 1;
+        buffer.cursor_col = 10; // Beyond first line's length
+        buffer.scroll_offset = 1;
+
+        buffer.scroll_half_page_up(1);
+
+        assert_eq!(buffer.cursor_line, 0);
+        assert_eq!(buffer.cursor_col, 5); // Clamped to "short".len()
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_down_should_scroll_and_move_cursor() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+            "line 4".to_string(),
+            "line 5".to_string(),
+        ];
+        buffer.cursor_line = 1;
+        buffer.cursor_col = 2;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(2);
+
+        assert_eq!(buffer.scroll_offset, 2);
+        assert_eq!(buffer.cursor_line, 2); // Cursor moves to top of newly visible area
+        assert_eq!(buffer.cursor_col, 2);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_down_should_handle_insufficient_content() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(5); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // No scroll possible with short content
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_down_should_limit_scroll_to_available_space() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "line 0".to_string(),
+            "line 1".to_string(),
+            "line 2".to_string(),
+            "line 3".to_string(),
+        ];
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(3); // Page height would be 6, request scroll 3
+
+        assert_eq!(buffer.scroll_offset, 0); // No scroll possible: 4 lines - 6 page height = max scroll of 0
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn request_buffer_scroll_half_page_down_should_clamp_cursor_column_to_line_bounds() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec![
+            "long line here".to_string(),
+            "short".to_string(),
+            "another long line here".to_string(),
+        ];
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 10; // Valid for first line
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(1);
+
+        assert_eq!(buffer.scroll_offset, 1);
+        assert_eq!(buffer.cursor_line, 1); // Move to top of visible area
+        assert_eq!(buffer.cursor_col, 5); // Clamped to "short".len()
+    }
+
+    #[test]
+    fn response_buffer_new_should_create_buffer_from_content() {
+        let content = "HTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"result\": true}";
+        let buffer = ResponseBuffer::new(content.to_string());
+
+        assert_eq!(buffer.lines.len(), 4);
+        assert_eq!(buffer.lines[0], "HTTP/1.1 200 OK");
+        assert_eq!(buffer.lines[1], "Content-Type: application/json");
+        assert_eq!(buffer.lines[2], "");
+        assert_eq!(buffer.lines[3], "{\"result\": true}");
+        assert_eq!(buffer.cursor_line, 0);
+        assert_eq!(buffer.cursor_col, 0);
+        assert_eq!(buffer.scroll_offset, 0);
+    }
+
+    #[test]
+    fn response_buffer_current_line_should_return_line_at_cursor_position() {
+        let buffer = ResponseBuffer::new("line1\nline2\nline3".to_string());
+
+        assert_eq!(buffer.current_line(), "line1");
+    }
+
+    #[test]
+    fn response_buffer_line_count_should_return_number_of_lines() {
+        let buffer = ResponseBuffer::new("line1\nline2\nline3".to_string());
+
+        assert_eq!(buffer.line_count(), 3);
+    }
+
+    #[test]
+    fn response_buffer_visible_range_should_work_like_request_buffer() {
+        let mut buffer = ResponseBuffer::new("1\n2\n3\n4\n5".to_string());
+        buffer.scroll_offset = 1;
+
+        let (start, end) = buffer.visible_range(3);
+        assert_eq!(start, 1);
+        assert_eq!(end, 4);
+    }
+
+    #[test]
+    fn response_buffer_is_cursor_valid_should_work_correctly() {
+        let mut buffer = ResponseBuffer::new("hello world".to_string());
+        buffer.cursor_line = 0;
+        buffer.cursor_col = 5;
+
+        assert!(buffer.is_cursor_valid());
+
+        buffer.cursor_col = 50;
+        assert!(!buffer.is_cursor_valid());
+    }
+
+    #[test]
+    fn response_buffer_clamp_cursor_should_fix_invalid_positions() {
+        let mut buffer = ResponseBuffer::new("hello".to_string());
+        buffer.cursor_line = 10;
+        buffer.cursor_col = 10;
+
+        buffer.clamp_cursor();
+        assert_eq!(buffer.cursor_line, 0);
+        assert_eq!(buffer.cursor_col, 5);
+    }
+
+    #[test]
+    fn response_buffer_scroll_should_handle_zero_lines() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1".to_string());
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(0, 10); // No scroll
+
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 1);
+    }
+
+    #[test]
+    fn response_buffer_scroll_should_scroll_down_and_move_cursor_to_top() {
+        let mut buffer =
+            ResponseBuffer::new("line 0\nline 1\nline 2\nline 3\nline 4\nline 5".to_string());
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(2, 4); // Scroll down 2 lines with page height 4
+
+        assert_eq!(buffer.scroll_offset, 2);
+        assert_eq!(buffer.cursor_line, 2); // Cursor moves to top of visible area
+    }
+
+    #[test]
+    fn response_buffer_scroll_should_scroll_up_and_move_cursor_to_top() {
+        let mut buffer =
+            ResponseBuffer::new("line 0\nline 1\nline 2\nline 3\nline 4\nline 5".to_string());
+        buffer.cursor_line = 4;
+        buffer.scroll_offset = 3;
+
+        buffer.scroll(-2, 4); // Scroll up 2 lines with page height 4
+
+        assert_eq!(buffer.scroll_offset, 1);
+        assert_eq!(buffer.cursor_line, 1); // Cursor moves to top of visible area
+    }
+
+    #[test]
+    fn response_buffer_scroll_should_limit_scroll_down_to_available_space() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1\nline 2".to_string());
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll(10, 2); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 1); // Limited to max available (3 lines - 2 page height)
+        assert_eq!(buffer.cursor_line, 1);
+    }
+
+    #[test]
+    fn response_buffer_scroll_should_limit_scroll_up_to_available_offset() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1\nline 2".to_string());
+        buffer.cursor_line = 2;
+        buffer.scroll_offset = 1;
+
+        buffer.scroll(-10, 2); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // Limited to available offset
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn response_buffer_scroll_half_page_up_should_scroll_and_move_cursor() {
+        let mut buffer =
+            ResponseBuffer::new("line 0\nline 1\nline 2\nline 3\nline 4\nline 5".to_string());
+        buffer.cursor_line = 4;
+        buffer.cursor_col = 2;
+        buffer.scroll_offset = 2;
+
+        buffer.scroll_half_page_up(2);
+
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 0); // Cursor moves to top of visible area (vim behavior)
+        assert_eq!(buffer.cursor_col, 2);
+    }
+
+    #[test]
+    fn response_buffer_scroll_half_page_up_should_handle_zero_scroll_offset() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1".to_string());
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_up(5);
+
+        // Should not change anything when already at top
+        assert_eq!(buffer.scroll_offset, 0);
+        assert_eq!(buffer.cursor_line, 1); // Cursor should remain unchanged
+    }
+
+    #[test]
+    fn response_buffer_scroll_half_page_down_should_scroll_and_move_cursor() {
+        let mut buffer =
+            ResponseBuffer::new("line 0\nline 1\nline 2\nline 3\nline 4\nline 5".to_string());
+        buffer.cursor_line = 1;
+        buffer.cursor_col = 2;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(2);
+
+        assert_eq!(buffer.scroll_offset, 2);
+        assert_eq!(buffer.cursor_line, 2); // Cursor moves to top of newly visible area
+        assert_eq!(buffer.cursor_col, 2);
+    }
+
+    #[test]
+    fn response_buffer_scroll_half_page_down_should_handle_insufficient_content() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1".to_string());
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_half_page_down(5); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // No scroll possible with short content
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn request_buffer_scroll_full_page_down_should_scroll_and_move_cursor() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = (0..20).map(|i| format!("line {}", i)).collect();
+        buffer.cursor_line = 2;
+        buffer.cursor_col = 3;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_full_page_down(5);
+
+        assert_eq!(buffer.scroll_offset, 5);
+        assert_eq!(buffer.cursor_line, 5); // Cursor moves to top of newly visible area
+        assert_eq!(buffer.cursor_col, 3);
+    }
+
+    #[test]
+    fn request_buffer_scroll_full_page_down_should_handle_insufficient_content() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = vec!["line 0".to_string(), "line 1".to_string()];
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_full_page_down(5); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // No scroll possible with short content
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn request_buffer_scroll_full_page_down_should_handle_bounds() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = (0..10).map(|i| format!("line {}", i)).collect();
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_full_page_down(8); // Request 8 lines with 10 total lines and page height 8
+
+        assert_eq!(buffer.scroll_offset, 2); // Max scroll is 10-8=2
+        assert_eq!(buffer.cursor_line, 2);
+    }
+
+    #[test]
+    fn request_buffer_scroll_full_page_up_should_scroll_and_move_cursor() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = (0..20).map(|i| format!("line {}", i)).collect();
+        buffer.cursor_line = 12;
+        buffer.cursor_col = 3;
+        buffer.scroll_offset = 10; // Start scrolled down
+
+        buffer.scroll_full_page_up(5);
+
+        assert_eq!(buffer.scroll_offset, 5); // Should scroll up by 5 lines
+        assert_eq!(buffer.cursor_line, 5); // Cursor moves to top of newly visible area
+        assert_eq!(buffer.cursor_col, 3);
+    }
+
+    #[test]
+    fn request_buffer_scroll_full_page_up_should_handle_insufficient_scroll_offset() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = (0..20).map(|i| format!("line {}", i)).collect();
+        buffer.cursor_line = 2;
+        buffer.scroll_offset = 2; // Small scroll offset
+
+        buffer.scroll_full_page_up(5); // Request more than current offset
+
+        assert_eq!(buffer.scroll_offset, 0); // Should scroll to top
+        assert_eq!(buffer.cursor_line, 0); // Cursor moves to top of visible area (vim behavior)
+    }
+
+    #[test]
+    fn request_buffer_scroll_full_page_up_should_handle_zero_scroll_offset() {
+        let mut buffer = RequestBuffer::new();
+        buffer.lines = (0..20).map(|i| format!("line {}", i)).collect();
+        buffer.cursor_line = 3;
+        buffer.scroll_offset = 0; // Already at top
+
+        buffer.scroll_full_page_up(5); // Request scroll up from top
+
+        assert_eq!(buffer.scroll_offset, 0); // Should remain at top
+        assert_eq!(buffer.cursor_line, 3); // Cursor should remain unchanged
+    }
+
+    #[test]
+    fn response_buffer_scroll_full_page_down_should_scroll_and_move_cursor() {
+        let mut buffer = ResponseBuffer::new(
+            (0..20)
+                .map(|i| format!("line {}", i))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        buffer.cursor_line = 2;
+        buffer.cursor_col = 3;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_full_page_down(5);
+
+        assert_eq!(buffer.scroll_offset, 5);
+        assert_eq!(buffer.cursor_line, 5); // Cursor moves to top of newly visible area
+        assert_eq!(buffer.cursor_col, 3);
+    }
+
+    #[test]
+    fn response_buffer_scroll_full_page_down_should_handle_insufficient_content() {
+        let mut buffer = ResponseBuffer::new("line 0\nline 1".to_string());
+        buffer.cursor_line = 0;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_full_page_down(5); // Request more than available
+
+        assert_eq!(buffer.scroll_offset, 0); // No scroll possible with short content
+        assert_eq!(buffer.cursor_line, 0);
+    }
+
+    #[test]
+    fn response_buffer_scroll_full_page_down_should_handle_bounds() {
+        let mut buffer = ResponseBuffer::new(
+            (0..10)
+                .map(|i| format!("line {}", i))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        buffer.cursor_line = 1;
+        buffer.scroll_offset = 0;
+
+        buffer.scroll_full_page_down(8); // Request 8 lines with 10 total lines and page height 8
+
+        assert_eq!(buffer.scroll_offset, 2); // Max scroll is 10-8=2
+        assert_eq!(buffer.cursor_line, 2);
+    }
+
+    #[test]
+    fn response_buffer_scroll_full_page_up_should_scroll_and_move_cursor() {
+        let mut buffer = ResponseBuffer::new(
+            (0..20)
+                .map(|i| format!("line {}", i))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        buffer.cursor_line = 12;
+        buffer.cursor_col = 3;
+        buffer.scroll_offset = 10; // Start scrolled down
+
+        buffer.scroll_full_page_up(5);
+
+        assert_eq!(buffer.scroll_offset, 5); // Should scroll up by 5 lines
+        assert_eq!(buffer.cursor_line, 5); // Cursor moves to top of newly visible area
+        assert_eq!(buffer.cursor_col, 3);
+    }
+
+    #[test]
+    fn response_buffer_scroll_full_page_up_should_handle_insufficient_scroll_offset() {
+        let mut buffer = ResponseBuffer::new(
+            (0..20)
+                .map(|i| format!("line {}", i))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        buffer.cursor_line = 2;
+        buffer.scroll_offset = 2; // Small scroll offset
+
+        buffer.scroll_full_page_up(5); // Request more than current offset
+
+        assert_eq!(buffer.scroll_offset, 0); // Should scroll to top
+        assert_eq!(buffer.cursor_line, 0); // Cursor moves to top of visible area (vim behavior)
+    }
+
+    #[test]
+    fn response_buffer_scroll_full_page_up_should_handle_zero_scroll_offset() {
+        let mut buffer = ResponseBuffer::new(
+            (0..20)
+                .map(|i| format!("line {}", i))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        buffer.cursor_line = 3;
+        buffer.scroll_offset = 0; // Already at top
+
+        buffer.scroll_full_page_up(5); // Request scroll up from top
+
+        assert_eq!(buffer.scroll_offset, 0); // Should remain at top
+        assert_eq!(buffer.cursor_line, 3); // Cursor should remain unchanged
+    }
+
+    #[test]
+    fn app_state_new_should_create_state_with_correct_defaults() {
+        let state = AppState::new((80, 24), true);
+
+        assert_eq!(state.mode, EditorMode::Normal);
+        assert_eq!(state.current_pane, Pane::Request);
+        assert!(state.visual_selection.is_none());
+        assert_eq!(state.request_buffer.lines.len(), 1);
+        assert!(state.response_buffer.is_none());
+        assert_eq!(state.terminal_size, (80, 24));
+        assert_eq!(state.status_message, "");
+        assert_eq!(state.command_buffer, "");
+        assert!(state.session_headers.is_empty());
+        assert_eq!(state.clipboard, "");
+        assert!(!state.pending_g);
+        assert!(!state.pending_ctrl_w);
+        assert!(state.last_response_status.is_none());
+        assert!(state.request_start_time.is_none());
+        assert!(state.last_request_duration.is_none());
+        assert!(!state.execute_request_flag);
+        assert!(!state.should_quit);
+        assert!(state.verbose);
+    }
+
+    #[test]
+    fn app_state_new_should_calculate_initial_pane_height() {
+        let state = AppState::new((80, 24), false);
+
+        // Terminal height 24, minus separator and status = 22, divided by 2 = 11
+        assert_eq!(state.request_pane_height, 11);
+    }
+
+    #[test]
+    fn app_state_get_request_pane_height_should_return_full_space_when_no_response() {
+        let state = AppState::new((80, 24), false);
+
+        // Should get full available space (24 - 2 = 22) when no response buffer
+        assert_eq!(state.get_request_pane_height(), 22);
+    }
+
+    #[test]
+    fn app_state_get_request_pane_height_should_return_configured_height_when_response_exists() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test response".to_string());
+
+        // Should return the configured split height when response exists
+        assert_eq!(state.get_request_pane_height(), state.request_pane_height);
+    }
+
+    #[test]
+    fn app_state_get_response_pane_height_should_return_zero_when_no_response() {
+        let state = AppState::new((80, 24), false);
+
+        assert_eq!(state.get_response_pane_height(), 0);
+    }
+
+    #[test]
+    fn app_state_get_response_pane_height_should_return_remaining_space_when_response_exists() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test response".to_string());
+
+        // Total content height = 24 - 2 = 22
+        // Request pane height = 11 (from initial calculation)
+        // Response pane height = 22 - 11 = 11
+        assert_eq!(state.get_response_pane_height(), 11);
+    }
+
+    #[test]
+    fn app_state_update_terminal_size_should_maintain_proportions() {
+        let mut state = AppState::new((80, 20), false);
+        let initial_request_height = state.request_pane_height;
+
+        state.update_terminal_size((80, 40));
+
+        // Should roughly double the pane height when terminal doubles in height
+        let new_request_height = state.get_request_pane_height();
+        assert!(new_request_height > initial_request_height);
+        assert_eq!(state.terminal_size, (80, 40));
+    }
+
+    #[test]
+    fn app_state_set_response_should_create_response_buffer() {
+        let mut state = AppState::new((80, 24), false);
+
+        state.set_response("HTTP/1.1 200 OK\nContent: test".to_string());
+
+        assert!(state.response_buffer.is_some());
+        let response = state.response_buffer.as_ref().unwrap();
+        assert_eq!(response.lines.len(), 2);
+        assert_eq!(response.lines[0], "HTTP/1.1 200 OK");
+    }
+
+    #[test]
+    fn app_state_clear_response_should_remove_response_buffer() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test".to_string());
+
+        state.clear_response();
+
+        assert!(state.response_buffer.is_none());
+    }
+
+    #[test]
+    fn app_state_default_response_pane_visibility_should_be_true() {
+        let state = AppState::new((80, 24), false);
+        assert!(state.response_pane_visible);
+    }
+
+    #[test]
+    fn app_state_toggle_response_pane_visibility_should_change_state() {
+        let mut state = AppState::new((80, 24), false);
+
+        // Default should be visible
+        assert!(state.response_pane_visible);
+
+        // Toggle to hidden
+        state.response_pane_visible = false;
+        assert!(!state.response_pane_visible);
+
+        // Toggle back to visible
+        state.response_pane_visible = true;
+        assert!(state.response_pane_visible);
+    }
+
+    #[test]
+    fn get_response_pane_height_should_return_zero_when_hidden() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test response".to_string()); // Need response buffer first
+        state.response_pane_visible = false; // Then hide it
+
+        assert_eq!(state.get_response_pane_height(), 0);
+    }
+
+    #[test]
+    fn get_request_pane_height_should_adjust_when_response_pane_hidden() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test response".to_string()); // Need response buffer first
+        state.response_pane_visible = false; // Then hide it
+
+        // When response pane is hidden, request pane should get full height minus separators
+        // Total height 24 - 2 (separator + status) = 22
+        assert_eq!(state.get_request_pane_height(), 22);
+    }
+
+    #[test]
+    fn get_response_pane_height_should_return_calculated_height_when_visible() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test response".to_string()); // This sets response_pane_visible = true
+
+        // Total content height = 24 - 2 = 22
+        // Request pane height = 11 (from initial calculation)
+        // Response pane height = 22 - 11 = 11
+        assert_eq!(state.get_response_pane_height(), 11);
+    }
+
+    #[test]
+    fn app_state_has_response_should_return_correct_status() {
+        let mut state = AppState::new((80, 24), false);
+
+        assert!(!state.has_response());
+
+        state.set_response("test".to_string());
+        assert!(state.has_response());
+
+        state.clear_response();
+        assert!(!state.has_response());
+    }
+
+    #[test]
+    fn app_state_current_buffer_should_return_request_when_in_request_pane() {
+        let state = AppState::new((80, 24), false);
+
+        match state.current_buffer() {
+            CurrentBuffer::Request(_) => (), // Expected
+            CurrentBuffer::Response(_) => panic!("Should return request buffer"),
+        }
+    }
+
+    #[test]
+    fn app_state_current_buffer_should_return_response_when_in_response_pane_with_response() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("test".to_string());
+        state.current_pane = Pane::Response;
+
+        match state.current_buffer() {
+            CurrentBuffer::Response(_) => (), // Expected
+            CurrentBuffer::Request(_) => panic!("Should return response buffer"),
+        }
+    }
+
+    #[test]
+    fn app_state_current_buffer_should_fallback_to_request_when_no_response() {
+        let mut state = AppState::new((80, 24), false);
+        state.current_pane = Pane::Response;
+
+        match state.current_buffer() {
+            CurrentBuffer::Request(_) => (), // Expected fallback
+            CurrentBuffer::Response(_) => panic!("Should fallback to request buffer"),
+        }
+    }
+
+    #[test]
+    fn current_buffer_cursor_line_should_return_correct_position() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_buffer.cursor_line = 5;
+
+        let buffer = state.current_buffer();
+        assert_eq!(buffer.cursor_line(), 5);
+    }
+
+    #[test]
+    fn current_buffer_cursor_col_should_return_correct_position() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_buffer.cursor_col = 10;
+
+        let buffer = state.current_buffer();
+        assert_eq!(buffer.cursor_col(), 10);
+    }
+
+    #[test]
+    fn current_buffer_line_count_should_return_correct_count() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_buffer.lines = vec!["1".to_string(), "2".to_string(), "3".to_string()];
+
+        let buffer = state.current_buffer();
+        assert_eq!(buffer.line_count(), 3);
+    }
+
+    #[test]
+    fn visual_selection_should_support_debug_trait() {
+        let selection = VisualSelection {
+            start_line: 0,
+            start_col: 0,
+            end_line: 1,
+            end_col: 5,
+        };
+
+        let debug_str = format!("{:?}", selection);
+        assert!(debug_str.contains("VisualSelection"));
+    }
+
+    #[test]
+    fn app_state_expand_response_pane_should_shrink_request_pane() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_pane_height = 10;
+
+        state.expand_response_pane();
+
+        assert_eq!(state.request_pane_height, 9);
+    }
+
+    #[test]
+    fn app_state_expand_response_pane_should_respect_minimum_request_height() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_pane_height = 3; // At minimum
+
+        state.expand_response_pane();
+
+        assert_eq!(state.request_pane_height, 3); // Should not go below 3
+    }
+
+    #[test]
+    fn app_state_shrink_response_pane_should_expand_request_pane() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_pane_height = 10;
+
+        state.shrink_response_pane();
+
+        assert_eq!(state.request_pane_height, 11);
+    }
+
+    #[test]
+    fn app_state_shrink_response_pane_should_respect_minimum_response_height() {
+        let mut state = AppState::new((80, 24), false);
+        // Terminal height 24 - 2 (status/separator) = 22 total content
+        // Max request height = 22 - 3 (min response) = 19
+        state.request_pane_height = 19; // At maximum
+
+        state.shrink_response_pane();
+
+        assert_eq!(state.request_pane_height, 19); // Should not go above max
+    }
+
+    #[test]
+    fn app_state_expand_response_pane_should_clamp_cursor_when_request_pane_shrinks() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("Test response".to_string());
+        state.request_pane_height = 10;
+
+        // Add multiple lines to request buffer and position cursor at the end
+        for i in 0..15 {
+            state.request_buffer.lines.push(format!("Line {}", i));
+        }
+        state.request_buffer.cursor_line = 14; // Last line (0-indexed)
+
+        // Expand response pane (shrink request pane) so cursor goes beyond visible area
+        state.expand_response_pane();
+
+        // Cursor should be clamped to the last visible line of the new smaller request pane
+        // Request pane height went from 10 to 9, so visible range is 0..9
+        // Cursor should be at line 8 (last visible line, 0-indexed)
+        assert_eq!(state.request_buffer.cursor_line, 8);
+    }
+
+    #[test]
+    fn app_state_shrink_response_pane_should_clamp_cursor_when_response_pane_shrinks() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_pane_height = 10;
+
+        // Create response buffer with multiple lines
+        let mut response_lines = Vec::new();
+        for i in 0..15 {
+            response_lines.push(format!("Response line {}", i));
+        }
+        let response_buffer = ResponseBuffer::new(response_lines.join("\n"));
+
+        // Position cursor at the end of response buffer
+        let mut modified_response = response_buffer;
+        modified_response.cursor_line = 14; // Last line (0-indexed)
+        state.response_buffer = Some(modified_response);
+
+        // Shrink response pane so cursor goes beyond visible area
+        state.shrink_response_pane();
+
+        // Response pane height calculation: terminal(24) - separator/status(2) - request_pane(11) = 11
+        // So visible range for response is 0..11, cursor should be at line 10 (last visible, 0-indexed)
+        if let Some(ref response_buffer) = state.response_buffer {
+            assert_eq!(response_buffer.cursor_line, 10);
+        } else {
+            panic!("Response buffer should exist");
+        }
+    }
+
+    #[test]
+    fn app_state_expand_response_pane_should_not_clamp_cursor_when_within_bounds() {
+        let mut state = AppState::new((80, 24), false);
+        state.set_response("Test response".to_string());
+        state.request_pane_height = 10;
+
+        // Add some lines and position cursor within visible area
+        for i in 0..5 {
+            state.request_buffer.lines.push(format!("Line {}", i));
+        }
+        state.request_buffer.cursor_line = 3; // Well within visible area
+
+        state.expand_response_pane();
+
+        // Cursor should remain at original position since it's still visible
+        assert_eq!(state.request_buffer.cursor_line, 3);
+    }
+
+    #[test]
+    fn app_state_shrink_response_pane_should_not_clamp_cursor_when_within_bounds() {
+        let mut state = AppState::new((80, 24), false);
+        state.request_pane_height = 10;
+
+        // Create response buffer with moderate content
+        let response_buffer =
+            ResponseBuffer::new("Line 0\nLine 1\nLine 2\nLine 3\nLine 4".to_string());
+        let mut modified_response = response_buffer;
+        modified_response.cursor_line = 2; // Well within visible area
+        state.response_buffer = Some(modified_response);
+
+        state.shrink_response_pane();
+
+        // Cursor should remain at original position since it's still visible
+        if let Some(ref response_buffer) = state.response_buffer {
+            assert_eq!(response_buffer.cursor_line, 2);
+        } else {
+            panic!("Response buffer should exist");
+        }
+    }
+
+    #[test]
+    fn editor_mode_should_support_debug_and_clone_traits() {
+        let mode = EditorMode::Normal;
+        let cloned_mode = mode.clone();
+
+        assert_eq!(mode, cloned_mode);
+
+        let debug_str = format!("{:?}", mode);
+        assert!(debug_str.contains("Normal"));
+    }
+
+    #[test]
+    fn pane_should_support_copy_and_debug_traits() {
+        let pane = Pane::Request;
+        let copied_pane = pane;
+
+        assert_eq!(pane, copied_pane);
+
+        let debug_str = format!("{:?}", pane);
+        assert!(debug_str.contains("Request"));
+    }
+
+    #[test]
+    fn test_response_cache_updated_on_set_response() {
+        let mut state = AppState::new((80, 24), false);
+
+        // Set a response with a very long line that should wrap
+        let long_response = "HTTP/1.1 200 OK\nContent-Type: application/json\n\nThis is a very long line that should definitely wrap across multiple display lines when the terminal width is narrow and should properly demonstrate the wrapping functionality";
+        state.set_response(long_response.to_string());
+
+        // Verify that response buffer was created
+        assert!(state.response_buffer.is_some());
+
+        // Check that cache manager has response cache available
+        let cache = state.cache_manager.get_response_cache();
+
+        // The cache should be valid now since set_response calls update_response_cache
+        assert!(
+            cache.is_valid,
+            "Response cache should be valid after set_response"
+        );
+
+        // Should have more display lines than logical lines due to wrapping
+        if let Some(ref response_buffer) = state.response_buffer {
+            let logical_lines = response_buffer.lines.len();
+            assert!(
+                cache.total_display_lines >= logical_lines,
+                "Display lines ({}) should be >= logical lines ({})",
+                cache.total_display_lines,
+                logical_lines
+            );
+        }
+    }
+}

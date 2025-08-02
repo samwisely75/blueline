@@ -1,5 +1,4 @@
 name: Release
-
 on:
   push:
     branches:
@@ -9,16 +8,13 @@ on:
       tag:
         description: 'Tag to release'
         required: true
-        default: 'v0.1.0'
-
+        default: 'v0.2.0'
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-
 permissions:
   contents: write
   packages: write
-
 jobs:
   build:
     strategy:
@@ -27,178 +23,117 @@ jobs:
           # Windows
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            name: httpc-windows-x64
+            name: blueline-windows-x64
           
           # macOS
           - target: x86_64-apple-darwin
             os: macos-latest
-            name: httpc-macos-x64
+            name: blueline-macos-x64
           - target: aarch64-apple-darwin
             os: macos-latest
-            name: httpc-macos-arm64
+            name: blueline-macos-arm64
           
           # Linux
-          - target: x86_64-unknown-linux-musl  # Use musl for static linking and better compatibility
+          - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            name: httpc-linux-x64
-          - target: aarch64-unknown-linux-gnu  # Use GNU for better compatibility with dependencies
+            name: blueline-linux-x64
+          - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
-            name: httpc-linux-arm64
-
+            name: blueline-linux-arm64
     runs-on: ${{ matrix.os }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Install cross-compilation tools (Linux ARM64)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools
-
-      - name: Install musl tools for x86_64
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
-
+          sudo apt-get install -y gcc-aarch64-linux-gnu
       - name: Configure cross-compilation (Linux ARM64)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
-          rustup target add aarch64-unknown-linux-gnu
+          mkdir -p ~/.cargo
           echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
           echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
-
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
-
       - name: Prepare binary (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          cp target/${{ matrix.target }}/release/httpc.exe ${{ matrix.name }}.exe
-
+          cp target/${{ matrix.target }}/release/blueline.exe ${{ matrix.name }}.exe
       - name: Prepare binary (Unix)
         if: matrix.os != 'windows-latest'
         run: |
-          cp target/${{ matrix.target }}/release/httpc ${{ matrix.name }}
+          cp target/${{ matrix.target }}/release/blueline ${{ matrix.name }}
           chmod +x ${{ matrix.name }}
-
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.name }}${{ runner.os == 'Windows' && '.exe' || '' }}
           if-no-files-found: error
-
   build-packages:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Download Linux binary
         uses: actions/download-artifact@v4
         with:
-          name: httpc-linux-x64
+          name: blueline-linux-x64
           path: binaries/
-
       - name: Install packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y alien fakeroot gzip
-          
-          # Verify tools are available
-          which alien || echo "alien not found"
-          which fakeroot || echo "fakeroot not found"
-          which gzip || echo "gzip not found"
-          
-          # Show versions
-          alien --version
-          gzip --version
-
+          sudo apt-get install -y rpm alien fakeroot
       - name: Setup package structure
         run: |
-          chmod +x binaries/httpc-linux-x64
+          chmod +x binaries/blueline-linux-x64
           
           # Create directory structure for packaging
           mkdir -p packaging/usr/bin
           mkdir -p packaging/usr/share/man/man1
           mkdir -p packaging/DEBIAN
-          mkdir -p packaging/usr/share/doc/httpc
-          mkdir -p packaging/etc/httpc
+          mkdir -p packaging/usr/share/doc/blueline
           
           # Copy binary
-          cp binaries/httpc-linux-x64 packaging/usr/bin/httpc
-          
-          # Create profiles template
-          cat > packaging/etc/httpc/profiles.example << 'EOF'
-          # httpc Configuration Profiles
-          # Copy this file to ~/.httpc/profile and customize as needed
-
-          [default]
-          host = https://api.example.com
-          @content-type = application/json
-          @accept = application/json
-          # user = username
-          # password = password
-          # insecure = false
-          # ca_cert = /path/to/cert.pem
-
-          [local]
-          host = http://localhost:8080
-          @content-type = application/json
-
-          [staging]
-          host = https://staging-api.example.com
-          @content-type = application/json
-          @authorization = Bearer your-token-here
-          EOF
+          cp binaries/blueline-linux-x64 packaging/usr/bin/blueline
           
           # Create basic man page
-          cat > packaging/usr/share/man/man1/httpc.1 << 'EOF'
-          .TH HTTPC 1 "$(date +'%B %Y')" "httpc $(grep '^version' Cargo.toml | cut -d'"' -f2)" "User Commands"
+          cat > packaging/usr/share/man/man1/blueline.1 << 'EOF'
+          .TH BLUELINE 1 "$(date +'%B %Y')" "blueline $(grep '^version' Cargo.toml | cut -d'"' -f2)" "User Commands"
           .SH NAME
-          httpc \- A flexible HTTP client with profile support
+          blueline \- A lightweight, profile-based HTTP client with REPL interface
           .SH SYNOPSIS
-          .B httpc
-          [\fIOPTIONS\fR] \fIMETHOD\fR \fIURL\fR
+          .B blueline
+          [\fIOPTIONS\fR]
           .SH DESCRIPTION
-          \fBhttpc\fP is a flexible HTTP client that supports configuration profiles and various authentication methods.
+          \fBblueline\fP is a lightweight HTTP client with an interactive REPL interface that supports configuration profiles and vi-style navigation.
           .SH OPTIONS
           .TP
           \fB\-p, \-\-profile\fR \fIPROFILE\fR
-          Use the specified profile from ~/.httpc/profile
-          .TP
-          \fB\-H, \-\-header\fR \fIHEADER\fR
-          Add custom HTTP header
-          .TP
-          \fB\-d, \-\-data\fR \fIDATA\fR
-          Send data in request body
+          Use the specified profile (default: default)
           .TP
           \fB\-v, \-\-verbose\fR
           Enable verbose output
@@ -209,144 +144,86 @@ jobs:
           \fB\-V, \-\-version\fR
           Show version information
           .SH CONFIGURATION
-          Configuration profiles are stored in ~/.httpc/profile in INI format.
-          See /etc/httpc/profiles.example for configuration examples.
+          Configuration profiles are stored in ~/.blueline/profile in INI format.
           .SH EXAMPLES
           .TP
-          httpc GET https://api.example.com/users
+          blueline
+          Start the REPL with default profile
           .TP
-          httpc -p staging POST /api/data -d '{"key": "value"}'
+          blueline -p staging
+          Start the REPL with staging profile
           .TP
-          httpc -H "Authorization: Bearer token" GET /protected
+          blueline -v
+          Start the REPL with verbose output
           .SH AUTHOR
-          Written by Satoshi Iizuka.
+          Written by Sam Wisely.
           .SH REPORTING BUGS
-          Report bugs to: https://github.com/samwisely75/httpc/issues
+          Report bugs to: https://github.com/samwisely75/blueline/issues
           EOF
           
           # Compress man page
-          gzip packaging/usr/share/man/man1/httpc.1
+          gzip packaging/usr/share/man/man1/blueline.1
           
           # Create copyright file
-          cp LICENSE packaging/usr/share/doc/httpc/copyright
+          cp LICENSE packaging/usr/share/doc/blueline/copyright
           
           # Create changelog
-          echo "httpc ($(grep '^version' Cargo.toml | cut -d'"' -f2)) stable; urgency=medium" > packaging/usr/share/doc/httpc/changelog.Debian
-          echo "" >> packaging/usr/share/doc/httpc/changelog.Debian
-          echo "  * Release version $(grep '^version' Cargo.toml | cut -d'"' -f2)" >> packaging/usr/share/doc/httpc/changelog.Debian
-          echo "" >> packaging/usr/share/doc/httpc/changelog.Debian
-          echo " -- Satoshi Iizuka <satoshi.iizuka@elastic.co>  $(date -R)" >> packaging/usr/share/doc/httpc/changelog.Debian
+          echo "blueline ($(grep '^version' Cargo.toml | cut -d'"' -f2)) stable; urgency=medium" > packaging/usr/share/doc/blueline/changelog.Debian
+          echo "" >> packaging/usr/share/doc/blueline/changelog.Debian
+          echo "  * Release version $(grep '^version' Cargo.toml | cut -d'"' -f2)" >> packaging/usr/share/doc/blueline/changelog.Debian
+          echo "" >> packaging/usr/share/doc/blueline/changelog.Debian
+          echo " -- Sam Wisely <samwisely75@gmail.com>  $(date -R)" >> packaging/usr/share/doc/blueline/changelog.Debian
           
           # Compress changelog
-          gzip packaging/usr/share/doc/httpc/changelog.Debian
-
+          gzip packaging/usr/share/doc/blueline/changelog.Debian
       - name: Create DEB package
         run: |
           VERSION=$(grep '^version' Cargo.toml | cut -d'"' -f2)
           
           # Create DEBIAN control file
           cat > packaging/DEBIAN/control << EOF
-          Package: httpc
+          Package: blueline
           Version: ${VERSION}
           Section: utils
           Priority: optional
           Architecture: amd64
           Depends: libc6 (>= 2.17)
-          Maintainer: Satoshi Iizuka <satoshi.iizuka@elastic.co>
-          Description: A flexible HTTP client with profile support
-           httpc is a flexible HTTP client that supports configuration profiles,
-           various authentication methods, and custom headers. It's designed for
-           developers who need a powerful command-line HTTP client for testing
-           APIs and web services.
-          Homepage: https://github.com/samwisely75/httpc
+          Maintainer: Sam Wisely <samwisely75@gmail.com>
+          Description: A lightweight, profile-based HTTP client with REPL interface
+           blueline is a lightweight HTTP client with an interactive REPL interface
+           that supports configuration profiles and vi-style navigation. It's designed
+           for developers who need a powerful command-line HTTP client for testing
+           APIs and web services with an interactive interface.
+          Homepage: https://github.com/samwisely75/blueline
           EOF
           
-          # Create postinst script
-          cat > packaging/DEBIAN/postinst << 'EOF'
-          #!/bin/bash
-          set -e
-          
-          # Create httpc config directory if it doesn't exist
-          if [ ! -d "/etc/httpc" ]; then
-              mkdir -p /etc/httpc
-          fi
-          
-          # Check if user has a profile configuration
-          if [ ! -f "$HOME/.httpc/profile" ]; then
-              echo "================================================================"
-              echo "httpc has been installed successfully!"
-              echo ""
-              echo "To get started, you need to create a profile configuration:"
-              echo "1. Create the config directory: mkdir -p $HOME/.httpc"
-              echo "2. Copy the example: cp /etc/httpc/profiles.example $HOME/.httpc/profile"
-              echo "3. Edit the profile to configure your API endpoints"
-              echo ""
-              echo "For more information, see the README.md at:"
-              echo "https://github.com/samwisely75/httpc"
-              echo "================================================================"
-          fi
-          
-          exit 0
-          EOF
-          
+          # Create postinst script using the existing script
+          cp scripts/deb-postinstall.sh packaging/DEBIAN/postinst
           chmod +x packaging/DEBIAN/postinst
           
           # Build DEB package
-          fakeroot dpkg-deb --build packaging httpc_${VERSION}_amd64.deb
+          fakeroot dpkg-deb --build packaging blueline_${VERSION}_amd64.deb
           
           # Verify package
-          dpkg-deb --info httpc_${VERSION}_amd64.deb
-          dpkg-deb --contents httpc_${VERSION}_amd64.deb
-
-      - name: Create RPM package
-        run: |
-          VERSION=$(grep '^version' Cargo.toml | cut -d'"' -f2)
-          
-          # Convert DEB to RPM using alien (more reliable on Ubuntu than rpm-build)
-          echo "Converting DEB package to RPM using alien..."
-          
-          # alien requires the DEB file to exist
-          if [ ! -f "httpc_${VERSION}_amd64.deb" ]; then
-            echo "Error: DEB package not found"
-            exit 1
-          fi
-          
-          # Convert DEB to RPM
-          sudo alien --to-rpm --scripts httpc_${VERSION}_amd64.deb
-          
-          # Verify package was created
-          ls -la *.rpm
-          
-          # Verify package (these may fail but that's ok)
-          rpm -qip httpc-${VERSION}-*.rpm || echo "RPM info check failed, but package might still work"
-          rpm -qlp httpc-${VERSION}-*.rpm || echo "RPM contents check failed, but package might still work"
-
-      - name: Upload RPM package
-        uses: actions/upload-artifact@v4
-        with:
-          name: httpc-rpm-package
-          path: "*.rpm"
-          if-no-files-found: error
-
+          dpkg-deb --info blueline_${VERSION}_amd64.deb
+          dpkg-deb --contents blueline_${VERSION}_amd64.deb
       - name: Upload DEB package
         uses: actions/upload-artifact@v4
         with:
-          name: httpc-deb-package
+          name: blueline-deb-package
           path: "*.deb"
           if-no-files-found: error
-
   test-binaries:
     needs: build
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            binary: httpc-linux-x64
+            binary: blueline-linux-x64
           - os: macos-latest
-            binary: httpc-macos-x64
+            binary: blueline-macos-x64
           - os: windows-latest
-            binary: httpc-windows-x64
-
+            binary: blueline-windows-x64
     runs-on: ${{ matrix.os }}
     
     steps:
@@ -354,14 +231,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.binary }}
-
       - name: Test binary (Unix)
         if: matrix.os != 'windows-latest'
         run: |
           chmod +x ${{ matrix.binary }}
           ./${{ matrix.binary }} --version
           ./${{ matrix.binary }} --help
-
       - name: Test binary (Windows)
         if: matrix.os == 'windows-latest'
         shell: cmd
@@ -370,7 +245,6 @@ jobs:
           .\%BINARY%.exe --help
         env:
           BINARY: ${{ matrix.binary }}
-
   create-release:
     needs: [build, build-packages, test-binaries]
     runs-on: ubuntu-latest
@@ -379,7 +253,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Extract version from branch name
         id: extract_version
         run: |
@@ -392,7 +265,6 @@ jobs:
             echo "Error: Could not extract version from branch name: ${{ github.ref_name }}"
             exit 1
           fi
-
       - name: Create and push release tag
         run: |
           git config user.name "github-actions[bot]"
@@ -420,20 +292,16 @@ jobs:
           git tag "$TAG_NAME"
           git push origin "$TAG_NAME"
           echo "Created and pushed tag: $TAG_NAME"
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          find artifacts -name "httpc-*" -exec cp {} release-assets/ \;
+          find artifacts -name "blueline-*" -exec cp {} release-assets/ \;
           find artifacts -name "*.deb" -exec cp {} release-assets/ \;
-          find artifacts -name "*.rpm" -exec cp {} release-assets/ \;
           ls -la release-assets/
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -446,9 +314,10 @@ jobs:
             ## What's Changed
             
             * Cross-platform release for Windows, macOS, and Linux
-            * Linux packages available in DEB and RPM formats
-            * Configuration profiles support for API endpoints
-            * Flexible HTTP client with authentication support
+            * Linux packages available in DEB format
+            * Interactive REPL interface with vi-style navigation
+            * Profile-based configuration for API endpoints
+            * Integration with bluenote HTTP client library
             
             ## Installation
             
@@ -457,40 +326,28 @@ jobs:
             Download the appropriate binary for your platform from the assets below:
             
             ### Windows
-            - `httpc-windows-x64.exe` - Windows 64-bit (Intel/AMD)
+            - `blueline-windows-x64.exe` - Windows 64-bit (Intel/AMD)
             
             ### macOS
-            - `httpc-macos-x64` - macOS Intel (x64)
-            - `httpc-macos-arm64` - macOS Apple Silicon (M1/M2)
+            - `blueline-macos-x64` - macOS Intel (x64)
+            - `blueline-macos-arm64` - macOS Apple Silicon (M1/M2)
             
             ### Linux
-            - `httpc-linux-x64` - Linux 64-bit (Intel/AMD)
-            - `httpc-linux-arm64` - Linux ARM64
-            - `httpc_*_amd64.deb` - Debian/Ubuntu package
-            - `httpc-*.rpm` - Red Hat/Fedora/CentOS package
+            - `blueline-linux-x64` - Linux 64-bit (Intel/AMD)
+            - `blueline-linux-arm64` - Linux ARM64
+            - `blueline_*_amd64.deb` - Debian/Ubuntu package
             
             ### Using Package Managers (Linux)
             
             **Debian/Ubuntu (.deb):**
             ```bash
             # Download the .deb file from assets below, then:
-            sudo dpkg -i httpc_*_amd64.deb
-            ```
-            
-            **Red Hat/Fedora/CentOS (.rpm):**
-            ```bash
-            # Download the .rpm file from assets below, then:
-            sudo rpm -i httpc-*.rpm
-            # Or with DNF/YUM:
-            sudo dnf install httpc-*.rpm
-            sudo yum install httpc-*.rpm
+            sudo dpkg -i blueline_*_amd64.deb
             ```
             
             ## Configuration
             
-            httpc uses configuration profiles stored in `~/.httpc/profile`. The package installation will create an example file at:
-            - Linux: `/etc/httpc/profiles.example`
-            - Copy this to `~/.httpc/profile` and customize as needed
+            blueline uses configuration profiles managed by the bluenote library. Profiles are stored in `~/.blueline/profile` in INI format.
             
             Example profile configuration:
             ```ini
@@ -507,21 +364,25 @@ jobs:
             ## Usage
             
             ```bash
-            # Basic usage
-            httpc GET https://api.example.com/users
+            # Start REPL with default profile
+            blueline
             
-            # Using a profile
-            httpc -p local GET /api/data
+            # Using a specific profile
+            blueline -p staging
             
-            # With custom headers
-            httpc -H "Authorization: Bearer token" GET /protected
-            
-            # POST with data
-            httpc POST /api/data -d '{"key": "value"}'
+            # With verbose output
+            blueline -v
             ```
+            
+            ## Interactive REPL
+            
+            Once in the REPL interface, you can:
+            - Type HTTP requests directly (e.g., `GET /api/users`)
+            - Use vi-style navigation commands
+            - Switch between request and response panes
+            - View formatted JSON responses
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   publish-homebrew:
     name: Publish to Homebrew
     runs-on: macos-latest
@@ -537,54 +398,42 @@ jobs:
             echo "Error: Could not extract version from branch name: ${{ github.ref_name }}"
             exit 1
           fi
-
       - name: Checkout homebrew tap
         uses: actions/checkout@v4
         with:
           repository: samwisely75/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
-
       - name: Update formula
         working-directory: homebrew-tap
         run: |
           VERSION=${{ steps.extract_version.outputs.version }}
           TAG="v${VERSION}"
           
-          # Calculate SHA256 values for the binaries (use shasum on macOS)
-          echo "Calculating SHA256 for macOS ARM64..."
-          ARM64_SHA256=$(curl -sSL https://github.com/samwisely75/httpc/releases/download/${TAG}/httpc-macos-arm64 | shasum -a 256 | cut -d ' ' -f 1)
-          echo "ARM64 SHA256: $ARM64_SHA256"
-          
-          echo "Calculating SHA256 for macOS Intel..."
-          INTEL_SHA256=$(curl -sSL https://github.com/samwisely75/httpc/releases/download/${TAG}/httpc-macos-x64 | shasum -a 256 | cut -d ' ' -f 1)
-          echo "Intel SHA256: $INTEL_SHA256"
-          
           # Create or update the formula
-          cat > Formula/httpc.rb << EOF
-          class Httpc < Formula
-            desc "A flexible HTTP client with profile support"
-            homepage "https://github.com/samwisely75/httpc"
+          cat > Formula/blueline.rb << EOF
+          class Blueline < Formula
+            desc "A lightweight, profile-based HTTP client with REPL interface"
+            homepage "https://github.com/samwisely75/blueline"
             version "${VERSION}"
             license "Elastic-2.0"
-
             on_macos do
               on_arm do
-                url "https://github.com/samwisely75/httpc/releases/download/${TAG}/httpc-macos-arm64"
-                sha256 "${ARM64_SHA256}"
+                url "https://github.com/samwisely75/blueline/releases/download/${TAG}/blueline-macos-arm64"
+                sha256 "$(curl -L https://github.com/samwisely75/blueline/releases/download/${TAG}/blueline-macos-arm64 | sha256sum | cut -d ' ' -f 1)"
               end
               on_intel do
-                url "https://github.com/samwisely75/httpc/releases/download/${TAG}/httpc-macos-x64"
-                sha256 "${INTEL_SHA256}"
+                url "https://github.com/samwisely75/blueline/releases/download/${TAG}/blueline-macos-x64"
+                sha256 "$(curl -L https://github.com/samwisely75/blueline/releases/download/${TAG}/blueline-macos-x64 | sha256sum | cut -d ' ' -f 1)"
               end
             end
           
             def install
-              bin.install Dir["*"].first => "httpc"
+              bin.install Dir["*"].first => "blueline"
             end
           
             test do
-              assert_match "httpc #{version}", shell_output("#{bin}/httpc --version")
+              assert_match "blueline #{version}", shell_output("#{bin}/blueline --version")
             end
           end
           EOF
@@ -592,43 +441,13 @@ jobs:
           # Commit and push the changes
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/httpc.rb
-          
-          # Only commit if there are changes
+          git add Formula/blueline.rb
           if git diff --cached --quiet; then
-            echo "No changes to commit - formula is already up to date"
+            echo "No changes to commit"
           else
-            git commit -m "httpc ${VERSION}"
+            git commit -m "blueline ${VERSION}"
             git push
-            echo "Successfully updated homebrew formula"
           fi
-
-  # publish-crates-io:
-  #   name: Publish to Crates.io
-  #   runs-on: ubuntu-latest
-  #   needs: create-release
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-
-  #     - name: Setup Rust
-  #       uses: dtolnay/rust-toolchain@stable
-
-  #     - name: Cache cargo registry
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: ~/.cargo/registry
-  #         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-
-  #     - name: Cache cargo index
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: ~/.cargo/git
-  #         key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-
-  #     - name: Publish to crates.io
-  #       run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
-
   merge-to-main:
     name: Merge Release to Main
     runs-on: ubuntu-latest
@@ -640,12 +459,10 @@ jobs:
       with:
         fetch-depth: 0  # Need full history for merge
         token: ${{ secrets.GITHUB_TOKEN }}
-
     - name: Configure git
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-
     - name: Merge release to main
       run: |
         # Determine the source branch
@@ -667,7 +484,6 @@ jobs:
           git push origin main
           echo "✅ Successfully merged release to main"
         fi
-
     - name: Update develop branch
       run: |
         # Also merge any release changes back to develop to keep it up to date
@@ -683,7 +499,6 @@ jobs:
           git push origin develop
           echo "✅ Successfully updated develop branch"
         fi
-
     - name: Clean up release branch
       if: startsWith(github.ref, 'refs/heads/release/')
       run: |

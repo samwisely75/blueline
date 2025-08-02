@@ -1,24 +1,24 @@
 #!/bin/bash
-# Setup script for blueline - creates initial ~/.blueline/profile configuration
+# Setup script for blueline - creates initial profile configuration
 
 set -e
 
-# Create blueline config directory
+# Use the default profile path expected by bluenote library  
 CONFIG_DIR="$HOME/.blueline"
 PROFILE_PATH="$CONFIG_DIR/profile"
 
 # Create directory if it doesn't exist
 if [ ! -d "$CONFIG_DIR" ]; then
     mkdir -p "$CONFIG_DIR"
-    echo "Created blueline config directory: $CONFIG_DIR"
+    echo "Created config directory: $CONFIG_DIR"
 fi
 
 # Create initial profile file if it doesn't exist
 if [ ! -f "$PROFILE_PATH" ]; then
     cat > "$PROFILE_PATH" << 'EOF'
-# blueline profile Configuration
+# HTTP Client Profile Configuration
 # 
-# This file contains profile definitions for the blueline HTTP client.
+# This file contains profile definitions for HTTP client requests.
 # Each profile section defines connection settings and default headers.
 #
 # Example profile:
