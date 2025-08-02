@@ -187,7 +187,7 @@ pub fn init_real_application(&mut self) -> Result<()> {
 
 ### Directory Organization
 
-```
+```text
 tests/
 ├── integration_tests.rs          # Main test runner with sequential execution
 ├── common/
@@ -306,7 +306,7 @@ pub fn get_terminal_state(&mut self) -> TerminalState {
 - **17 integration features** work perfectly (94.4% coverage):
   - Application Configuration (2/2 scenarios)
   - Command Line Operations (3/7 scenarios, 4 skipped)
-  - Double-byte Character Rendering (2/3 scenarios, 1 skipped) 
+  - Double-byte Character Rendering (2/3 scenarios, 1 skipped)
   - Integration Tests (1/1 scenario)
   - Mode Transitions (3/3 scenarios)
   - Navigation Commands (19/19 scenarios)
