@@ -49,12 +49,15 @@ pub use common::world::BluelineWorld;
 /// Run with: cargo test --test integration_tests
 #[tokio::main]
 async fn main() {
+    eprintln!("DEBUG: main() started - about to initialize tracing");
+
     // Initialize tracing for debug output in CI
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .with_writer(std::io::stderr)
         .init();
 
+    eprintln!("DEBUG: tracing initialized successfully");
     eprintln!("🚀 Running integration tests (CI compatible via EventSource abstraction)");
 
     // Integration tests now work in CI environments thanks to EventSource abstraction
@@ -94,6 +97,8 @@ async fn main() {
 /// - Terminal output capture is reset
 ///
 async fn run_features_sequentially() {
+    eprintln!("DEBUG: run_features_sequentially started");
+
     let features = [
         "features/application.feature",
         "features/command_line.feature",
@@ -116,17 +121,32 @@ async fn run_features_sequentially() {
     ];
 
     // Run all 18 features - 100% coverage achieved! 🎉
+    eprintln!(
+        "DEBUG: About to run {} feature files sequentially",
+        features.len()
+    );
     println!(
         "Running {} feature files sequentially (100% coverage!)...",
         features.len()
     );
 
     for (i, feature) in features.iter().enumerate() {
+        eprintln!(
+            "DEBUG: Starting feature {}/{}: {}",
+            i + 1,
+            features.len(),
+            feature
+        );
         println!("\n[{}/{}] Running {feature}...", i + 1, features.len());
+
+        eprintln!("DEBUG: About to call BluelineWorld::run({feature})");
         BluelineWorld::run(feature).await;
+        eprintln!("DEBUG: BluelineWorld::run({feature}) completed");
+
         println!("✓ {feature} completed successfully");
     }
 
+    eprintln!("DEBUG: All features completed successfully");
     println!("\n🎉 All feature files completed successfully!");
 }
 

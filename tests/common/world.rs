@@ -277,6 +277,7 @@ impl BluelineWorld {
     }
 
     pub fn new() -> Self {
+        eprintln!("DEBUG: BluelineWorld::new() called - creating fresh world instance");
         println!("🔍 BluelineWorld::new() called - creating fresh world instance");
 
         let world = Self {
