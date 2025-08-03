@@ -704,22 +704,9 @@ impl<E: EventSource, W: Write> AppController<E, W> {
                 }
                 eprintln!("DEBUG AppController: All command events applied successfully");
 
-                // Render after processing events (skip in test mode to prevent hangs)
-                // In test mode, the VteWriter might cause rendering to hang
-                #[cfg(not(test))]
-                {
-                    eprintln!("DEBUG AppController: About to render_full (production mode)");
-                    self.view_renderer.render_full(&self.view_model)?;
-                    eprintln!("DEBUG AppController: render_full completed");
-                }
-                #[cfg(test)]
-                {
-                    eprintln!(
-                        "DEBUG AppController: Skipping full render in test mode to prevent hangs"
-                    );
-                    // In test mode, just capture some minimal output to satisfy VTE
-                    tracing::debug!("Skipping full render in test mode to prevent hangs");
-                }
+                // Always render - tests need output for verification
+                // The hang issue will be fixed in the terminal renderer itself
+                self.view_renderer.render_full(&self.view_model)?;
             } else {
                 eprintln!("DEBUG AppController: No command events generated");
             }
