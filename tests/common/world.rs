@@ -803,8 +803,15 @@ impl BluelineWorld {
                 )
             };
 
+            // CRITICAL: Add the key event to the TestEventSource before processing
+            // This prevents hangs if the AppController internally tries to read from the event source
+            eprintln!("DEBUG: type_text adding key event to TestEventSource: {key_event:?}");
+            self.event_source.push_event(Event::Key(key_event));
+
             if let Some(app_controller) = &mut self.app_controller {
+                eprintln!("DEBUG: type_text calling process_key_event for: {key_event:?}");
                 app_controller.process_key_event(key_event).await?;
+                eprintln!("DEBUG: type_text process_key_event completed for: {key_event:?}");
             } else {
                 return Err(anyhow::anyhow!("AppController not initialized"));
             }
