@@ -30,9 +30,15 @@
 //!
 //! ## Usage Pattern
 //!
-//! ```rust
+//! ```rust,no_run
+//! use blueline::{AppController, TestEventSource};
+//! use blueline::cmd_args::CommandLineArgs;
+//! use crossterm::event::{Event, KeyEvent, KeyCode, KeyModifiers};
+//!
+//! let cmd_args = CommandLineArgs::parse_from(["test"]);
+//!
 //! // Production
-//! let app_controller = AppController::new(cmd_args); // Uses TerminalEventSource
+//! let app_controller = AppController::new(cmd_args.clone()); // Uses TerminalEventSource
 //!
 //! // Testing  
 //! let test_events = TestEventSource::with_events(vec![

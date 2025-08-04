@@ -15,9 +15,8 @@ mod pane_state;
 mod rendering_coordinator;
 mod screen_buffer;
 
-// Tests temporarily disabled during refactoring
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 // Re-export the main ViewModel
 pub use core::ViewModel;

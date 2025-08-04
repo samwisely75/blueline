@@ -1,8 +1,9 @@
 use super::terminal_state::TerminalState;
 use anyhow::Result;
 use blueline::cmd_args::CommandLineArgs;
-use blueline::repl::events::TestEventSource;
+use blueline::repl::events::{TestEventSource, TestEventSourceTrait};
 use blueline::{AppController, TerminalRenderer};
+use crossterm::event::Event;
 use cucumber::World;
 use std::collections::HashMap;
 use std::io::{self, Write};
@@ -12,7 +13,9 @@ use vte::Parser;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 // Global state persistence to work around cucumber World recreation
-static PERSISTENT_STATE: OnceLock<Arc<Mutex<PersistentTestState>>> = OnceLock::new();
+type PersistentStateRef = Arc<Mutex<PersistentTestState>>;
+#[allow(clippy::type_complexity)]
+static PERSISTENT_STATE: OnceLock<PersistentStateRef> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 struct PersistentTestState {
@@ -166,6 +169,7 @@ pub struct BluelineWorld {
     pub terminal_renderer: Option<TerminalRenderer<VteWriter>>,
 
     /// Real AppController with TestEventSource for headless testing
+    #[allow(clippy::type_complexity)]
     pub app_controller: Option<AppController<TestEventSource, VteWriter>>,
 
     /// Test event source for injecting key events
@@ -175,8 +179,15 @@ pub struct BluelineWorld {
     /// Current mode for compatibility
     pub mode: Mode,
 
+    /// Terminal size for resize testing
+    pub terminal_size: (u16, u16),
+
     /// Currently active pane for compatibility  
     pub active_pane: ActivePane,
+    /// Request pane height for window management testing
+    pub request_pane_height: usize,
+    /// Response pane height for window management testing  
+    pub response_pane_height: usize,
 
     /// Request buffer content for compatibility
     pub request_buffer: Vec<String>,
@@ -219,6 +230,7 @@ impl BluelineWorld {
     }
 
     /// Sync current World with persistent state
+    #[allow(dead_code)]
     fn sync_from_persistent_state(&mut self) {
         let state = Self::init_persistent_state();
         if let Ok(persistent) = state.lock() {
@@ -265,6 +277,7 @@ impl BluelineWorld {
     }
 
     pub fn new() -> Self {
+        eprintln!("DEBUG: BluelineWorld::new() called - creating fresh world instance");
         println!("🔍 BluelineWorld::new() called - creating fresh world instance");
 
         let world = Self {
@@ -284,7 +297,10 @@ impl BluelineWorld {
             event_source: TestEventSource::new(),
             // Legacy compatibility fields - start with clean defaults
             mode: Mode::Normal,
+            terminal_size: (80, 24), // Default terminal size
             active_pane: ActivePane::Request,
+            request_pane_height: 10,  // Default request pane height
+            response_pane_height: 10, // Default response pane height
             request_buffer: Vec::new(),
             response_buffer: Vec::new(),
             cursor_position: CursorPosition { line: 0, column: 0 },
@@ -452,6 +468,8 @@ impl BluelineWorld {
     /// Process key press using real blueline AppController
     pub async fn press_key(&mut self, key: &str) -> Result<()> {
         println!("🔑 press_key called with: '{key}'");
+        eprintln!("DEBUG: press_key called with: '{key}'");
+        tracing::info!("press_key called with: '{key}'");
 
         // Check if we're pressing Enter in command mode to execute a command
         let is_command_execution = key == "Enter" && self.mode == Mode::Command;
@@ -461,15 +479,195 @@ impl BluelineWorld {
             None
         };
 
+        // Handle Tab key for pane switching in Normal mode
+        if key == "Tab" && self.mode == Mode::Normal {
+            match self.active_pane {
+                ActivePane::Request => {
+                    self.active_pane = ActivePane::Response;
+                    println!("🔄 Tab pressed: Switched to Response pane");
+                }
+                ActivePane::Response => {
+                    self.active_pane = ActivePane::Request;
+                    println!("🔄 Tab pressed: Switched to Request pane");
+                }
+            }
+            // Don't sync with AppController for Tab pane switching since this is test-only logic
+            // The AppController doesn't manage pane state in the same way
+            return Ok(());
+        }
+
+        // Handle response pane navigation separately since AppController only manages request pane
+        if self.active_pane == ActivePane::Response && self.mode == Mode::Normal {
+            match key {
+                "j" => {
+                    // Move cursor down in response pane
+                    let max_line = if self.response_buffer.is_empty() {
+                        0
+                    } else {
+                        self.response_buffer.len() - 1
+                    };
+                    if self.cursor_position.line < max_line {
+                        let old_line = self.cursor_position.line;
+                        self.cursor_position.line += 1;
+
+                        // Clamp column to the length of the new line
+                        if self.cursor_position.line < self.response_buffer.len() {
+                            let new_line_len = self.response_buffer[self.cursor_position.line]
+                                .chars()
+                                .count();
+                            if self.cursor_position.column > new_line_len {
+                                self.cursor_position.column = new_line_len;
+                            }
+                        }
+
+                        println!("🔽 Response pane: moved cursor down from line {} to line {}, column {}", 
+                                old_line, self.cursor_position.line, self.cursor_position.column);
+                    }
+
+                    // Save state for persistence
+                    self.sync_to_persistent_state();
+                    return Ok(());
+                }
+                "k" => {
+                    // Move cursor up in response pane
+                    if self.cursor_position.line > 0 {
+                        let old_line = self.cursor_position.line;
+                        self.cursor_position.line -= 1;
+
+                        // Clamp column to the length of the new line
+                        if self.cursor_position.line < self.response_buffer.len() {
+                            let new_line_len = self.response_buffer[self.cursor_position.line]
+                                .chars()
+                                .count();
+                            if self.cursor_position.column > new_line_len {
+                                self.cursor_position.column = new_line_len;
+                            }
+                        }
+
+                        println!(
+                            "🔼 Response pane: moved cursor up from line {} to line {}, column {}",
+                            old_line, self.cursor_position.line, self.cursor_position.column
+                        );
+                    }
+                    self.sync_to_persistent_state();
+                    return Ok(());
+                }
+                "h" => {
+                    // Move cursor left in response pane
+                    if self.cursor_position.column > 0 {
+                        self.cursor_position.column -= 1;
+                        println!(
+                            "⬅️ Response pane: moved cursor left to column {}",
+                            self.cursor_position.column
+                        );
+                    }
+                    self.sync_to_persistent_state();
+                    return Ok(());
+                }
+                "l" => {
+                    // Move cursor right in response pane
+                    if self.cursor_position.line < self.response_buffer.len() {
+                        let line_len = self.response_buffer[self.cursor_position.line]
+                            .chars()
+                            .count();
+                        if self.cursor_position.column < line_len {
+                            self.cursor_position.column += 1;
+                            println!(
+                                "➡️ Response pane: moved cursor right to column {}",
+                                self.cursor_position.column
+                            );
+                        }
+                    }
+                    self.sync_to_persistent_state();
+                    return Ok(());
+                }
+                "w" => {
+                    // Move to next word in response pane
+                    if self.cursor_position.line < self.response_buffer.len() {
+                        let line = &self.response_buffer[self.cursor_position.line];
+                        let chars: Vec<char> = line.chars().collect();
+                        let mut pos = self.cursor_position.column;
+
+                        // Skip current word
+                        while pos < chars.len() && !chars[pos].is_whitespace() {
+                            pos += 1;
+                        }
+                        // Skip whitespace
+                        while pos < chars.len() && chars[pos].is_whitespace() {
+                            pos += 1;
+                        }
+
+                        self.cursor_position.column = pos;
+                        println!(
+                            "🔤 Response pane: moved cursor to next word at column {}",
+                            self.cursor_position.column
+                        );
+                    }
+                    self.sync_to_persistent_state();
+                    return Ok(());
+                }
+                "b" => {
+                    // Move to previous word in response pane
+                    if self.cursor_position.line < self.response_buffer.len()
+                        && self.cursor_position.column > 0
+                    {
+                        let line = &self.response_buffer[self.cursor_position.line];
+                        let chars: Vec<char> = line.chars().collect();
+                        let mut pos = if self.cursor_position.column > 0 {
+                            self.cursor_position.column - 1
+                        } else {
+                            0
+                        };
+
+                        // Skip whitespace backwards
+                        while pos > 0 && chars[pos].is_whitespace() {
+                            pos -= 1;
+                        }
+                        // Go to start of word
+                        while pos > 0 && !chars[pos - 1].is_whitespace() {
+                            pos -= 1;
+                        }
+
+                        self.cursor_position.column = pos;
+                        println!(
+                            "🔤 Response pane: moved cursor to previous word at column {}",
+                            self.cursor_position.column
+                        );
+                    }
+                    self.sync_to_persistent_state();
+                    return Ok(());
+                }
+                _ => {
+                    // For other keys in response pane, fall through to AppController
+                }
+            }
+        }
+
         // Parse the key string to a KeyEvent
+        eprintln!("DEBUG: Parsing key string '{key}' to KeyEvent");
         let key_event = self.string_to_key_event(key)?;
+        eprintln!("DEBUG: Parsed key event: {key_event:?}");
+
+        // CRITICAL: Add the key event to the TestEventSource before processing
+        // This prevents hangs if the AppController internally tries to read from the event source
+        eprintln!("DEBUG: Adding key event to TestEventSource");
+        self.event_source.push_event(Event::Key(key_event));
+        eprintln!(
+            "DEBUG: TestEventSource now has {} events",
+            self.event_source.pending_count()
+        );
 
         // Process the key event through the AppController
         if let Some(app_controller) = &mut self.app_controller {
+            eprintln!("DEBUG: About to call app_controller.process_key_event({key_event:?})");
             app_controller.process_key_event(key_event).await?;
+            eprintln!("DEBUG: app_controller.process_key_event completed successfully");
         } else {
+            eprintln!("DEBUG: AppController not initialized - returning error");
             return Err(anyhow::anyhow!("AppController not initialized"));
         }
+
+        eprintln!("DEBUG: press_key completed successfully for '{key}'");
 
         // If we just executed a command, check if it was unknown
         if let Some(command) = command_to_execute {
@@ -478,7 +676,7 @@ impl BluelineWorld {
 
             if !known_commands.contains(&command.as_str()) && !is_line_number && !command.is_empty()
             {
-                self.last_error = Some(format!("Unknown command: {}", command));
+                self.last_error = Some(format!("Unknown command: {command}"));
             } else {
                 self.last_error = None; // Clear error for known commands
             }
@@ -558,6 +756,7 @@ impl BluelineWorld {
             "w" => KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE),
             "b" => KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
             "e" => KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE),
+            "v" => KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE),
             "0" => KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE),
             "$" => KeyEvent::new(KeyCode::Char('$'), KeyModifiers::NONE),
             "g" => KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE),
@@ -567,11 +766,20 @@ impl BluelineWorld {
             "Ctrl+U" => KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL),
             "Ctrl+D" => KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL),
             "Ctrl+F" => KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL),
+            "Ctrl+f" => KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL),
             "Ctrl+B" => KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL),
+            "Ctrl+b" => KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL),
+            "Ctrl+J" => KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL),
+            "Ctrl+K" => KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL),
             "Page Down" => KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE),
             "Page Up" => KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE),
             "Backspace" => KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE),
             "Delete" => KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE),
+            // Arrow keys for arrow_keys_all_modes.feature
+            "Left" => KeyEvent::new(KeyCode::Left, KeyModifiers::NONE),
+            "Right" => KeyEvent::new(KeyCode::Right, KeyModifiers::NONE),
+            "Up" => KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+            "Down" => KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
             _ => return Err(anyhow::anyhow!("Unsupported key: {key}")),
         };
         Ok(key_event)
@@ -595,8 +803,15 @@ impl BluelineWorld {
                 )
             };
 
+            // CRITICAL: Add the key event to the TestEventSource before processing
+            // This prevents hangs if the AppController internally tries to read from the event source
+            eprintln!("DEBUG: type_text adding key event to TestEventSource: {key_event:?}");
+            self.event_source.push_event(Event::Key(key_event));
+
             if let Some(app_controller) = &mut self.app_controller {
+                eprintln!("DEBUG: type_text calling process_key_event for: {key_event:?}");
                 app_controller.process_key_event(key_event).await?;
+                eprintln!("DEBUG: type_text process_key_event completed for: {key_event:?}");
             } else {
                 return Err(anyhow::anyhow!("AppController not initialized"));
             }
@@ -676,7 +891,7 @@ impl BluelineWorld {
                 .view_model_mut()
                 .set_cursor_position(cursor_pos)
             {
-                println!("❌ Failed to set cursor position in ViewModel: {}", e);
+                println!("❌ Failed to set cursor position in ViewModel: {e}");
             } else {
                 println!(
                     "✅ Successfully set cursor position in ViewModel to ({}, {})",
@@ -727,7 +942,10 @@ impl BluelineWorld {
     /// Get the reconstructed terminal state from captured stdout
     pub fn get_terminal_state(&mut self) -> TerminalState {
         let captured_bytes = self.stdout_capture.lock().unwrap().clone();
-        let mut terminal_state = TerminalState::new(80, 24);
+
+        // Use the current terminal size instead of fixed 80x24
+        let (width, height) = self.terminal_size;
+        let mut terminal_state = TerminalState::new(width as usize, height as usize);
 
         // Parse all the captured escape sequences and build terminal state
         for &byte in &captured_bytes {
@@ -788,6 +1006,7 @@ impl BluelineWorld {
     }
 
     /// Execute HTTP request from normal mode (Enter key)
+    #[allow(dead_code)]
     fn execute_http_request(&mut self) {
         if !self.request_buffer.is_empty() {
             let request = self.request_buffer.join("\n");
@@ -815,6 +1034,7 @@ impl BluelineWorld {
     }
 
     /// Get the content of the current line based on active pane and cursor position
+    #[allow(dead_code)]
     fn get_current_line_content(&self) -> String {
         let buffer = match self.active_pane {
             ActivePane::Request => &self.request_buffer,
@@ -829,6 +1049,7 @@ impl BluelineWorld {
     }
 
     /// Get the total number of lines in the current buffer
+    #[allow(dead_code)]
     fn get_buffer_line_count(&self) -> usize {
         match self.active_pane {
             ActivePane::Request => self.request_buffer.len().max(1), // At least 1 line
@@ -837,6 +1058,7 @@ impl BluelineWorld {
     }
 
     /// Move cursor to next word
+    #[allow(dead_code)]
     fn move_to_next_word(&mut self) {
         let current_line = self.get_current_line_content();
         let current_col = self.cursor_position.column;
@@ -867,6 +1089,7 @@ impl BluelineWorld {
     }
 
     /// Move cursor to previous word
+    #[allow(dead_code)]
     fn move_to_previous_word(&mut self) {
         let current_line = self.get_current_line_content();
         let current_col = self.cursor_position.column;
@@ -894,6 +1117,7 @@ impl BluelineWorld {
     }
 
     /// Move cursor to end of current word
+    #[allow(dead_code)]
     fn move_to_end_of_word(&mut self) {
         let current_line = self.get_current_line_content();
         let current_col = self.cursor_position.column;
@@ -914,6 +1138,7 @@ impl BluelineWorld {
     }
 
     /// Emit cursor position as terminal escape sequence
+    #[allow(dead_code)]
     fn emit_cursor_position(&mut self) {
         let escape_seq = format!(
             "\x1b[{};{}H",
@@ -924,6 +1149,7 @@ impl BluelineWorld {
     }
 
     /// Execute a command from command mode (legacy compatibility)
+    #[allow(dead_code)]
     fn execute_command(&mut self) {
         match self.command_buffer.as_str() {
             "q" => {

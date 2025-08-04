@@ -667,33 +667,54 @@ impl<E: EventSource, W: Write> AppController<E, W> {
     /// Process a single key event without running the full event loop (for testing)
     pub async fn process_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         tracing::debug!("Processing key event: {:?}", key_event);
+        eprintln!("DEBUG AppController: process_key_event called with {key_event:?}");
 
         // Create command context from current state
+        eprintln!("DEBUG AppController: Creating command context");
         let context = CommandContext::new(ViewModelSnapshot::from_view_model(&self.view_model));
+        eprintln!("DEBUG AppController: Command context created");
 
         // Process through command registry
+        eprintln!("DEBUG AppController: About to call command_registry.process_event");
         if let Ok(events) = self.command_registry.process_event(key_event, &context) {
+            eprintln!(
+                "DEBUG AppController: Command events generated: {} events",
+                events.len()
+            );
             tracing::debug!("Command events generated: {:?}", events);
             if !events.is_empty() {
                 // Apply events to view model (this will emit appropriate ViewEvents)
-                for event in events {
-                    self.apply_command_event(event).await?;
+                eprintln!(
+                    "DEBUG AppController: About to apply {} command events",
+                    events.len()
+                );
+                for (i, event) in events.iter().enumerate() {
+                    eprintln!(
+                        "DEBUG AppController: Applying event {}/{}: {:?}",
+                        i + 1,
+                        events.len(),
+                        event
+                    );
+                    self.apply_command_event(event.clone()).await?;
+                    eprintln!(
+                        "DEBUG AppController: Applied event {}/{} successfully",
+                        i + 1,
+                        events.len()
+                    );
                 }
+                eprintln!("DEBUG AppController: All command events applied successfully");
 
-                // Render after processing events (skip in test mode to prevent hangs)
-                // In test mode, the VteWriter might cause rendering to hang
-                #[cfg(not(test))]
-                {
-                    self.view_renderer.render_full(&self.view_model)?;
-                }
-                #[cfg(test)]
-                {
-                    // In test mode, just capture some minimal output to satisfy VTE
-                    tracing::debug!("Skipping full render in test mode to prevent hangs");
-                }
+                // Always render - tests need output for verification
+                // The hang issue will be fixed in the terminal renderer itself
+                self.view_renderer.render_full(&self.view_model)?;
+            } else {
+                eprintln!("DEBUG AppController: No command events generated");
             }
+        } else {
+            eprintln!("DEBUG AppController: Failed to process key event: {key_event:?}");
         }
 
+        eprintln!("DEBUG AppController: process_key_event completed successfully");
         Ok(())
     }
 
