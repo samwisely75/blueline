@@ -31,5 +31,8 @@ pub mod cmd_args;
 pub mod config;
 pub mod repl;
 
+#[cfg(test)]
+mod test_single_line_response;
+
 // Re-export main types for easy access
 pub use repl::*;
