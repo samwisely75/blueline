@@ -15,6 +15,7 @@ pub mod views;
 // Re-export core types
 pub use controllers::AppController;
 pub use events::*;
+pub use geometry::*;
 pub use utils::*;
 pub use view_models::*;
 pub use views::*;
