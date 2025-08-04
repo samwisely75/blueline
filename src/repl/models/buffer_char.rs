@@ -3,6 +3,11 @@
 //! Provides a unified representation for characters that tracks both logical
 //! and display properties, solving the single-byte/double-byte positioning problem.
 
+use crate::text::word_segmenter::{WordBoundaries, WordSegmenter, WordSegmenterFactory};
+
+/// Type alias for boxed word segmenter to improve readability
+type BoxedWordSegmenter = Option<Box<dyn WordSegmenter>>;
+
 /// Check if a character is an ideographic character (CJK and similar scripts)
 pub fn is_ideographic_character(ch: char) -> bool {
     let code = ch as u32;
@@ -46,24 +51,33 @@ pub struct BufferChar {
     pub ch: char,
     /// Logical position in the character sequence (0-based)
     pub logical_index: usize,
+    /// Byte offset of this character in the UTF-8 string
+    pub byte_offset: usize,
     /// Byte length of this character in UTF-8 (1-4 bytes)
     pub byte_length: usize,
     /// Logical length (always 1 for any character)
     pub logical_length: usize,
     /// Whether this character is selected (for visual mode)
     pub selected: bool,
+    /// Whether this character starts a word (from ICU segmentation)
+    pub is_word_start: bool,
+    /// Whether this character ends a word (from ICU segmentation)
+    pub is_word_end: bool,
 }
 
 impl BufferChar {
     /// Create a new BufferChar
-    pub fn new(ch: char, logical_index: usize) -> Self {
+    pub fn new(ch: char, logical_index: usize, byte_offset: usize) -> Self {
         let byte_length = ch.len_utf8();
         Self {
             ch,
             logical_index,
+            byte_offset,
             byte_length,
             logical_length: 1, // Always 1 for any character
             selected: false,
+            is_word_start: false, // Will be set by word segmentation
+            is_word_end: false,   // Will be set by word segmentation
         }
     }
 
@@ -106,24 +120,35 @@ impl BufferChar {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BufferLine {
     chars: Vec<BufferChar>,
+    /// Cached word boundaries relative to this line's start
+    /// None means boundaries need to be calculated
+    word_boundaries_cache: Option<WordBoundaries>,
 }
 
 impl BufferLine {
     /// Create an empty BufferLine
     pub fn new() -> Self {
-        Self { chars: Vec::new() }
+        Self {
+            chars: Vec::new(),
+            word_boundaries_cache: None,
+        }
     }
 
     /// Create a BufferLine from a string
     pub fn from_string(text: &str) -> Self {
         let mut chars = Vec::new();
+        let mut byte_offset = 0;
 
         for (logical_index, ch) in text.chars().enumerate() {
-            let buffer_char = BufferChar::new(ch, logical_index);
+            let buffer_char = BufferChar::new(ch, logical_index, byte_offset);
+            byte_offset += ch.len_utf8();
             chars.push(buffer_char);
         }
 
-        Self { chars }
+        Self {
+            chars,
+            word_boundaries_cache: None, // Will be calculated when needed
+        }
     }
 
     /// Get all chars
@@ -145,15 +170,31 @@ impl BufferLine {
     pub fn insert_char(&mut self, logical_index: usize, ch: char) {
         let insert_pos = logical_index.min(self.chars.len());
 
-        let new_char = BufferChar::new(ch, insert_pos);
+        // Calculate byte offset for insertion position
+        let byte_offset = if insert_pos == 0 {
+            0
+        } else if insert_pos >= self.chars.len() {
+            // Inserting at end - calculate total byte length
+            self.chars.iter().map(|bc| bc.byte_length).sum()
+        } else {
+            // Inserting in middle - use byte offset of character at insert position
+            self.chars[insert_pos].byte_offset
+        };
+
+        let new_char = BufferChar::new(ch, insert_pos, byte_offset);
+        let new_char_byte_len = ch.len_utf8();
 
         // Insert the character
         self.chars.insert(insert_pos, new_char);
 
-        // Update logical indices for characters after insertion point
+        // Update logical indices and byte offsets for characters after insertion point
         for (i, buffer_char) in self.chars.iter_mut().enumerate().skip(insert_pos + 1) {
             buffer_char.logical_index = i;
+            buffer_char.byte_offset += new_char_byte_len;
         }
+
+        // Invalidate word boundaries cache since content changed
+        self.invalidate_word_boundaries_cache();
     }
 
     /// Delete a character at a logical position
@@ -168,6 +209,9 @@ impl BufferLine {
         for (i, buffer_char) in self.chars.iter_mut().enumerate().skip(logical_index) {
             buffer_char.logical_index = i;
         }
+
+        // Invalidate word boundaries cache since content changed
+        self.invalidate_word_boundaries_cache();
 
         Some(removed_char)
     }
@@ -196,6 +240,56 @@ impl BufferLine {
     /// Move right by one character from the given logical index
     pub fn move_right_by_character(&self, current_logical_index: usize) -> usize {
         (current_logical_index + 1).min(self.chars.len())
+    }
+
+    /// Invalidate the cached word boundaries
+    pub fn invalidate_word_boundaries_cache(&mut self) {
+        self.word_boundaries_cache = None;
+        // Also clear word flags from all characters since they're now invalid
+        for buffer_char in &mut self.chars {
+            buffer_char.is_word_start = false;
+            buffer_char.is_word_end = false;
+        }
+    }
+
+    /// Get or calculate word boundaries for this line
+    pub fn get_word_boundaries(&mut self, segmenter: &dyn WordSegmenter) -> &WordBoundaries {
+        if self.word_boundaries_cache.is_none() {
+            self.refresh_word_boundaries(segmenter);
+        }
+
+        // Safe to unwrap since we just ensured it exists
+        self.word_boundaries_cache.as_ref().unwrap()
+    }
+
+    /// Refresh word boundaries cache for this line
+    pub fn refresh_word_boundaries(&mut self, segmenter: &dyn WordSegmenter) {
+        let text = self.to_string();
+        if text.is_empty() {
+            self.word_boundaries_cache = Some(WordBoundaries { positions: vec![0] });
+            return;
+        }
+
+        match segmenter.find_word_boundaries(&text) {
+            Ok(boundaries) => {
+                let flags = boundaries.to_word_flags(self.char_count());
+
+                // Apply word flags to each character
+                for (i, flag) in flags.iter().enumerate() {
+                    if let Some(buffer_char) = self.chars.get_mut(i) {
+                        buffer_char.is_word_start = flag.is_word_start;
+                        buffer_char.is_word_end = flag.is_word_end;
+                    }
+                }
+
+                self.word_boundaries_cache = Some(boundaries);
+            }
+            Err(e) => {
+                tracing::warn!("Failed to segment line: {}", e);
+                // Fall back to empty boundaries
+                self.word_boundaries_cache = Some(WordBoundaries { positions: vec![0] });
+            }
+        }
     }
 
     /// Find the next word boundary from the current logical position
@@ -329,9 +423,10 @@ impl Default for BufferLine {
 }
 
 /// A character-aware buffer that tracks both logical and display positions
-#[derive(Debug, Clone, PartialEq)]
 pub struct CharacterBuffer {
     lines: Vec<BufferLine>,
+    /// Cached word segmenter for performance
+    word_segmenter: BoxedWordSegmenter,
 }
 
 impl CharacterBuffer {
@@ -339,6 +434,7 @@ impl CharacterBuffer {
     pub fn new() -> Self {
         Self {
             lines: vec![BufferLine::new()],
+            word_segmenter: Some(WordSegmenterFactory::create()),
         }
     }
 
@@ -353,7 +449,10 @@ impl CharacterBuffer {
             .map(|line| BufferLine::from_string(line))
             .collect();
 
-        Self { lines }
+        Self {
+            lines,
+            word_segmenter: Some(WordSegmenterFactory::create()),
+        }
     }
 
     /// Get all lines
@@ -399,9 +498,14 @@ impl CharacterBuffer {
             }
 
             self.lines.insert(line + 1, new_line);
+
+            // Note: Word boundaries will be calculated lazily when needed
+            // Both lines now have invalid caches due to content changes
         } else {
             // Regular character insertion
             self.lines[line].insert_char(logical_col, ch);
+
+            // Note: Word boundaries cache invalidated by insert_char method
         }
     }
 
@@ -423,6 +527,10 @@ impl CharacterBuffer {
                 buffer_char.logical_index = start_logical + i;
                 prev_line.chars.push(buffer_char);
             }
+
+            // Invalidate word boundaries cache for the joined line
+            prev_line.invalidate_word_boundaries_cache();
+
             Some('\n') // Conceptually deleted a newline
         } else {
             // Delete character within line
@@ -434,11 +542,56 @@ impl CharacterBuffer {
     pub fn to_string_lines(&self) -> Vec<String> {
         self.lines.iter().map(|line| line.to_string()).collect()
     }
+
+    /// Get word boundaries for a specific line (calculates if not cached)
+    pub fn get_line_word_boundaries(&mut self, line_index: usize) -> Option<&WordBoundaries> {
+        if let (Some(segmenter), Some(line)) =
+            (&self.word_segmenter, self.lines.get_mut(line_index))
+        {
+            Some(line.get_word_boundaries(segmenter.as_ref()))
+        } else {
+            None
+        }
+    }
+
+    /// Refresh word boundaries for a specific line
+    pub fn refresh_line_word_boundaries(&mut self, line_index: usize) {
+        if let (Some(segmenter), Some(line)) =
+            (&self.word_segmenter, self.lines.get_mut(line_index))
+        {
+            line.refresh_word_boundaries(segmenter.as_ref());
+        }
+    }
 }
 
 impl Default for CharacterBuffer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl std::fmt::Debug for CharacterBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CharacterBuffer")
+            .field("lines", &self.lines)
+            .field("word_segmenter", &"<segmenter>")
+            .finish()
+    }
+}
+
+impl Clone for CharacterBuffer {
+    fn clone(&self) -> Self {
+        Self {
+            lines: self.lines.clone(),
+            word_segmenter: Some(WordSegmenterFactory::create()),
+        }
+    }
+}
+
+impl PartialEq for CharacterBuffer {
+    fn eq(&self, other: &Self) -> bool {
+        // Compare only the lines, not the segmenter
+        self.lines == other.lines
     }
 }
 
@@ -448,13 +601,13 @@ mod tests {
 
     #[test]
     fn buffer_char_should_track_logical_properties() {
-        let ascii_char = BufferChar::new('a', 0);
+        let ascii_char = BufferChar::new('a', 0, 0);
         assert_eq!(ascii_char.ch, 'a');
         assert_eq!(ascii_char.logical_index, 0);
         assert_eq!(ascii_char.byte_length, 1);
         assert_eq!(ascii_char.logical_length, 1);
 
-        let japanese_char = BufferChar::new('こ', 1);
+        let japanese_char = BufferChar::new('こ', 1, 1);
         assert_eq!(japanese_char.ch, 'こ');
         assert_eq!(japanese_char.logical_index, 1);
         assert_eq!(japanese_char.byte_length, 3); // 'こ' is 3 bytes in UTF-8
@@ -535,19 +688,19 @@ mod tests {
 
     #[test]
     fn buffer_char_should_classify_character_types() {
-        let ascii_char = BufferChar::new('a', 0);
+        let ascii_char = BufferChar::new('a', 0, 0);
         assert_eq!(ascii_char.character_type(), CharacterType::Word);
 
-        let japanese_char = BufferChar::new('こ', 0);
+        let japanese_char = BufferChar::new('こ', 0, 0);
         assert_eq!(
             japanese_char.character_type(),
             CharacterType::DoubleByteChar
         );
 
-        let space_char = BufferChar::new(' ', 0);
+        let space_char = BufferChar::new(' ', 0, 0);
         assert_eq!(space_char.character_type(), CharacterType::Whitespace);
 
-        let punct_char = BufferChar::new('.', 0);
+        let punct_char = BufferChar::new('.', 0, 0);
         assert_eq!(punct_char.character_type(), CharacterType::Punctuation);
     }
 

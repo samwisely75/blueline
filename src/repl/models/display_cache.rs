@@ -259,12 +259,17 @@ impl DisplayLine {
             return None;
         }
 
-        // Find current character index
+        // Find current character index - fix for Issue #67
         let mut current_index = 0;
-        for (i, &(pos, _)) in char_positions.iter().enumerate() {
-            if pos >= current_display_col {
+        for (i, &(pos, display_char)) in char_positions.iter().enumerate() {
+            let char_end = pos + display_char.display_width();
+            if current_display_col < char_end {
                 current_index = i;
                 break;
+            }
+            // If we're past the last character, use the last valid index
+            if i == char_positions.len() - 1 {
+                current_index = i;
             }
         }
 

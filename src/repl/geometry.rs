@@ -78,22 +78,29 @@ mod tests {
 
     #[test]
     fn test_dimensions_creation() {
-        let dims = Dimensions::new(100, 50);
-        assert_eq!(dims.width, 100);
-        assert_eq!(dims.height, 50);
+        let dims = Dimensions::new(80, 24);
+        assert_eq!(dims.width, 80);
+        assert_eq!(dims.height, 24);
+    }
+
+    #[test]
+    fn test_dimensions_zero() {
+        let dims = Dimensions::zero();
+        assert_eq!(dims, Dimensions::new(0, 0));
+        assert!(dims.is_empty());
     }
 
     #[test]
     fn test_dimensions_area() {
-        let dims = Dimensions::new(10, 5);
-        assert_eq!(dims.area(), 50);
+        let dims = Dimensions::new(10, 20);
+        assert_eq!(dims.area(), 200);
     }
 
     #[test]
     fn test_dimensions_is_empty() {
         assert!(Dimensions::new(0, 10).is_empty());
         assert!(Dimensions::new(10, 0).is_empty());
-        assert!(!Dimensions::new(10, 10).is_empty());
+        assert!(!Dimensions::new(10, 20).is_empty());
     }
 
     #[test]

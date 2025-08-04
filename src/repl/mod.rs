@@ -8,6 +8,7 @@ pub mod controllers;
 pub mod events;
 pub mod geometry;
 pub mod models;
+pub mod text;
 pub mod utils;
 pub mod view_models;
 pub mod views;
