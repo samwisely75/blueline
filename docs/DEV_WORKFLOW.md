@@ -1,4 +1,4 @@
-# Development Workflow ("Workflow")
+# Development Workflow (The "Workflow")
 
 Developers and Generative AI Engines like Claude Code should strictly follow this workflow to implement new features or fix bugs in the codebase. This process ensures that changes are made systematically, tested thoroughly, and documented properly.
 

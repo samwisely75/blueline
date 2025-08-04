@@ -1,0 +1,35 @@
+# Debugging Strategy
+
+Since this is a REPL (Read-Eval-Print Loop) application, debugging is primarily done through the REPL interface. We use the following tools and techniques to debug the application:
+
+- **Terminal emulation**: We use `tve` in `cucumber` test. The `tve` crate emulates the terminal output, so we grab the final output character sequences the renderer generates and put it in the terminal emulator, and see the result. This way we can reproduce the REPL's behavior on a run without having an actual terminal. The philosophy is that if user experience any issues, that is a sign of insufficient testing. We must go back, update the feature files to include the user scenario, investigate the cause and prevent the recurrence. This way the requirements are always up to date and QA is automated along with every updates of the requirements.
+
+- **Logging**: The terminal emulation doesn't always work in the real-world. So we use `tracing` for logging debug information as a fallback. This allows us to see what the application is doing at various points in time. The log output is disabled by default. We can enable it by environment variables. `BLUELINE_LOG_LEVEL` decides the log level in the `tracing` subscriber. The default is `info`, but we can set it to `debug` or `trace` for more detailed output. `BLUELINE_LOG_FILE` specifies the file where the logs will be written. If not set, logs will be printed to stdout (so you need to redirect the stdout to a file like `blueline | tee stdout.log`).
+
+- **Display cursor position**: By default the REPL displays the LOGICAL cursor position in the terminal however you sometimes need a cursor position in the terminal. We call it a display cursor position. There is a switch to show the display cursor position in the REPL. Turn on the switch by setting the environment variable `BLUELINE_DISPLAY_CURSOR_POSITION` to `true`. The display cursor position is shown in the Status Bar of the REPL; next to the logical cursor position in the format `(x, y)` where `x` is the column and `y` is the row in the terminal.
+
+## Data Examples
+
+The success of debugging and testing depends on the quality of the data we use in the tests. Here are some examples of data that can be used in the REPL:
+
+### English Flat Text
+
+It's not the greatest country in the world, professor, that's my answer.
+
+Fine. Sharon, the NEA is a loser. Yeah, it accounts for a penny out of our paychecks, but he [gesturing to the conservative panelist] gets to hit you with it anytime he wants. It doesn't cost money, it costs votes. It costs airtime and column inches. You know why people don't like liberals? Because they lose. If liberals are so fuckin' smart, how come they lose so GODDAM ALWAYS!
+
+And with a straight face, you're going to tell students that America's so starspangled awesome that we're the only ones in the world who have freedom? Canada has freedom, Japan has freedom, the UK, France, Italy, Germany, Spain, Australia, Belgium has freedom. Two hundred seven sovereign states in the world, like 180 of them have freedom.
+
+And you—sorority girl—yeah—just in case you accidentally wander into a voting booth one day, there are some things you should know, and one of them is that there is absolutely no evidence to support the statement that we're the greatest country in the world. We're seventh in literacy, twenty-seventh in math, twenty-second in science, forty-ninth in life expectancy, 178th in infant mortality, third in median household income, number four in labor force, and number four in exports. We lead the world in only three categories: number of incarcerated citizens per capita, number of adults who believe angels are real, and defense spending, where we spend more than the next twenty-six countries combined, twenty-five of whom are allies. None of this is the fault of a 20-year-old college student, but you, nonetheless, are without a doubt, a member of the WORST-period-GENERATION-period-EVER-period, so when you ask what makes us the greatest country in the world, I don't know what the fuck you're talking about?! Yosemite?!!!
+
+We sure used to be. We stood up for what was right! We fought for moral reasons, we passed and struck down laws for moral reasons. We waged wars on poverty, not poor people. We sacrificed, we cared about our neighbors, we put our money where our mouths were, and we never beat our chest. We built great big things, made ungodly technological advances, explored the universe, cured diseases, and cultivated the world's greatest artists and the world's greatest economy. We reached for the stars, and we acted like men. We aspired to intelligence; we didn't belittle it; it didn't make us feel inferior. We didn't identify ourselves by who we voted for in the last election, and we didn't scare so easy. And we were able to be all these things and do all these things because we were informed. By great men, men who were revered. The first step in solving any problem is recognizing there is one—America is not the greatest country in the world anymore.
+
+Enough?
+
+### Japanese Flat Text
+
+　吾輩わがはいは猫である。名前はまだ無い。
+　どこで生れたかとんと見当けんとうがつかぬ。何でも薄暗いじめじめした所でニャーニャー泣いていた事だけは記憶している。吾輩はここで始めて人間というものを見た。しかもあとで聞くとそれは書生という人間中で一番獰悪どうあくな種族であったそうだ。この書生というのは時々我々を捕つかまえて煮にて食うという話である。しかしその当時は何という考もなかったから別段恐しいとも思わなかった。ただ彼の掌てのひらに載せられてスーと持ち上げられた時何だかフワフワした感じがあったばかりである。掌の上で少し落ちついて書生の顔を見たのがいわゆる人間というものの見始みはじめであろう。この時妙なものだと思った感じが今でも残っている。第一毛をもって装飾されべきはずの顔がつるつるしてまるで薬缶やかんだ。その後ご猫にもだいぶ逢あったがこんな片輪かたわには一度も出会でくわした事がない。のみならず顔の真中があまりに突起している。そうしてその穴の中から時々ぷうぷうと煙けむりを吹く。どうも咽むせぽくて実に弱った。これが人間の飲む煙草たばこというものである事はようやくこの頃知った。
+　この書生の掌の裏うちでしばらくはよい心持に坐っておったが、しばらくすると非常な速力で運転し始めた。書生が動くのか自分だけが動くのか分らないが無暗むやみに眼が廻る。胸が悪くなる。到底とうてい助からないと思っていると、どさりと音がして眼から火が出た。それまでは記憶しているがあとは何の事やらいくら考え出そうとしても分らない。
+　ふと気が付いて見ると書生はいない。たくさんおった兄弟が一疋ぴきも見えぬ。肝心かんじんの母親さえ姿を隠してしまった。その上今いままでの所とは違って無暗むやみに明るい。眼を明いていられぬくらいだ。はてな何でも容子ようすがおかしいと、のそのそ這はい出して見ると非常に痛い。吾輩は藁わらの上から急に笹原の中へ棄てられたのである。
+　ようやくの思いで笹原を這い出すと向うに大きな池がある。吾輩は池の前に坐ってどうしたらよかろうと考えて見た。別にこれという分別ふんべつも出ない。しばらくして泣いたら書生がまた迎に来てくれるかと考え付いた。ニャー、ニャーと試みにやって見たが誰も来ない。そのうち池の上をさらさらと風が渡って日が暮れかかる。腹が非常に減って来た。泣きたくても声が出ない。仕方がない、何でもよいから食物くいもののある所まであるこうと決心をしてそろりそろりと池を左ひだりに廻り始めた。どうも非常に苦しい。そこを我慢して無理やりに這はって行くとようやくの事で何となく人間臭い所へ出た。ここへ這入はいったら、どうにかなると思って竹垣の崩くずれた穴から、とある邸内にもぐり込んだ。縁は不思議なもので、もしこの竹垣が破れていなかったなら、吾輩はついに路傍ろぼうに餓死がししたかも知れんのである。一樹の蔭とはよく云いったものだ。この垣根の穴は今日こんにちに至るまで吾輩が隣家となりの三毛を訪問する時の通路になっている。さて邸やしきへは忍び込んだもののこれから先どうして善いいか分らない。そのうちに暗くなる、腹は減る、寒さは寒し、雨が降って来るという始末でもう一刻の猶予ゆうよが出来なくなった。仕方がないからとにかく明るくて暖かそうな方へ方へとあるいて行く。今から考えるとその時はすでに家の内に這入っておったのだ。ここで吾輩は彼かの書生以外の人間を再び見るべき機会に遭遇そうぐうしたのである。第一に逢ったのがおさんである。これは前の書生より一層乱暴な方で吾輩を見るや否やいきなり頸筋くびすじをつかんで表へ抛ほうり出した。いやこれは駄目だと思ったから眼をねぶって運を天に任せていた。しかしひもじいのと寒いのにはどうしても我慢が出来ん。吾輩は再びおさんの隙すきを見て台所へ這はい上あがった。すると間もなくまた投げ出された。吾輩は投げ出されては這い上り、這い上っては投げ出され、何でも同じ事を四五遍繰り返したのを記憶している。その時におさんと云う者はつくづくいやになった。この間おさんの三馬さんまを偸ぬすんでこの返報をしてやってから、やっと胸の痞つかえが下りた。吾輩が最後につまみ出されようとしたときに、この家うちの主人が騒々しい何だといいながら出て来た。下女は吾輩をぶら下げて主人の方へ向けてこの宿やどなしの小猫がいくら出しても出しても御台所おだいどころへ上あがって来て困りますという。主人は鼻の下の黒い毛を撚ひねりながら吾輩の顔をしばらく眺ながめておったが、やがてそんなら内へ置いてやれといったまま奥へ這入はいってしまった。主人はあまり口を聞かぬ人と見えた。下女は口惜くやしそうに吾輩を台所へ抛ほうり出した。かくして吾輩はついにこの家うちを自分の住家すみかと極きめる事にしたのである。

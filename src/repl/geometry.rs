@@ -70,6 +70,13 @@ mod tests {
     }
 
     #[test]
+    fn test_position_field_access() {
+        let pos = Position::new(3, 7);
+        assert_eq!(pos.row, 3);
+        assert_eq!(pos.col, 7);
+    }
+
+    #[test]
     fn test_dimensions_creation() {
         let dims = Dimensions::new(80, 24);
         assert_eq!(dims.width, 80);
@@ -94,5 +101,12 @@ mod tests {
         assert!(Dimensions::new(0, 10).is_empty());
         assert!(Dimensions::new(10, 0).is_empty());
         assert!(!Dimensions::new(10, 20).is_empty());
+    }
+
+    #[test]
+    fn test_dimensions_field_access() {
+        let dims = Dimensions::new(80, 24);
+        assert_eq!(dims.width, 80);
+        assert_eq!(dims.height, 24);
     }
 }

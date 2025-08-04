@@ -3,17 +3,18 @@
 //! Provides display line caching for efficient word wrap rendering and cursor positioning.
 //! Maps logical lines to display lines with position tracking for navigation.
 
+use crate::repl::geometry::Position;
 use std::collections::HashMap;
 use std::time::Instant;
 
-/// Type alias for display position tuples (display_line, display_column)
-pub type DisplayPosition = (usize, usize);
+/// Type alias for display position (display_line, display_column)
+pub type DisplayPosition = Position;
 
 /// Type alias for logical-to-display line mapping
 pub type LogicalToDisplayMap = HashMap<usize, Vec<usize>>;
 
-/// Type alias for logical position tuple (logical_line, logical_column)
-pub type LogicalPosition = (usize, usize);
+/// Type alias for logical position (logical_line, logical_column)  
+pub type LogicalPosition = Position;
 
 /// Pre-calculated display line with positioning metadata
 #[derive(Debug, Clone, PartialEq)]
@@ -518,7 +519,7 @@ impl DisplayCache {
                         display_idx,
                         display_col
                     );
-                    return Some((display_idx, display_col));
+                    return Some(Position::new(display_idx, display_col));
                 }
                 // BUGFIX: Handle end-of-line case - when logical_col equals logical_end_col,
                 // it should map to the beginning of the NEXT display line (column 0),
@@ -540,7 +541,7 @@ impl DisplayCache {
                                     "logical_to_display_position: found end-of-line match, moving to next continuation line ({}, 0)",
                                     next_display_idx
                                 );
-                                return Some((next_display_idx, 0));
+                                return Some(Position::new(next_display_idx, 0));
                             }
                         }
                     }
@@ -551,7 +552,7 @@ impl DisplayCache {
                         "logical_to_display_position: found end of logical line, returning ({}, {})",
                         display_idx, display_col
                     );
-                    return Some((display_idx, display_col));
+                    return Some(Position::new(display_idx, display_col));
                 }
             }
         }
@@ -561,7 +562,7 @@ impl DisplayCache {
             if let Some(display_line) = self.display_lines.get(last_display_idx) {
                 let display_col = (display_line.char_count())
                     .min(logical_col.saturating_sub(display_line.logical_start_col));
-                return Some((last_display_idx, display_col));
+                return Some(Position::new(last_display_idx, display_col));
             }
         }
 
@@ -596,7 +597,7 @@ impl DisplayCache {
             content_length, display_info.logical_start_col, clamped_display_col
         );
 
-        Some((logical_line, logical_col))
+        Some(Position::new(logical_line, logical_col))
     }
 
     /// Get display line content and metadata
@@ -623,7 +624,7 @@ impl DisplayCache {
         // Try to maintain column position, but clamp to line length
         let target_col = desired_col.min(target_display_info.char_count());
 
-        Some((target_display_line, target_col))
+        Some(Position::new(target_display_line, target_col))
     }
 
     /// Move cursor down by one display line
@@ -642,7 +643,7 @@ impl DisplayCache {
         // Try to maintain column position, but clamp to line length
         let target_col = desired_col.min(target_display_info.char_count());
 
-        Some((target_display_line, target_col))
+        Some(Position::new(target_display_line, target_col))
     }
 
     /// Get total number of display lines
@@ -892,14 +893,14 @@ mod tests {
         let cache = build_display_cache(&lines, 10, true).unwrap();
 
         // Position at start should map to display (0, 0)
-        let (display_line, display_col) = cache.logical_to_display_position(0, 0).unwrap();
-        assert_eq!(display_line, 0);
-        assert_eq!(display_col, 0);
+        let pos = cache.logical_to_display_position(0, 0).unwrap();
+        assert_eq!(pos.row, 0);
+        assert_eq!(pos.col, 0);
 
         // Position in middle should map to appropriate display line
-        if let Some((display_line, display_col)) = cache.logical_to_display_position(0, 15) {
-            assert!(display_line > 0); // Should be on a wrapped line
-            assert!(display_col < 10); // Within the content width
+        if let Some(pos) = cache.logical_to_display_position(0, 15) {
+            assert!(pos.row > 0); // Should be on a wrapped line
+            assert!(pos.col < 10); // Within the content width
         }
     }
 
@@ -909,9 +910,9 @@ mod tests {
         let cache = build_display_cache(&lines, 10, true).unwrap();
 
         // First display line should map back to logical line 0
-        let (logical_line, logical_col) = cache.display_to_logical_position(0, 5).unwrap();
-        assert_eq!(logical_line, 0);
-        assert_eq!(logical_col, 5);
+        let pos = cache.display_to_logical_position(0, 5).unwrap();
+        assert_eq!(pos.row, 0);
+        assert_eq!(pos.col, 5);
     }
 
     #[test]
@@ -920,14 +921,14 @@ mod tests {
         let cache = build_display_cache(&lines, 80, false).unwrap();
 
         // Move down from first line
-        let (new_line, new_col) = cache.move_down(0, 3).unwrap();
-        assert_eq!(new_line, 1);
-        assert_eq!(new_col, 3);
+        let pos = cache.move_down(0, 3).unwrap();
+        assert_eq!(pos.row, 1);
+        assert_eq!(pos.col, 3);
 
         // Move up from second line
-        let (new_line, new_col) = cache.move_up(1, 3).unwrap();
-        assert_eq!(new_line, 0);
-        assert_eq!(new_col, 3);
+        let pos = cache.move_up(1, 3).unwrap();
+        assert_eq!(pos.row, 0);
+        assert_eq!(pos.col, 3);
     }
 
     #[test]

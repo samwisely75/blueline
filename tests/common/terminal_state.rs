@@ -103,6 +103,11 @@ impl Perform for TerminalState {
             if self.cursor.1 >= self.width {
                 self.cursor.1 = 0;
                 self.cursor.0 += 1;
+
+                // Ensure cursor doesn't go beyond the bottom of the screen
+                if self.cursor.0 >= self.height {
+                    self.cursor.0 = self.height - 1;
+                }
             }
         }
     }
@@ -111,9 +116,7 @@ impl Perform for TerminalState {
         match byte {
             b'\n' => {
                 // Line feed - move cursor down
-                if self.cursor.0 + 1 < self.height {
-                    self.cursor.0 += 1;
-                }
+                self.cursor.0 = (self.cursor.0 + 1).min(self.height - 1);
             }
             b'\r' => {
                 // Carriage return - move cursor to start of line
@@ -213,8 +216,10 @@ impl Perform for TerminalState {
                 match param {
                     0 => {
                         // Clear from cursor to end of screen
-                        for col in self.cursor.1..self.width {
-                            self.grid[self.cursor.0][col] = ' ';
+                        if self.cursor.0 < self.height {
+                            for col in self.cursor.1..self.width {
+                                self.grid[self.cursor.0][col] = ' ';
+                            }
                         }
                         for row in (self.cursor.0 + 1)..self.height {
                             self.grid[row].fill(' ');
@@ -226,8 +231,10 @@ impl Perform for TerminalState {
                         for row in 0..self.cursor.0 {
                             self.grid[row].fill(' ');
                         }
-                        for col in 0..=self.cursor.1 {
-                            self.grid[self.cursor.0][col] = ' ';
+                        if self.cursor.0 < self.height {
+                            for col in 0..=self.cursor.1.min(self.width - 1) {
+                                self.grid[self.cursor.0][col] = ' ';
+                            }
                         }
                         self.partial_redraws += 1;
                     }
@@ -250,14 +257,18 @@ impl Perform for TerminalState {
                 match param {
                     0 => {
                         // Clear from cursor to end of line
-                        for col in self.cursor.1..self.width {
-                            self.grid[self.cursor.0][col] = ' ';
+                        if self.cursor.0 < self.height {
+                            for col in self.cursor.1..self.width {
+                                self.grid[self.cursor.0][col] = ' ';
+                            }
                         }
                     }
                     1 => {
                         // Clear from beginning of line to cursor
-                        for col in 0..=self.cursor.1 {
-                            self.grid[self.cursor.0][col] = ' ';
+                        if self.cursor.0 < self.height {
+                            for col in 0..=self.cursor.1.min(self.width - 1) {
+                                self.grid[self.cursor.0][col] = ' ';
+                            }
                         }
                     }
                     2 => {

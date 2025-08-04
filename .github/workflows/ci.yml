@@ -66,10 +66,10 @@ jobs:
       run: cargo build --verbose --all-features
 
     - name: Run tests
-      run: cargo test --verbose --all-features
+      run: timeout 180s cargo test --verbose --all-features
 
     - name: Test with minimal dependencies
-      run: cargo test --no-default-features
+      run: timeout 180s cargo test --no-default-features
 
   security:
     name: Security Audit  

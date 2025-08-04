@@ -4,8 +4,9 @@ Feature: HTTP Request Flow
   So that I can test API endpoints effectively
 
   Background:
-    Given I am in the request pane
-      And I am in insert mode
+    Given blueline is running with default profile
+    And I am in the request pane
+    And I am in insert mode
 
   Scenario: Simple GET request execution
     Given I type a GET request:
