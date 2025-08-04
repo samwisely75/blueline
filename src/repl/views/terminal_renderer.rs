@@ -737,8 +737,8 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
                     "{}:{} ({}:{})",
                     cursor.line + 1,
                     cursor.column + 1,
-                    display_cursor.0 + 1,
-                    display_cursor.1 + 1
+                    display_cursor.row + 1,
+                    display_cursor.col + 1
                 )
             } else {
                 format!("{}:{}", cursor.line + 1, cursor.column + 1)
@@ -793,16 +793,16 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             "render_position_indicator: logical=({}, {}), display=({}, {})",
             cursor.line,
             cursor.column,
-            display_cursor.0,
-            display_cursor.1
+            display_cursor.row,
+            display_cursor.col
         );
         let position_text = if view_model.is_display_cursor_visible() {
             format!(
                 "{}:{} ({}:{})",
                 cursor.line + 1,
                 cursor.column + 1,
-                display_cursor.0 + 1,
-                display_cursor.1 + 1
+                display_cursor.row + 1,
+                display_cursor.col + 1
             )
         } else {
             format!("{}:{}", cursor.line + 1, cursor.column + 1)

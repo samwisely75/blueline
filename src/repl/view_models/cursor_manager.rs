@@ -4,6 +4,7 @@
 //! This module provides high-level cursor operations that work with the current/other area abstraction.
 
 use crate::repl::events::LogicalPosition;
+use crate::repl::geometry::Position;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 
@@ -14,7 +15,7 @@ impl ViewModel {
     }
 
     /// Get current display cursor position for the active area
-    pub fn get_display_cursor_position(&self) -> (usize, usize) {
+    pub fn get_display_cursor_position(&self) -> Position {
         self.pane_manager.get_current_display_cursor()
     }
 

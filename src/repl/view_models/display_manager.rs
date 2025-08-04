@@ -4,6 +4,7 @@
 //! This module coordinates between logical content and display representation.
 
 use crate::repl::events::{Pane, ViewEvent};
+use crate::repl::geometry::Position;
 use crate::repl::models::DisplayCache;
 use crate::repl::view_models::core::{DisplayLineData, ViewModel};
 
@@ -24,13 +25,14 @@ impl ViewModel {
         row_count: usize,
     ) -> Vec<Option<DisplayLineData>> {
         let display_cache = self.get_display_cache(pane);
-        let (vertical_scroll_offset, horizontal_scroll_offset) =
-            if pane == self.pane_manager.current_pane_type() {
-                self.pane_manager.get_current_scroll_offset()
-            } else {
-                // For non-current pane, access scroll offset directly (this should be made semantic later)
-                (0, 0) // Simplified for now
-            };
+        let scroll_offset = if pane == self.pane_manager.current_pane_type() {
+            self.pane_manager.get_current_scroll_offset()
+        } else {
+            // For non-current pane, access scroll offset directly (this should be made semantic later)
+            Position::origin() // Simplified for now
+        };
+        let vertical_scroll_offset = scroll_offset.row;
+        let horizontal_scroll_offset = scroll_offset.col;
         let content_width = self.get_content_width();
         let mut result = Vec::new();
 
@@ -81,19 +83,20 @@ impl ViewModel {
             self.pane_manager.get_current_display_cursor()
         } else {
             // For non-current pane, simplified for now
-            (0, 0)
+            Position::origin()
         };
-        let (vertical_offset, horizontal_offset) = if pane == self.pane_manager.current_pane_type()
-        {
+        let scroll_offset = if pane == self.pane_manager.current_pane_type() {
             self.pane_manager.get_current_scroll_offset()
         } else {
             // For non-current pane, simplified for now
-            (0, 0)
+            Position::origin()
         };
+        let vertical_offset = scroll_offset.row;
+        let horizontal_offset = scroll_offset.col;
 
         // Calculate screen-relative position
-        let screen_row = display_pos.0.saturating_sub(vertical_offset);
-        let screen_col = display_pos.1.saturating_sub(horizontal_offset);
+        let screen_row = display_pos.row.saturating_sub(vertical_offset);
+        let screen_col = display_pos.col.saturating_sub(horizontal_offset);
 
         (screen_row, screen_col)
     }
