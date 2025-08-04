@@ -259,14 +259,27 @@ impl DisplayLine {
             return None;
         }
 
-        // Find current character index
+        // Find current character index - the character that contains or precedes current_display_col
         let mut current_index = 0;
-        for (i, &(pos, _)) in char_positions.iter().enumerate() {
-            if pos >= current_display_col {
+        for (i, &(pos, display_char)) in char_positions.iter().enumerate() {
+            let char_end = pos + display_char.display_width();
+            if pos <= current_display_col && current_display_col < char_end {
+                // Current position is within this character
                 current_index = i;
                 break;
+            } else if pos > current_display_col {
+                // Current position is before this character, use previous character
+                current_index = if i > 0 { i - 1 } else { 0 };
+                break;
             }
+            // Update current_index to this character as we continue searching
+            current_index = i;
         }
+
+        tracing::debug!(
+            "find_previous_word_boundary: current_display_col={}, found current_index={}, char_count={}",
+            current_display_col, current_index, char_positions.len()
+        );
 
         // Vim 'b' behavior: move to beginning of current or previous word
         // 1. If we're in a word, move to beginning of current word
@@ -300,7 +313,13 @@ impl DisplayLine {
                 }
                 i -= 1;
             }
-            return Some(char_positions[i].0);
+            let result = char_positions[i].0;
+            tracing::debug!(
+                "find_previous_word_boundary: found word boundary at display_col={}, char_index={}",
+                result,
+                i
+            );
+            return Some(result);
         }
 
         // If we're at position 0 and it's not a word character, return None
@@ -963,5 +982,66 @@ mod tests {
             borat_start,
             "Should go back to 'Borat'"
         );
+    }
+
+    #[test]
+    fn previous_word_boundary_should_handle_get_search_example() {
+        // Test the specific issue reported: "b at the end of 'GET _search' moves cursor to top instead of column 5"
+        let line_content = "GET _search";
+        let display_line =
+            DisplayLine::from_content(line_content, 0, 0, line_content.chars().count(), false);
+
+        // Position cursor at the end of "_search" (position 11)
+        let end_position = 11;
+        let previous_boundary = display_line.find_previous_word_boundary(end_position);
+
+        // Should move to beginning of "_search" (position 4, after the space)
+        assert_eq!(
+            previous_boundary,
+            Some(4),
+            "Should move to beginning of '_search' at position 4"
+        );
+
+        // From the beginning of "_search", should move to beginning of "GET"
+        let previous_boundary_2 = display_line.find_previous_word_boundary(4);
+        assert_eq!(
+            previous_boundary_2,
+            Some(0),
+            "Should move to beginning of 'GET' at position 0"
+        );
+
+        // From beginning of line, should return None
+        let previous_boundary_3 = display_line.find_previous_word_boundary(0);
+        assert_eq!(
+            previous_boundary_3, None,
+            "Should return None when already at beginning"
+        );
+    }
+
+    #[test]
+    fn previous_word_boundary_should_handle_edge_cases() {
+        // Test various edge cases for word boundary detection
+
+        // Empty line
+        let empty_line = DisplayLine::from_content("", 0, 0, 0, false);
+        assert_eq!(empty_line.find_previous_word_boundary(0), None);
+
+        // Single word
+        let single_word = DisplayLine::from_content("word", 0, 0, 4, false);
+        assert_eq!(single_word.find_previous_word_boundary(4), Some(0));
+        assert_eq!(single_word.find_previous_word_boundary(2), Some(0));
+        assert_eq!(single_word.find_previous_word_boundary(0), None);
+
+        // Words with spaces and punctuation
+        let complex_line = DisplayLine::from_content("hello, world!", 0, 0, 13, false);
+
+        // From end of "world!" should go to beginning of "world"
+        assert_eq!(complex_line.find_previous_word_boundary(13), Some(7));
+
+        // From beginning of "world" should go to beginning of "hello"
+        assert_eq!(complex_line.find_previous_word_boundary(7), Some(0));
+
+        // From beginning should return None
+        assert_eq!(complex_line.find_previous_word_boundary(0), None);
     }
 }

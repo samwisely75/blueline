@@ -39,7 +39,7 @@ When implementing new features or fixing bugs, follow this systematic workflow:
      git pull origin develop
      ```
 
-   - Create descriptive branch: `feature/new-feature` or `bugfix/fix-issue-123`
+   - Create descriptive branch: `feature/issue-123-new-feature` or `bugfix/issue-123-fix-description`
    - Move Kanban item to `In progress`:
 
      ```shell
