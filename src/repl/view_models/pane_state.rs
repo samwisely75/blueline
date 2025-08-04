@@ -504,20 +504,31 @@ impl PaneState {
         let mut current_line = current_pos.0;
         let mut current_col = current_pos.1;
 
-        tracing::debug!("find_previous_word_position: starting at display_pos=({}, {})", current_line, current_col);
+        tracing::debug!(
+            "find_previous_word_position: starting at display_pos=({}, {})",
+            current_line,
+            current_col
+        );
 
         // Loop through display lines backwards to find previous word
         while let Some(line_info) = self.display_cache.get_display_line(current_line) {
             tracing::debug!("find_previous_word_position: checking line {} with {} chars, display_width={}, current_col={}", 
                 current_line, line_info.char_count(), line_info.display_width(), current_col);
-            
+
             // Try to find previous word on current line
             if let Some(new_col) = line_info.find_previous_word_boundary(current_col) {
-                tracing::debug!("find_previous_word_position: found word on line {} at col {}", current_line, new_col);
+                tracing::debug!(
+                    "find_previous_word_position: found word on line {} at col {}",
+                    current_line,
+                    new_col
+                );
                 return Some((current_line, new_col));
             }
-            
-            tracing::debug!("find_previous_word_position: no word found on line {}, moving to previous line", current_line);
+
+            tracing::debug!(
+                "find_previous_word_position: no word found on line {}, moving to previous line",
+                current_line
+            );
 
             // If we can't find a previous word on this line, move to previous line
             if current_line > 0 {
@@ -528,10 +539,17 @@ impl PaneState {
                         current_line, current_col);
                     // Try to find previous word from the end of the previous line
                     if let Some(new_col) = prev_line_info.find_previous_word_boundary(current_col) {
-                        tracing::debug!("find_previous_word_position: found word on prev line {} at col {}", current_line, new_col);
+                        tracing::debug!(
+                            "find_previous_word_position: found word on prev line {} at col {}",
+                            current_line,
+                            new_col
+                        );
                         return Some((current_line, new_col));
                     }
-                    tracing::debug!("find_previous_word_position: no word found on prev line {}", current_line);
+                    tracing::debug!(
+                        "find_previous_word_position: no word found on prev line {}",
+                        current_line
+                    );
                 }
             } else {
                 break; // Already at beginning of buffer
