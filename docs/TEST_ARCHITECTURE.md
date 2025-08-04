@@ -1,4 +1,4 @@
-# Blueline Test Architecture
+# Test Architecture
 
 This document describes the comprehensive test architecture for Blueline, particularly focusing on the solutions implemented to enable headless CI testing for a terminal-based application.
 

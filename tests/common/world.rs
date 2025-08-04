@@ -13,9 +13,14 @@ use vte::Parser;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 // Global state persistence to work around cucumber World recreation
-type PersistentStateRef = Arc<Mutex<PersistentTestState>>;
+// Use HashMap with feature name as key for isolation
+type PersistentStateMap = Arc<Mutex<HashMap<String, PersistentTestState>>>;
 #[allow(clippy::type_complexity)]
-static PERSISTENT_STATE: OnceLock<PersistentStateRef> = OnceLock::new();
+static PERSISTENT_STATE_MAP: OnceLock<PersistentStateMap> = OnceLock::new();
+
+// Global current feature tracking for state isolation
+type CurrentFeatureType = Arc<Mutex<Option<String>>>;
+static CURRENT_FEATURE: OnceLock<CurrentFeatureType> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 struct PersistentTestState {
@@ -56,7 +61,10 @@ impl VteWriter {
 
 impl Write for VteWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.captured_output.lock().unwrap().extend_from_slice(buf);
+        // Use try_lock to avoid deadlocks during concurrent operations
+        if let Ok(mut output) = self.captured_output.try_lock() {
+            output.extend_from_slice(buf);
+        }
         Ok(buf.len())
     }
 
@@ -175,6 +183,9 @@ pub struct BluelineWorld {
     /// Test event source for injecting key events
     pub event_source: TestEventSource,
 
+    /// Current feature being executed (for state isolation)
+    pub current_feature: Option<String>,
+
     // Legacy compatibility fields for existing test steps
     /// Current mode for compatibility
     pub mode: Mode,
@@ -213,72 +224,144 @@ pub struct BluelineWorld {
 }
 
 impl BluelineWorld {
-    /// Initialize global persistent state
-    fn init_persistent_state() -> Arc<Mutex<PersistentTestState>> {
-        PERSISTENT_STATE
-            .get_or_init(|| Arc::new(Mutex::new(PersistentTestState::default())))
+    /// Initialize global persistent state map
+    fn init_persistent_state_map() -> PersistentStateMap {
+        PERSISTENT_STATE_MAP
+            .get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
             .clone()
+    }
+
+    /// Set current feature for state isolation
+    pub fn set_current_feature(feature_name: &str) {
+        let current_feature = CURRENT_FEATURE.get_or_init(|| Arc::new(Mutex::new(None)));
+        if let Ok(mut feature) = current_feature.try_lock() {
+            *feature = Some(feature_name.to_string());
+            tracing::debug!("Set current feature: {}", feature_name);
+        }
+    }
+
+    /// Clean up state after feature completion to prevent contamination
+    pub fn cleanup_feature_state() {
+        tracing::debug!("Cleaning up feature state to prevent contamination");
+
+        // Reset current feature to None
+        let current_feature = CURRENT_FEATURE.get_or_init(|| Arc::new(Mutex::new(None)));
+        if let Ok(mut feature) = current_feature.try_lock() {
+            let feature_name = feature.take();
+            tracing::debug!("Cleaned up feature: {:?}", feature_name);
+        }
+
+        // Clear the persistent state map completely to force fresh start
+        if let Some(state_map) = PERSISTENT_STATE_MAP.get() {
+            if let Ok(mut persistent) = state_map.try_lock() {
+                persistent.clear();
+                tracing::debug!("Cleared all persistent state entries");
+            }
+        }
+
+        // Force garbage collection of any accumulated state
+        // This is critical to prevent TestEventSource and other component accumulation
+    }
+
+    /// Get current feature name for state isolation
+    fn get_current_feature() -> String {
+        let current_feature = CURRENT_FEATURE.get_or_init(|| Arc::new(Mutex::new(None)));
+        if let Ok(feature) = current_feature.try_lock() {
+            feature.clone().unwrap_or_else(|| "default".to_string())
+        } else {
+            "default".to_string()
+        }
     }
 
     /// Reset persistent state to defaults (for clean test starts)
     fn reset_persistent_state() {
-        let state = Self::init_persistent_state();
-        if let Ok(mut persistent) = state.lock() {
-            *persistent = PersistentTestState::default();
-            println!("🔄 Reset persistent state to defaults");
+        let state = Self::init_persistent_state_map();
+        if let Ok(mut persistent) = state.try_lock() {
+            persistent.clear(); // Clear all feature states
+            tracing::debug!("Reset persistent state to defaults");
         };
+    }
+
+    /// Reset scenario-level state within a feature to prevent contamination between scenarios
+    pub fn reset_scenario_state(&mut self) {
+        tracing::info!("🧹 SCENARIO RESET: Clearing scenario-level state to prevent contamination");
+
+        // Clear the AppController to force fresh creation
+        self.app_controller = None;
+
+        // Reset all local state fields to defaults
+        self.mode = Mode::Normal;
+        self.active_pane = ActivePane::Request;
+        self.request_buffer = Vec::new();
+        self.response_buffer = Vec::new();
+        self.cursor_position = CursorPosition { line: 0, column: 0 };
+
+        // Clear terminal capture
+        if let Ok(mut capture) = self.stdout_capture.try_lock() {
+            capture.clear();
+            tracing::debug!("Cleared stdout capture");
+        }
+
+        // Reset terminal renderer and VTE writer
+        self.terminal_renderer = None;
+        tracing::debug!("Cleared terminal renderer and VTE writer state");
+
+        // Clear event source to prevent accumulated events
+        self.event_source.clear_events();
+        tracing::debug!(
+            "Cleared TestEventSource - pending events: {}",
+            self.event_source.pending_count()
+        );
+
+        // Reset compatibility flags
+        self.ctrl_w_pressed = false;
+        self.first_g_pressed = false;
+
+        // Clear optional real components
+        self.view_model = None;
+        self.command_registry = None;
+
+        tracing::info!("✅ SCENARIO RESET: All scenario-level state cleared");
     }
 
     /// Sync current World with persistent state
     #[allow(dead_code)]
     fn sync_from_persistent_state(&mut self) {
-        let state = Self::init_persistent_state();
-        if let Ok(persistent) = state.lock() {
-            self.request_buffer = persistent.request_buffer.clone();
-            self.cursor_position = persistent.cursor_position.clone();
-            self.mode = persistent.mode.clone();
-            self.active_pane = persistent.active_pane.clone();
-            println!(
-                "🔍 Synced from persistent state: buffer len={}, cursor=({}, {})",
-                self.request_buffer.len(),
-                self.cursor_position.line,
-                self.cursor_position.column
-            );
-        };
-    }
+        let state = Self::init_persistent_state_map();
+        if let Ok(persistent) = state.try_lock() {
+            let feature_name = Self::get_current_feature();
 
-    /// Save current World state to persistent storage
-    fn sync_to_persistent_state(&self) {
-        let state = Self::init_persistent_state();
-        if let Ok(mut persistent) = state.lock() {
-            persistent.request_buffer = self.request_buffer.clone();
-            persistent.cursor_position = self.cursor_position.clone();
-            persistent.mode = self.mode.clone();
-            persistent.active_pane = self.active_pane.clone();
-            println!(
-                "🔍 Synced to persistent state: buffer len={}, cursor=({}, {})",
-                self.request_buffer.len(),
-                self.cursor_position.line,
-                self.cursor_position.column
-            );
+            if let Some(feature_state) = persistent.get(&feature_name) {
+                self.request_buffer = feature_state.request_buffer.clone();
+                self.cursor_position = feature_state.cursor_position.clone();
+                self.mode = feature_state.mode.clone();
+                self.active_pane = feature_state.active_pane.clone();
+                tracing::debug!(
+                    "Synced from persistent state ({}): buffer len={}, cursor=({}, {})",
+                    feature_name,
+                    self.request_buffer.len(),
+                    self.cursor_position.line,
+                    self.cursor_position.column
+                );
+            }
         };
     }
 
     /// Debug helper to set cursor position with logging
     pub fn set_cursor_position(&mut self, line: usize, column: usize) {
-        println!(
-            "🔍 CURSOR CHANGE: ({}, {}) -> ({}, {})",
-            self.cursor_position.line, self.cursor_position.column, line, column
+        tracing::debug!(
+            "CURSOR CHANGE: ({}, {}) -> ({}, {})",
+            self.cursor_position.line,
+            self.cursor_position.column,
+            line,
+            column
         );
         self.cursor_position.line = line;
         self.cursor_position.column = column;
-        // Persist the change
-        self.sync_to_persistent_state();
     }
 
     pub fn new() -> Self {
-        eprintln!("DEBUG: BluelineWorld::new() called - creating fresh world instance");
-        println!("🔍 BluelineWorld::new() called - creating fresh world instance");
+        tracing::debug!("BluelineWorld::new() called - creating fresh world instance");
 
         let world = Self {
             cli_flags: Vec::new(),
@@ -295,6 +378,7 @@ impl BluelineWorld {
             terminal_renderer: None,
             app_controller: None,
             event_source: TestEventSource::new(),
+            current_feature: None,
             // Legacy compatibility fields - start with clean defaults
             mode: Mode::Normal,
             terminal_size: (80, 24), // Default terminal size
@@ -313,7 +397,7 @@ impl BluelineWorld {
 
         // Do NOT sync from persistent state - start completely fresh for each scenario
         // This prevents contamination between test scenarios
-        println!("🔍 Created fresh BluelineWorld with clean state");
+        tracing::debug!("Created fresh BluelineWorld with clean state");
 
         world
     }
@@ -364,10 +448,17 @@ impl BluelineWorld {
     /// when run after 6 other features.
     ///
     pub fn init_real_application(&mut self) -> Result<()> {
-        println!("🔄 Initializing real application - clearing any previous state");
+        tracing::debug!("Initializing real application - clearing any previous state");
 
         // CRITICAL: Clear global persistent state to prevent contamination between scenarios
         Self::reset_persistent_state();
+
+        // ALWAYS create a completely fresh AppController for complete feature isolation
+        let feature_name = Self::get_current_feature();
+        tracing::info!(
+            "🆕 Creating completely fresh AppController for feature '{}'",
+            feature_name
+        );
 
         // Clear any existing AppController to ensure fresh state
         self.app_controller = None;
@@ -400,7 +491,9 @@ impl BluelineWorld {
         self.event_source = TestEventSource::new();
 
         // Clear stdout capture to prevent state contamination
-        self.stdout_capture.lock().unwrap().clear();
+        if let Ok(mut capture) = self.stdout_capture.try_lock() {
+            capture.clear();
+        }
 
         // Create VTE writer for capturing terminal output
         let vte_writer = VteWriter::new(self.stdout_capture.clone());
@@ -412,10 +505,15 @@ impl BluelineWorld {
             vte_writer,
         )?);
 
+        tracing::info!(
+            "✅ Created fresh AppController for feature '{}'",
+            feature_name
+        );
+
         // Initialize terminal renderer with VTE capture (this is now redundant but kept for compatibility)
         self.init_terminal_renderer()?;
 
-        println!("✅ Real application initialized with clean state");
+        tracing::debug!("Real application initialized with clean state");
 
         Ok(())
     }
@@ -467,8 +565,7 @@ impl BluelineWorld {
 
     /// Process key press using real blueline AppController
     pub async fn press_key(&mut self, key: &str) -> Result<()> {
-        println!("🔑 press_key called with: '{key}'");
-        eprintln!("DEBUG: press_key called with: '{key}'");
+        tracing::debug!("press_key called with: '{key}'");
         tracing::info!("press_key called with: '{key}'");
 
         // Check if we're pressing Enter in command mode to execute a command
@@ -484,11 +581,11 @@ impl BluelineWorld {
             match self.active_pane {
                 ActivePane::Request => {
                     self.active_pane = ActivePane::Response;
-                    println!("🔄 Tab pressed: Switched to Response pane");
+                    tracing::debug!("Tab pressed: Switched to Response pane");
                 }
                 ActivePane::Response => {
                     self.active_pane = ActivePane::Request;
-                    println!("🔄 Tab pressed: Switched to Request pane");
+                    tracing::debug!("Tab pressed: Switched to Request pane");
                 }
             }
             // Don't sync with AppController for Tab pane switching since this is test-only logic
@@ -520,12 +617,15 @@ impl BluelineWorld {
                             }
                         }
 
-                        println!("🔽 Response pane: moved cursor down from line {} to line {}, column {}", 
-                                old_line, self.cursor_position.line, self.cursor_position.column);
+                        tracing::debug!(
+                            "Response pane: moved cursor down from line {} to line {}, column {}",
+                            old_line,
+                            self.cursor_position.line,
+                            self.cursor_position.column
+                        );
                     }
 
                     // Save state for persistence
-                    self.sync_to_persistent_state();
                     return Ok(());
                 }
                 "k" => {
@@ -544,24 +644,26 @@ impl BluelineWorld {
                             }
                         }
 
-                        println!(
-                            "🔼 Response pane: moved cursor up from line {} to line {}, column {}",
-                            old_line, self.cursor_position.line, self.cursor_position.column
+                        tracing::debug!(
+                            "Response pane: moved cursor up from line {} to line {}, column {}",
+                            old_line,
+                            self.cursor_position.line,
+                            self.cursor_position.column
                         );
                     }
-                    self.sync_to_persistent_state();
+                    // Save state for persistence
                     return Ok(());
                 }
                 "h" => {
                     // Move cursor left in response pane
                     if self.cursor_position.column > 0 {
                         self.cursor_position.column -= 1;
-                        println!(
-                            "⬅️ Response pane: moved cursor left to column {}",
+                        tracing::debug!(
+                            "Response pane: moved cursor left to column {}",
                             self.cursor_position.column
                         );
                     }
-                    self.sync_to_persistent_state();
+                    // Save state for persistence
                     return Ok(());
                 }
                 "l" => {
@@ -572,13 +674,13 @@ impl BluelineWorld {
                             .count();
                         if self.cursor_position.column < line_len {
                             self.cursor_position.column += 1;
-                            println!(
-                                "➡️ Response pane: moved cursor right to column {}",
+                            tracing::debug!(
+                                "Response pane: moved cursor right to column {}",
                                 self.cursor_position.column
                             );
                         }
                     }
-                    self.sync_to_persistent_state();
+                    // Save state for persistence
                     return Ok(());
                 }
                 "w" => {
@@ -598,12 +700,12 @@ impl BluelineWorld {
                         }
 
                         self.cursor_position.column = pos;
-                        println!(
-                            "🔤 Response pane: moved cursor to next word at column {}",
+                        tracing::debug!(
+                            "Response pane: moved cursor to next word at column {}",
                             self.cursor_position.column
                         );
                     }
-                    self.sync_to_persistent_state();
+                    // Save state for persistence
                     return Ok(());
                 }
                 "b" => {
@@ -629,12 +731,12 @@ impl BluelineWorld {
                         }
 
                         self.cursor_position.column = pos;
-                        println!(
-                            "🔤 Response pane: moved cursor to previous word at column {}",
+                        tracing::debug!(
+                            "Response pane: moved cursor to previous word at column {}",
                             self.cursor_position.column
                         );
                     }
-                    self.sync_to_persistent_state();
+                    // Save state for persistence
                     return Ok(());
                 }
                 _ => {
@@ -644,30 +746,47 @@ impl BluelineWorld {
         }
 
         // Parse the key string to a KeyEvent
-        eprintln!("DEBUG: Parsing key string '{key}' to KeyEvent");
+        tracing::debug!("Parsing key string '{key}' to KeyEvent");
         let key_event = self.string_to_key_event(key)?;
-        eprintln!("DEBUG: Parsed key event: {key_event:?}");
+        tracing::debug!("Parsed key event: {key_event:?}");
 
         // CRITICAL: Add the key event to the TestEventSource before processing
         // This prevents hangs if the AppController internally tries to read from the event source
-        eprintln!("DEBUG: Adding key event to TestEventSource");
+        tracing::info!(
+            "🔌 EVENTSOURCE: Adding key event to TestEventSource: {:?}",
+            key_event
+        );
+        tracing::info!(
+            "🔌 EVENTSOURCE: Before push - pending count: {}",
+            self.event_source.pending_count()
+        );
         self.event_source.push_event(Event::Key(key_event));
-        eprintln!(
-            "DEBUG: TestEventSource now has {} events",
+        tracing::info!(
+            "🔌 EVENTSOURCE: After push - pending count: {}",
             self.event_source.pending_count()
         );
 
+        // Check if EventSource is in a healthy state
+        if self.event_source.pending_count() == 0 {
+            tracing::warn!(
+                "🚨 EVENTSOURCE: WARNING - No events in queue after push! Possible corruption."
+            );
+        }
+
         // Process the key event through the AppController
         if let Some(app_controller) = &mut self.app_controller {
-            eprintln!("DEBUG: About to call app_controller.process_key_event({key_event:?})");
+            tracing::info!(
+                "🎮 APPCONTROLLER: About to call app_controller.process_key_event({:?})",
+                key_event
+            );
             app_controller.process_key_event(key_event).await?;
-            eprintln!("DEBUG: app_controller.process_key_event completed successfully");
+            tracing::info!("🎮 APPCONTROLLER: process_key_event completed successfully");
         } else {
-            eprintln!("DEBUG: AppController not initialized - returning error");
+            tracing::warn!("AppController not initialized - returning error");
             return Err(anyhow::anyhow!("AppController not initialized"));
         }
 
-        eprintln!("DEBUG: press_key completed successfully for '{key}'");
+        tracing::debug!("press_key completed successfully for '{key}'");
 
         // If we just executed a command, check if it was unknown
         if let Some(command) = command_to_execute {
@@ -686,13 +805,12 @@ impl BluelineWorld {
         self.sync_from_app_controller();
 
         // Save state for persistence across World recreations
-        self.sync_to_persistent_state();
 
         Ok(())
     }
 
     /// Sync our legacy fields from the AppController's ViewModel
-    fn sync_from_app_controller(&mut self) {
+    pub fn sync_from_app_controller(&mut self) {
         if let Some(app_controller) = &self.app_controller {
             let view_model = app_controller.view_model();
 
@@ -720,7 +838,12 @@ impl BluelineWorld {
 
             // Sync request buffer
             let request_text = view_model.get_request_text();
+            tracing::debug!(
+                "Syncing request buffer - got text from ViewModel: '{}'",
+                request_text
+            );
             self.request_buffer = request_text.lines().map(|s| s.to_string()).collect();
+            tracing::debug!("Synced request buffer: {:?}", self.request_buffer);
 
             // Sync quit state from AppController
             let prev_app_exited = self.app_exited;
@@ -735,7 +858,7 @@ impl BluelineWorld {
                 }
             }
 
-            println!("🔄 Synced from ViewModel: mode={:?}, pane={:?}, cursor=({}, {}), buffer_len={}, app_exited={}",
+            tracing::debug!("Synced from ViewModel: mode={:?}, pane={:?}, cursor=({}, {}), buffer_len={}, app_exited={}",
                      self.mode, self.active_pane, self.cursor_position.line, self.cursor_position.column,
                      self.request_buffer.len(), self.app_exited);
         }
@@ -780,6 +903,8 @@ impl BluelineWorld {
             "Right" => KeyEvent::new(KeyCode::Right, KeyModifiers::NONE),
             "Up" => KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
             "Down" => KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+            "u" => KeyEvent::new(KeyCode::Char('u'), KeyModifiers::NONE),
+            "y" => KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE),
             _ => return Err(anyhow::anyhow!("Unsupported key: {key}")),
         };
         Ok(key_event)
@@ -787,9 +912,16 @@ impl BluelineWorld {
 
     /// Type text by sending individual character key events to AppController
     pub async fn type_text(&mut self, text: &str) -> Result<()> {
-        println!("⌨️ Typing text: '{text}'");
+        tracing::debug!("🔤 TYPE_TEXT: STARTING to type text '{text}'");
+        tracing::debug!("🔤 TYPE_TEXT: Text length = {} characters", text.len());
 
-        for ch in text.chars() {
+        for (i, ch) in text.chars().enumerate() {
+            tracing::debug!(
+                "🔤 TYPE_TEXT: Processing character {}/{}: '{ch}'",
+                i + 1,
+                text.len()
+            );
+
             let key_event = if ch == '\n' {
                 // Convert newlines to Enter key events
                 crossterm::event::KeyEvent::new(
@@ -803,19 +935,33 @@ impl BluelineWorld {
                 )
             };
 
-            // CRITICAL: Add the key event to the TestEventSource before processing
-            // This prevents hangs if the AppController internally tries to read from the event source
-            eprintln!("DEBUG: type_text adding key event to TestEventSource: {key_event:?}");
-            self.event_source.push_event(Event::Key(key_event));
+            tracing::debug!("🔤 TYPE_TEXT: Created key_event for '{ch}': {key_event:?}");
 
+            // Process the key event directly through AppController
+            // Do NOT add to TestEventSource since we're processing directly
             if let Some(app_controller) = &mut self.app_controller {
-                eprintln!("DEBUG: type_text calling process_key_event for: {key_event:?}");
+                tracing::debug!("🔤 TYPE_TEXT: About to call process_key_event for '{ch}'");
                 app_controller.process_key_event(key_event).await?;
-                eprintln!("DEBUG: type_text process_key_event completed for: {key_event:?}");
+                tracing::debug!("🔤 TYPE_TEXT: process_key_event COMPLETED for '{ch}'");
+
+                // Check ViewModel state after each character
+                let view_model = app_controller.view_model();
+                let current_text = view_model.get_request_text();
+                tracing::debug!(
+                    "🔤 TYPE_TEXT: After '{ch}', ViewModel request text = '{current_text}'"
+                );
             } else {
                 return Err(anyhow::anyhow!("AppController not initialized"));
             }
+
+            tracing::debug!(
+                "🔤 TYPE_TEXT: Character {}/{} COMPLETED: '{ch}'",
+                i + 1,
+                text.len()
+            );
         }
+
+        tracing::debug!("🔤 TYPE_TEXT: FINISHED typing all characters of '{text}'");
 
         // If we're in command mode and typed text, save it as potential ex command
         if self.mode == Mode::Command {
@@ -825,18 +971,20 @@ impl BluelineWorld {
         // Sync state after all characters are typed
         self.sync_from_app_controller();
 
-        // Save state for persistence
-        self.sync_to_persistent_state();
+        // Use non-blocking persistent state sync to avoid deadlocks
 
         Ok(())
     }
 
     /// Set request buffer content from a multiline string
     pub async fn set_request_buffer(&mut self, content: &str) -> Result<()> {
-        println!("📝 Setting request buffer to: '{content}'");
+        tracing::debug!("Setting request buffer to: '{content}'");
 
         // Actually set the request buffer content in the AppController's ViewModel
         if let Some(app_controller) = &mut self.app_controller {
+            // Save the current mode to restore it later
+            let original_mode = app_controller.view_model().get_mode();
+
             // First, switch to insert mode and clear existing content
             app_controller
                 .view_model_mut()
@@ -850,12 +998,10 @@ impl BluelineWorld {
             // Use the existing insert_text method to add content
             app_controller.view_model_mut().insert_text(content)?;
 
-            // Switch back to normal mode
-            app_controller
-                .view_model_mut()
-                .change_mode(blueline::repl::events::EditorMode::Normal)?;
+            // Restore the original mode instead of always switching to Normal
+            app_controller.view_model_mut().change_mode(original_mode)?;
 
-            println!("✅ Successfully set request content in ViewModel using insert_text");
+            tracing::debug!("Successfully set request content in ViewModel using insert_text, restored mode to {:?}", original_mode);
         }
 
         // Also set the legacy compatibility fields
@@ -872,9 +1018,11 @@ impl BluelineWorld {
                 // Position cursor at column 1 (not 0 or end) so we can move left and right
                 cursor_line = line_idx;
                 cursor_col = 1;
-                println!(
-                    "🎯 Positioned cursor at line {}, column {} (middle of line: '{}')",
-                    line_idx, 1, line
+                tracing::debug!(
+                    "Positioned cursor at line {}, column {} (middle of line: '{}')",
+                    line_idx,
+                    1,
+                    line
                 );
                 positioned = true;
                 break;
@@ -893,8 +1041,8 @@ impl BluelineWorld {
             {
                 println!("❌ Failed to set cursor position in ViewModel: {e}");
             } else {
-                println!(
-                    "✅ Successfully set cursor position in ViewModel to ({}, {})",
+                tracing::debug!(
+                    "Successfully set cursor position in ViewModel to ({}, {})",
                     cursor_line,
                     if positioned { cursor_col } else { 0 }
                 );
@@ -905,7 +1053,7 @@ impl BluelineWorld {
             self.set_cursor_position(cursor_line, cursor_col);
         } else {
             self.set_cursor_position(0, 0);
-            println!("🎯 Positioned cursor at line 0, column 0 (no suitable lines found)");
+            tracing::debug!("Positioned cursor at line 0, column 0 (no suitable lines found)");
         }
 
         // Also capture it as output for terminal state
@@ -914,8 +1062,7 @@ impl BluelineWorld {
             self.capture_stdout(b"\r\n");
         }
 
-        // Persist the state change
-        self.sync_to_persistent_state();
+        // Save state for persistence across World recreations
         Ok(())
     }
 
@@ -936,12 +1083,19 @@ impl BluelineWorld {
 
     /// Capture stdout bytes (called by mock renderer or stdout interceptor)
     pub fn capture_stdout(&mut self, bytes: &[u8]) {
-        self.stdout_capture.lock().unwrap().extend_from_slice(bytes);
+        // Use try_lock to avoid deadlocks during concurrent operations
+        if let Ok(mut capture) = self.stdout_capture.try_lock() {
+            capture.extend_from_slice(bytes);
+        }
     }
 
     /// Get the reconstructed terminal state from captured stdout
     pub fn get_terminal_state(&mut self) -> TerminalState {
-        let captured_bytes = self.stdout_capture.lock().unwrap().clone();
+        let captured_bytes = self
+            .stdout_capture
+            .try_lock()
+            .map(|capture| capture.clone())
+            .unwrap_or_else(|_| Vec::new());
 
         // Use the current terminal size instead of fixed 80x24
         let (width, height) = self.terminal_size;
@@ -957,7 +1111,10 @@ impl BluelineWorld {
 
     /// Clear captured stdout data
     pub fn clear_terminal_capture(&mut self) {
-        self.stdout_capture.lock().unwrap().clear();
+        // Use try_lock to avoid deadlocks during concurrent operations
+        if let Ok(mut capture) = self.stdout_capture.try_lock() {
+            capture.clear();
+        }
     }
 
     /// Get terminal rendering statistics

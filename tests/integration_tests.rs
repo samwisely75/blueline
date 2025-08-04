@@ -41,7 +41,7 @@ pub use common::world::BluelineWorld;
 /// ## Current Status
 ///
 /// ✅ **249 unit tests** pass in 0.05 seconds  
-/// ✅ **18 integration features** work perfectly (100% coverage!)  
+/// ✅ **21 integration features** work perfectly (100% coverage!)  
 /// ✅ **No TTY requirements** - runs in CI environments  
 /// ✅ **No hanging** - tests complete in ~7 seconds  
 /// ✅ **ALL FEATURES ENABLED** - complete integration test coverage achieved!
@@ -49,20 +49,34 @@ pub use common::world::BluelineWorld;
 /// Run with: cargo test --test integration_tests
 #[tokio::main]
 async fn main() {
-    eprintln!("DEBUG: main() started - about to initialize tracing");
+    // Initialize tracing first before any other logs
 
-    // Initialize tracing for debug output in CI
+    // Initialize tracing with configurable log level
+    #[allow(clippy::disallowed_methods)]
+    let log_level = std::env::var("BLUELINE_LOG_LEVEL")
+        .unwrap_or_else(|_| "error".to_string())
+        .to_lowercase();
+
+    let level = match log_level.as_str() {
+        "trace" => tracing::Level::TRACE,
+        "debug" => tracing::Level::DEBUG,
+        "info" => tracing::Level::INFO,
+        "warn" => tracing::Level::WARN,
+        "error" => tracing::Level::ERROR,
+        _ => tracing::Level::ERROR, // Default to ERROR to reduce noise
+    };
+
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(level)
         .with_writer(std::io::stderr)
         .init();
 
-    eprintln!("DEBUG: tracing initialized successfully");
-    eprintln!("🚀 Running integration tests (CI compatible via EventSource abstraction)");
+    tracing::info!("Tracing initialized successfully");
+    tracing::info!("Running integration tests (CI compatible via EventSource abstraction)");
 
     // Integration tests now work in CI environments thanks to EventSource abstraction
     // No TTY dependency - tests use TestEventSource instead of crossterm::event::read()
-    println!("🚀 Running integration tests (CI compatible via EventSource abstraction)");
+    tracing::info!("Running integration tests (CI compatible via EventSource abstraction)");
 
     // Serialize feature execution to prevent resource conflicts
     run_features_sequentially().await;
@@ -97,8 +111,11 @@ async fn main() {
 /// - Terminal output capture is reset
 ///
 async fn run_features_sequentially() {
-    eprintln!("DEBUG: run_features_sequentially started");
+    tracing::debug!("run_features_sequentially started");
 
+    // All 21 features running sequentially with 100% coverage
+    // Previously had hang issues at 18th position - now resolved through feature decomposition
+    // Original text_editing.feature broken into 4 focused files to prevent state accumulation
     let features = [
         "features/application.feature",
         "features/command_line.feature",
@@ -117,37 +134,41 @@ async fn run_features_sequentially() {
         "features/cursor_flicker_fix.feature",
         "features/test_response_navigation.feature",
         "features/terminal_rendering_working.feature",
-        "features/text_editing.feature",
+        // BREAK DOWN text_editing.feature into smaller focused files to reduce state accumulation
+        "features/text_insert_mode.feature", // Insert mode operations (most likely to hang)
+        "features/text_deletion.feature",    // Deletion operations
+        "features/text_navigation.feature",  // Navigation operations
+        "features/text_advanced.feature",    // Advanced operations
     ];
 
-    // Run all 18 features - 100% coverage achieved! 🎉
-    eprintln!(
-        "DEBUG: About to run {} feature files sequentially",
-        features.len()
-    );
-    println!(
-        "Running {} feature files sequentially (100% coverage!)...",
+    tracing::info!(
+        "About to run {} feature files sequentially (100% coverage!)",
         features.len()
     );
 
     for (i, feature) in features.iter().enumerate() {
-        eprintln!(
-            "DEBUG: Starting feature {}/{}: {}",
-            i + 1,
-            features.len(),
-            feature
-        );
-        println!("\n[{}/{}] Running {feature}...", i + 1, features.len());
+        // Always log feature progress at error level to ensure visibility
+        tracing::info!("🧪 [{}/{}] Starting {}", i + 1, features.len(), feature);
 
-        eprintln!("DEBUG: About to call BluelineWorld::run({feature})");
+        tracing::debug!("About to call BluelineWorld::run({})", feature);
+
+        // CRITICAL: Set the current feature name for state isolation
+        BluelineWorld::set_current_feature(feature);
+
         BluelineWorld::run(feature).await;
-        eprintln!("DEBUG: BluelineWorld::run({feature}) completed");
+        tracing::debug!("BluelineWorld::run({}) completed", feature);
 
-        println!("✓ {feature} completed successfully");
+        // CRITICAL: Clean up feature state to prevent contamination
+        BluelineWorld::cleanup_feature_state();
+
+        // Add a small delay to allow async cleanup to complete
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Always log completion at error level to ensure visibility
+        tracing::info!("✅ [{}/{}] Completed {}", i + 1, features.len(), feature);
     }
 
-    eprintln!("DEBUG: All features completed successfully");
-    println!("\n🎉 All feature files completed successfully!");
+    tracing::info!("🎉 All feature files completed successfully!");
 }
 
 #[cfg(test)]
@@ -156,9 +177,32 @@ mod tests {
 
     #[tokio::test]
     async fn run_integration_tests() {
+        // Initialize tracing for test execution (cargo test bypasses main())
+        #[allow(clippy::disallowed_methods)]
+        let log_level = std::env::var("BLUELINE_LOG_LEVEL")
+            .unwrap_or_else(|_| "error".to_string())
+            .to_lowercase();
+
+        let level = match log_level.as_str() {
+            "trace" => tracing::Level::TRACE,
+            "debug" => tracing::Level::DEBUG,
+            "info" => tracing::Level::INFO,
+            "warn" => tracing::Level::WARN,
+            "error" => tracing::Level::ERROR,
+            _ => tracing::Level::ERROR, // Default to ERROR to reduce noise
+        };
+
+        tracing_subscriber::fmt()
+            .with_max_level(level)
+            .with_writer(std::io::stderr)
+            .try_init()
+            .ok(); // Ignore error if already initialized
+
         // Integration tests are now CI compatible thanks to EventSource abstraction
         // No TTY dependency - uses TestEventSource for deterministic keyboard input
-        println!("🚀 Running integration tests (EventSource abstraction enables CI compatibility)");
+        tracing::info!(
+            "Running integration tests (EventSource abstraction enables CI compatibility)"
+        );
 
         // Run features sequentially in tests as well
         run_features_sequentially().await;

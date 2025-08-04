@@ -121,6 +121,9 @@ The strategy for building and debugging the application is documented in the [De
 - Debug logging
 - Cursor position tracking
 
+For the integration tests, we use `cucumber` to run the feature files in the `features/` directory. The tests are designed to cover the expected behavior of the application as described in the feature files. The tests are run using the `cargo test` command, which will automatically run all the tests in the project.
+Please also refer to the [Test Architecture](docs/TEST_ARCHITECTURE.md) and [Rules for Testing](docs/TEST_RULES.md) for the guidelines on writing tests and ensuring code quality.
+
 The precheck for the git commit is automated. Please run `./scripts/git-commit-precheck.sh` before commiting any chanages to repository.
 
 ### Release Process
