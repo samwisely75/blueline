@@ -18,7 +18,7 @@ use crossterm::{
     execute, terminal,
 };
 use std::{
-    io::{self, Write},
+    io::{self, IsTerminal, Write},
     time::Duration,
 };
 
@@ -172,7 +172,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
         self.view_renderer.initialize()?;
 
         // Initial render (skip in CI mode for performance)
-        let is_ci = true; // Always use CI mode for test compatibility
+        let is_ci = !io::stdout().is_terminal();
         if !is_ci {
             self.view_renderer.render_full(&self.view_model)?;
         }
@@ -204,7 +204,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
                                 // Process view events for selective rendering (if not quitting)
                                 if !self.should_quit {
                                     // Skip all rendering operations in CI mode for performance and reliability
-                                    let is_ci = true; // Always use CI mode for test compatibility
+                                    let is_ci = !io::stdout().is_terminal();
 
                                     if !is_ci {
                                         // Throttle rapid rendering to prevent ghost cursors
@@ -236,7 +236,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
                         self.view_model.update_terminal_size(width, height);
                         self.view_renderer.update_size(width, height);
                         // Skip rendering in CI mode for performance
-                        let is_ci = true; // Always use CI mode for test compatibility
+                        let is_ci = !io::stdout().is_terminal();
                         if !is_ci {
                             self.view_renderer.render_full(&self.view_model)?;
                         }
@@ -459,7 +459,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
         self.view_model.set_executing_request(true);
 
         // Immediately refresh the status bar to show executing message (skip in CI mode)
-        let is_ci = true; // Always use CI mode for test compatibility
+        let is_ci = !io::stdout().is_terminal();
         if !is_ci {
             self.view_renderer.render_status_bar(&self.view_model)?;
         }
@@ -478,7 +478,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
                     // Clear executing status on error
                     self.view_model.set_executing_request(false);
                     // Refresh status bar to show error (skip in CI mode)
-                    let is_ci = true; // Always use CI mode for test compatibility
+                    let is_ci = !io::stdout().is_terminal();
                     if !is_ci {
                         self.view_renderer.render_status_bar(&self.view_model)?;
                     }
@@ -507,7 +507,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
         self.view_model.set_executing_request(false);
 
         // Refresh status bar to show response status (skip in CI mode)
-        let is_ci = true; // Always use CI mode for test compatibility
+        let is_ci = !io::stdout().is_terminal();
         if !is_ci {
             self.view_renderer.render_status_bar(&self.view_model)?;
         }
@@ -628,7 +628,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
         // Process events in order of efficiency
         if needs_full_redraw {
             // Skip rendering in CI mode for performance
-            let is_ci = true; // Always use CI mode for test compatibility
+            let is_ci = !io::stdout().is_terminal();
             if !is_ci {
                 self.view_renderer.render_full(&self.view_model)?;
             }
@@ -678,7 +678,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
 
             if needs_status_bar {
                 // Skip status bar rendering in CI mode
-                let is_ci = true; // Always use CI mode for test compatibility
+                let is_ci = !io::stdout().is_terminal();
                 if !is_ci {
                     self.view_renderer.render_status_bar(&self.view_model)?;
                 }
@@ -688,7 +688,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
             if needs_cursor_update || has_content_updates {
                 tracing::debug!("controller: rendering cursor after content updates");
                 // Skip cursor rendering in CI mode
-                let is_ci = true; // Always use CI mode for test compatibility
+                let is_ci = !io::stdout().is_terminal();
                 if !is_ci {
                     self.view_renderer.render_cursor(&self.view_model)?;
                 }
@@ -746,7 +746,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
                 tracing::debug!("AppController: All command events applied successfully");
 
                 // Skip rendering in CI mode for performance and reliability
-                let is_ci = true; // Always use CI mode for test compatibility
+                let is_ci = !io::stdout().is_terminal();
 
                 if !is_ci {
                     // Always render in non-CI environments
