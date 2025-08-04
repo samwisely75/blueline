@@ -30,8 +30,8 @@ mod view_model_tests {
         assert_eq!(logical_cursor.column, 3); // After "GET"
 
         let display_cursor = vm.get_display_cursor_position();
-        assert_eq!(display_cursor.0, 0); // Display line
-        assert_eq!(display_cursor.1, 3); // Display column
+        assert_eq!(display_cursor.row, 0); // Display line
+        assert_eq!(display_cursor.col, 3); // Display column
 
         // Perform backspace
         vm.delete_char_before_cursor().unwrap();
@@ -43,8 +43,8 @@ mod view_model_tests {
 
         // Verify display cursor is synchronized
         let display_cursor_after = vm.get_display_cursor_position();
-        assert_eq!(display_cursor_after.0, 0); // Display line
-        assert_eq!(display_cursor_after.1, 2); // Display column - MUST match logical
+        assert_eq!(display_cursor_after.row, 0); // Display line
+        assert_eq!(display_cursor_after.col, 2); // Display column - MUST match logical
 
         // Verify the text content
         assert_eq!(vm.get_request_text(), "GE");
@@ -63,8 +63,8 @@ mod view_model_tests {
 
         // Verify initial display cursor
         let display_cursor = vm.get_display_cursor_position();
-        assert_eq!(display_cursor.0, 1); // Second display line
-        assert_eq!(display_cursor.1, 0); // Start of line
+        assert_eq!(display_cursor.row, 1); // Second display line
+        assert_eq!(display_cursor.col, 0); // Start of line
 
         // Perform backspace (should join lines)
         vm.delete_char_before_cursor().unwrap();
@@ -76,8 +76,8 @@ mod view_model_tests {
 
         // Verify display cursor is synchronized
         let display_cursor_after = vm.get_display_cursor_position();
-        assert_eq!(display_cursor_after.0, 0); // First display line
-        assert_eq!(display_cursor_after.1, 8); // After "GET /api"
+        assert_eq!(display_cursor_after.row, 0); // First display line
+        assert_eq!(display_cursor_after.col, 8); // After "GET /api"
 
         // Verify the text was joined correctly
         assert_eq!(vm.get_request_text(), "GET /apiHost: example.com");
@@ -101,8 +101,8 @@ mod view_model_tests {
 
             assert_eq!(logical_cursor.line, 0);
             assert_eq!(logical_cursor.column, 5 - (i + 1)); // 4, 3, 2
-            assert_eq!(display_cursor.0, 0);
-            assert_eq!(display_cursor.1, 5 - (i + 1)); // Must match logical column
+            assert_eq!(display_cursor.row, 0);
+            assert_eq!(display_cursor.col, 5 - (i + 1)); // Must match logical column
         }
 
         // Verify final text
@@ -170,14 +170,14 @@ mod view_model_tests {
 
         // Verify we can get display cursor position
         let display_cursor_before = vm.get_display_cursor_position();
-        assert_eq!(display_cursor_before.1, 13); // After "GET /api/test"
+        assert_eq!(display_cursor_before.col, 13); // After "GET /api/test"
 
         // Perform backspace
         vm.delete_char_before_cursor().unwrap();
 
         // Verify display cursor updated correctly
         let display_cursor_after = vm.get_display_cursor_position();
-        assert_eq!(display_cursor_after.1, 12); // After "GET /api/tes"
+        assert_eq!(display_cursor_after.col, 12); // After "GET /api/tes"
 
         // The key test: rendering should not "black out" the response pane
         // This would happen if display cursor was out of sync
