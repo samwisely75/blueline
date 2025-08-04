@@ -18,23 +18,38 @@ struct LineInfo<'a> {
 }
 
 // Helper macro to convert crossterm errors to anyhow errors
-// Always skip terminal operations for performance and test compatibility
+// Skip terminal operations only in non-TTY environments
 macro_rules! execute_term {
     ($($arg:expr),* $(,)?) => {
-        // Skip all terminal operations to prevent hangs
-        Ok(()) as Result<(), anyhow::Error>
+        if std::io::stdout().is_terminal() {
+            crossterm::execute!($($arg),*).map_err(|e| anyhow::anyhow!("Terminal operation failed: {}", e))
+        } else {
+            // Skip terminal operations in non-TTY environments (CI, pipes, etc.)
+            Ok(())
+        }
     };
 }
 
 // Helper macro for safe flush operations
 macro_rules! safe_flush {
     ($writer:expr) => {
-        // Skip flush operations to prevent hangs in tests
-        Ok(()) as Result<(), anyhow::Error>
+        if std::io::stdout().is_terminal() {
+            $writer
+                .flush()
+                .map_err(|e| anyhow::anyhow!("Flush failed: {}", e))
+        } else {
+            // Skip flush operations in non-TTY environments
+            Ok(())
+        }
     };
 }
 
-use std::io::{self, Write};
+use crossterm::{
+    cursor::{MoveTo, SetCursorStyle, Show},
+    style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
+    terminal::{Clear, ClearType},
+};
+use std::io::{self, IsTerminal, Write};
 use unicode_width::UnicodeWidthChar;
 
 /// Trait for rendering views
@@ -142,7 +157,7 @@ impl<W: Write> TerminalRenderer<W> {
         &mut self,
         view_model: &ViewModel,
         pane: Pane,
-        _row: u16,
+        row: u16,
         line_info: &LineInfo,
         line_num_width: usize,
     ) -> Result<()> {
@@ -646,7 +661,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
     }
 
     fn render_status_bar(&mut self, view_model: &ViewModel) -> Result<()> {
-        let _status_row = self.terminal_size.1 - 1;
+        let status_row = self.terminal_size.1 - 1;
 
         // Clear the status bar first
         execute_term!(
@@ -749,7 +764,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             let visual_len = self.visual_length(&status_text);
 
             // Truncate if too long (based on visual length)
-            let _final_text = if visual_len > available_width {
+            let final_text = if visual_len > available_width {
                 // This is complex to truncate while preserving ANSI codes
                 // For now, just use the original text and let terminal handle overflow
                 status_text
@@ -758,7 +773,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             };
 
             // Calculate right alignment based on visual length
-            let _padding = available_width.saturating_sub(visual_len);
+            let padding = available_width.saturating_sub(visual_len);
 
             execute_term!(
                 self.writer,
@@ -771,7 +786,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
     }
 
     fn render_position_indicator(&mut self, view_model: &ViewModel) -> Result<()> {
-        let _status_row = self.terminal_size.1 - 1;
+        let status_row = self.terminal_size.1 - 1;
         let cursor = view_model.get_cursor_position();
 
         // Get current mode and pane
@@ -847,7 +862,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
 
         // Clear from a bit earlier to catch any leftover HTTP icon characters
         // HTTP icon with ANSI codes can be up to ~10 characters, so clear from 15 chars back to be safe
-        let _clear_start_col = right_start_col.saturating_sub(15);
+        let clear_start_col = right_start_col.saturating_sub(15);
 
         // Clear from the safe start position to the end of the line
         execute_term!(
