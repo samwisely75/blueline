@@ -3,7 +3,11 @@
 //! Clean MVVM HTTP client with vim-style interface.
 
 use anyhow::Result;
-use blueline::{cmd_args::CommandLineArgs, AppController};
+use blueline::{
+    cmd_args::CommandLineArgs,
+    repl::io::{TerminalEventStream, TerminalRenderStream},
+    AppController,
+};
 use std::env;
 use tracing_subscriber::{fmt::time::ChronoLocal, EnvFilter};
 
@@ -12,7 +16,14 @@ async fn main() -> Result<()> {
     init_tracing_subscriber();
 
     let cmd_args = CommandLineArgs::parse();
-    let mut app = AppController::new(cmd_args)?;
+
+    // Explicit dependency injection - clear what implementations are being used
+    let mut app = AppController::with_io_streams(
+        cmd_args,
+        TerminalEventStream::new(),
+        TerminalRenderStream::new(),
+    )?;
+
     app.run().await?;
     Ok(())
 }

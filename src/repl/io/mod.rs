@@ -27,6 +27,9 @@ use std::time::Duration;
 
 pub mod terminal;
 
+// Re-export terminal implementations for convenience
+pub use terminal::{TerminalEventStream, TerminalRenderStream};
+
 /// Type alias for terminal size (width, height)
 pub type TerminalSize = (u16, u16);
 
