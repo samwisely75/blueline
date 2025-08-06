@@ -27,6 +27,9 @@ use std::time::Duration;
 
 pub mod terminal;
 
+#[cfg(test)]
+pub mod mock;
+
 // Re-export terminal implementations for convenience
 pub use terminal::{TerminalEventStream, TerminalRenderStream};
 
