@@ -4,6 +4,7 @@
 //! They subscribe to view events and update the display accordingly.
 
 use crate::repl::events::{EditorMode, Pane, ViewEvent};
+use crate::repl::io::RenderStream;
 use crate::repl::view_models::ViewModel;
 use anyhow::Result;
 use crossterm::{
@@ -74,33 +75,18 @@ pub trait ViewRenderer {
     fn cleanup(&mut self) -> Result<()>;
 }
 
-/// Terminal-based view renderer using crossterm
-pub struct TerminalRenderer<W: Write> {
-    writer: W,
+/// Terminal-based view renderer using RenderStream abstraction
+pub struct TerminalRenderer<RS: RenderStream> {
+    render_stream: RS,
     terminal_size: (u16, u16),
 }
 
-impl TerminalRenderer<io::Stdout> {
-    /// Create new terminal renderer with stdout
-    pub fn new() -> Result<Self> {
-        // Always use fixed terminal size in CI mode for test compatibility
-        let terminal_size = crossterm::terminal::size().unwrap_or((80, 24));
+impl<RS: RenderStream> TerminalRenderer<RS> {
+    /// Create new terminal renderer with RenderStream
+    pub fn with_render_stream(mut render_stream: RS) -> Result<Self> {
+        let terminal_size = render_stream.get_size().unwrap_or((80, 24));
         Ok(Self {
-            writer: io::stdout(),
-            terminal_size,
-        })
-    }
-}
-
-impl<W: Write> TerminalRenderer<W> {
-    /// Create new terminal renderer with custom writer (for testing)
-    pub fn with_writer(writer: W) -> Result<Self> {
-        // Always use default size for performance and reliability
-        // This avoids terminal queries that can cause issues in tests
-        let terminal_size = crossterm::terminal::size().unwrap_or((80, 24));
-
-        Ok(Self {
-            writer,
+            render_stream,
             terminal_size,
         })
     }
@@ -149,31 +135,31 @@ impl<W: Write> TerminalRenderer<W> {
         line_num_width: usize,
     ) -> Result<()> {
         // Just move cursor, don't hide it here (should be hidden by caller)
-        execute_term!(self.writer, MoveTo(0, row))?;
+        execute_term!(self.render_stream, MoveTo(0, row))?;
 
         #[allow(unused_variables)]
         if let Some(num) = line_info.line_number {
             // Render line number with dimmed style and right alignment (minimum width 3)
-            execute_term!(self.writer, SetAttribute(Attribute::Dim))?;
-            execute_term!(self.writer, Print(format!("{num:>line_num_width$} ")))?;
-            execute_term!(self.writer, SetAttribute(Attribute::Reset))?;
+            execute_term!(self.render_stream, SetAttribute(Attribute::Dim))?;
+            execute_term!(self.render_stream, Print(format!("{num:>line_num_width$} ")))?;
+            execute_term!(self.render_stream, SetAttribute(Attribute::Reset))?;
         } else if line_info.is_continuation {
             // Continuation line of wrapped text - show blank space
             execute_term!(
-                self.writer,
+                self.render_stream,
                 Print(format!("{} ", " ".repeat(line_num_width)))
             )?;
         } else {
             // Show tilda for empty lines beyond content (vim-style) with darker gray color
-            execute_term!(self.writer, SetForegroundColor(Color::DarkGrey))?;
+            execute_term!(self.render_stream, SetForegroundColor(Color::DarkGrey))?;
             execute_term!(
-                self.writer,
+                self.render_stream,
                 Print(format!(
                     "~{} ",
                     " ".repeat(line_num_width.saturating_sub(1))
                 ))
             )?;
-            execute_term!(self.writer, ResetColor)?;
+            execute_term!(self.render_stream, ResetColor)?;
         }
 
         // Calculate how much space is available for text after line number
@@ -209,7 +195,7 @@ impl<W: Write> TerminalRenderer<W> {
         )?;
 
         // Clear rest of line
-        execute_term!(self.writer, Clear(ClearType::UntilNewLine))?;
+        execute_term!(self.render_stream, Clear(ClearType::UntilNewLine))?;
 
         Ok(())
     }
@@ -260,14 +246,14 @@ impl<W: Write> TerminalRenderer<W> {
                         position
                     );
                     // Apply visual selection styling: inverse + blue
-                    execute_term!(self.writer, SetAttribute(Attribute::Reverse))?;
-                    execute_term!(self.writer, SetForegroundColor(Color::Blue))?;
-                    execute_term!(self.writer, Print(ch))?;
-                    execute_term!(self.writer, SetAttribute(Attribute::Reset))?;
-                    execute_term!(self.writer, ResetColor)?;
+                    execute_term!(self.render_stream, SetAttribute(Attribute::Reverse))?;
+                    execute_term!(self.render_stream, SetForegroundColor(Color::Blue))?;
+                    execute_term!(self.render_stream, Print(ch))?;
+                    execute_term!(self.render_stream, SetAttribute(Attribute::Reset))?;
+                    execute_term!(self.render_stream, ResetColor)?;
                 } else {
                     // Normal character rendering
-                    execute_term!(self.writer, Print(ch))?;
+                    execute_term!(self.render_stream, Print(ch))?;
                 }
             }
             return Ok(());
@@ -279,7 +265,7 @@ impl<W: Write> TerminalRenderer<W> {
         }
 
         // No selection or not in visual mode - render normally
-        execute_term!(self.writer, Print(text))?;
+        execute_term!(self.render_stream, Print(text))?;
         Ok(())
     }
 
@@ -361,7 +347,7 @@ impl<W: Write> TerminalRenderer<W> {
     #[allow(unused_variables)]
     fn render_separator(&mut self, row: u16) -> Result<()> {
         execute_term!(
-            self.writer,
+            self.render_stream,
             MoveTo(0, row),
             SetForegroundColor(Color::Blue),
             Print("─".repeat(self.terminal_size.0 as usize)),
@@ -380,14 +366,14 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
     fn initialize(&mut self) -> Result<()> {
         // Controller handles raw mode and alternate screen
         // We just need to clear screen and set initial cursor state
-        execute_term!(self.writer, Clear(ClearType::All), crossterm::cursor::Hide)?;
+        execute_term!(self.render_stream, Clear(ClearType::All), crossterm::cursor::Hide)?;
         Ok(())
     }
 
     fn render_full(&mut self, view_model: &ViewModel) -> Result<()> {
         // Hide cursor before screen refresh to avoid flickering
-        execute_term!(self.writer, crossterm::cursor::Hide)?;
-        execute_term!(self.writer, Clear(ClearType::All))?;
+        execute_term!(self.render_stream, crossterm::cursor::Hide)?;
+        execute_term!(self.render_stream, Clear(ClearType::All))?;
 
         let (request_height, response_start, response_height) = view_model
             .pane_manager()
@@ -421,7 +407,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
 
         // Render cursor (this will show cursor in correct position)
         self.render_cursor(view_model)?;
-        safe_flush!(self.writer)?;
+        safe_flush!(self.render_stream)?;
 
         Ok(())
     }
@@ -451,7 +437,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
         }
 
         // Don't render cursor here - let the controller handle it once at the end
-        safe_flush!(self.writer)?;
+        safe_flush!(self.render_stream)?;
         Ok(())
     }
 
@@ -604,7 +590,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
         }
 
         // Don't render cursor here - let the controller handle it once at the end
-        safe_flush!(self.writer)?;
+        safe_flush!(self.render_stream)?;
         Ok(())
     }
 
@@ -620,8 +606,8 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
 
         if should_hide_cursor {
             tracing::debug!("render_cursor: hiding cursor for command mode");
-            execute_term!(self.writer, Hide)?;
-            safe_flush!(self.writer)?;
+            execute_term!(self.render_stream, Hide)?;
+            safe_flush!(self.render_stream)?;
             return Ok(());
         }
 
@@ -682,12 +668,12 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
 
         // Position, style, and show cursor
         execute_term!(
-            self.writer,
+            self.render_stream,
             MoveTo(clamped_col as u16, clamped_row as u16),
             cursor_style,
             Show
         )?;
-        safe_flush!(self.writer)?;
+        safe_flush!(self.render_stream)?;
         tracing::debug!("render_cursor: cursor shown successfully");
 
         Ok(())
@@ -698,7 +684,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
 
         // Clear the status bar first
         execute_term!(
-            self.writer,
+            self.render_stream,
             MoveTo(0, status_row),
             Print(" ".repeat(self.terminal_size.0 as usize))
         )?;
@@ -706,13 +692,13 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
         // Check if we're in command mode and need to show ex command buffer
         if view_model.get_mode() == EditorMode::Command {
             let ex_command_text = format!(":{}", view_model.get_ex_command_buffer());
-            execute_term!(self.writer, MoveTo(0, status_row), Print(&ex_command_text))?;
+            execute_term!(self.render_stream, MoveTo(0, status_row), Print(&ex_command_text))?;
 
             // Show I-beam cursor at the end of command text for command line editing
             #[allow(unused_variables)]
             let cursor_pos = ex_command_text.len() as u16;
             execute_term!(
-                self.writer,
+                self.render_stream,
                 MoveTo(cursor_pos, status_row),
                 SetCursorStyle::BlinkingBar,
                 Show
@@ -815,7 +801,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             let padding = available_width.saturating_sub(visual_len);
 
             execute_term!(
-                self.writer,
+                self.render_stream,
                 MoveTo(0, status_row),
                 Print(format!("{}{}", " ".repeat(padding), final_text))
             )?;
@@ -911,19 +897,19 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
 
         // Clear from the safe start position to the end of the line
         execute_term!(
-            self.writer,
+            self.render_stream,
             MoveTo(clear_start_col as u16, status_row),
             Clear(ClearType::UntilNewLine)
         )?;
 
         // Write the reconstructed right portion
         execute_term!(
-            self.writer,
+            self.render_stream,
             MoveTo(right_start_col as u16, status_row),
             Print(&right_text)
         )?;
 
-        safe_flush!(self.writer)?;
+        safe_flush!(self.render_stream)?;
         Ok(())
     }
 
@@ -959,7 +945,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             ViewEvent::StatusBarUpdateRequired => {
                 self.render_status_bar(view_model)?;
                 self.render_cursor(view_model)?;
-                safe_flush!(self.writer)?;
+                safe_flush!(self.render_stream)?;
             }
             ViewEvent::PositionIndicatorUpdateRequired => {
                 self.render_position_indicator(view_model)?;
@@ -1013,7 +999,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
     fn cleanup(&mut self) -> Result<()> {
         // Controller handles alternate screen and raw mode cleanup
         // We just need to show cursor before exit
-        execute_term!(self.writer, Show)?;
+        execute_term!(self.render_stream, Show)?;
         Ok(())
     }
 }

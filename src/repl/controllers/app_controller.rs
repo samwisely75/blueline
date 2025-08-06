@@ -20,12 +20,11 @@ use std::time::Duration;
 /// The main application controller that orchestrates the MVVM pattern
 pub struct AppController<ES: EventStream, RS: RenderStream> {
     view_model: ViewModel,
-    view_renderer: TerminalRenderer<std::io::Stdout>, // TODO: Update to use RS in next phase
+    view_renderer: TerminalRenderer<RS>,
     command_registry: CommandRegistry,
     #[allow(dead_code)]
     event_bus: SimpleEventBus,
     event_stream: ES,
-    render_stream: RS,
     should_quit: bool,
     last_render_time: std::time::Instant,
 }
@@ -39,14 +38,13 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     ) -> Result<Self> {
         let mut view_model = ViewModel::new();
 
-        // Note: TerminalRenderer needs to be updated to work with RenderStream
-        // For now, we'll keep it as is and update it in the next phase
-        let view_renderer = TerminalRenderer::new()?;
+        // Pass RenderStream ownership to the View layer (TerminalRenderer)
+        let view_renderer = TerminalRenderer::with_render_stream(render_stream)?;
         let command_registry = CommandRegistry::new();
         let event_bus = SimpleEventBus::new();
 
         // Synchronize view model with actual terminal size
-        let (width, height) = render_stream.get_size()?;
+        let (width, height) = view_renderer.terminal_size();
         view_model.update_terminal_size(width, height);
 
         // Load profile from INI file by name specified in --profile argument
@@ -90,7 +88,6 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             command_registry,
             event_bus,
             event_stream,
-            render_stream,
             should_quit: false,
             last_render_time: std::time::Instant::now(),
         })
@@ -100,11 +97,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Run the main application loop
     pub async fn run(&mut self) -> Result<()> {
-        // Initialize terminal explicitly (matching MVC pattern)
-        self.render_stream.enable_raw_mode()?;
-        self.render_stream.enter_alternate_screen()?;
-
-        // Initialize view renderer (this will clear screen and set initial cursor)
+        // Initialize view renderer (handles all terminal setup)
         self.view_renderer.initialize()?;
 
         // Initial render
@@ -165,10 +158,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
         }
 
-        // Cleanup (matching MVC pattern)
+        // Cleanup (all handled by view renderer)
         self.view_renderer.cleanup()?;
-        self.render_stream.leave_alternate_screen()?;
-        self.render_stream.disable_raw_mode()?;
 
         Ok(())
     }
@@ -536,9 +527,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                     needs_secondary_area_redraw,
                     partial_redraws.keys().collect::<Vec<_>>()
                 );
-                self.render_stream.hide_cursor()?;
-                self.render_stream.flush()?;
-
+                // View renderer handles cursor management and flushing
                 // Add a tiny delay to ensure cursor hide command is processed by terminal
                 // This prevents ghost cursors during rapid key repetition
                 std::thread::sleep(std::time::Duration::from_micros(100));
