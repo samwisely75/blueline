@@ -1061,10 +1061,14 @@ impl PaneManager {
         let current_display_pos = self.get_current_display_cursor();
 
         let next_display_line = current_display_pos.row + 1;
+
+        // Check if the next display line actually exists in the display cache
+        // This prevents cursor from moving beyond actual content
         if let Some(display_line) = self.panes[self.current_pane]
             .display_cache
             .get_display_line(next_display_line)
         {
+            // Only move if there's actual content at the next line
             // Clamp column to the length of the new line to prevent cursor going beyond line end
             let new_col = current_display_pos.col.min(display_line.display_width());
             let new_display_pos = Position::new(next_display_line, new_col);

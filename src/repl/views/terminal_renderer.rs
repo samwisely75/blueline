@@ -640,16 +640,23 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         let current_pane = view_model.get_current_pane();
         let line_num_width = view_model.get_line_number_width(current_pane);
 
+        // Get scroll offset to calculate viewport-relative position
+        let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
+
         // Get pane boundaries to calculate response pane offset
         let (_request_height, response_start, _response_height) = view_model
             .pane_manager()
             .get_pane_boundaries(view_model.get_response_status_code().is_some());
 
+        // Calculate viewport-relative position by subtracting scroll offset
+        let viewport_relative_row = display_cursor.row.saturating_sub(scroll_offset.row);
+        let viewport_relative_col = display_cursor.col.saturating_sub(scroll_offset.col);
+
         // Offset cursor position by line number width + space
-        let screen_col = display_cursor.col + line_num_width + 1;
+        let screen_col = viewport_relative_col + line_num_width + 1;
         let screen_row = match current_pane {
-            Pane::Request => display_cursor.row,
-            Pane::Response => display_cursor.row + response_start as usize,
+            Pane::Request => viewport_relative_row,
+            Pane::Response => viewport_relative_row + response_start as usize,
         };
 
         let terminal_size = self.terminal_size;
