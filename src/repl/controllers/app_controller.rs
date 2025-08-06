@@ -47,40 +47,19 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         let (width, height) = view_renderer.terminal_size();
         view_model.update_terminal_size(width, height);
 
-        // Load profile from INI file by name specified in --profile argument
+        // Load profile from configuration
         let profile_name = cmd_args.profile();
         let profile_path = config::get_profile_path();
+        let profile = Self::load_profile(profile_name, &profile_path)?;
 
-        tracing::debug!("Loading profile '{}' from '{}'", profile_name, profile_path);
-
-        let ini_store = IniProfileStore::new(&profile_path);
-        let profile_result = ini_store.get_profile(profile_name)?;
-
-        let profile = match profile_result {
-            Some(p) => {
-                tracing::debug!("Profile loaded successfully, server: {:?}", p.server());
-                p
-            }
-            None => {
-                tracing::debug!("Profile '{}' not found, using blank profile", profile_name);
-                get_blank_profile()
-            }
-        };
-
-        // Set up HTTP client with the loaded profile
-        if let Err(e) = view_model.set_http_client(&profile) {
-            tracing::warn!("Failed to create HTTP client with profile: {}", e);
-            // Continue with default client
-        }
-
-        // Store profile information for display
-        view_model.set_profile_info(profile_name.clone(), profile_path);
-
-        // Set verbose mode from command line args
-        view_model.set_verbose(cmd_args.verbose());
-
-        // Set up event bus in view model
-        view_model.set_event_bus(Box::new(SimpleEventBus::new()));
+        // Configure view model with profile and settings
+        Self::configure_view_model(
+            &mut view_model,
+            &profile,
+            profile_name,
+            &profile_path,
+            &cmd_args,
+        );
 
         Ok(Self {
             view_model,
@@ -95,6 +74,51 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 }
 
 impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
+    /// Load profile from INI file or return blank profile if not found
+    fn load_profile(profile_name: &str, profile_path: &str) -> Result<impl HttpConnectionProfile> {
+        tracing::debug!("Loading profile '{}' from '{}'", profile_name, profile_path);
+
+        let ini_store = IniProfileStore::new(profile_path);
+        let profile_result = ini_store.get_profile(profile_name)?;
+
+        let profile = match profile_result {
+            Some(p) => {
+                tracing::debug!("Profile loaded successfully, server: {:?}", p.server());
+                p
+            }
+            None => {
+                tracing::debug!("Profile '{}' not found, using blank profile", profile_name);
+                get_blank_profile()
+            }
+        };
+
+        Ok(profile)
+    }
+
+    /// Configure view model with profile settings and command line arguments
+    fn configure_view_model(
+        view_model: &mut ViewModel,
+        profile: &impl HttpConnectionProfile,
+        profile_name: &str,
+        profile_path: &str,
+        cmd_args: &CommandLineArgs,
+    ) {
+        // Set up HTTP client with the loaded profile
+        if let Err(e) = view_model.set_http_client(profile) {
+            tracing::warn!("Failed to create HTTP client with profile: {}", e);
+            // Continue with default client
+        }
+
+        // Store profile information for display
+        view_model.set_profile_info(profile_name.to_string(), profile_path.to_string());
+
+        // Set verbose mode from command line args
+        view_model.set_verbose(cmd_args.verbose());
+
+        // Set up event bus in view model
+        view_model.set_event_bus(Box::new(SimpleEventBus::new()));
+    }
+
     /// Run the main application loop
     pub async fn run(&mut self) -> Result<()> {
         // Initialize view renderer (handles all terminal setup)
