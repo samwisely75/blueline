@@ -258,6 +258,25 @@ impl PaneState {
         (self.pane_dimensions.height / 2).max(1)
     }
 
+    /// Calculate how much content (in characters) represents "one page" for scrolling
+    /// This handles both wrapped and non-wrapped cases properly
+    fn calculate_page_content_amount(&self) -> usize {
+        let page_height = self.get_page_size();
+        let content_width = self.get_content_width();
+
+        if self.display_cache.wrap_enabled {
+            // In wrapped mode: page_height lines × content_width chars per line
+            // This gives us the amount of characters that would fill the viewport
+            page_height * content_width
+        } else {
+            // In non-wrapped mode: we need to advance by the number of logical lines
+            // that would represent a "page" of content. This is more complex because
+            // logical lines can be much longer than display width.
+            // For now, use the same calculation but this may need adjustment
+            page_height * content_width
+        }
+    }
+
     /// Get content width for this pane
     pub fn get_content_width(&self) -> usize {
         self.pane_dimensions.width
@@ -380,71 +399,68 @@ impl PaneState {
             // Update scroll offset
             self.scroll_offset.row = new_scroll_offset;
 
-            // OPTION B: Keep cursor at SAME RELATIVE position within viewport
-            // The cursor should appear to stay visually in the same spot, but advance logically
-            let target_display_row = new_scroll_offset + cursor_row_in_viewport;
-
-            // Ensure target row is within viewport bounds to prevent edge-case scrolling
-            let max_viewport_row =
-                new_scroll_offset + self.pane_dimensions.height.saturating_sub(1);
-            let clamped_target_row = target_display_row.min(max_viewport_row);
-
-            // Ensure target display row is valid
-            if clamped_target_row < self.display_cache.display_line_count() {
-                if let Some(target_display_line) =
-                    self.display_cache.get_display_line(clamped_target_row)
-                {
-                    // Keep same column position, but clamp to target line length
-                    let target_display_col = current_display_pos
-                        .col
-                        .min(target_display_line.char_count());
-
-                    // Convert to logical position
-                    if let Some(target_pos) = self
-                        .display_cache
-                        .display_to_logical_position(clamped_target_row, target_display_col)
-                    {
-                        let target_logical_pos =
-                            LogicalPosition::new(target_pos.row, target_pos.col);
-
-                        // Update cursor to new logical position
-                        self.buffer.set_cursor(target_logical_pos);
-
-                        // Update display cursor to absolute position for rendering
-                        self.display_cursor = Position::new(clamped_target_row, target_display_col);
-
-                        tracing::debug!(
-                            "scroll_vertically_by_page: OPTION B - viewport moved from {} to {}, cursor at viewport row {} (absolute row {}), logically moved from ({}, {}) to ({}, {})",
-                            old_offset, new_scroll_offset,
-                            cursor_row_in_viewport, clamped_target_row,
-                            current_cursor.line, current_cursor.column,
-                            target_logical_pos.line, target_logical_pos.column
-                        );
-                    }
-                }
+            // CONTENT-BASED POSITIONING: Calculate target logical position first
+            let page_content_amount = self.calculate_page_content_amount();
+            let target_logical_column = if direction > 0 {
+                current_cursor.column + page_content_amount
             } else {
-                // Target row beyond content, clamp to last valid position
-                let last_display_line = self.display_cache.display_line_count().saturating_sub(1);
-                if let Some(last_line) = self.display_cache.get_display_line(last_display_line) {
-                    let target_display_col = current_display_pos.col.min(last_line.char_count());
+                current_cursor.column.saturating_sub(page_content_amount)
+            };
 
-                    if let Some(target_pos) = self
-                        .display_cache
-                        .display_to_logical_position(last_display_line, target_display_col)
-                    {
-                        let target_logical_pos =
-                            LogicalPosition::new(target_pos.row, target_pos.col);
-                        self.buffer.set_cursor(target_logical_pos);
+            let target_logical_pos =
+                LogicalPosition::new(current_cursor.line, target_logical_column);
 
-                        // Set display cursor to absolute position for rendering
-                        self.display_cursor = Position::new(last_display_line, target_display_col);
+            tracing::debug!(
+                "scroll_vertically_by_page: CONTENT-BASED - page_content_amount={}, target_logical=({}, {})",
+                page_content_amount, target_logical_pos.line, target_logical_pos.column
+            );
 
-                        tracing::debug!(
-                            "scroll_vertically_by_page: clamped to last line {}, logical pos ({}, {})",
-                            last_display_line, target_logical_pos.line, target_logical_pos.column
-                        );
-                    }
+            // Find which display line contains this logical position
+            if let Some(target_display_pos) = self
+                .display_cache
+                .logical_to_display_position(target_logical_pos.line, target_logical_pos.column)
+            {
+                // Clamp the target to be within the current viewport for visual consistency
+                let viewport_relative_row =
+                    target_display_pos.row.saturating_sub(new_scroll_offset);
+                let clamped_viewport_row = viewport_relative_row.min(cursor_row_in_viewport);
+                let final_display_row = new_scroll_offset + clamped_viewport_row;
+
+                // Update cursor to the calculated logical position
+                self.buffer.set_cursor(target_logical_pos);
+
+                // Update display cursor to the final display position
+                self.display_cursor = Position::new(final_display_row, target_display_pos.col);
+
+                tracing::debug!(
+                    "scroll_vertically_by_page: CONTENT-BASED - viewport moved from {} to {}, target_display=({}, {}), final_display=({}, {}), logically moved from ({}, {}) to ({}, {})",
+                    old_offset, new_scroll_offset,
+                    target_display_pos.row, target_display_pos.col,
+                    final_display_row, target_display_pos.col,
+                    current_cursor.line, current_cursor.column,
+                    target_logical_pos.line, target_logical_pos.column
+                );
+            } else {
+                // Fallback: clamp to end of content
+                let content = self.buffer.content();
+                let last_line_idx = content.line_count().saturating_sub(1);
+                let last_line_len = content.line_length(last_line_idx);
+                let fallback_logical = LogicalPosition::new(last_line_idx, last_line_len);
+
+                self.buffer.set_cursor(fallback_logical);
+
+                if let Some(fallback_display) = self
+                    .display_cache
+                    .logical_to_display_position(fallback_logical.line, fallback_logical.column)
+                {
+                    self.display_cursor = fallback_display;
                 }
+
+                tracing::debug!(
+                    "scroll_vertically_by_page: fallback to end of content ({}, {})",
+                    fallback_logical.line,
+                    fallback_logical.column
+                );
             }
         } else {
             tracing::debug!("scroll_vertically_by_page: no scroll (at boundary)");
