@@ -21,18 +21,36 @@ struct LineInfo<'a> {
 // ANSI escape code constants for terminal styling
 #[allow(dead_code)]
 mod ansi {
-    pub const RESET: &str = "\x1b[0m";
-    pub const DIM: &str = "\x1b[2m";
-    pub const BOLD: &str = "\x1b[1m";
-    pub const UNDERLINE: &str = "\x1b[4m";
-    pub const FG_RED: &str = "\x1b[31m";
-    pub const FG_GREEN: &str = "\x1b[32m";
-    pub const FG_YELLOW: &str = "\x1b[33m";
-    pub const FG_BLUE: &str = "\x1b[34m";
-    pub const FG_DARK_GREY: &str = "\x1b[90m";
+    // Text attributes
+    pub const RESET: &str = "\x1b[0m"; // Reset all attributes
+    pub const DIM: &str = "\x1b[2m"; // Dimmed/faint text
+    pub const BOLD: &str = "\x1b[1m"; // Bold text
+    pub const UNDERLINE: &str = "\x1b[4m"; // Underlined text
+    pub const REVERSE: &str = "\x1b[7m"; // Reverse video (swap fg/bg)
+
+    // Foreground colors
+    pub const FG_RED: &str = "\x1b[31m"; // Red text
+    pub const FG_GREEN: &str = "\x1b[32m"; // Green text
+    pub const FG_YELLOW: &str = "\x1b[33m"; // Yellow text
+    pub const FG_BLUE: &str = "\x1b[34m"; // Blue text
+    pub const FG_DARK_GREY: &str = "\x1b[90m"; // Dark grey text
+
+    // Line control
     pub const CLEAR_LINE: &str = "\x1b[K"; // Clear from cursor to end of line
-    pub const CURSOR_BLOCK: &str = "\x1b[2 q";
-    pub const CURSOR_BAR: &str = "\x1b[6 q";
+
+    // Cursor styles
+    pub const CURSOR_BLOCK: &str = "\x1b[2 q"; // Blinking block cursor
+    pub const CURSOR_BAR: &str = "\x1b[6 q"; // Blinking bar cursor (I-beam)
+
+    // Status indicators (compound styles with space)
+    pub const STATUS_BULLET_GREEN: &str = "\x1b[32m●\x1b[0m "; // Green bullet for success
+    pub const STATUS_BULLET_RED: &str = "\x1b[31m●\x1b[0m "; // Red bullet for errors
+    pub const STATUS_BULLET_YELLOW: &str = "\x1b[33m●\x1b[0m"; // Yellow bullet for executing (no space)
+    pub const STATUS_BULLET_DEFAULT: &str = "● ";
+
+    // Visual selection style (compound)
+    pub const SELECTION_START: &str = "\x1b[7m\x1b[34m"; // Reverse + blue for selection
+    pub const SELECTION_END: &str = "\x1b[0m"; // Reset after selection
 }
 
 // Helper macro for safe flush operations
@@ -251,7 +269,12 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
                         position
                     );
                     // Apply visual selection styling: inverse + blue
-                    write!(self.render_stream, "\x1b[7m\x1b[34m{ch}\x1b[0m")?
+                    write!(
+                        self.render_stream,
+                        "{}{ch}{}",
+                        ansi::SELECTION_START,
+                        ansi::SELECTION_END
+                    )?
                 } else {
                     // Normal character rendering
                     write!(self.render_stream, "{ch}")?
@@ -727,7 +750,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             }
             // 1. Show "Executing..." when request is being processed (highest priority)
             else if view_model.is_executing_request() {
-                status_text.push_str("\x1b[33m●\x1b[0m Executing... | "); // Yellow bullet for executing
+                let bullet = ansi::STATUS_BULLET_YELLOW;
+                status_text.push_str(&format!("{bullet} Executing... | "))
             }
             // 2. HTTP response info (optional, when present and not executing)
             else if let Some(status_code) = view_model.get_response_status_code() {
@@ -737,9 +761,9 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
                 // Use old MVC bullet design with ANSI colors
                 let signal_icon = match status_code {
-                    200..=299 => "\x1b[32m●\x1b[0m ", // Green bullet for success
-                    400..=599 => "\x1b[31m●\x1b[0m ", // Red bullet for errors
-                    _ => "● ",                        // Default bullet for unknown
+                    200..=299 => ansi::STATUS_BULLET_GREEN,
+                    400..=599 => ansi::STATUS_BULLET_RED,
+                    _ => ansi::STATUS_BULLET_DEFAULT,
                 };
 
                 status_text.push_str(&format!("{signal_icon}{status_full}"));
@@ -860,9 +884,9 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
             // Use old MVC bullet design with ANSI colors
             let signal_icon = match status_code {
-                200..=299 => "\x1b[32m●\x1b[0m ", // Green bullet for success
-                400..=599 => "\x1b[31m●\x1b[0m ", // Red bullet for errors
-                _ => "● ",                        // Default bullet for unknown
+                200..=299 => ansi::STATUS_BULLET_GREEN,
+                400..=599 => ansi::STATUS_BULLET_RED,
+                _ => ansi::STATUS_BULLET_DEFAULT,
             };
 
             right_text.push_str(&format!("{signal_icon}{status_full}"));
@@ -1044,6 +1068,7 @@ mod tests {
             assert_eq!(renderer.visual_length("Hello World"), 11);
 
             // Test text with ANSI color codes
+            // Using hardcoded values in tests to verify the function correctly ignores ANSI
             assert_eq!(renderer.visual_length("\x1b[32m●\x1b[0m Hello"), 7); // ● + space + Hello = 7
 
             // Test multiple ANSI sequences
