@@ -48,8 +48,16 @@ mod ansi {
     pub const STATUS_BULLET_YELLOW: &str = "\x1b[33m●\x1b[0m"; // Yellow bullet for executing (no space)
     pub const STATUS_BULLET_DEFAULT: &str = "● ";
 
+    // Background colors
+    pub const BG_CYAN: &str = "\x1b[46m"; // Cyan/light blue background
+    pub const BG_BRIGHT_BLUE: &str = "\x1b[104m"; // Bright blue background (if supported)
+
+    // Foreground colors (additional)
+    pub const FG_WHITE: &str = "\x1b[37m"; // White text
+    pub const FG_BRIGHT_WHITE: &str = "\x1b[97m"; // Bright white text
+
     // Visual selection style (compound)
-    pub const SELECTION_START: &str = "\x1b[7m\x1b[34m"; // Reverse + blue for selection
+    pub const SELECTION_START: &str = "\x1b[46m\x1b[97m"; // Cyan background + bright white text
     pub const SELECTION_END: &str = "\x1b[0m"; // Reset after selection
 }
 
