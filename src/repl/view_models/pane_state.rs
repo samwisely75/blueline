@@ -8,6 +8,15 @@ use crate::repl::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache};
 use std::ops::{Index, IndexMut};
 
+/// Information about a wrapped line segment
+#[derive(Debug, Clone)]
+struct WrappedSegment {
+    #[allow(dead_code)] // Used for debug/display purposes
+    content: String,
+    logical_start: usize,
+    logical_end: usize,
+}
+
 /// Type alias for optional position
 pub type OptionalPosition = Option<Position>;
 
@@ -65,12 +74,178 @@ impl PaneState {
         pane_state
     }
 
-    /// Build display cache for this pane's content
+    /// Build display cache for this pane's content using CharacterBuffer with word boundaries
     pub fn build_display_cache(&mut self, content_width: usize, wrap_enabled: bool) {
-        let lines = self.buffer.content().lines().to_vec();
-        self.display_cache =
-            crate::repl::models::build_display_cache(&lines, content_width, wrap_enabled)
-                .unwrap_or_else(|_| DisplayCache::new());
+        tracing::info!(
+            "Building display cache with ICU word segmentation: content_width={}, wrap_enabled={}",
+            content_width,
+            wrap_enabled
+        );
+
+        // Use CharacterBuffer directly to preserve word boundary information
+        self.display_cache = self
+            .build_display_cache_from_character_buffer(content_width, wrap_enabled)
+            .unwrap_or_else(|e| {
+                tracing::error!("Failed to build display cache with word boundaries: {}", e);
+                DisplayCache::new()
+            });
+
+        tracing::debug!(
+            "Display cache built: {} display lines, {} logical lines mapped",
+            self.display_cache.display_lines.len(),
+            self.display_cache.logical_to_display.len()
+        );
+    }
+
+    /// Build display cache from CharacterBuffer preserving word boundaries
+    fn build_display_cache_from_character_buffer(
+        &mut self,
+        content_width: usize,
+        wrap_enabled: bool,
+    ) -> anyhow::Result<DisplayCache> {
+        use crate::repl::models::display_cache::*;
+        use crate::repl::models::display_char::DisplayChar;
+        use std::collections::HashMap;
+        use std::time::Instant;
+
+        // Ensure word boundaries are calculated for all lines
+        let character_buffer = self.buffer.content_mut().character_buffer_mut();
+        let line_count = character_buffer.line_count();
+
+        tracing::debug!("Pre-calculating word boundaries for {} lines", line_count);
+
+        // Pre-calculate word boundaries for all lines
+        for line_idx in 0..line_count {
+            character_buffer.get_line_word_boundaries(line_idx);
+            if let Some(line) = character_buffer.get_line(line_idx) {
+                let word_starts = line
+                    .chars()
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, c)| c.is_word_start)
+                    .map(|(i, _)| i)
+                    .collect::<Vec<_>>();
+                let word_ends = line
+                    .chars()
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, c)| c.is_word_end)
+                    .map(|(i, _)| i)
+                    .collect::<Vec<_>>();
+
+                if !word_starts.is_empty() || !word_ends.is_empty() {
+                    tracing::debug!(
+                        "Line {}: '{}' -> word_starts={:?}, word_ends={:?}",
+                        line_idx,
+                        line.to_string().chars().take(50).collect::<String>(), // First 50 chars
+                        word_starts,
+                        word_ends
+                    );
+                }
+            }
+        }
+        let mut display_lines = Vec::new();
+        let mut logical_to_display = HashMap::new();
+
+        for logical_idx in 0..line_count {
+            if let Some(buffer_line) = character_buffer.get_line(logical_idx) {
+                let line_text = buffer_line.to_string();
+
+                let wrapped_segments = if wrap_enabled {
+                    Self::wrap_line_with_positions(&line_text, content_width)
+                } else {
+                    vec![WrappedSegment {
+                        content: line_text.clone(),
+                        logical_start: 0,
+                        logical_end: buffer_line.char_count(),
+                    }]
+                };
+
+                let mut display_indices = Vec::new();
+
+                for (segment_idx, segment_info) in wrapped_segments.iter().enumerate() {
+                    let display_idx = display_lines.len();
+                    display_indices.push(display_idx);
+
+                    // Create DisplayChars from the segment, preserving word boundaries
+                    let mut display_chars = Vec::new();
+                    let mut current_screen_col = 0;
+
+                    // Extract the relevant BufferChars from the line
+                    for logical_col in segment_info.logical_start..segment_info.logical_end {
+                        if let Some(buffer_char) = buffer_line.get_char(logical_col) {
+                            let display_char = DisplayChar::from_buffer_char(
+                                buffer_char.clone(),
+                                (display_idx, current_screen_col),
+                            );
+                            current_screen_col += display_char.display_width();
+                            display_chars.push(display_char);
+                        }
+                    }
+
+                    let display_line = DisplayLine::new(
+                        display_chars,
+                        logical_idx,
+                        segment_info.logical_start,
+                        segment_info.logical_end,
+                        segment_idx > 0,
+                    );
+
+                    display_lines.push(display_line);
+                }
+
+                logical_to_display.insert(logical_idx, display_indices);
+            }
+        }
+
+        Ok(DisplayCache {
+            total_display_lines: display_lines.len(),
+            display_lines,
+            logical_to_display,
+            content_width,
+            content_hash: 0, // Not used with eager invalidation strategy
+            generated_at: Instant::now(),
+            is_valid: true,
+            wrap_enabled,
+        })
+    }
+
+    /// Wrap a line into segments with position tracking
+    fn wrap_line_with_positions(line: &str, content_width: usize) -> Vec<WrappedSegment> {
+        if content_width == 0 {
+            return vec![WrappedSegment {
+                content: line.to_string(),
+                logical_start: 0,
+                logical_end: line.chars().count(),
+            }];
+        }
+
+        let mut segments = Vec::new();
+        let chars: Vec<char> = line.chars().collect();
+        let mut start = 0;
+
+        while start < chars.len() {
+            let end = (start + content_width).min(chars.len());
+            let segment_content: String = chars[start..end].iter().collect();
+
+            segments.push(WrappedSegment {
+                content: segment_content,
+                logical_start: start,
+                logical_end: end,
+            });
+
+            start = end;
+        }
+
+        if segments.is_empty() {
+            segments.push(WrappedSegment {
+                content: String::new(),
+                logical_start: 0,
+                logical_end: 0,
+            });
+        }
+
+        segments
     }
 
     /// Get page size for scrolling (pane height minus UI chrome)
@@ -154,95 +329,107 @@ impl PaneState {
 
     /// Handle vertical page scrolling within this pane
     pub fn scroll_vertically_by_page(&mut self, direction: i32) -> ScrollResult {
-        use crate::repl::events::LogicalPosition;
-
         let old_offset = self.scroll_offset.row; // vertical offset
         let page_size = self.get_page_size();
-
-        // Vim typically scrolls by (page_size - 1) to maintain some context
-        let scroll_amount = page_size.saturating_sub(1).max(1);
+        let current_cursor = self.buffer.cursor();
 
         tracing::debug!(
-            "scroll_vertically_by_page: pane_dimensions=({}, {}), page_size={}, scroll_amount={}",
+            "scroll_vertically_by_page: pane_dimensions=({}, {}), page_size={}, current_cursor=({}, {})",
             self.pane_dimensions.width,
             self.pane_dimensions.height,
             page_size,
-            scroll_amount
+            current_cursor.line, current_cursor.column
         );
 
-        // Prevent scrolling beyond actual content bounds
-        let max_scroll_offset = self
-            .display_cache
-            .display_line_count()
-            .saturating_sub(page_size)
-            .max(0);
-
-        let new_offset = if direction > 0 {
-            std::cmp::min(old_offset + scroll_amount, max_scroll_offset)
-        } else {
-            old_offset.saturating_sub(scroll_amount)
-        };
-
-        // If scroll offset wouldn't change, don't do anything
-        if new_offset == old_offset {
-            return ScrollResult {
-                old_offset,
-                new_offset: old_offset,
-                cursor_moved: false,
-            };
-        }
-
-        self.scroll_offset.row = new_offset;
-
-        // BUGFIX: Move cursor by exactly the scroll amount in display coordinates
-        // This should be simple: if we scroll by N display lines, cursor moves by N display lines
-        let current_cursor = self.buffer.cursor();
-        let mut cursor_moved = false;
-
-        tracing::debug!("scroll_vertically_by_page: old_offset={}, new_offset={}, scroll_amount={}, current_cursor=({}, {})",
-            old_offset, new_offset, scroll_amount, current_cursor.line, current_cursor.column);
-
-        // Get current cursor display position
-        if let Some(current_display_pos) = self
+        // Get current display position
+        let current_display_pos = self
             .display_cache
             .logical_to_display_position(current_cursor.line, current_cursor.column)
-        {
-            // Move cursor by exactly the scroll amount in display lines
-            let scroll_delta = new_offset as i32 - old_offset as i32;
-            let new_display_line = (current_display_pos.row as i32 + scroll_delta).max(0) as usize;
-            let new_display_col = current_display_pos.col; // Keep same column position
+            .unwrap_or(Position::new(0, 0));
 
-            tracing::debug!("scroll_vertically_by_page: current_display=({}, {}), scroll_delta={}, new_display=({}, {})",
-                current_display_pos.row, current_display_pos.col, scroll_delta, new_display_line, new_display_col);
+        // Calculate cursor's relative position within current viewport
+        let cursor_row_in_viewport = current_display_pos
+            .row
+            .saturating_sub(self.scroll_offset.row);
 
-            // Convert new display position back to logical position
-            if let Some(logical_pos) = self
-                .display_cache
-                .display_to_logical_position(new_display_line, new_display_col)
+        tracing::debug!(
+            "scroll_vertically_by_page: current_display_pos=({}, {}), scroll_offset={}, cursor_row_in_viewport={}",
+            current_display_pos.row, current_display_pos.col,
+            self.scroll_offset.row,
+            cursor_row_in_viewport
+        );
+
+        // Move viewport by pane height (page scrolling)
+        let scroll_amount = self.pane_dimensions.height;
+        let new_scroll_offset = if direction > 0 {
+            // Scroll down: move viewport down by pane height
+            let max_display_lines = self.display_cache.display_line_count();
+            let max_offset = max_display_lines.saturating_sub(self.pane_dimensions.height);
+            (self.scroll_offset.row + scroll_amount).min(max_offset)
+        } else {
+            // Scroll up: move viewport up by pane height
+            self.scroll_offset.row.saturating_sub(scroll_amount)
+        };
+
+        let cursor_moved = new_scroll_offset != self.scroll_offset.row;
+
+        if cursor_moved {
+            // Update scroll offset
+            self.scroll_offset.row = new_scroll_offset;
+
+            // Keep cursor at same relative position within new viewport
+            let target_display_row = new_scroll_offset + cursor_row_in_viewport;
+
+            // Get the display line info to find column within that specific line
+            if let Some(target_display_line) =
+                self.display_cache.get_display_line(target_display_row)
             {
-                let cursor_position = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                let clamped_position = self.buffer.content().clamp_position(cursor_position);
+                // Calculate column within the target display line
+                // current_display_pos.col is absolute position from line start
+                let target_display_col = current_display_pos
+                    .col
+                    .min(target_display_line.char_count());
+
+                // Find logical position at target display position
+                let target_pos = self
+                    .display_cache
+                    .display_to_logical_position(target_display_row, target_display_col)
+                    .unwrap_or(Position::new(current_cursor.line, current_cursor.column));
+
+                // Convert Position to LogicalPosition for buffer update
+                let target_logical_pos = LogicalPosition::new(target_pos.row, target_pos.col);
+
+                // Update cursor to new logical position
+                self.buffer.set_cursor(target_logical_pos);
+
+                // Update display cursor
+                if let Some(new_display_pos) = self
+                    .display_cache
+                    .logical_to_display_position(target_logical_pos.line, target_logical_pos.column)
+                {
+                    self.display_cursor = Position::new(new_display_pos.row, new_display_pos.col);
+                }
 
                 tracing::debug!(
-                    "scroll_vertically_by_page: new_logical=({}, {}), clamped=({}, {})",
-                    logical_pos.row,
-                    logical_pos.col,
-                    clamped_position.line,
-                    clamped_position.column
+                    "scroll_vertically_by_page: viewport moved from {} to {}, target_display=({}, {}), cursor moved from ({}, {}) to ({}, {})",
+                    old_offset, new_scroll_offset,
+                    target_display_row, target_display_col,
+                    current_cursor.line, current_cursor.column,
+                    target_logical_pos.line, target_logical_pos.column
                 );
-
-                // Update cursor position
-                if clamped_position != current_cursor {
-                    self.buffer.set_cursor(clamped_position);
-                    self.display_cursor = Position::new(new_display_line, new_display_col);
-                    cursor_moved = true;
-                }
+            } else {
+                tracing::debug!(
+                    "scroll_vertically_by_page: target display line {} not found",
+                    target_display_row
+                );
             }
+        } else {
+            tracing::debug!("scroll_vertically_by_page: no scroll (at boundary)");
         }
 
         ScrollResult {
             old_offset,
-            new_offset,
+            new_offset: new_scroll_offset,
             cursor_moved,
         }
     }

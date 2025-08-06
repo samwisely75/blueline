@@ -244,6 +244,11 @@ impl BufferLine {
 
     /// Invalidate the cached word boundaries
     pub fn invalidate_word_boundaries_cache(&mut self) {
+        tracing::debug!(
+            "Invalidating word boundary cache for line: '{}'",
+            self.to_string().chars().take(50).collect::<String>()
+        );
+
         self.word_boundaries_cache = None;
         // Also clear word flags from all characters since they're now invalid
         for buffer_char in &mut self.chars {
@@ -255,6 +260,10 @@ impl BufferLine {
     /// Get or calculate word boundaries for this line
     pub fn get_word_boundaries(&mut self, segmenter: &dyn WordSegmenter) -> &WordBoundaries {
         if self.word_boundaries_cache.is_none() {
+            tracing::debug!(
+                "Word boundaries cache miss, calculating for line: '{}'",
+                self.to_string().chars().take(50).collect::<String>()
+            );
             self.refresh_word_boundaries(segmenter);
         }
 

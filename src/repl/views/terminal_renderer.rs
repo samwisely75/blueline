@@ -6,6 +6,11 @@
 use crate::repl::events::{EditorMode, Pane, ViewEvent};
 use crate::repl::view_models::ViewModel;
 use anyhow::Result;
+use crossterm::{
+    cursor::{Hide, MoveTo, SetCursorStyle, Show},
+    style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
+    terminal::{Clear, ClearType},
+};
 
 /// Line rendering information to reduce function parameter count
 #[derive(Debug)]
@@ -18,19 +23,16 @@ struct LineInfo<'a> {
 }
 
 // Helper macro to convert crossterm errors to anyhow errors
-// Always skip terminal operations for performance and test compatibility
 macro_rules! execute_term {
     ($($arg:expr),* $(,)?) => {
-        // Skip all terminal operations to prevent hangs
-        Ok(()) as Result<(), anyhow::Error>
+        crossterm::execute!($($arg),*).map_err(anyhow::Error::from)
     };
 }
 
 // Helper macro for safe flush operations
 macro_rules! safe_flush {
     ($writer:expr) => {
-        // Skip flush operations to prevent hangs in tests
-        Ok(()) as Result<(), anyhow::Error>
+        $writer.flush().map_err(anyhow::Error::from)
     };
 }
 
@@ -82,7 +84,7 @@ impl TerminalRenderer<io::Stdout> {
     /// Create new terminal renderer with stdout
     pub fn new() -> Result<Self> {
         // Always use fixed terminal size in CI mode for test compatibility
-        let terminal_size = (80, 24); // Fixed size instead of calling crossterm::terminal::size()
+        let terminal_size = crossterm::terminal::size().unwrap_or((80, 24));
         Ok(Self {
             writer: io::stdout(),
             terminal_size,
@@ -95,7 +97,7 @@ impl<W: Write> TerminalRenderer<W> {
     pub fn with_writer(writer: W) -> Result<Self> {
         // Always use default size for performance and reliability
         // This avoids terminal queries that can cause issues in tests
-        let terminal_size = (80, 24);
+        let terminal_size = crossterm::terminal::size().unwrap_or((80, 24));
 
         Ok(Self {
             writer,
@@ -142,7 +144,7 @@ impl<W: Write> TerminalRenderer<W> {
         &mut self,
         view_model: &ViewModel,
         pane: Pane,
-        _row: u16,
+        row: u16,
         line_info: &LineInfo,
         line_num_width: usize,
     ) -> Result<()> {
@@ -383,15 +385,9 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
     }
 
     fn render_full(&mut self, view_model: &ViewModel) -> Result<()> {
-        // Always use CI-like rendering for performance and reliability
-        // Skip problematic terminal operations that cause hangs in tests
-        let is_ci = true;
-
-        if !is_ci {
-            // Hide cursor before screen refresh to avoid flickering (only in non-CI)
-            execute_term!(self.writer, crossterm::cursor::Hide)?;
-            execute_term!(self.writer, Clear(ClearType::All))?;
-        }
+        // Hide cursor before screen refresh to avoid flickering
+        execute_term!(self.writer, crossterm::cursor::Hide)?;
+        execute_term!(self.writer, Clear(ClearType::All))?;
 
         let (request_height, response_start, response_height) = view_model
             .pane_manager()
@@ -401,7 +397,13 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
         self.render_buffer_content(view_model, Pane::Request, 0, request_height)?;
 
         // Only render separator and response pane if there's an HTTP response
-        if view_model.get_response_status_code().is_some() {
+        let has_response = view_model.get_response_status_code().is_some();
+        tracing::debug!(
+            "render_full: has_response = {}, rendering response pane = {}",
+            has_response,
+            has_response
+        );
+        if has_response {
             // Render separator
             self.render_separator(request_height)?;
 
@@ -417,17 +419,9 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
         // Render status bar
         self.render_status_bar(view_model)?;
 
-        // Always use CI-like rendering for cursor and flush operations
-        let is_ci = true;
-
-        if !is_ci {
-            // Render cursor (this will show cursor in correct position)
-            self.render_cursor(view_model)?;
-            safe_flush!(self.writer)?;
-        } else {
-            // Always use simple newline output for test compatibility
-            writeln!(self.writer).map_err(anyhow::Error::from)?;
-        }
+        // Render cursor (this will show cursor in correct position)
+        self.render_cursor(view_model)?;
+        safe_flush!(self.writer)?;
 
         Ok(())
     }
@@ -615,38 +609,92 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
     }
 
     fn render_cursor(&mut self, view_model: &ViewModel) -> Result<()> {
-        // Always use CI-compatible cursor rendering to avoid hangs
-        let is_ci = true;
+        // Cursor should be visible in normal editing modes
+        // Only hide cursor in command mode when showing command line cursor
+        let should_hide_cursor = view_model.get_mode() == EditorMode::Command;
+        tracing::debug!(
+            "render_cursor: mode = {:?}, should_hide_cursor = {}",
+            view_model.get_mode(),
+            should_hide_cursor
+        );
 
-        if !is_ci {
-            // Full terminal cursor rendering (original code)
-            execute_term!(self.writer, crossterm::cursor::Hide)?;
-            // ... all the original terminal operations
+        if should_hide_cursor {
+            tracing::debug!("render_cursor: hiding cursor for command mode");
+            execute_term!(self.writer, Hide)?;
             safe_flush!(self.writer)?;
-            std::thread::sleep(std::time::Duration::from_micros(50));
-        } else {
-            // CI-compatible cursor rendering - just log the cursor state
-            let current_mode = view_model.get_mode();
-            let current_pane = view_model.get_current_pane();
-            let (cursor_row, cursor_col) = view_model.get_cursor_for_rendering(current_pane);
-
-            tracing::debug!(
-                "render_cursor: CI mode - cursor at ({}, {}) for {:?} mode in {:?} pane",
-                cursor_col,
-                cursor_row,
-                current_mode,
-                current_pane
-            );
-
-            // Simple output for test compatibility
-            writeln!(self.writer)?;
+            return Ok(());
         }
+
+        // Get display cursor position and adjust for line numbers and pane offset
+        let display_cursor = view_model.get_display_cursor_position();
+        let current_pane = view_model.get_current_pane();
+        let line_num_width = view_model.get_line_number_width(current_pane);
+
+        // Get pane boundaries to calculate response pane offset
+        let (_request_height, response_start, _response_height) = view_model
+            .pane_manager()
+            .get_pane_boundaries(view_model.get_response_status_code().is_some());
+
+        // Offset cursor position by line number width + space
+        let screen_col = display_cursor.col + line_num_width + 1;
+        let screen_row = match current_pane {
+            Pane::Request => display_cursor.row,
+            Pane::Response => display_cursor.row + response_start as usize,
+        };
+
+        let terminal_size = self.terminal_size;
+        tracing::debug!(
+            "render_cursor: current_pane={:?}, display_cursor=({}, {}), response_start={}, line_num_width={}, screen_pos=({}, {}) with terminal size ({}, {})", 
+            current_pane, display_cursor.col, display_cursor.row, response_start, line_num_width, screen_col, screen_row, terminal_size.0, terminal_size.1
+        );
+
+        // Validate and clamp cursor coordinates to terminal bounds
+        let max_row = (terminal_size.1 as usize).saturating_sub(2); // Leave room for status bar
+        if screen_col >= terminal_size.0 as usize || screen_row >= terminal_size.1 as usize {
+            tracing::warn!(
+                "render_cursor: cursor position ({}, {}) is outside terminal bounds ({}, {}), clamping", 
+                screen_col, screen_row, terminal_size.0, terminal_size.1
+            );
+        }
+
+        // Clamp cursor to valid screen area
+        let clamped_col = (screen_col).min(terminal_size.0 as usize - 1);
+        let clamped_row = screen_row.min(max_row);
+
+        if clamped_row != screen_row || clamped_col != screen_col {
+            tracing::debug!(
+                "render_cursor: clamped cursor from ({}, {}) to ({}, {})",
+                screen_col,
+                screen_row,
+                clamped_col,
+                clamped_row
+            );
+        }
+
+        // Set cursor style based on editor mode
+        let cursor_style = match view_model.get_mode() {
+            EditorMode::Insert => SetCursorStyle::BlinkingBar, // I-beam for insert mode
+            EditorMode::Normal => SetCursorStyle::BlinkingBlock, // Block for normal mode
+            EditorMode::Visual => SetCursorStyle::BlinkingBlock, // Block for visual mode
+            EditorMode::Command => SetCursorStyle::BlinkingBar, // I-beam for command mode
+            EditorMode::GPrefix => SetCursorStyle::BlinkingBlock, // Block for g-prefix mode
+        };
+
+        // Position, style, and show cursor
+        execute_term!(
+            self.writer,
+            MoveTo(clamped_col as u16, clamped_row as u16),
+            cursor_style,
+            Show
+        )?;
+        safe_flush!(self.writer)?;
+        tracing::debug!("render_cursor: cursor shown successfully");
 
         Ok(())
     }
 
     fn render_status_bar(&mut self, view_model: &ViewModel) -> Result<()> {
-        let _status_row = self.terminal_size.1 - 1;
+        let status_row = self.terminal_size.1 - 1;
 
         // Clear the status bar first
         execute_term!(
@@ -749,7 +797,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             let visual_len = self.visual_length(&status_text);
 
             // Truncate if too long (based on visual length)
-            let _final_text = if visual_len > available_width {
+            let final_text = if visual_len > available_width {
                 // This is complex to truncate while preserving ANSI codes
                 // For now, just use the original text and let terminal handle overflow
                 status_text
@@ -758,7 +806,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             };
 
             // Calculate right alignment based on visual length
-            let _padding = available_width.saturating_sub(visual_len);
+            let padding = available_width.saturating_sub(visual_len);
 
             execute_term!(
                 self.writer,
@@ -771,7 +819,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
     }
 
     fn render_position_indicator(&mut self, view_model: &ViewModel) -> Result<()> {
-        let _status_row = self.terminal_size.1 - 1;
+        let status_row = self.terminal_size.1 - 1;
         let cursor = view_model.get_cursor_position();
 
         // Get current mode and pane
@@ -847,7 +895,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
 
         // Clear from a bit earlier to catch any leftover HTTP icon characters
         // HTTP icon with ANSI codes can be up to ~10 characters, so clear from 15 chars back to be safe
-        let _clear_start_col = right_start_col.saturating_sub(15);
+        let clear_start_col = right_start_col.saturating_sub(15);
 
         // Clear from the safe start position to the end of the line
         execute_term!(

@@ -805,6 +805,7 @@ impl PaneManager {
 
         if result.cursor_moved {
             events.push(ViewEvent::ActiveCursorUpdateRequired);
+            events.push(ViewEvent::StatusBarUpdateRequired); // Update status bar with new cursor position
 
             // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
             if self.panes[self.current_pane]
@@ -835,6 +836,7 @@ impl PaneManager {
 
         if result.cursor_moved {
             events.push(ViewEvent::ActiveCursorUpdateRequired);
+            events.push(ViewEvent::StatusBarUpdateRequired); // Update status bar with new cursor position
 
             // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
             if self.panes[self.current_pane]
