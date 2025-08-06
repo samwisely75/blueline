@@ -60,7 +60,14 @@ impl<W: Write> TerminalRenderStream<W> {
 
 impl<W: Write> Write for TerminalRenderStream<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.writer.write(buf)
+        // Convert bytes to string and use crossterm's Print to ensure proper execution
+        if let Ok(text) = std::str::from_utf8(buf) {
+            execute!(self.writer, crossterm::style::Print(text))?;
+            Ok(buf.len())
+        } else {
+            // Fallback for non-UTF8 data
+            self.writer.write(buf)
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {

@@ -30,7 +30,7 @@ mod ansi {
     pub const FG_YELLOW: &str = "\x1b[33m";
     pub const FG_BLUE: &str = "\x1b[34m";
     pub const FG_DARK_GREY: &str = "\x1b[90m";
-    pub const CLEAR_LINE: &str = "\x1b[2K";
+    pub const CLEAR_LINE: &str = "\x1b[K"; // Clear from cursor to end of line
     pub const CURSOR_BLOCK: &str = "\x1b[2 q";
     pub const CURSOR_BAR: &str = "\x1b[6 q";
 }
@@ -198,6 +198,9 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
 
         // Clear rest of line
         write!(self.render_stream, "{}", ansi::CLEAR_LINE)?;
+
+        // Flush to ensure content is displayed
+        safe_flush!(self.render_stream)?;
 
         Ok(())
     }
