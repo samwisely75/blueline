@@ -7,6 +7,7 @@ pub mod commands;
 pub mod controllers;
 pub mod events;
 pub mod geometry;
+pub mod io;
 pub mod models;
 pub mod text;
 pub mod utils;
