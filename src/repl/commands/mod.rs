@@ -61,8 +61,7 @@ pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
     GoToBottomCommand, GoToTopCommand, HomeKeyCommand, MoveCursorDownCommand,
     MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand, NextWordCommand,
-    PreviousWordCommand, ScrollHalfPageDownCommand, ScrollHalfPageUpCommand, ScrollLeftCommand,
-    ScrollPageDownCommand, ScrollPageUpCommand, ScrollRightCommand,
+    PreviousWordCommand, ScrollLeftCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -88,10 +87,6 @@ impl CommandRegistry {
             // Scroll commands (higher priority than regular movement)
             Box::new(ScrollLeftCommand),
             Box::new(ScrollRightCommand),
-            Box::new(ScrollPageDownCommand),
-            Box::new(ScrollPageUpCommand),
-            Box::new(ScrollHalfPageDownCommand),
-            Box::new(ScrollHalfPageUpCommand),
             // Movement commands
             Box::new(MoveCursorLeftCommand),
             Box::new(MoveCursorRightCommand),

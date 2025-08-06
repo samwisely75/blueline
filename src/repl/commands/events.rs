@@ -86,10 +86,6 @@ pub enum MovementDirection {
     WordEnd,
     ScrollLeft,
     ScrollRight,
-    PageDown,
-    PageUp,
-    HalfPageDown,
-    HalfPageUp,
     /// Move to a specific line number (1-based)
     LineNumber(usize),
 }

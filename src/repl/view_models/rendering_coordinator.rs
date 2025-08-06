@@ -48,28 +48,4 @@ impl ViewModel {
             .scroll_current_horizontally(direction, amount);
         self.emit_view_event(events)
     }
-
-    /// Handle vertical page scrolling (Ctrl+f, Ctrl+b) in current area
-    pub fn scroll_vertically_by_page(
-        &mut self,
-        direction: i32, // 1 for down (Ctrl+f), -1 for up (Ctrl+b)
-    ) -> Result<(), anyhow::Error> {
-        // Delegate to PaneManager for semantic scrolling
-        let events = self
-            .pane_manager
-            .scroll_current_vertically_by_page(direction);
-        self.emit_view_event(events)
-    }
-
-    /// Handle vertical half-page scrolling (Ctrl+d, Ctrl+u) in current area
-    pub fn scroll_vertically_by_half_page(
-        &mut self,
-        direction: i32, // 1 for down (Ctrl+d), -1 for up (Ctrl+u)
-    ) -> Result<(), anyhow::Error> {
-        // Delegate to PaneManager for semantic scrolling
-        let events = self
-            .pane_manager
-            .scroll_current_vertically_by_half_page(direction);
-        self.emit_view_event(events)
-    }
 }

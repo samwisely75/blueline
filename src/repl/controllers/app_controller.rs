@@ -267,18 +267,6 @@ impl<E: EventSource, W: Write> AppController<E, W> {
                         MovementDirection::DocumentEnd => {
                             self.view_model.move_cursor_to_document_end()?
                         }
-                        MovementDirection::PageDown => {
-                            self.view_model.scroll_vertically_by_page(1)?
-                        }
-                        MovementDirection::PageUp => {
-                            self.view_model.scroll_vertically_by_page(-1)?
-                        }
-                        MovementDirection::HalfPageDown => {
-                            self.view_model.scroll_vertically_by_half_page(1)?
-                        }
-                        MovementDirection::HalfPageUp => {
-                            self.view_model.scroll_vertically_by_half_page(-1)?
-                        }
                         MovementDirection::WordForward => {
                             self.view_model.move_cursor_to_next_word()?
                         }

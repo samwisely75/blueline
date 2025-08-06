@@ -794,68 +794,6 @@ impl PaneManager {
         events
     }
 
-    /// Handle vertical page scrolling in current area
-    pub fn scroll_current_vertically_by_page(&mut self, direction: i32) -> Vec<ViewEvent> {
-        let result = self.panes[self.current_pane].scroll_vertically_by_page(direction);
-
-        let mut events = vec![ViewEvent::CurrentAreaScrollChanged {
-            old_offset: result.old_offset,
-            new_offset: result.new_offset,
-        }];
-
-        if result.cursor_moved {
-            events.push(ViewEvent::ActiveCursorUpdateRequired);
-            events.push(ViewEvent::StatusBarUpdateRequired); // Update status bar with new cursor position
-
-            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
-                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
-                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-                tracing::debug!(
-                    "Page scroll updated visual selection end to {:?}",
-                    new_cursor_pos
-                );
-            }
-        }
-
-        events
-    }
-
-    /// Handle vertical half-page scrolling in current area
-    pub fn scroll_current_vertically_by_half_page(&mut self, direction: i32) -> Vec<ViewEvent> {
-        let result = self.panes[self.current_pane].scroll_vertically_by_half_page(direction);
-
-        let mut events = vec![ViewEvent::CurrentAreaScrollChanged {
-            old_offset: result.old_offset,
-            new_offset: result.new_offset,
-        }];
-
-        if result.cursor_moved {
-            events.push(ViewEvent::ActiveCursorUpdateRequired);
-            events.push(ViewEvent::StatusBarUpdateRequired); // Update status bar with new cursor position
-
-            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
-                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
-                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-                tracing::debug!(
-                    "Half-page scroll updated visual selection end to {:?}",
-                    new_cursor_pos
-                );
-            }
-        }
-
-        events
-    }
-
     /// Move cursor to next word in current pane
     pub fn move_cursor_to_next_word(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
