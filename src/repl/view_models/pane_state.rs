@@ -347,8 +347,13 @@ impl PaneState {
             .logical_to_display_position(current_cursor.line, current_cursor.column)
             .unwrap_or(Position::new(0, 0));
 
-        // Calculate cursor's relative position within current viewport (this should stay the same)
-        let cursor_row_in_viewport = current_display_pos.row.saturating_sub(old_offset);
+        // Calculate cursor's relative position within current viewport
+        // For traditional page scrolling, position cursor at row 1 (not row 0) to allow upward movement
+        let cursor_row_in_viewport = if current_display_pos.row.saturating_sub(old_offset) == 0 {
+            1 // Position at row 1 to leave room for upward movement
+        } else {
+            current_display_pos.row.saturating_sub(old_offset)
+        };
 
         tracing::debug!(
             "scroll_vertically_by_page: current_display_pos=({}, {}), scroll_offset={}, cursor_row_in_viewport={}",
@@ -379,10 +384,15 @@ impl PaneState {
             // The cursor should appear to stay visually in the same spot, but advance logically
             let target_display_row = new_scroll_offset + cursor_row_in_viewport;
 
+            // Ensure target row is within viewport bounds to prevent edge-case scrolling
+            let max_viewport_row =
+                new_scroll_offset + self.pane_dimensions.height.saturating_sub(1);
+            let clamped_target_row = target_display_row.min(max_viewport_row);
+
             // Ensure target display row is valid
-            if target_display_row < self.display_cache.display_line_count() {
+            if clamped_target_row < self.display_cache.display_line_count() {
                 if let Some(target_display_line) =
-                    self.display_cache.get_display_line(target_display_row)
+                    self.display_cache.get_display_line(clamped_target_row)
                 {
                     // Keep same column position, but clamp to target line length
                     let target_display_col = current_display_pos
@@ -392,7 +402,7 @@ impl PaneState {
                     // Convert to logical position
                     if let Some(target_pos) = self
                         .display_cache
-                        .display_to_logical_position(target_display_row, target_display_col)
+                        .display_to_logical_position(clamped_target_row, target_display_col)
                     {
                         let target_logical_pos =
                             LogicalPosition::new(target_pos.row, target_pos.col);
@@ -400,13 +410,13 @@ impl PaneState {
                         // Update cursor to new logical position
                         self.buffer.set_cursor(target_logical_pos);
 
-                        // Update display cursor (should be at same relative viewport position)
-                        self.display_cursor = Position::new(target_display_row, target_display_col);
+                        // Update display cursor to absolute position for rendering
+                        self.display_cursor = Position::new(clamped_target_row, target_display_col);
 
                         tracing::debug!(
-                            "scroll_vertically_by_page: OPTION B - viewport moved from {} to {}, cursor visually stays at viewport row {}, logically moved from ({}, {}) to ({}, {})",
+                            "scroll_vertically_by_page: OPTION B - viewport moved from {} to {}, cursor at viewport row {} (absolute row {}), logically moved from ({}, {}) to ({}, {})",
                             old_offset, new_scroll_offset,
-                            cursor_row_in_viewport,
+                            cursor_row_in_viewport, clamped_target_row,
                             current_cursor.line, current_cursor.column,
                             target_logical_pos.line, target_logical_pos.column
                         );
@@ -425,6 +435,8 @@ impl PaneState {
                         let target_logical_pos =
                             LogicalPosition::new(target_pos.row, target_pos.col);
                         self.buffer.set_cursor(target_logical_pos);
+
+                        // Set display cursor to absolute position for rendering
                         self.display_cursor = Position::new(last_display_line, target_display_col);
 
                         tracing::debug!(
