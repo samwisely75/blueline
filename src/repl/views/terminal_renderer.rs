@@ -781,12 +781,18 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             // Use consistent position formatting with render_position_indicator
             let position_text = if view_model.is_display_cursor_visible() {
                 let display_cursor = view_model.get_display_cursor_position();
+                let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
+
+                // Show viewport-relative display position for traditional page scrolling behavior
+                let viewport_relative_row = display_cursor.row.saturating_sub(scroll_offset.row);
+                let viewport_relative_col = display_cursor.col.saturating_sub(scroll_offset.col);
+
                 format!(
                     "{}:{} ({}:{})",
                     cursor.line + 1,
                     cursor.column + 1,
-                    display_cursor.row + 1,
-                    display_cursor.col + 1
+                    viewport_relative_row + 1,
+                    viewport_relative_col + 1
                 )
             } else {
                 format!("{}:{}", cursor.line + 1, cursor.column + 1)
@@ -845,12 +851,18 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             display_cursor.col
         );
         let position_text = if view_model.is_display_cursor_visible() {
+            let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
+
+            // Show viewport-relative display position for traditional page scrolling behavior
+            let viewport_relative_row = display_cursor.row.saturating_sub(scroll_offset.row);
+            let viewport_relative_col = display_cursor.col.saturating_sub(scroll_offset.col);
+
             format!(
                 "{}:{} ({}:{})",
                 cursor.line + 1,
                 cursor.column + 1,
-                display_cursor.row + 1,
-                display_cursor.col + 1
+                viewport_relative_row + 1,
+                viewport_relative_col + 1
             )
         } else {
             format!("{}:{}", cursor.line + 1, cursor.column + 1)
