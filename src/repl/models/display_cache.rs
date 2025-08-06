@@ -32,7 +32,30 @@ pub struct DisplayLine {
 }
 
 impl DisplayLine {
-    /// Create a new DisplayLine from content string (for backward compatibility)
+    /// Create a new DisplayLine from DisplayChars (proper way to create DisplayLine)
+    /// Use this instead of from_content to ensure word boundaries are properly set
+    pub fn new(
+        chars: Vec<crate::repl::models::display_char::DisplayChar>,
+        logical_line: usize,
+        logical_start_col: usize,
+        logical_end_col: usize,
+        is_continuation: bool,
+    ) -> Self {
+        Self {
+            chars,
+            logical_line,
+            logical_start_col,
+            logical_end_col,
+            is_continuation,
+        }
+    }
+
+    /// DEPRECATED: Create DisplayLine from content string without word boundaries
+    /// This exists only for backward compatibility with old tests and build_display_cache
+    /// New code should use PaneState::build_display_cache_from_character_buffer instead
+    #[deprecated(
+        note = "Use PaneState::build_display_cache_from_character_buffer for proper word boundaries"
+    )]
     pub fn from_content(
         content: &str,
         logical_line: usize,
@@ -43,7 +66,7 @@ impl DisplayLine {
         use crate::repl::models::buffer_char::BufferLine;
         use crate::repl::models::display_char::DisplayChar;
 
-        // Convert content to BufferLine first
+        // Convert content to BufferLine first (without word boundaries)
         let buffer_line = BufferLine::from_string(content);
 
         // Convert BufferLine to DisplayChars
@@ -168,9 +191,13 @@ impl DisplayLine {
         current_display_col
     }
 
-    /// Find the next word boundary from the current display column position
+    /// Find the next word boundary from the current display column position using ICU segmentation
     pub fn find_next_word_boundary(&self, current_display_col: usize) -> Option<usize> {
-        use crate::repl::models::buffer_char::CharacterType;
+        tracing::debug!(
+            "find_next_word_boundary: current_display_col={}, line_content='{}'",
+            current_display_col,
+            self.content().chars().take(50).collect::<String>()
+        );
 
         // Build character positions array
         let mut char_positions = Vec::new();
@@ -182,6 +209,7 @@ impl DisplayLine {
         }
 
         if char_positions.is_empty() {
+            tracing::debug!("find_next_word_boundary: empty line, returning None");
             return None;
         }
 
@@ -194,55 +222,46 @@ impl DisplayLine {
             }
         }
 
-        // Vim 'w' behavior: move to start of next word
-        // 1. If we're in a word, skip to end of current word
-        // 2. Skip any whitespace/punctuation
-        // 3. Stop at beginning of next word
+        tracing::debug!(
+            "find_next_word_boundary: current_index={}, searching from char '{}'",
+            current_index,
+            char_positions
+                .get(current_index)
+                .map_or('?', |(_, dc)| dc.ch())
+        );
 
-        let mut i = current_index;
-
-        // If we're at the last character, no next word
-        if i >= char_positions.len() {
-            return None;
-        }
-
-        // Skip current character position to avoid staying in place
-        if i < char_positions.len() - 1 {
-            i += 1;
-        }
-
-        // Skip to end of current word if we're in one
-        let current_type = char_positions[current_index].1.buffer_char.character_type();
-        if current_type == CharacterType::Word || current_type == CharacterType::DoubleByteChar {
-            while i < char_positions.len() {
-                let char_type = char_positions[i].1.buffer_char.character_type();
-                // Stop if we hit a different character type (including transition between Word and DoubleByteChar)
-                if char_type != current_type {
-                    // Now we're at the end of current word, break to find next word
-                    break;
-                }
-                i += 1;
-            }
-        }
-
-        // Skip whitespace and punctuation to find next word
-        while i < char_positions.len() {
-            let char_type = char_positions[i].1.buffer_char.character_type();
-            if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
-                // Found start of next word
+        // Look for next word start using ICU segmentation boundaries
+        #[allow(clippy::needless_range_loop)] // Index needed for position lookup
+        for i in (current_index + 1)..char_positions.len() {
+            let display_char = char_positions[i].1;
+            tracing::debug!(
+                "find_next_word_boundary: checking char at index {} (display_col={}): '{}', is_word_start={}",
+                i, char_positions[i].0, display_char.ch(), display_char.buffer_char.is_word_start
+            );
+            if display_char.buffer_char.is_word_start {
+                tracing::debug!(
+                    "find_next_word_boundary: found word start at display_col={}, char='{}'",
+                    char_positions[i].0,
+                    display_char.ch()
+                );
                 return Some(char_positions[i].0);
             }
-            i += 1;
         }
 
+        tracing::debug!("find_next_word_boundary: no word start found, returning None");
         None
     }
 
-    /// Find the previous word boundary from the current display column position  
+    /// Find the previous word boundary from the current display column position using ICU segmentation
     pub fn find_previous_word_boundary(&self, current_display_col: usize) -> Option<usize> {
-        use crate::repl::models::buffer_char::CharacterType;
+        tracing::debug!(
+            "find_previous_word_boundary: current_display_col={}, line_content='{}'",
+            current_display_col,
+            self.content().chars().take(50).collect::<String>()
+        );
 
         if current_display_col == 0 {
+            tracing::debug!("find_previous_word_boundary: at start of line, returning None");
             return None;
         }
 
@@ -256,6 +275,7 @@ impl DisplayLine {
         }
 
         if char_positions.is_empty() {
+            tracing::debug!("find_previous_word_boundary: empty line, returning None");
             return None;
         }
 
@@ -273,135 +293,87 @@ impl DisplayLine {
             }
         }
 
+        tracing::debug!(
+            "find_previous_word_boundary: current_index={}, searching backwards from char '{}'",
+            current_index,
+            char_positions
+                .get(current_index)
+                .map_or('?', |(_, dc)| dc.ch())
+        );
+
+        // Look backwards for previous word start using ICU segmentation boundaries
         // Vim 'b' behavior: move to beginning of current or previous word
-        // 1. If we're in a word, move to beginning of current word
-        // 2. If we're not in a word, skip backwards through non-word chars to find previous word
-
-        // Start from the character just before current position
-        let mut i = if current_index > 0 {
-            current_index - 1
-        } else {
-            0
-        };
-
-        // Skip backwards through current non-word characters (whitespace/punctuation)
-        while i > 0 {
-            let char_type = char_positions[i].1.buffer_char.character_type();
-            if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
-                break;
+        for i in (0..current_index).rev() {
+            let display_char = char_positions[i].1;
+            if display_char.buffer_char.is_word_start {
+                tracing::debug!(
+                    "find_previous_word_boundary: found word start at display_col={}, char='{}'",
+                    char_positions[i].0,
+                    display_char.ch()
+                );
+                return Some(char_positions[i].0);
             }
-            i -= 1;
         }
 
-        // If we found a word character, find the beginning of this word
-        let char_type = char_positions[i].1.buffer_char.character_type();
-        if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
-            // Move backwards to find beginning of current word (same character type)
-            while i > 0 {
-                let prev_char_type = char_positions[i - 1].1.buffer_char.character_type();
-                // Stop if we hit a different character type (including transition between Word and DoubleByteChar)
-                if prev_char_type != char_type {
-                    break;
-                }
-                i -= 1;
-            }
-            return Some(char_positions[i].0);
-        }
-
-        // If we're at position 0 and it's not a word character, return None
-        if i == 0 {
-            let char_type = char_positions[0].1.buffer_char.character_type();
-            if char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar {
-                return Some(0);
-            }
-            return None;
-        }
-
+        tracing::debug!("find_previous_word_boundary: no word start found, returning None");
         None
     }
 
-    /// Find the end of the current or next word from the current display column position
+    /// Find the end of the current or next word from the current display column position using ICU segmentation
     pub fn find_end_of_word(&self, current_display_col: usize) -> Option<usize> {
-        use crate::repl::models::buffer_char::CharacterType;
+        tracing::debug!(
+            "find_end_of_word: current_display_col={}, line_content='{}'",
+            current_display_col,
+            self.content().chars().take(50).collect::<String>()
+        );
 
-        let mut current_display_pos = 0;
+        // Build character positions array
+        let mut char_positions = Vec::new();
+        let mut current_pos = 0;
 
-        // First, determine if we're currently at the end of a word
-        let mut at_word_end = false;
         for display_char in &self.chars {
-            let char_width = display_char.display_width();
-            if current_display_pos == current_display_col {
-                let char_type = display_char.buffer_char.character_type();
-                let is_word =
-                    char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar;
+            char_positions.push((current_pos, display_char));
+            current_pos += display_char.display_width();
+        }
 
-                // Check if next character is non-word (indicating we're at word end)
-                if is_word {
-                    let next_pos = current_display_pos + char_width;
-                    let mut next_display_pos = 0;
-                    for next_char in &self.chars {
-                        let next_char_width = next_char.display_width();
-                        if next_display_pos == next_pos {
-                            let next_char_type = next_char.buffer_char.character_type();
-                            let next_is_word = next_char_type == CharacterType::Word
-                                || next_char_type == CharacterType::DoubleByteChar;
-                            at_word_end = !next_is_word;
-                            break;
-                        }
-                        next_display_pos += next_char_width;
-                    }
-                    // If we're at the last character, we're at word end
-                    if next_pos >= self.chars.len() {
-                        at_word_end = true;
-                    }
-                }
+        if char_positions.is_empty() {
+            tracing::debug!("find_end_of_word: empty line, returning None");
+            return None;
+        }
+
+        // Find current character index
+        let mut current_index = 0;
+        for (i, &(pos, _)) in char_positions.iter().enumerate() {
+            if pos >= current_display_col {
+                current_index = i;
                 break;
             }
-            current_display_pos += char_width;
         }
 
-        // Now find the end of the next word
-        current_display_pos = 0;
-        let mut found_word_start = false;
-        let mut skipping_current_word = at_word_end;
+        tracing::debug!(
+            "find_end_of_word: current_index={}, searching from char '{}'",
+            current_index,
+            char_positions
+                .get(current_index)
+                .map_or('?', |(_, dc)| dc.ch())
+        );
 
-        for display_char in &self.chars {
-            let char_width = display_char.display_width();
-
-            // Skip to current position
-            if current_display_pos < current_display_col {
-                current_display_pos += char_width;
-                continue;
+        // Look for next word end using ICU segmentation boundaries
+        // Vim 'e' behavior: move to end of current or next word
+        #[allow(clippy::needless_range_loop)] // Index needed for position lookup
+        for i in current_index..char_positions.len() {
+            let display_char = char_positions[i].1;
+            if display_char.buffer_char.is_word_end {
+                tracing::debug!(
+                    "find_end_of_word: found word end at display_col={}, char='{}'",
+                    char_positions[i].0,
+                    display_char.ch()
+                );
+                return Some(char_positions[i].0);
             }
-
-            let char_type = display_char.buffer_char.character_type();
-            let is_word =
-                char_type == CharacterType::Word || char_type == CharacterType::DoubleByteChar;
-
-            // If we're at word end, skip past current word and any whitespace
-            if skipping_current_word {
-                if !is_word {
-                    skipping_current_word = false;
-                }
-                current_display_pos += char_width;
-                continue;
-            }
-
-            if is_word {
-                found_word_start = true;
-            } else if found_word_start {
-                // Found end of word, return position of last character in word
-                return Some(current_display_pos.saturating_sub(1));
-            }
-
-            current_display_pos += char_width;
         }
 
-        // If we found a word but reached end of line, return last position
-        if found_word_start {
-            return Some(current_display_pos.saturating_sub(1));
-        }
-
+        tracing::debug!("find_end_of_word: no word end found, returning None");
         None
     }
 
@@ -703,6 +675,7 @@ pub fn build_display_cache(
             let display_idx = display_lines.len();
             display_indices.push(display_idx);
 
+            #[allow(deprecated)]
             let display_line = DisplayLine::from_content(
                 &segment_info.content,
                 logical_idx,
@@ -945,6 +918,7 @@ mod tests {
     fn mixed_language_word_boundaries_should_work() {
         // Test mixed Japanese-English text like "こんにちは Borat です"
         let mixed_text = "こんにちは Borat です";
+        #[allow(deprecated)]
         let display_line =
             DisplayLine::from_content(mixed_text, 0, 0, mixed_text.chars().count(), false);
 

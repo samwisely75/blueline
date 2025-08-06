@@ -69,7 +69,8 @@ impl StatusLine {
             cursor_position: LogicalPosition::zero(),
             is_executing: false,
             display_position: None,
-            display_cursor_visible: false, // Hide display cursor by default
+            #[allow(clippy::disallowed_methods)]
+            display_cursor_visible: std::env::var("BLUELINE_SHOW_DISP_CURSOR_POS").is_ok(), // Show display cursor position if env var is set
         }
     }
 

@@ -49,6 +49,38 @@ impl BufferContent {
             .map_or(0, |line| line.char_count())
     }
 
+    /// Get the position of the next character (for page scrolling)
+    pub fn next_character_position(&self, current: LogicalPosition) -> LogicalPosition {
+        let line_length = self.line_length(current.line);
+
+        if current.column < line_length {
+            // Move right within current line
+            LogicalPosition::new(current.line, current.column + 1)
+        } else if current.line + 1 < self.line_count() {
+            // Move to start of next line
+            LogicalPosition::new(current.line + 1, 0)
+        } else {
+            // Already at end of buffer
+            current
+        }
+    }
+
+    /// Get the position of the previous character (for page scrolling)
+    pub fn previous_character_position(&self, current: LogicalPosition) -> LogicalPosition {
+        if current.column > 0 {
+            // Move left within current line
+            LogicalPosition::new(current.line, current.column - 1)
+        } else if current.line > 0 {
+            // Move to end of previous line
+            let prev_line = current.line - 1;
+            let line_length = self.line_length(prev_line);
+            LogicalPosition::new(prev_line, line_length)
+        } else {
+            // Already at start of buffer
+            current
+        }
+    }
+
     /// Insert text at position, returning event
     pub fn insert_text(&mut self, pane: Pane, position: LogicalPosition, text: &str) -> ModelEvent {
         // Use CharacterBuffer's character-aware insertion
@@ -145,6 +177,19 @@ impl BufferContent {
     /// Get access to the underlying character buffer for display layer
     pub fn character_buffer(&self) -> &CharacterBuffer {
         &self.buffer
+    }
+
+    /// Get mutable access to the underlying character buffer for word navigation
+    pub fn character_buffer_mut(&mut self) -> &mut CharacterBuffer {
+        &mut self.buffer
+    }
+
+    /// Get word boundaries for a specific line (calculates if not cached)
+    pub fn get_line_word_boundaries(
+        &mut self,
+        line_index: usize,
+    ) -> Option<&crate::text::word_segmenter::WordBoundaries> {
+        self.buffer.get_line_word_boundaries(line_index)
     }
 }
 
@@ -336,6 +381,19 @@ impl BufferModel {
         }
 
         None // If no end of word found, stay at current position
+    }
+
+    /// Get word boundaries for a specific line (calculates if not cached)
+    pub fn get_line_word_boundaries(
+        &mut self,
+        line_index: usize,
+    ) -> Option<&crate::text::word_segmenter::WordBoundaries> {
+        self.content.get_line_word_boundaries(line_index)
+    }
+
+    /// Get mutable access to the underlying character buffer for word navigation
+    pub fn character_buffer_mut(&mut self) -> &mut CharacterBuffer {
+        self.content.character_buffer_mut()
     }
 }
 

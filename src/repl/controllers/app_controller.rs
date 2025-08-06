@@ -171,11 +171,8 @@ impl<E: EventSource, W: Write> AppController<E, W> {
         // Initialize view renderer (this will clear screen and set initial cursor)
         self.view_renderer.initialize()?;
 
-        // Initial render (skip in CI mode for performance)
-        let is_ci = true; // Always use CI mode for test compatibility
-        if !is_ci {
-            self.view_renderer.render_full(&self.view_model)?;
-        }
+        // Initial render
+        self.view_renderer.render_full(&self.view_model)?;
 
         // Main event loop
         while !self.should_quit {
@@ -203,30 +200,17 @@ impl<E: EventSource, W: Write> AppController<E, W> {
 
                                 // Process view events for selective rendering (if not quitting)
                                 if !self.should_quit {
-                                    // Skip all rendering operations in CI mode for performance and reliability
-                                    let is_ci = true; // Always use CI mode for test compatibility
+                                    // Throttle rapid rendering to prevent ghost cursors
+                                    let now = std::time::Instant::now();
+                                    let min_render_interval = Duration::from_micros(500);
 
-                                    if !is_ci {
-                                        // Throttle rapid rendering to prevent ghost cursors
-                                        let now = std::time::Instant::now();
-                                        let min_render_interval = Duration::from_micros(500);
-
-                                        if now.duration_since(self.last_render_time)
-                                            >= min_render_interval
-                                        {
-                                            let view_events =
-                                                self.view_model.collect_pending_view_events();
-                                            self.process_view_events(view_events)?;
-                                            self.last_render_time = now;
-                                        }
-                                    } else {
-                                        // In CI mode, just consume the events without rendering
-                                        let _view_events =
+                                    if now.duration_since(self.last_render_time)
+                                        >= min_render_interval
+                                    {
+                                        let view_events =
                                             self.view_model.collect_pending_view_events();
-                                        tracing::debug!(
-                                            "Skipped rendering {} view events in CI mode",
-                                            _view_events.len()
-                                        );
+                                        self.process_view_events(view_events)?;
+                                        self.last_render_time = now;
                                     }
                                 }
                             }
@@ -235,11 +219,8 @@ impl<E: EventSource, W: Write> AppController<E, W> {
                     Event::Resize(width, height) => {
                         self.view_model.update_terminal_size(width, height);
                         self.view_renderer.update_size(width, height);
-                        // Skip rendering in CI mode for performance
-                        let is_ci = true; // Always use CI mode for test compatibility
-                        if !is_ci {
-                            self.view_renderer.render_full(&self.view_model)?;
-                        }
+                        // Render on terminal resize
+                        self.view_renderer.render_full(&self.view_model)?;
                     }
                     _ => {
                         // Ignore other events for now
@@ -285,18 +266,6 @@ impl<E: EventSource, W: Write> AppController<E, W> {
                         }
                         MovementDirection::DocumentEnd => {
                             self.view_model.move_cursor_to_document_end()?
-                        }
-                        MovementDirection::PageDown => {
-                            self.view_model.scroll_vertically_by_page(1)?
-                        }
-                        MovementDirection::PageUp => {
-                            self.view_model.scroll_vertically_by_page(-1)?
-                        }
-                        MovementDirection::HalfPageDown => {
-                            self.view_model.scroll_vertically_by_half_page(1)?
-                        }
-                        MovementDirection::HalfPageUp => {
-                            self.view_model.scroll_vertically_by_half_page(-1)?
                         }
                         MovementDirection::WordForward => {
                             self.view_model.move_cursor_to_next_word()?
@@ -458,11 +427,8 @@ impl<E: EventSource, W: Write> AppController<E, W> {
         // Set executing status to show "Executing..." in status bar
         self.view_model.set_executing_request(true);
 
-        // Immediately refresh the status bar to show executing message (skip in CI mode)
-        let is_ci = true; // Always use CI mode for test compatibility
-        if !is_ci {
-            self.view_renderer.render_status_bar(&self.view_model)?;
-        }
+        // Immediately refresh the status bar to show executing message
+        self.view_renderer.render_status_bar(&self.view_model)?;
 
         // Get request text and session headers from view model
         let request_text = self.view_model.get_request_text();
@@ -478,10 +444,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
                     // Clear executing status on error
                     self.view_model.set_executing_request(false);
                     // Refresh status bar to show error (skip in CI mode)
-                    let is_ci = true; // Always use CI mode for test compatibility
-                    if !is_ci {
-                        self.view_renderer.render_status_bar(&self.view_model)?;
-                    }
+                    self.view_renderer.render_status_bar(&self.view_model)?;
                     return Ok(());
                 }
             };
@@ -506,11 +469,8 @@ impl<E: EventSource, W: Write> AppController<E, W> {
         // Clear executing status when request completes
         self.view_model.set_executing_request(false);
 
-        // Refresh status bar to show response status (skip in CI mode)
-        let is_ci = true; // Always use CI mode for test compatibility
-        if !is_ci {
-            self.view_renderer.render_status_bar(&self.view_model)?;
-        }
+        // Refresh status bar to show response status
+        self.view_renderer.render_status_bar(&self.view_model)?;
 
         Ok(())
     }
@@ -627,11 +587,7 @@ impl<E: EventSource, W: Write> AppController<E, W> {
 
         // Process events in order of efficiency
         if needs_full_redraw {
-            // Skip rendering in CI mode for performance
-            let is_ci = true; // Always use CI mode for test compatibility
-            if !is_ci {
-                self.view_renderer.render_full(&self.view_model)?;
-            }
+            self.view_renderer.render_full(&self.view_model)?;
         } else {
             // Selective rendering - hide cursor once at the beginning
             let has_content_updates = needs_current_area_redraw
@@ -677,21 +633,13 @@ impl<E: EventSource, W: Write> AppController<E, W> {
             }
 
             if needs_status_bar {
-                // Skip status bar rendering in CI mode
-                let is_ci = true; // Always use CI mode for test compatibility
-                if !is_ci {
-                    self.view_renderer.render_status_bar(&self.view_model)?;
-                }
+                self.view_renderer.render_status_bar(&self.view_model)?;
             }
 
             // Always render cursor after any pane redraw to prevent ghost cursors
             if needs_cursor_update || has_content_updates {
                 tracing::debug!("controller: rendering cursor after content updates");
-                // Skip cursor rendering in CI mode
-                let is_ci = true; // Always use CI mode for test compatibility
-                if !is_ci {
-                    self.view_renderer.render_cursor(&self.view_model)?;
-                }
+                self.view_renderer.render_cursor(&self.view_model)?;
             }
         }
 
@@ -745,16 +693,8 @@ impl<E: EventSource, W: Write> AppController<E, W> {
                 }
                 tracing::debug!("AppController: All command events applied successfully");
 
-                // Skip rendering in CI mode for performance and reliability
-                let is_ci = true; // Always use CI mode for test compatibility
-
-                if !is_ci {
-                    // Always render in non-CI environments
-                    self.view_renderer.render_full(&self.view_model)?;
-                } else {
-                    // In CI mode, skip rendering completely to prevent hangs
-                    tracing::debug!("Skipped rendering in CI mode - process_key_event");
-                }
+                // Render after processing key events
+                self.view_renderer.render_full(&self.view_model)?;
             } else {
                 tracing::debug!("AppController: No command events generated");
             }
