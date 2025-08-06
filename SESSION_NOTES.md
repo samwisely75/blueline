@@ -1,5 +1,77 @@
 # Session Notes
 
+## 2025-08-06 Session - Clean I/O Abstraction Refactoring
+
+### Phase 1 Complete ✅
+- Removed test pollution from production code
+- Fixed failing test with proper ICU word segmentation
+- Tagged: `clean-io-abstraction-phase1-complete`
+
+### Phase 2 Complete ✅
+- Created EventStream and RenderStream traits
+- Implemented TerminalEventStream and TerminalRenderStream
+- Updated AppController to use dependency injection
+- Created MockEventStream and MockRenderStream for testing
+- Tagged: `clean-io-abstraction-phase2-complete`
+
+### Phase 3 In Progress 🚧
+- GitHub Issue #74: Refactor AppController with Dependency Injection
+- Started refactoring TerminalRenderer to use RenderStream
+- Key architectural decision: View layer (TerminalRenderer) owns RenderStream
+- AppController no longer needs direct access to RenderStream
+
+#### Current Status
+- ✅ AppController updated to pass RenderStream to TerminalRenderer
+- ✅ TerminalRenderer struct updated to use RenderStream instead of Write
+- ✅ All `self.writer` references changed to `self.render_stream`
+- 🚧 ViewRenderer trait implementation needs updating
+- 🚧 Default implementation needs fixing
+- 🚧 Tests need updating to use with_render_stream()
+- 🚧 Crossterm imports still need to be removed
+
+#### Architecture Decisions
+- **Option C chosen**: TerminalRenderer owns the RenderStream
+- All rendering operations go through the View layer
+- Controller delegates all terminal operations to View
+- Clean separation of concerns maintained
+
+#### Next Steps
+1. Fix ViewRenderer trait implementation for RenderStream
+2. Update Default implementation or remove it
+3. Fix all tests that use TerminalRenderer::new()
+4. Update initialize() and cleanup() methods to use RenderStream
+5. Remove direct crossterm usage from TerminalRenderer
+6. Test with MockRenderStream
+
+### Key Principles Followed
+- ✅ Check often, test often, commit often
+- ✅ Make minimal changes
+- ✅ Protect working application
+- ✅ Explain plan before implementing
+- ✅ Clean dependency injection without concrete types
+
+### Files Modified
+- `/src/repl/controllers/app_controller.rs` - Removed render_stream ownership
+- `/src/repl/views/terminal_renderer.rs` - Updated to use RenderStream
+- `/src/repl/io/mock.rs` - Created mock implementations
+- `/src/repl/io/mod.rs` - Added trait definitions
+- `/src/repl/io/terminal.rs` - Terminal implementations
+
+### Commits
+- Phase 1: "refactor: Remove test pollution from production code"
+- Phase 2: Multiple commits for I/O abstraction layer
+- Phase 3 WIP: "Refactor TerminalRenderer to use RenderStream"
+
+### Notes for Tomorrow
+- The compilation is currently broken (expected - WIP)
+- Need to fix the ViewRenderer trait implementation first
+- Then update all the tests
+- Finally remove crossterm dependencies
+
+---
+
+# Session Notes
+
 ## 2025-08-04 Session Notes
 
 ### User Request Summary

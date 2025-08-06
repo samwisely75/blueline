@@ -7,11 +7,6 @@ use crate::repl::events::{EditorMode, Pane, ViewEvent};
 use crate::repl::io::RenderStream;
 use crate::repl::view_models::ViewModel;
 use anyhow::Result;
-use crossterm::{
-    cursor::{Hide, MoveTo, SetCursorStyle, Show},
-    style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
-    terminal::{Clear, ClearType},
-};
 
 /// Line rendering information to reduce function parameter count
 #[derive(Debug)]
@@ -23,11 +18,21 @@ struct LineInfo<'a> {
     logical_line: usize,
 }
 
-// Helper macro to convert crossterm errors to anyhow errors
-macro_rules! execute_term {
-    ($($arg:expr),* $(,)?) => {
-        crossterm::execute!($($arg),*).map_err(anyhow::Error::from)
-    };
+// ANSI escape code constants for terminal styling
+#[allow(dead_code)]
+mod ansi {
+    pub const RESET: &str = "\x1b[0m";
+    pub const DIM: &str = "\x1b[2m";
+    pub const BOLD: &str = "\x1b[1m";
+    pub const UNDERLINE: &str = "\x1b[4m";
+    pub const FG_RED: &str = "\x1b[31m";
+    pub const FG_GREEN: &str = "\x1b[32m";
+    pub const FG_YELLOW: &str = "\x1b[33m";
+    pub const FG_BLUE: &str = "\x1b[34m";
+    pub const FG_DARK_GREY: &str = "\x1b[90m";
+    pub const CLEAR_LINE: &str = "\x1b[2K";
+    pub const CURSOR_BLOCK: &str = "\x1b[2 q";
+    pub const CURSOR_BAR: &str = "\x1b[6 q";
 }
 
 // Helper macro for safe flush operations
@@ -37,7 +42,6 @@ macro_rules! safe_flush {
     };
 }
 
-use std::io::{self, Write};
 use unicode_width::UnicodeWidthChar;
 
 /// Trait for rendering views
@@ -83,7 +87,7 @@ pub struct TerminalRenderer<RS: RenderStream> {
 
 impl<RS: RenderStream> TerminalRenderer<RS> {
     /// Create new terminal renderer with RenderStream
-    pub fn with_render_stream(mut render_stream: RS) -> Result<Self> {
+    pub fn with_render_stream(render_stream: RS) -> Result<Self> {
         let terminal_size = render_stream.get_size().unwrap_or((80, 24));
         Ok(Self {
             render_stream,
@@ -134,32 +138,30 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         line_info: &LineInfo,
         line_num_width: usize,
     ) -> Result<()> {
-        // Just move cursor, don't hide it here (should be hidden by caller)
-        execute_term!(self.render_stream, MoveTo(0, row))?;
+        // Move cursor to the beginning of the line
+        self.render_stream.move_cursor(0, row)?;
 
         #[allow(unused_variables)]
         if let Some(num) = line_info.line_number {
             // Render line number with dimmed style and right alignment (minimum width 3)
-            execute_term!(self.render_stream, SetAttribute(Attribute::Dim))?;
-            execute_term!(self.render_stream, Print(format!("{num:>line_num_width$} ")))?;
-            execute_term!(self.render_stream, SetAttribute(Attribute::Reset))?;
+            write!(
+                self.render_stream,
+                "{}{num:>line_num_width$} {}",
+                ansi::DIM,
+                ansi::RESET
+            )?;
         } else if line_info.is_continuation {
             // Continuation line of wrapped text - show blank space
-            execute_term!(
-                self.render_stream,
-                Print(format!("{} ", " ".repeat(line_num_width)))
-            )?;
+            write!(self.render_stream, "{} ", " ".repeat(line_num_width))?;
         } else {
             // Show tilda for empty lines beyond content (vim-style) with darker gray color
-            execute_term!(self.render_stream, SetForegroundColor(Color::DarkGrey))?;
-            execute_term!(
+            write!(
                 self.render_stream,
-                Print(format!(
-                    "~{} ",
-                    " ".repeat(line_num_width.saturating_sub(1))
-                ))
+                "{}~{} {}",
+                ansi::FG_DARK_GREY,
+                " ".repeat(line_num_width.saturating_sub(1)),
+                ansi::RESET
             )?;
-            execute_term!(self.render_stream, ResetColor)?;
         }
 
         // Calculate how much space is available for text after line number
@@ -195,7 +197,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         )?;
 
         // Clear rest of line
-        execute_term!(self.render_stream, Clear(ClearType::UntilNewLine))?;
+        write!(self.render_stream, "{}", ansi::CLEAR_LINE)?;
 
         Ok(())
     }
@@ -246,14 +248,10 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
                         position
                     );
                     // Apply visual selection styling: inverse + blue
-                    execute_term!(self.render_stream, SetAttribute(Attribute::Reverse))?;
-                    execute_term!(self.render_stream, SetForegroundColor(Color::Blue))?;
-                    execute_term!(self.render_stream, Print(ch))?;
-                    execute_term!(self.render_stream, SetAttribute(Attribute::Reset))?;
-                    execute_term!(self.render_stream, ResetColor)?;
+                    write!(self.render_stream, "\x1b[7m\x1b[34m{ch}\x1b[0m")?
                 } else {
                     // Normal character rendering
-                    execute_term!(self.render_stream, Print(ch))?;
+                    write!(self.render_stream, "{ch}")?
                 }
             }
             return Ok(());
@@ -265,7 +263,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         }
 
         // No selection or not in visual mode - render normally
-        execute_term!(self.render_stream, Print(text))?;
+        write!(self.render_stream, "{text}")?;
         Ok(())
     }
 
@@ -346,34 +344,34 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
     /// Render pane separator
     #[allow(unused_variables)]
     fn render_separator(&mut self, row: u16) -> Result<()> {
-        execute_term!(
+        self.render_stream.move_cursor(0, row)?;
+        write!(
             self.render_stream,
-            MoveTo(0, row),
-            SetForegroundColor(Color::Blue),
-            Print("─".repeat(self.terminal_size.0 as usize)),
-            ResetColor
-        )
+            "{}{}{}",
+            ansi::FG_BLUE,
+            "─".repeat(self.terminal_size.0 as usize),
+            ansi::RESET
+        )?;
+        Ok(())
     }
 }
 
-impl Default for TerminalRenderer<io::Stdout> {
-    fn default() -> Self {
-        Self::new().expect("Failed to create terminal renderer")
-    }
-}
+// Default implementation removed - TerminalRenderer requires explicit RenderStream injection
 
-impl<W: Write> ViewRenderer for TerminalRenderer<W> {
+impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
     fn initialize(&mut self) -> Result<()> {
-        // Controller handles raw mode and alternate screen
-        // We just need to clear screen and set initial cursor state
-        execute_term!(self.render_stream, Clear(ClearType::All), crossterm::cursor::Hide)?;
+        // Initialize terminal for rendering
+        self.render_stream.enable_raw_mode()?;
+        self.render_stream.enter_alternate_screen()?;
+        self.render_stream.clear_screen()?;
+        self.render_stream.hide_cursor()?;
         Ok(())
     }
 
     fn render_full(&mut self, view_model: &ViewModel) -> Result<()> {
         // Hide cursor before screen refresh to avoid flickering
-        execute_term!(self.render_stream, crossterm::cursor::Hide)?;
-        execute_term!(self.render_stream, Clear(ClearType::All))?;
+        self.render_stream.hide_cursor()?;
+        self.render_stream.clear_screen()?;
 
         let (request_height, response_start, response_height) = view_model
             .pane_manager()
@@ -606,7 +604,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
 
         if should_hide_cursor {
             tracing::debug!("render_cursor: hiding cursor for command mode");
-            execute_term!(self.render_stream, Hide)?;
+            self.render_stream.hide_cursor()?;
             safe_flush!(self.render_stream)?;
             return Ok(());
         }
@@ -657,22 +655,20 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             );
         }
 
-        // Set cursor style based on editor mode
+        // Set cursor style based on editor mode using ANSI escape codes
         let cursor_style = match view_model.get_mode() {
-            EditorMode::Insert => SetCursorStyle::BlinkingBar, // I-beam for insert mode
-            EditorMode::Normal => SetCursorStyle::BlinkingBlock, // Block for normal mode
-            EditorMode::Visual => SetCursorStyle::BlinkingBlock, // Block for visual mode
-            EditorMode::Command => SetCursorStyle::BlinkingBar, // I-beam for command mode
-            EditorMode::GPrefix => SetCursorStyle::BlinkingBlock, // Block for g-prefix mode
+            EditorMode::Insert => ansi::CURSOR_BAR, // I-beam for insert mode
+            EditorMode::Normal => ansi::CURSOR_BLOCK, // Block for normal mode
+            EditorMode::Visual => ansi::CURSOR_BLOCK, // Block for visual mode
+            EditorMode::Command => ansi::CURSOR_BAR, // I-beam for command mode
+            EditorMode::GPrefix => ansi::CURSOR_BLOCK, // Block for g-prefix mode
         };
 
-        // Position, style, and show cursor
-        execute_term!(
-            self.render_stream,
-            MoveTo(clamped_col as u16, clamped_row as u16),
-            cursor_style,
-            Show
-        )?;
+        // Position cursor, set style, and show
+        self.render_stream
+            .move_cursor(clamped_col as u16, clamped_row as u16)?;
+        write!(self.render_stream, "{cursor_style}")?;
+        self.render_stream.show_cursor()?;
         safe_flush!(self.render_stream)?;
         tracing::debug!("render_cursor: cursor shown successfully");
 
@@ -683,26 +679,25 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
         let status_row = self.terminal_size.1 - 1;
 
         // Clear the status bar first
-        execute_term!(
+        self.render_stream.move_cursor(0, status_row)?;
+        write!(
             self.render_stream,
-            MoveTo(0, status_row),
-            Print(" ".repeat(self.terminal_size.0 as usize))
+            "{}",
+            " ".repeat(self.terminal_size.0 as usize)
         )?;
 
         // Check if we're in command mode and need to show ex command buffer
         if view_model.get_mode() == EditorMode::Command {
             let ex_command_text = format!(":{}", view_model.get_ex_command_buffer());
-            execute_term!(self.render_stream, MoveTo(0, status_row), Print(&ex_command_text))?;
+            self.render_stream.move_cursor(0, status_row)?;
+            write!(self.render_stream, "{}", &ex_command_text)?;
 
             // Show I-beam cursor at the end of command text for command line editing
             #[allow(unused_variables)]
             let cursor_pos = ex_command_text.len() as u16;
-            execute_term!(
-                self.render_stream,
-                MoveTo(cursor_pos, status_row),
-                SetCursorStyle::BlinkingBar,
-                Show
-            )?;
+            self.render_stream.move_cursor(cursor_pos, status_row)?;
+            write!(self.render_stream, "{}", ansi::CURSOR_BAR)?;
+            self.render_stream.show_cursor()?;
         } else {
             // Show normal status information
             let mode_text = match view_model.get_mode() {
@@ -800,11 +795,8 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             // Calculate right alignment based on visual length
             let padding = available_width.saturating_sub(visual_len);
 
-            execute_term!(
-                self.render_stream,
-                MoveTo(0, status_row),
-                Print(format!("{}{}", " ".repeat(padding), final_text))
-            )?;
+            self.render_stream.move_cursor(0, status_row)?;
+            write!(self.render_stream, "{}{}", " ".repeat(padding), final_text)?;
         }
 
         Ok(())
@@ -896,18 +888,14 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
         let clear_start_col = right_start_col.saturating_sub(15);
 
         // Clear from the safe start position to the end of the line
-        execute_term!(
-            self.render_stream,
-            MoveTo(clear_start_col as u16, status_row),
-            Clear(ClearType::UntilNewLine)
-        )?;
+        self.render_stream
+            .move_cursor(clear_start_col as u16, status_row)?;
+        write!(self.render_stream, "{}", ansi::CLEAR_LINE)?;
 
         // Write the reconstructed right portion
-        execute_term!(
-            self.render_stream,
-            MoveTo(right_start_col as u16, status_row),
-            Print(&right_text)
-        )?;
+        self.render_stream
+            .move_cursor(right_start_col as u16, status_row)?;
+        write!(self.render_stream, "{}", &right_text)?;
 
         safe_flush!(self.render_stream)?;
         Ok(())
@@ -997,9 +985,10 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
     }
 
     fn cleanup(&mut self) -> Result<()> {
-        // Controller handles alternate screen and raw mode cleanup
-        // We just need to show cursor before exit
-        execute_term!(self.render_stream, Show)?;
+        // Clean up terminal state on exit
+        self.render_stream.show_cursor()?;
+        self.render_stream.leave_alternate_screen()?;
+        self.render_stream.disable_raw_mode()?;
         Ok(())
     }
 }
@@ -1007,6 +996,7 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::repl::io::mock::MockRenderStream;
     use crate::repl::view_models::ViewModel;
 
     // Note: Testing terminal rendering is complex and typically done with integration tests
@@ -1014,34 +1004,17 @@ mod tests {
 
     #[test]
     fn terminal_renderer_should_create() {
-        // Always run test in CI mode with fixed terminal size
-        if true {
-            // Was: crossterm::terminal::size().is_ok()
-            let renderer = TerminalRenderer::new();
-            assert!(renderer.is_ok());
-        }
+        let render_stream = MockRenderStream::new();
+        let renderer = TerminalRenderer::with_render_stream(render_stream);
+        assert!(renderer.is_ok());
     }
 
-    #[test]
-    fn terminal_renderer_with_writer_should_work_in_ci() {
-        // Save current CI env var state
-        let ci_was_set = std::env::var_os("CI").is_some();
-
-        // Test with CI=true
-        std::env::set_var("CI", "true");
-        let writer = Vec::new();
-        let renderer = TerminalRenderer::with_writer(writer);
-        assert!(renderer.is_ok(), "Should create renderer in CI environment");
-
-        // Restore original state
-        if !ci_was_set {
-            std::env::remove_var("CI");
-        }
-    }
+    // Test removed - no longer needed with RenderStream abstraction
 
     #[test]
     fn terminal_renderer_should_update_size() {
-        if let Ok(mut renderer) = TerminalRenderer::new() {
+        let render_stream = MockRenderStream::with_size((80, 24));
+        if let Ok(mut renderer) = TerminalRenderer::with_render_stream(render_stream) {
             renderer.update_size(120, 40);
             assert_eq!(renderer.terminal_size, (120, 40));
         }
@@ -1049,7 +1022,8 @@ mod tests {
 
     #[test]
     fn status_bar_should_right_align_indicators() {
-        if let Ok(mut renderer) = TerminalRenderer::new() {
+        let render_stream = MockRenderStream::with_size((50, 10));
+        if let Ok(mut renderer) = TerminalRenderer::with_render_stream(render_stream) {
             renderer.update_size(50, 10); // Set a specific terminal size
 
             // The status bar should format text with right alignment
@@ -1061,7 +1035,8 @@ mod tests {
 
     #[test]
     fn visual_length_should_exclude_ansi_codes() {
-        if let Ok(renderer) = TerminalRenderer::new() {
+        let render_stream = MockRenderStream::new();
+        if let Ok(renderer) = TerminalRenderer::with_render_stream(render_stream) {
             // Test plain text
             assert_eq!(renderer.visual_length("Hello World"), 11);
 
@@ -1084,7 +1059,8 @@ mod tests {
 
     #[test]
     fn visual_length_should_handle_double_byte_characters() {
-        if let Ok(renderer) = TerminalRenderer::new() {
+        let render_stream = MockRenderStream::new();
+        if let Ok(renderer) = TerminalRenderer::with_render_stream(render_stream) {
             // Test Japanese hiragana (double-byte)
             assert_eq!(renderer.visual_length("こんにちは"), 10); // 5 chars × 2 width each = 10
 
@@ -1108,7 +1084,8 @@ mod tests {
 
     #[test]
     fn visual_length_should_handle_mixed_ascii_japanese_realistic_text() {
-        if let Ok(renderer) = TerminalRenderer::new() {
+        let render_stream = MockRenderStream::new();
+        if let Ok(renderer) = TerminalRenderer::with_render_stream(render_stream) {
             // Test realistic mixed content like what users actually type
             assert_eq!(
                 renderer.visual_length("Anthropic Claude は現時点では"),
@@ -1142,7 +1119,8 @@ mod tests {
 
     #[test]
     fn text_truncation_should_work_with_mixed_characters() {
-        if let Ok(mut renderer) = TerminalRenderer::new() {
+        let render_stream = MockRenderStream::with_size((20, 10));
+        if let Ok(mut renderer) = TerminalRenderer::with_render_stream(render_stream) {
             renderer.update_size(20, 10); // Small terminal for testing truncation
 
             // Test truncation with mixed content - simulate the truncation logic
@@ -1174,7 +1152,8 @@ mod tests {
 
     #[test]
     fn response_pane_boundaries_should_calculate_correctly() {
-        if let Ok(mut renderer) = TerminalRenderer::new() {
+        let render_stream = MockRenderStream::with_size((80, 40));
+        if let Ok(mut renderer) = TerminalRenderer::with_render_stream(render_stream) {
             renderer.update_size(80, 40); // 40 line terminal
             let mut view_model = ViewModel::new();
             view_model.update_terminal_size(80, 40);
@@ -1201,7 +1180,8 @@ mod tests {
 
     #[test]
     fn visual_length_should_handle_control_characters_safely() {
-        if let Ok(renderer) = TerminalRenderer::new() {
+        let render_stream = MockRenderStream::new();
+        if let Ok(renderer) = TerminalRenderer::with_render_stream(render_stream) {
             // Test newline character (should be ignored/zero width)
             assert_eq!(renderer.visual_length("\n"), 0);
 
