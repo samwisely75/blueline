@@ -931,12 +931,19 @@ impl PaneManager {
         let mut new_display_pos = current_display_pos;
 
         // Check movement possibility first without borrowing display_cache
+        // In Vim normal mode, cursor can't go past the last character (only to it, not beyond)
         let can_move_right_in_line = if let Some(current_line) = self.panes[self.current_pane]
             .display_cache
             .get_display_line(current_display_pos.row)
         {
             let line_char_count = current_line.char_count();
-            current_display_pos.col < line_char_count
+            // In normal mode, stop at the last character position (line_char_count - 1)
+            // This matches Vim behavior where cursor can't go past the last character
+            if line_char_count > 0 {
+                current_display_pos.col < line_char_count - 1
+            } else {
+                false
+            }
         } else {
             false
         };
@@ -1203,7 +1210,15 @@ impl PaneManager {
             let line_length = line.chars().count();
 
             // Create new logical position at end of current line
-            let new_logical = LogicalPosition::new(current_logical.line, line_length);
+            // In Vim normal mode, cursor stops at the last character, not after it
+            // For a line with 5 characters (indices 0-4), cursor should stop at index 4
+            // Only in insert mode can cursor be positioned at index 5 (after last char)
+            let end_position = if line_length > 0 {
+                line_length - 1 // Stop at last character
+            } else {
+                0 // Empty line, stay at position 0
+            };
+            let new_logical = LogicalPosition::new(current_logical.line, end_position);
 
             // Update logical cursor first
             self.panes[self.current_pane].buffer.set_cursor(new_logical);
@@ -1284,7 +1299,14 @@ impl PaneManager {
 
         if let Some(last_line) = display_cache.get_display_line(last_line_idx) {
             let line_char_count = last_line.char_count();
-            let end_position = Position::new(last_line_idx, line_char_count);
+            // In Vim normal mode, cursor should be ON the last character, not after it
+            // Only allow position at line_char_count if the line is empty
+            let end_col = if line_char_count > 0 {
+                line_char_count - 1
+            } else {
+                0
+            };
+            let end_position = Position::new(last_line_idx, end_col);
 
             // Use proper cursor positioning method to ensure logical/display sync
             let _result = self.panes[self.current_pane].set_display_cursor(end_position);
