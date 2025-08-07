@@ -57,6 +57,6 @@ async fn cucumber_integration_tests() {
             })
         })
         // Use standard output for test results
-        .run_and_exit("features") // Run all feature files in the features directory
+        .run_and_exit("tests/features") // Run all feature files in the tests/features directory
         .await;
 }
