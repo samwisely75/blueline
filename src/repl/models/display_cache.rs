@@ -922,25 +922,11 @@ mod tests {
         let display_line =
             DisplayLine::from_content(mixed_text, 0, 0, mixed_text.chars().count(), false);
 
-        // From start (position 0), 'w' should go to next character (unicode-segmentation behavior)
+        // From start (position 0), 'w' should go to "Borat" (vim-like behavior)
         let next_word = display_line.find_next_word_boundary(0);
         assert!(next_word.is_some());
-        let first_boundary = next_word.unwrap();
-        assert_eq!(first_boundary, 1, "Should jump to next character boundary");
-
-        // Continue navigating to find "Borat"
-        let mut current_pos = first_boundary;
-        let mut borat_start = None;
-        while let Some(next_pos) = display_line.find_next_word_boundary(current_pos) {
-            current_pos = next_pos;
-            if current_pos == 6 {
-                // Position of 'B'
-                borat_start = Some(current_pos);
-                break;
-            }
-        }
-        assert!(borat_start.is_some(), "Should eventually find 'Borat'");
-        let borat_start = borat_start.unwrap();
+        let borat_start = next_word.unwrap();
+        assert_eq!(borat_start, 6, "Should jump to 'B' in 'Borat'");
 
         // From inside "Borat", 'w' should go to "です"
         let after_borat = display_line.find_next_word_boundary(borat_start + 1);
