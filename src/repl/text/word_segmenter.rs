@@ -73,7 +73,7 @@ impl WordBoundaries {
 }
 
 /// Trait for word segmentation implementations
-pub trait WordSegmenter {
+pub trait WordSegmenter: Send {
     /// Find word boundaries in the given text
     fn find_word_boundaries(&self, text: &str) -> SegmentationResult;
 }
@@ -109,7 +109,7 @@ pub struct WordSegmenterFactory;
 
 impl WordSegmenterFactory {
     /// Create the best available word segmenter
-    pub fn create() -> Box<dyn WordSegmenter> {
+    pub fn create() -> Box<dyn WordSegmenter + Send> {
         match IcuWordSegmenter::new() {
             Ok(segmenter) => Box::new(segmenter),
             Err(e) => {

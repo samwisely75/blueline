@@ -7,12 +7,13 @@ use cucumber::World;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 mod common;
+mod steps;
 
 // Re-export the world for easy access
 use common::world::BluelineWorld;
 
-#[tokio::main]
-async fn main() {
+#[tokio::test]
+async fn cucumber_integration_tests() {
     // Initialize tracing subscriber for tests
     // Use RUST_LOG environment variable to control log level
     // Example: RUST_LOG=debug cargo test --test integration_tests

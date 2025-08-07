@@ -37,6 +37,16 @@ impl TerminalState {
         }
     }
 
+    /// Create an empty default terminal state
+    pub fn default() -> Self {
+        Self {
+            grid: vec![vec![' '; 80]; 24],
+            cursor_position: (0, 0),
+            width: 80,
+            height: 24,
+        }
+    }
+
     /// Get the visible text content (non-empty lines)
     pub fn get_visible_text(&self) -> Vec<String> {
         self.grid

@@ -12,14 +12,22 @@ use blueline::{
     cmd_args::CommandLineArgs,
     repl::{
         controllers::app_controller::AppController,
-        io::{MockEventStream, VteRenderStream},
+        io::{
+            test_bridge::{
+                BridgedEventStream, BridgedRenderStream, EventStreamController, RenderStreamMonitor,
+            },
+            VteRenderStream,
+        },
     },
 };
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use cucumber::World;
+use std::io::Write;
 use std::sync::Arc;
-use tokio::sync::Mutex;
-use tracing::{debug, info, trace, warn};
+use std::time::Duration;
+use tokio::sync::{mpsc, Mutex};
+use tokio::task::JoinHandle;
+use tracing::{debug, error, info, trace, warn};
 
 use super::terminal_state::TerminalState;
 
@@ -29,14 +37,20 @@ use super::terminal_state::TerminalState;
 /// interacting with the application under test.
 #[derive(World)]
 pub struct BluelineWorld {
-    /// The application controller instance (wrapped for async safety)
-    app: Arc<Mutex<Option<AppController<MockEventStream, VteRenderStream>>>>,
+    /// Task handle for the running application
+    app_task: Option<JoinHandle<Result<()>>>,
 
-    /// Mock event stream for providing input
-    event_stream: Arc<Mutex<MockEventStream>>,
+    /// Controller for sending events to the app
+    event_controller: Option<EventStreamController>,
 
-    /// VTE render stream for capturing output
-    render_stream: Arc<Mutex<VteRenderStream>>,
+    /// Monitor for capturing output from the app
+    render_monitor: Option<RenderStreamMonitor>,
+
+    /// VTE parser for interpreting terminal output
+    vte_parser: Arc<Mutex<VteRenderStream>>,
+
+    /// Channel to signal app shutdown
+    shutdown_tx: Option<mpsc::Sender<()>>,
 
     /// Terminal dimensions for testing
     terminal_size: (u16, u16),
@@ -46,6 +60,9 @@ pub struct BluelineWorld {
 
     /// Test profile path (temporary)
     profile_path: Option<String>,
+
+    /// Whether the app is currently running
+    app_running: bool,
 }
 
 impl std::fmt::Debug for BluelineWorld {
@@ -61,12 +78,15 @@ impl std::fmt::Debug for BluelineWorld {
 impl Default for BluelineWorld {
     fn default() -> Self {
         Self {
-            app: Arc::new(Mutex::new(None)),
-            event_stream: Arc::new(Mutex::new(MockEventStream::empty())),
-            render_stream: Arc::new(Mutex::new(VteRenderStream::with_size((80, 24)))),
+            app_task: None,
+            event_controller: None,
+            render_monitor: None,
+            vte_parser: Arc::new(Mutex::new(VteRenderStream::with_size((80, 24)))),
+            shutdown_tx: None,
             terminal_size: (80, 24),
             last_terminal_state: None,
             profile_path: None,
+            app_running: false,
         }
     }
 }
@@ -79,9 +99,8 @@ impl BluelineWorld {
         // Clear any previous state
         self.cleanup().await;
 
-        // Create fresh streams
-        self.event_stream = Arc::new(Mutex::new(MockEventStream::empty()));
-        self.render_stream = Arc::new(Mutex::new(VteRenderStream::with_size(self.terminal_size)));
+        // Reset VTE parser
+        self.vte_parser = Arc::new(Mutex::new(VteRenderStream::with_size(self.terminal_size)));
         self.last_terminal_state = None;
 
         trace!(
@@ -95,10 +114,34 @@ impl BluelineWorld {
         debug!("Cleaning up BluelineWorld");
 
         // Shutdown the app if running
-        if let Some(_app) = self.app.lock().await.take() {
+        if self.app_running {
             debug!("Shutting down application");
-            // App will be dropped automatically
-            // Note: In a real implementation, we'd send a quit event and wait for shutdown
+
+            // Send quit event to gracefully shutdown
+            self.send_key_event(KeyCode::Char('q'), KeyModifiers::CONTROL)
+                .await;
+
+            // Give app time to process quit
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            // Signal shutdown if channel exists
+            if let Some(tx) = self.shutdown_tx.take() {
+                let _ = tx.send(()).await;
+            }
+
+            // Wait for app task to complete
+            if let Some(task) = self.app_task.take() {
+                match tokio::time::timeout(Duration::from_secs(2), task).await {
+                    Ok(Ok(Ok(()))) => debug!("App shut down cleanly"),
+                    Ok(Ok(Err(e))) => warn!("App returned error: {}", e),
+                    Ok(Err(e)) => warn!("App task panicked: {:?}", e),
+                    Err(_) => {
+                        warn!("App shutdown timed out");
+                    }
+                }
+            }
+
+            self.app_running = false;
         }
 
         // Clear terminal state
@@ -118,6 +161,11 @@ impl BluelineWorld {
     pub async fn start_app(&mut self, args: Vec<String>) -> Result<()> {
         info!("Starting application with args: {:?}", args);
 
+        // Ensure any previous app is cleaned up
+        if self.app_running {
+            self.cleanup().await;
+        }
+
         // Parse command line arguments
         // CommandLineArgs::parse_from expects the program name as first arg
         let mut full_args = vec!["blueline".to_string()];
@@ -125,15 +173,43 @@ impl BluelineWorld {
 
         let cmd_args = CommandLineArgs::parse_from(full_args);
 
-        // Create app controller with mock streams
-        let event_stream = MockEventStream::empty();
-        let render_stream = VteRenderStream::with_size(self.terminal_size);
+        // Create the bridge components
+        let (event_stream, event_controller) = BridgedEventStream::new();
+        let (render_stream, render_monitor) = BridgedRenderStream::new(self.terminal_size);
 
-        debug!("Creating AppController with mock streams");
-        let app = AppController::with_io_streams(cmd_args, event_stream, render_stream)?;
+        // Store the controllers for test access
+        self.event_controller = Some(event_controller);
+        self.render_monitor = Some(render_monitor);
 
-        // Store the app
-        *self.app.lock().await = Some(app);
+        // Create shutdown channel
+        let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
+        self.shutdown_tx = Some(shutdown_tx);
+
+        debug!("Creating AppController with bridged streams");
+
+        // Spawn the app in a background task (now works with Send traits!)
+        let app_task = tokio::spawn(async move {
+            // Create the AppController with the bridged streams
+            let mut app = AppController::with_io_streams(cmd_args, event_stream, render_stream)?;
+
+            // Run the app with shutdown support
+            tokio::select! {
+                result = app.run() => {
+                    debug!("App run completed: {:?}", result);
+                    result
+                }
+                _ = shutdown_rx.recv() => {
+                    debug!("App received shutdown signal");
+                    Ok(())
+                }
+            }
+        });
+
+        self.app_task = Some(app_task);
+        self.app_running = true;
+
+        // Give the app a moment to initialize
+        tokio::time::sleep(Duration::from_millis(200)).await;
 
         info!("Application started successfully");
         Ok(())
@@ -146,8 +222,15 @@ impl BluelineWorld {
             code,
             modifiers
         );
-        let event = Event::Key(KeyEvent::new(code, modifiers));
-        self.event_stream.lock().await.push_event(event);
+
+        if let Some(controller) = &self.event_controller {
+            let event = Event::Key(KeyEvent::new(code, modifiers));
+            if let Err(e) = controller.send_event(event) {
+                error!("Failed to send key event: {}", e);
+            }
+        } else {
+            warn!("Cannot send key event: app not started");
+        }
     }
 
     /// Send a string of characters as key events
@@ -172,10 +255,17 @@ impl BluelineWorld {
     }
 
     /// Process events (tick the application)
+    /// This allows time for the app to process events and produce output
     pub async fn tick(&mut self) -> Result<()> {
-        if let Some(ref mut _app) = *self.app.lock().await {
-            // In a real implementation, we'd call app.tick() or similar
-            // For now, this is a placeholder
+        if self.app_running {
+            // Give the app time to process events
+            tokio::time::sleep(Duration::from_millis(10)).await;
+
+            // Process any pending output from the render stream
+            if let Some(monitor) = &self.render_monitor {
+                monitor.process_output().await;
+            }
+
             Ok(())
         } else {
             Err(anyhow::anyhow!("Application not started"))
@@ -185,11 +275,28 @@ impl BluelineWorld {
     /// Get the current terminal state
     pub async fn get_terminal_state(&mut self) -> TerminalState {
         trace!("Getting current terminal state");
-        let render_stream = self.render_stream.lock().await;
-        let state = TerminalState::from_render_stream(&render_stream);
-        self.last_terminal_state = Some(state.clone());
-        trace!("Terminal state captured");
-        state
+
+        if let Some(monitor) = &self.render_monitor {
+            // Process any pending output
+            monitor.process_output().await;
+
+            // Get the captured output and feed it to our VTE parser
+            let output = monitor.get_captured().await;
+
+            // Create a VTE stream and write the output to it for parsing
+            let mut vte_parser = self.vte_parser.lock().await;
+            vte_parser.clear_captured(); // Clear previous data
+            let _ = vte_parser.write(&output); // Write captured output to VTE parser
+
+            // Create terminal state from the parsed output
+            let state = TerminalState::from_render_stream(&vte_parser);
+            self.last_terminal_state = Some(state.clone());
+            trace!("Terminal state captured from {} bytes", output.len());
+            state
+        } else {
+            warn!("Cannot get terminal state: app not started");
+            TerminalState::default()
+        }
     }
 
     /// Check if terminal contains text

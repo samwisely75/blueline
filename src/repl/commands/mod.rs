@@ -15,7 +15,7 @@ pub use context::*;
 pub use events::*;
 
 /// Command trait for event-driven architecture
-pub trait Command {
+pub trait Command: Send {
     /// Check if command is relevant for current state and event
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool;
 
@@ -28,7 +28,7 @@ pub trait Command {
 }
 
 /// Command trait for commands that need HTTP client access
-pub trait HttpCommand {
+pub trait HttpCommand: Send {
     /// Check if command is relevant for current state and event
     fn is_relevant(&self, context: &HttpCommandContext, event: &KeyEvent) -> bool;
 
@@ -67,7 +67,7 @@ pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
 
 /// Type alias for command collection to reduce complexity
-pub type CommandCollection = Vec<Box<dyn Command>>;
+pub type CommandCollection = Vec<Box<dyn Command + Send>>;
 
 /// Registry for managing all available commands
 pub struct CommandRegistry {
@@ -182,7 +182,7 @@ impl CommandRegistry {
     }
 
     /// Add a custom command to the registry
-    pub fn add_command(&mut self, command: Box<dyn Command>) {
+    pub fn add_command(&mut self, command: Box<dyn Command + Send>) {
         self.commands.push(command);
     }
 

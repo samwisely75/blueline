@@ -28,11 +28,17 @@ use std::time::Duration;
 pub mod mock;
 pub mod terminal;
 
+pub mod test_bridge;
+
 // Re-export terminal implementations for convenience
 pub use terminal::{TerminalEventStream, TerminalRenderStream};
 
 // Re-export mock implementations for testing
 pub use mock::{MockEventStream, MockRenderStream, TerminalStateInfo, VteRenderStream};
+
+pub use test_bridge::{
+    BridgedEventStream, BridgedRenderStream, EventStreamController, RenderStreamMonitor,
+};
 
 /// Type alias for terminal size (width, height)
 pub type TerminalSize = (u16, u16);

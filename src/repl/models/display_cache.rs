@@ -1096,16 +1096,29 @@ mod tests {
 
         // Starting from 't' in "test3" (position 12), 'b' should go to 't' in "test2" (position 6)
         let test2_pos = display_line.find_previous_word_boundary(12);
-        assert!(test2_pos.is_some(), "Should find start of 'test2' from 'test3'");
+        assert!(
+            test2_pos.is_some(),
+            "Should find start of 'test2' from 'test3'"
+        );
         assert_eq!(test2_pos.unwrap(), 6, "Should move to start of 'test2'");
 
         // From 't' in "test2" (position 6), 'b' should go to 't' in "test1" (position 0)
         let test1_pos = display_line.find_previous_word_boundary(6);
-        assert!(test1_pos.is_some(), "Should find start of 'test1' from 'test2'");
-        assert_eq!(test1_pos.unwrap(), 0, "Should move to start of 'test1' (first character)");
+        assert!(
+            test1_pos.is_some(),
+            "Should find start of 'test1' from 'test2'"
+        );
+        assert_eq!(
+            test1_pos.unwrap(),
+            0,
+            "Should move to start of 'test1' (first character)"
+        );
 
         // From 't' in "test1" (position 0), 'b' should return None (can't go further back)
         let before_start = display_line.find_previous_word_boundary(0);
-        assert!(before_start.is_none(), "Should not move before first character");
+        assert!(
+            before_start.is_none(),
+            "Should not move before first character"
+        );
     }
 }
