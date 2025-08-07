@@ -861,6 +861,7 @@ impl PaneManager {
     pub fn move_cursor_left(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
         let display_cache = &self.panes[self.current_pane].display_cache;
+        let current_mode = self.panes[self.current_pane].editor_mode;
 
         let mut moved = false;
 
@@ -877,7 +878,13 @@ impl PaneManager {
             // Move to end of previous display line
             let prev_display_line = current_display_pos.row - 1;
             if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
-                let new_col = prev_line.char_count().saturating_sub(1);
+                let line_char_count = prev_line.char_count();
+                // Mode-dependent: when wrapping to previous line's end
+                let new_col = if current_mode == EditorMode::Insert {
+                    line_char_count // Insert mode: can be positioned after last character
+                } else {
+                    line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+                };
                 let new_display_pos = Position::new(prev_display_line, new_col);
                 self.panes[self.current_pane].display_cursor = new_display_pos;
                 moved = true;
@@ -1050,16 +1057,24 @@ impl PaneManager {
     /// Move cursor up in current area
     pub fn move_cursor_up(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.panes[self.current_pane].editor_mode;
 
         if current_display_pos.row > 0 {
             let new_line = current_display_pos.row - 1;
 
             // Clamp column to the length of the new line to prevent cursor going beyond line end
+            // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
             let new_col = if let Some(display_line) = self.panes[self.current_pane]
                 .display_cache
                 .get_display_line(new_line)
             {
-                current_display_pos.col.min(display_line.display_width())
+                let line_char_count = display_line.char_count();
+                let max_col = if current_mode == EditorMode::Insert {
+                    line_char_count // Insert mode: can be positioned after last character
+                } else {
+                    line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+                };
+                current_display_pos.col.min(max_col)
             } else {
                 current_display_pos.col
             };
@@ -1107,6 +1122,7 @@ impl PaneManager {
     /// Move cursor down in current area
     pub fn move_cursor_down(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.panes[self.current_pane].editor_mode;
 
         let next_display_line = current_display_pos.row + 1;
 
@@ -1118,7 +1134,14 @@ impl PaneManager {
         {
             // Only move if there's actual content at the next line
             // Clamp column to the length of the new line to prevent cursor going beyond line end
-            let new_col = current_display_pos.col.min(display_line.display_width());
+            // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
+            let line_char_count = display_line.char_count();
+            let max_col = if current_mode == EditorMode::Insert {
+                line_char_count // Insert mode: can be positioned after last character
+            } else {
+                line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+            };
+            let new_col = current_display_pos.col.min(max_col);
             let new_display_pos = Position::new(next_display_line, new_col);
 
             self.panes[self.current_pane].display_cursor = new_display_pos;
