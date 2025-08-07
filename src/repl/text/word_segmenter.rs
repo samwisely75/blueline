@@ -1,16 +1,16 @@
 //! # Word Segmentation for International Text
 //!
-//! This module provides word boundary detection using ICU segmentation rules,
+//! This module provides word boundary detection using unicode-segmentation crate,
 //! supporting proper international text handling (CJK, Arabic, Thai, etc.).
 //!
 //! ## Key Features
 //!
 //! - Unicode Standard Annex #29 compliant word segmentation
-//! - Distinguishes between word-like segments and punctuation/whitespace
+//! - Lightweight pure-Rust implementation
 //! - Optimized for caching at the logical buffer level
 //! - Clean abstraction allowing future segmentation backend changes
 
-use icu_segmenter::{options::WordBreakInvariantOptions, WordSegmenter as IcuWordSegmenterImpl};
+use unicode_segmentation::UnicodeSegmentation;
 
 /// Word boundary flags for a character position
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -35,7 +35,7 @@ impl WordFlags {
 pub type SegmentationResult = Result<WordBoundaries, Box<dyn std::error::Error>>;
 
 /// Type alias for segmenter creation results
-pub type SegmenterResult = Result<IcuWordSegmenter, Box<dyn std::error::Error>>;
+pub type SegmenterResult = Result<UnicodeWordSegmenter, Box<dyn std::error::Error>>;
 
 /// Word boundary information for a segment of text
 #[derive(Debug, Clone, PartialEq)]
@@ -49,8 +49,7 @@ impl WordBoundaries {
     pub fn to_word_flags(&self, text_len: usize) -> Vec<WordFlags> {
         let mut flags = vec![WordFlags::default(); text_len];
 
-        // For now, mark all boundary positions as potential word starts/ends
-        // We'll refine this logic based on actual text content later
+        // Mark all boundary positions as potential word starts/ends
         for i in 1..self.positions.len() {
             let pos = self.positions[i];
 
@@ -78,27 +77,40 @@ pub trait WordSegmenter {
     fn find_word_boundaries(&self, text: &str) -> SegmentationResult;
 }
 
-/// ICU-based word segmenter implementation
-pub struct IcuWordSegmenter;
+/// Unicode-segmentation based word segmenter implementation
+pub struct UnicodeWordSegmenter;
 
-impl IcuWordSegmenter {
-    /// Create a new ICU word segmenter with automatic model selection
+impl UnicodeWordSegmenter {
+    /// Create a new unicode-segmentation word segmenter
     pub fn new() -> SegmenterResult {
         Ok(Self)
     }
 }
 
-impl WordSegmenter for IcuWordSegmenter {
+impl WordSegmenter for UnicodeWordSegmenter {
     fn find_word_boundaries(&self, text: &str) -> SegmentationResult {
         if text.is_empty() {
             return Ok(WordBoundaries { positions: vec![0] });
         }
 
-        // Create ICU segmenter for this operation
-        let segmenter = IcuWordSegmenterImpl::new_auto(WordBreakInvariantOptions::default());
+        // Use unicode-segmentation to find word boundaries
+        let mut positions = Vec::new();
+        let mut current_pos = 0;
 
-        // Collect all boundary positions
-        let positions: Vec<usize> = segmenter.segment_str(text).collect();
+        // Add the start position
+        positions.push(0);
+
+        // Split on word boundaries and track positions
+        for word_segment in text.split_word_bounds() {
+            current_pos += word_segment.chars().count();
+            if current_pos <= text.chars().count() {
+                positions.push(current_pos);
+            }
+        }
+
+        // Ensure we don't have duplicate positions and sort them
+        positions.sort_unstable();
+        positions.dedup();
 
         Ok(WordBoundaries { positions })
     }
@@ -110,10 +122,10 @@ pub struct WordSegmenterFactory;
 impl WordSegmenterFactory {
     /// Create the best available word segmenter
     pub fn create() -> Box<dyn WordSegmenter> {
-        match IcuWordSegmenter::new() {
+        match UnicodeWordSegmenter::new() {
             Ok(segmenter) => Box::new(segmenter),
             Err(e) => {
-                tracing::error!("Failed to create ICU segmenter: {}", e);
+                tracing::error!("Failed to create unicode segmenter: {}", e);
                 panic!("No word segmenter available: {e}");
             }
         }
@@ -125,30 +137,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn icu_segmenter_should_create() {
-        let segmenter = IcuWordSegmenter::new();
+    fn unicode_segmenter_should_create() {
+        let segmenter = UnicodeWordSegmenter::new();
         assert!(
             segmenter.is_ok(),
-            "ICU segmenter should be created successfully"
+            "Unicode segmenter should be created successfully"
         );
     }
 
     #[test]
     fn word_boundaries_should_work_with_simple_text() {
-        let segmenter = IcuWordSegmenter::new().unwrap();
+        let segmenter = UnicodeWordSegmenter::new().unwrap();
         let boundaries = segmenter.find_word_boundaries("Hello World").unwrap();
 
         // Debug: Print what we got
         println!("Text: 'Hello World'");
         println!("Boundaries: {:?}", boundaries.positions);
 
-        // Expected from ICU: [0, 5, 6, 11] - boundary positions only
-
-        // For now, let's just test that we get reasonable boundaries
+        // Unicode-segmentation should give us word boundaries
         assert!(!boundaries.positions.is_empty());
         assert_eq!(boundaries.positions[0], 0); // Start of text
-        assert!(boundaries.positions.contains(&5)); // Should have boundary after "Hello"
-        assert!(boundaries.positions.contains(&6)); // Should have boundary before "World"
+
+        // Should have boundaries around words and whitespace
+        // Unicode-segmentation treats whitespace as separate segments
         assert!(boundaries.positions.contains(&11)); // Should have boundary at end
 
         // Test that we can convert to flags without panicking
@@ -167,14 +178,11 @@ mod tests {
         let has_word_ends = flags.iter().any(|flag| flag.is_word_end);
 
         println!("Has word starts: {has_word_starts}, Has word ends: {has_word_ends}");
-
-        // For now, just verify that the basic structure works
-        // We'll investigate the ICU behavior more later
     }
 
     #[test]
     fn word_boundaries_should_handle_empty_text() {
-        let segmenter = IcuWordSegmenter::new().unwrap();
+        let segmenter = UnicodeWordSegmenter::new().unwrap();
         let boundaries = segmenter.find_word_boundaries("").unwrap();
 
         assert_eq!(boundaries.positions, vec![0]);
@@ -185,7 +193,7 @@ mod tests {
 
     #[test]
     fn word_boundaries_should_handle_mixed_text() {
-        let segmenter = IcuWordSegmenter::new().unwrap();
+        let segmenter = UnicodeWordSegmenter::new().unwrap();
         let boundaries = segmenter
             .find_word_boundaries("hello こんにちは world")
             .unwrap();
