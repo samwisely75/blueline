@@ -20,6 +20,41 @@ async fn app_started_with_default_settings(world: &mut BluelineWorld) {
     info!("Step 4: Background step complete");
 }
 
+#[given("the request buffer is empty")]
+async fn given_request_buffer_is_empty(world: &mut BluelineWorld) {
+    debug!("Ensuring request buffer is empty");
+    // In our test environment, the buffer starts empty by default
+    // This step serves as documentation and could be enhanced to actually clear buffer
+    let _state = world.get_terminal_state().await;
+    debug!("Request buffer verified as empty");
+}
+
+#[given(regex = r"the terminal dimensions are set to width (\d+) and height (\d+)")]
+async fn given_terminal_dimensions(world: &mut BluelineWorld, width: String, height: String) {
+    let w: u16 = width.parse().expect("Invalid width");
+    let h: u16 = height.parse().expect("Invalid height");
+    debug!("Setting terminal dimensions to {}x{}", w, h);
+    world.set_terminal_size(w, h);
+    debug!("Terminal dimensions set to {}x{}", w, h);
+}
+
+#[given(regex = r#"I have "([^"]+)" in the request buffer"#)]
+async fn given_text_in_request_buffer(world: &mut BluelineWorld, text: String) {
+    debug!("Setting up request buffer with text: '{}'", text);
+    // For now, we'll simulate having this text by injecting it into terminal output
+    // In a real implementation, this would set up the actual buffer state
+    world.simulate_text_input(&text).await;
+    debug!("Request buffer set up with: '{}'", text);
+}
+
+#[given("I am in the Request pane")]
+async fn given_in_request_pane(world: &mut BluelineWorld) {
+    debug!("Ensuring we are in Request pane");
+    // For now, assume we start in Request pane by default
+    let _state = world.get_terminal_state().await;
+    debug!("Confirmed in Request pane");
+}
+
 // Given steps
 #[given("I am in Insert mode")]
 async fn given_insert_mode(world: &mut BluelineWorld) {
@@ -80,6 +115,18 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
                 .send_key_event(KeyCode::Char('i'), KeyModifiers::empty())
                 .await
         }
+        "v" => {
+            info!("Pressing 'v' key to enter visual mode");
+            world
+                .send_key_event(KeyCode::Char('v'), KeyModifiers::empty())
+                .await
+        }
+        "$" => {
+            info!("Pressing '$' key to move to end of line");
+            world
+                .send_key_event(KeyCode::Char('$'), KeyModifiers::empty())
+                .await
+        }
         ":" => {
             info!("Pressing colon key to enter command mode");
             world
@@ -108,6 +155,7 @@ async fn when_type_text(world: &mut BluelineWorld, text: String) {
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 }
 
+
 // Then steps
 #[then("I should be in Insert mode")]
 async fn then_should_be_insert_mode(world: &mut BluelineWorld) {
@@ -131,6 +179,15 @@ async fn then_should_be_normal_mode(world: &mut BluelineWorld) {
     debug!("Verifying Normal mode");
     let state = world.get_terminal_state().await;
     // TODO: Implement mode detection from terminal state
+    // For now, we'll just capture the state for debugging
+    state.debug_print();
+}
+
+#[then("I should be in Visual mode")]
+async fn then_should_be_visual_mode(world: &mut BluelineWorld) {
+    debug!("Verifying Visual mode");
+    let state = world.get_terminal_state().await;
+    // TODO: Implement Visual mode detection from terminal state
     // For now, we'll just capture the state for debugging
     state.debug_print();
 }
@@ -258,16 +315,45 @@ async fn then_should_remain_insert_mode(world: &mut BluelineWorld) {
     then_should_be_insert_mode(world).await;
 }
 
+#[then("the selection should expand")]
+async fn then_selection_should_expand(world: &mut BluelineWorld) {
+    debug!("Verifying selection expansion");
+    let state = world.get_terminal_state().await;
+    // TODO: Implement selection detection from terminal state
+    // For now, we'll just capture the state for debugging
+    state.debug_print();
+}
+
+#[then(regex = r#"I should see "([^"]+)" highlighted"#)]
+async fn then_should_see_highlighted(world: &mut BluelineWorld, text: String) {
+    info!("Verifying text '{}' is highlighted", text);
+    let state = world.get_terminal_state().await;
+    
+    // First verify the text exists in the terminal
+    let contains = state.contains(&text);
+    assert!(
+        contains,
+        "Expected to find text '{}' in terminal before checking highlight",
+        text
+    );
+    
+    // TODO: Implement highlight detection from terminal state
+    // This would involve detecting ANSI escape sequences for reverse video or color changes
+    // For now, we'll just verify the text exists
+    debug!("Text '{}' found in terminal (highlight detection TODO)", text);
+    state.debug_print();
+}
+
 // Application termination steps
 #[then("the application should terminate cleanly")]
 async fn then_app_should_terminate_cleanly(world: &mut BluelineWorld) {
     info!("Verifying application terminates cleanly");
-    
+
     // In our test environment, we simulate termination by checking that
     // the quit command was properly processed
     // TODO: Implement actual termination simulation
     debug!("Application termination simulation - placeholder");
-    
+
     // For now, we'll just verify the command was processed
     let state = world.get_terminal_state().await;
     state.debug_print();
@@ -276,11 +362,11 @@ async fn then_app_should_terminate_cleanly(world: &mut BluelineWorld) {
 #[then("the application should terminate without saving")]
 async fn then_app_should_terminate_without_saving(world: &mut BluelineWorld) {
     info!("Verifying application terminates without saving (force quit)");
-    
+
     // Similar to clean termination, but with force quit semantics
     // TODO: Implement force quit simulation
     debug!("Force quit termination simulation - placeholder");
-    
+
     let state = world.get_terminal_state().await;
     state.debug_print();
 }

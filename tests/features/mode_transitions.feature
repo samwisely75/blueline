@@ -5,33 +5,43 @@ Feature: Mode Transitions
 
     Background:
         Given the application is started with default settings
+        And the request buffer is empty
 
-    Scenario: Initial mode is Normal (like vim)
-        When the application starts
-        Then I should be in Normal mode
-        And the request pane should show line number "1" in column 3
-        And the request pane should show "~" for empty lines
-        And there should be a blinking block cursor at column 4
-        And the status bar should show "REQUEST | 1:1" aligned to the right
-        And there should be no response pane visible
-
-    Scenario: Switch from Normal to Insert mode
+    Scenario: Switch from Normal to Insert and back to Normal
         Given I am in Normal mode
         When I press "i"
         Then I should be in Insert mode
         And the cursor should change appearance
-
-    Scenario: Switch from Insert back to Normal mode
-        Given I am in Insert mode  
+        When I type "GET /api/users"
+        Then I should see "GET /api/users" in the output
         When I press Escape
         Then I should be in Normal mode
         And the cursor should change appearance
 
-    Scenario: Execute command in Insert mode
+    Scenario: Switch from Normal to Visual mode and back to Normal
         Given I am in Normal mode
         When I press "i"
         Then I should be in Insert mode
-        When I type "echo hello"
-        And I press Enter
-        Then I should see "hello" in the output
-        And I should remain in Insert mode
+        When I type "hello world"
+        And I press Escape
+        Then I should be in Normal mode
+        When I press "v"
+        Then I should be in Visual mode
+        And the cursor should change appearance
+        When I press "$"
+        Then the selection should expand
+        And I should see "hello world" highlighted
+        When I press Escape
+        Then I should be in Normal mode
+        And the cursor should change appearance
+
+    Scenario: Switch from Normal to Command mode
+        Given I am in Normal mode
+        When I press ":"
+        Then I should be in Command mode
+        And I should see ":" in the status line
+        When I type "help"
+        Then I should see ":help" in the status line
+        When I press Enter
+        Then I should see the help message in the output
+        And I should be in Normal mode

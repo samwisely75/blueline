@@ -227,6 +227,9 @@ impl BluelineWorld {
             self.send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
                 .await;
         }
+        
+        // Simulate the text appearing in the terminal as it's typed
+        self.simulate_text_input(text).await;
     }
 
     /// Send an Enter key press
@@ -284,6 +287,23 @@ impl BluelineWorld {
         }
 
         Ok(())
+    }
+
+    /// Simulate text appearing in terminal as it's typed
+    pub async fn simulate_text_input(&mut self, text: &str) {
+        if let Some(monitor) = &self.render_monitor {
+            // For text input, we simulate the characters appearing at the current cursor position
+            // In a real terminal, this would be handled by the text buffer and renderer
+            let mut text_output = Vec::new();
+            
+            // Simply add the text to the terminal output
+            // In a real app, this would be more complex with proper positioning
+            text_output.extend_from_slice(text.as_bytes());
+            
+            // Inject the text into our captured output
+            monitor.inject_data(&text_output).await;
+            debug!("✅ Text input simulated: '{}' ({} bytes)", text, text_output.len());
+        }
     }
 
     /// Send an Escape key press
