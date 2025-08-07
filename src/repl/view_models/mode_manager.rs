@@ -36,8 +36,10 @@ impl ViewModel {
             tracing::debug!("Cleared command buffer when exiting Command mode");
         }
 
+        // Update the mode for the current pane and handle cursor adjustments
+        let mut events = self.pane_manager.set_current_pane_mode(mode);
+
         // Handle visual mode selection state using PaneManager
-        let mut events = Vec::new();
         if mode == EditorMode::Visual && old_mode != EditorMode::Visual {
             // Entering visual mode
             events.extend(self.pane_manager.start_visual_selection());

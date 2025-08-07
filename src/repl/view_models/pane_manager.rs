@@ -3,7 +3,7 @@
 //! Handles pane switching, mode changes, and pane-related state management.
 //! Contains the PaneManager struct that encapsulates all pane-related operations.
 
-use crate::repl::events::{LogicalPosition, LogicalRange, Pane, ViewEvent};
+use crate::repl::events::{EditorMode, LogicalPosition, LogicalRange, Pane, ViewEvent};
 use crate::repl::geometry::Position;
 use crate::repl::view_models::pane_state::PaneState;
 
@@ -931,16 +931,25 @@ impl PaneManager {
         let mut new_display_pos = current_display_pos;
 
         // Check movement possibility first without borrowing display_cache
-        // In Vim normal mode, cursor can't go past the last character (only to it, not beyond)
+        // Mode-dependent cursor limits:
+        // - Normal/Visual mode: cursor can't go past the last character (only to it, not beyond)
+        // - Insert mode: cursor can go one position past the last character
+        let current_mode = self.panes[self.current_pane].editor_mode;
         let can_move_right_in_line = if let Some(current_line) = self.panes[self.current_pane]
             .display_cache
             .get_display_line(current_display_pos.row)
         {
             let line_char_count = current_line.char_count();
-            // In normal mode, stop at the last character position (line_char_count - 1)
-            // This matches Vim behavior where cursor can't go past the last character
+
+            // Determine max position based on mode
+            let max_col = if current_mode == EditorMode::Insert {
+                line_char_count // Insert mode: can go one past the last character
+            } else {
+                line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+            };
+
             if line_char_count > 0 {
-                current_display_pos.col < line_char_count - 1
+                current_display_pos.col < max_col
             } else {
                 false
             }
@@ -1191,8 +1200,9 @@ impl PaneManager {
         events
     }
 
-    /// Move cursor to end of current line
-    pub fn move_cursor_to_end_of_line(&mut self) -> Vec<ViewEvent> {
+    /// Move cursor to end of current line for append (A command)
+    /// This positions the cursor AFTER the last character for insert mode
+    pub fn move_cursor_to_line_end_for_append(&mut self) -> Vec<ViewEvent> {
         // Get current logical position
         let current_logical = self.panes[self.current_pane].buffer.cursor();
 
@@ -1209,12 +1219,67 @@ impl PaneManager {
         {
             let line_length = line.chars().count();
 
+            // For the 'A' command, position cursor AFTER the last character
+            // This allows inserting at the end of the line
+            let end_position = line_length; // Position after last character
+            let new_logical = LogicalPosition::new(current_logical.line, end_position);
+
+            // Update logical cursor first
+            self.panes[self.current_pane].buffer.set_cursor(new_logical);
+
+            // Sync display cursor with logical cursor
+            self.panes[self.current_pane].sync_display_cursor_with_logical();
+
+            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+            if self.panes[self.current_pane]
+                .visual_selection_start
+                .is_some()
+            {
+                self.panes[self.current_pane].visual_selection_end = Some(new_logical);
+                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+                tracing::debug!(
+                    "Line end append movement updated visual selection end to {:?}",
+                    new_logical
+                );
+            }
+        }
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
+        events
+    }
+
+    /// Move cursor to end of current line
+    pub fn move_cursor_to_end_of_line(&mut self) -> Vec<ViewEvent> {
+        // Get current logical position
+        let current_logical = self.panes[self.current_pane].buffer.cursor();
+        let current_mode = self.panes[self.current_pane].editor_mode;
+
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Get the current line content to find its length
+        if let Some(line) = self.panes[self.current_pane]
+            .buffer
+            .content()
+            .get_line(current_logical.line)
+        {
+            let line_length = line.chars().count();
+
             // Create new logical position at end of current line
-            // In Vim normal mode, cursor stops at the last character, not after it
-            // For a line with 5 characters (indices 0-4), cursor should stop at index 4
-            // Only in insert mode can cursor be positioned at index 5 (after last char)
-            let end_position = if line_length > 0 {
-                line_length - 1 // Stop at last character
+            // Mode-dependent positioning:
+            // - Normal/Visual mode: cursor stops at the last character (index n-1)
+            // - Insert mode: cursor can be positioned after last character (index n)
+            // This is used for the 'A' command which should position after last char
+            let end_position = if current_mode == EditorMode::Insert && line_length > 0 {
+                line_length // Position after last character for insert mode
+            } else if line_length > 0 {
+                line_length - 1 // Stop at last character for normal/visual mode
             } else {
                 0 // Empty line, stay at position 0
             };
@@ -1359,6 +1424,42 @@ impl PaneManager {
         } else {
             vec![]
         }
+    }
+
+    /// Set the editor mode for the current pane
+    pub fn set_current_pane_mode(&mut self, mode: EditorMode) -> Vec<ViewEvent> {
+        let old_mode = self.panes[self.current_pane].editor_mode;
+        self.panes[self.current_pane].editor_mode = mode;
+
+        // If switching from Insert to Normal mode, adjust cursor if needed
+        if old_mode == EditorMode::Insert && mode == EditorMode::Normal {
+            // In Vim, when switching from Insert to Normal mode, if the cursor is
+            // positioned after the last character, it should be pulled back to the last character
+            let current_logical = self.panes[self.current_pane].buffer.cursor();
+            if let Some(line) = self.panes[self.current_pane]
+                .buffer
+                .content()
+                .get_line(current_logical.line)
+            {
+                let line_length = line.chars().count();
+                if line_length > 0 && current_logical.column >= line_length {
+                    // Cursor is beyond the last character, pull it back
+                    let adjusted_position =
+                        LogicalPosition::new(current_logical.line, line_length - 1);
+                    self.panes[self.current_pane]
+                        .buffer
+                        .set_cursor(adjusted_position);
+                    self.panes[self.current_pane].sync_display_cursor_with_logical();
+
+                    return vec![
+                        ViewEvent::ActiveCursorUpdateRequired,
+                        ViewEvent::PositionIndicatorUpdateRequired,
+                    ];
+                }
+            }
+        }
+
+        vec![]
     }
 
     /// Calculate pane boundaries for rendering

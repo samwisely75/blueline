@@ -203,6 +203,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                         MovementDirection::LineEnd => {
                             self.view_model.move_cursor_to_end_of_line()?
                         }
+                        MovementDirection::LineEndForAppend => {
+                            self.view_model.move_cursor_to_line_end_for_append()?
+                        }
                         MovementDirection::LineStart => {
                             self.view_model.move_cursor_to_start_of_line()?
                         }

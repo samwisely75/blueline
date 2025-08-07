@@ -49,6 +49,12 @@ impl ViewModel {
         self.emit_view_event(events)
     }
 
+    /// Move cursor to end of current line for append (A command)
+    pub fn move_cursor_to_line_end_for_append(&mut self) -> Result<()> {
+        let events = self.pane_manager.move_cursor_to_line_end_for_append();
+        self.emit_view_event(events)
+    }
+
     /// Move cursor to start of current line
     pub fn move_cursor_to_start_of_line(&mut self) -> Result<()> {
         let events = self.pane_manager.move_cursor_to_start_of_line();
