@@ -347,16 +347,36 @@ impl DisplayLine {
 
         // Look for next word end using ICU segmentation boundaries
         // Vim 'e' behavior: move to end of current or next word
+        // If we're already at a word end, skip to the next word end
+        let mut start_index = current_index;
+
+        // Check if we're already at a word end position
+        if current_index < char_positions.len() {
+            let current_char = char_positions[current_index].1;
+            if current_char.buffer_char.is_word_end {
+                // We're at a word end, so we need to find the next word end
+                tracing::debug!(
+                    "find_end_of_word: currently at word end '{}', searching for next word end",
+                    current_char.ch()
+                );
+                start_index = current_index + 1;
+            }
+        }
+
         #[allow(clippy::needless_range_loop)] // Index needed for position lookup
-        for i in current_index..char_positions.len() {
+        for i in start_index..char_positions.len() {
             let display_char = char_positions[i].1;
             if display_char.buffer_char.is_word_end {
-                tracing::debug!(
-                    "find_end_of_word: found word end at display_col={}, char='{}'",
-                    char_positions[i].0,
-                    display_char.ch()
-                );
-                return Some(char_positions[i].0);
+                // Skip whitespace/punctuation-only word ends - we want actual word ends
+                let ch = display_char.ch();
+                if ch.is_alphanumeric() || ch.is_alphabetic() {
+                    tracing::debug!(
+                        "find_end_of_word: found word end at display_col={}, char='{}'",
+                        char_positions[i].0,
+                        display_char.ch()
+                    );
+                    return Some(char_positions[i].0);
+                }
             }
         }
 
@@ -965,5 +985,65 @@ mod tests {
             borat_start,
             "Should go back to 'Borat'"
         );
+    }
+
+    #[test]
+    fn end_of_word_should_advance_when_already_at_word_end() {
+        // Test the 'e' command behavior when cursor is already at end of a word
+        // This tests the fix for the issue where 'e' doesn't progress when at word end
+        let text = "hello world test";
+
+        // Create proper display line with word boundaries using CharacterBuffer
+        use crate::repl::models::buffer_char::BufferLine;
+        use crate::repl::models::display_char::DisplayChar;
+        use crate::text::word_segmenter::WordSegmenterFactory;
+
+        // Create buffer line and set up word boundaries properly
+        let mut buffer_line = BufferLine::from_string(text);
+        let segmenter = WordSegmenterFactory::create();
+        buffer_line.refresh_word_boundaries(segmenter.as_ref());
+
+        // Create display chars from buffer line
+        let mut chars = Vec::new();
+        let mut current_screen_col = 0;
+
+        for buffer_char in buffer_line.chars() {
+            let display_char =
+                DisplayChar::from_buffer_char(buffer_char.clone(), (0, current_screen_col));
+            current_screen_col += display_char.display_width();
+            chars.push(display_char);
+        }
+
+        let display_line = DisplayLine::new(chars, 0, 0, text.chars().count(), false);
+
+        // First, move to end of "hello" (position 4)
+        let hello_end = display_line.find_end_of_word(0);
+        assert!(hello_end.is_some(), "Should find end of 'hello'");
+        let hello_end_pos = hello_end.unwrap();
+
+        // Now test the fix: when cursor is at end of "hello", 'e' should move to end of "world"
+        let world_end = display_line.find_end_of_word(hello_end_pos);
+        assert!(
+            world_end.is_some(),
+            "Should find end of 'world' when starting from end of 'hello'"
+        );
+
+        // Should skip over the space and find the actual end of "world" (position 10: 'd')
+        assert_eq!(
+            world_end.unwrap(),
+            10,
+            "Should advance to end of 'world', not space"
+        );
+
+        // Test advancing from end of "world" to end of "test"
+        let world_end_pos = world_end.unwrap();
+        let test_end = display_line.find_end_of_word(world_end_pos);
+        assert!(
+            test_end.is_some(),
+            "Should find end of 'test' when starting from end of 'world'"
+        );
+
+        // Should find the actual end of "test" (position 15: 't')
+        assert_eq!(test_end.unwrap(), 15, "Should advance to end of 'test'");
     }
 }
