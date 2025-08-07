@@ -729,6 +729,14 @@ impl PaneManager {
             .content_mut()
             .set_text(text);
 
+        // Reset cursor and scroll positions to avoid out-of-bounds issues
+        self.panes[Pane::Response].display_cursor = Position::origin();
+        self.panes[Pane::Response].scroll_offset = Position::origin();
+
+        // Clear any visual selection in the response pane
+        self.panes[Pane::Response].visual_selection_start = None;
+        self.panes[Pane::Response].visual_selection_end = None;
+
         // Rebuild display cache to ensure rendering sees the updated content
         let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4); // Same as Request pane
         self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
