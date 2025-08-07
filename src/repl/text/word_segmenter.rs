@@ -43,24 +43,83 @@ pub struct WordBoundaries {
 }
 
 impl WordBoundaries {
-    /// Convert boundary positions to word flags for each character
-    pub fn to_word_flags(&self, text_len: usize) -> Vec<WordFlags> {
-        let mut flags = vec![WordFlags::default(); text_len];
+    /// Convert byte-based boundary positions to word flags for each character
+    ///
+    /// # Arguments
+    /// * `text` - The original text to analyze
+    ///
+    /// # Returns
+    /// A vector of WordFlags with one entry per character (not byte)
+    pub fn to_word_flags(&self, text: &str) -> Vec<WordFlags> {
+        let char_count = text.chars().count();
+        let mut flags = vec![WordFlags::default(); char_count];
 
-        // Mark all boundary positions as potential word starts/ends
+        // Build a mapping from byte position to character index
+        let mut byte_to_char = vec![0; text.len() + 1];
+        let mut char_index = 0;
+        let mut byte_pos = 0;
+
+        for ch in text.chars() {
+            // All bytes for this character map to this character index
+            for b in 0..ch.len_utf8() {
+                if byte_pos + b < byte_to_char.len() {
+                    byte_to_char[byte_pos + b] = char_index;
+                }
+            }
+            byte_pos += ch.len_utf8();
+            char_index += 1;
+        }
+
+        // Handle end position
+        if byte_pos < byte_to_char.len() {
+            byte_to_char[byte_pos] = char_index;
+        }
+
+        // Mark boundary positions as word starts/ends
         for i in 1..self.positions.len() {
-            let pos = self.positions[i];
+            let byte_pos = self.positions[i];
 
             // Mark as word start (except for position 0 and end)
-            if pos > 0 && pos < text_len {
-                flags[pos].is_word_start = true;
+            if byte_pos > 0 && byte_pos <= text.len() {
+                let char_pos = if byte_pos < byte_to_char.len() {
+                    byte_to_char[byte_pos]
+                } else {
+                    char_count
+                };
+
+                if char_pos < flags.len() {
+                    flags[char_pos].is_word_start = true;
+                }
             }
 
-            // Mark previous position as word end
-            if pos > 0 && pos <= text_len {
-                let end_pos = pos.saturating_sub(1);
-                if end_pos < flags.len() {
-                    flags[end_pos].is_word_end = true;
+            // Mark previous character as word end
+            if byte_pos > 0 {
+                let prev_byte_pos = self.positions[i - 1];
+                let prev_char_pos = if prev_byte_pos < byte_to_char.len() {
+                    byte_to_char[prev_byte_pos]
+                } else {
+                    char_count.saturating_sub(1)
+                };
+
+                // Find the last character of the previous word
+                if prev_char_pos < flags.len() {
+                    // Look forward to find the actual end character
+                    let mut end_char_pos = prev_char_pos;
+                    while end_char_pos < char_count && end_char_pos + 1 < char_count {
+                        // Check if the next character starts at our boundary
+                        let next_char_byte_start = text
+                            .chars()
+                            .take(end_char_pos + 1)
+                            .map(|c| c.len_utf8())
+                            .sum::<usize>();
+                        if next_char_byte_start >= byte_pos {
+                            break;
+                        }
+                        end_char_pos += 1;
+                    }
+                    if end_char_pos < flags.len() {
+                        flags[end_char_pos].is_word_end = true;
+                    }
                 }
             }
         }
@@ -91,43 +150,57 @@ impl WordSegmenter for UnicodeWordSegmenter {
             return Ok(WordBoundaries { positions: vec![0] });
         }
 
-        // Use vim-like word boundary detection
+        // Use vim-like word boundary detection with byte-based indices
         let chars: Vec<char> = text.chars().collect();
         let mut positions = Vec::new();
 
-        // Add the start position
+        // Add the start position (byte 0)
         positions.push(0);
 
-        let mut i = 0;
-        while i < chars.len() {
-            let current_char = chars[i];
+        let mut char_index = 0;
+        let mut byte_pos = 0;
+
+        while char_index < chars.len() {
+            let current_char = chars[char_index];
 
             if is_word_char(current_char) {
-                // Skip through word characters and add boundary after the word
-                while i < chars.len() && is_word_char(chars[i]) {
-                    i += 1;
+                // Skip through word characters
+                while char_index < chars.len() && is_word_char(chars[char_index]) {
+                    byte_pos += chars[char_index].len_utf8();
+                    char_index += 1;
                 }
-                // Don't add boundary at end of text here - we'll add it later
             } else if is_cjk_char(current_char) {
                 // For CJK characters, each character is a word boundary
-                i += 1;
+                // First add boundary at start of this character
+                if byte_pos > 0 && !positions.contains(&byte_pos) {
+                    positions.push(byte_pos);
+                }
+
+                byte_pos += chars[char_index].len_utf8();
+                char_index += 1;
             } else {
                 // Skip whitespace and punctuation characters without adding boundaries
-                while i < chars.len() && !is_word_char(chars[i]) && !is_cjk_char(chars[i]) {
-                    i += 1;
+                while char_index < chars.len()
+                    && !is_word_char(chars[char_index])
+                    && !is_cjk_char(chars[char_index])
+                {
+                    byte_pos += chars[char_index].len_utf8();
+                    char_index += 1;
                 }
             }
 
-            // Add boundary at the current position if we're not at the end
+            // Add boundary at the current byte position if we're not at the end
             // and if the current position represents a word or CJK character start
-            if i < chars.len() && (is_word_char(chars[i]) || is_cjk_char(chars[i])) {
-                positions.push(i);
+            if char_index < chars.len()
+                && (is_word_char(chars[char_index]) || is_cjk_char(chars[char_index]))
+            {
+                positions.push(byte_pos);
             }
         }
 
-        // Ensure we have the end position
-        if !positions.contains(&chars.len()) {
-            positions.push(chars.len());
+        // Ensure we have the end position (total byte length)
+        if !positions.contains(&text.len()) {
+            positions.push(text.len());
         }
 
         // Ensure positions are sorted and unique
@@ -204,7 +277,7 @@ mod tests {
         assert!(boundaries.positions.contains(&11)); // Should have boundary at end
 
         // Test that we can convert to flags without panicking
-        let flags = boundaries.to_word_flags(11); // "Hello World" is 11 chars
+        let flags = boundaries.to_word_flags("Hello World");
         assert_eq!(flags.len(), 11);
 
         // Debug: Print the flags
@@ -228,7 +301,7 @@ mod tests {
 
         assert_eq!(boundaries.positions, vec![0]);
 
-        let flags = boundaries.to_word_flags(0);
+        let flags = boundaries.to_word_flags("");
         assert!(flags.is_empty());
     }
 
@@ -242,7 +315,7 @@ mod tests {
         // Should detect boundaries properly for mixed Latin/CJK text
         assert!(!boundaries.positions.is_empty());
 
-        let flags = boundaries.to_word_flags("hello こんにちは world".chars().count());
+        let flags = boundaries.to_word_flags("hello こんにちは world");
 
         // Should have word starts and ends
         let has_word_starts = flags.iter().any(|flag| flag.is_word_start);
@@ -258,5 +331,31 @@ mod tests {
         let boundaries = segmenter.find_word_boundaries("test").unwrap();
 
         assert!(!boundaries.positions.is_empty());
+    }
+
+    #[test]
+    fn test_byte_based_boundaries() {
+        let segmenter = UnicodeWordSegmenter::new().unwrap();
+
+        // Test with multibyte characters
+        let text = "hello こんにちは world";
+        let boundaries = segmenter.find_word_boundaries(text).unwrap();
+
+        // Expected: [0, 6, 22, 27] (byte positions)
+        // 0: start of "hello"
+        // 6: start of "こんにちは"
+        // 22: start of "world"
+        // 27: end of text (27 bytes total)
+
+        assert_eq!(boundaries.positions, vec![0, 6, 22, 27]);
+        assert_eq!(text.len(), 27); // Verify total byte count
+
+        // Test that positions point to valid character boundaries
+        for &pos in &boundaries.positions {
+            if pos < text.len() {
+                // Should not panic when slicing at these byte positions
+                let _ = &text[pos..];
+            }
+        }
     }
 }

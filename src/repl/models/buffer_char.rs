@@ -281,7 +281,7 @@ impl BufferLine {
 
         match segmenter.find_word_boundaries(&text) {
             Ok(boundaries) => {
-                let flags = boundaries.to_word_flags(self.char_count());
+                let flags = boundaries.to_word_flags(&text);
 
                 // Apply word flags to each character
                 for (i, flag) in flags.iter().enumerate() {
