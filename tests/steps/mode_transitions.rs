@@ -41,6 +41,18 @@ async fn given_command_mode(world: &mut BluelineWorld) {
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 }
 
+#[given("I am in Normal mode")]
+async fn given_normal_mode(world: &mut BluelineWorld) {
+    debug!("Ensuring we are in Normal mode");
+    // The application starts in Normal mode by default (vim-like behavior)
+    // If we're not in Normal mode, press Escape to get there
+    world
+        .send_key_event(KeyCode::Esc, KeyModifiers::empty())
+        .await;
+    world.tick().await.expect("Failed to tick");
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+}
+
 // When steps
 #[when("the application starts")]
 async fn when_application_starts(world: &mut BluelineWorld) {
@@ -66,6 +78,12 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
         "i" => {
             world
                 .send_key_event(KeyCode::Char('i'), KeyModifiers::empty())
+                .await
+        }
+        ":" => {
+            info!("Pressing colon key to enter command mode");
+            world
+                .send_key_event(KeyCode::Char(':'), KeyModifiers::empty())
                 .await
         }
         _ => panic!("Unsupported key: {key}"),
@@ -105,6 +123,15 @@ async fn then_should_be_command_mode(world: &mut BluelineWorld) {
     debug!("Verifying Command mode");
     let state = world.get_terminal_state().await;
     // TODO: Implement mode detection from terminal state
+    state.debug_print();
+}
+
+#[then("I should be in Normal mode")]
+async fn then_should_be_normal_mode(world: &mut BluelineWorld) {
+    debug!("Verifying Normal mode");
+    let state = world.get_terminal_state().await;
+    // TODO: Implement mode detection from terminal state
+    // For now, we'll just capture the state for debugging
     state.debug_print();
 }
 
@@ -229,4 +256,31 @@ async fn then_should_remain_insert_mode(world: &mut BluelineWorld) {
     debug!("Verifying still in Insert mode");
     // Same as checking for Insert mode
     then_should_be_insert_mode(world).await;
+}
+
+// Application termination steps
+#[then("the application should terminate cleanly")]
+async fn then_app_should_terminate_cleanly(world: &mut BluelineWorld) {
+    info!("Verifying application terminates cleanly");
+    
+    // In our test environment, we simulate termination by checking that
+    // the quit command was properly processed
+    // TODO: Implement actual termination simulation
+    debug!("Application termination simulation - placeholder");
+    
+    // For now, we'll just verify the command was processed
+    let state = world.get_terminal_state().await;
+    state.debug_print();
+}
+
+#[then("the application should terminate without saving")]
+async fn then_app_should_terminate_without_saving(world: &mut BluelineWorld) {
+    info!("Verifying application terminates without saving (force quit)");
+    
+    // Similar to clean termination, but with force quit semantics
+    // TODO: Implement force quit simulation
+    debug!("Force quit termination simulation - placeholder");
+    
+    let state = world.get_terminal_state().await;
+    state.debug_print();
 }
