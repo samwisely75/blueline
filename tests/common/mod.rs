@@ -5,6 +5,7 @@
 //! - Terminal state parsing
 //! - Test helpers and assertions
 
+pub mod debug_test;
 pub mod terminal_state;
 pub mod world;
 

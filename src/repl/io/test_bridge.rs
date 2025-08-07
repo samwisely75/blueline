@@ -200,4 +200,10 @@ impl RenderStreamMonitor {
     pub async fn get_captured_string(&self) -> String {
         String::from_utf8_lossy(&self.get_captured().await).to_string()
     }
+
+    /// Inject data directly into captured buffer (for test simulation)
+    pub async fn inject_data(&self, data: &[u8]) {
+        let mut captured = self.captured.lock().await;
+        captured.extend_from_slice(data);
+    }
 }

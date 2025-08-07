@@ -8,12 +8,16 @@ use tracing::{debug, info};
 // Background steps
 #[given("the application is started with default settings")]
 async fn app_started_with_default_settings(world: &mut BluelineWorld) {
-    info!("Starting application with default settings");
+    info!("=== Starting background step: app with default settings ===");
+    info!("Step 1: Initializing world...");
     world.initialize().await;
+    info!("Step 2: Starting app...");
     world.start_app(vec![]).await.expect("Failed to start app");
+    info!("Step 3: App started, waiting for initialization...");
 
     // Give the app time to initialize
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    info!("Step 4: Background step complete");
 }
 
 // Given steps
