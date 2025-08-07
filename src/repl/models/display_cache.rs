@@ -247,10 +247,8 @@ impl DisplayLine {
             self.content().chars().take(50).collect::<String>()
         );
 
-        if current_display_col == 0 {
-            tracing::debug!("find_previous_word_boundary: at start of line, returning None");
-            return None;
-        }
+        // Don't return early at position 0 - we might need to check if position 0 is a word start
+        // when moving from position 1 back to position 0
 
         // Build character positions array
         let mut char_positions = Vec::new();
@@ -290,15 +288,35 @@ impl DisplayLine {
 
         // Look backwards for previous word start using ICU segmentation boundaries
         // Vim 'b' behavior: move to beginning of current or previous word
-        for i in (0..current_index).rev() {
-            let display_char = char_positions[i].1;
-            if display_char.buffer_char.is_word_start {
+        // Fix: Include all positions from current_index-1 down to 0 to reach first character
+        if current_index > 0 {
+            for i in (0..current_index).rev() {
+                let display_char = char_positions[i].1;
+                if display_char.buffer_char.is_word_start {
+                    // Skip whitespace-only word starts - we want actual word starts
+                    let ch = display_char.ch();
+                    if !ch.is_whitespace() {
+                        tracing::debug!(
+                            "find_previous_word_boundary: found word start at display_col={}, char='{}'",
+                            char_positions[i].0,
+                            display_char.ch()
+                        );
+                        return Some(char_positions[i].0);
+                    }
+                }
+            }
+        }
+
+        // Special case: if position 0 is not marked as word_start but contains a non-whitespace character,
+        // it should be considered a valid word start (for lines that start with words)
+        if !char_positions.is_empty() {
+            let first_char = char_positions[0].1;
+            if !first_char.ch().is_whitespace() && current_display_col > 0 {
                 tracing::debug!(
-                    "find_previous_word_boundary: found word start at display_col={}, char='{}'",
-                    char_positions[i].0,
-                    display_char.ch()
+                    "find_previous_word_boundary: falling back to position 0 as word start, char='{}'",
+                    first_char.ch()
                 );
-                return Some(char_positions[i].0);
+                return Some(0);
             }
         }
 
@@ -1045,5 +1063,49 @@ mod tests {
 
         // Should find the actual end of "test" (position 15: 't')
         assert_eq!(test_end.unwrap(), 15, "Should advance to end of 'test'");
+    }
+
+    #[test]
+    fn previous_word_boundary_should_reach_first_character() {
+        // Test the 'b' command behavior - should be able to reach the very first character
+        // when line starts with a word
+        let text = "test1 test2 test3 test4";
+
+        // Create proper display line with word boundaries using CharacterBuffer
+        use crate::repl::models::buffer_char::BufferLine;
+        use crate::repl::models::display_char::DisplayChar;
+        use crate::text::word_segmenter::WordSegmenterFactory;
+
+        // Create buffer line and set up word boundaries properly
+        let mut buffer_line = BufferLine::from_string(text);
+        let segmenter = WordSegmenterFactory::create();
+        buffer_line.refresh_word_boundaries(segmenter.as_ref());
+
+        // Create display chars from buffer line
+        let mut chars = Vec::new();
+        let mut current_screen_col = 0;
+
+        for buffer_char in buffer_line.chars() {
+            let display_char =
+                DisplayChar::from_buffer_char(buffer_char.clone(), (0, current_screen_col));
+            current_screen_col += display_char.display_width();
+            chars.push(display_char);
+        }
+
+        let display_line = DisplayLine::new(chars, 0, 0, text.chars().count(), false);
+
+        // Starting from 't' in "test3" (position 12), 'b' should go to 't' in "test2" (position 6)
+        let test2_pos = display_line.find_previous_word_boundary(12);
+        assert!(test2_pos.is_some(), "Should find start of 'test2' from 'test3'");
+        assert_eq!(test2_pos.unwrap(), 6, "Should move to start of 'test2'");
+
+        // From 't' in "test2" (position 6), 'b' should go to 't' in "test1" (position 0)
+        let test1_pos = display_line.find_previous_word_boundary(6);
+        assert!(test1_pos.is_some(), "Should find start of 'test1' from 'test2'");
+        assert_eq!(test1_pos.unwrap(), 0, "Should move to start of 'test1' (first character)");
+
+        // From 't' in "test1" (position 0), 'b' should return None (can't go further back)
+        let before_start = display_line.find_previous_word_boundary(0);
+        assert!(before_start.is_none(), "Should not move before first character");
     }
 }
