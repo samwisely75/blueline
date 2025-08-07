@@ -1,72 +1,169 @@
 # Session Notes
 
-## 2025-08-06 Session - Clean I/O Abstraction Refactoring
+## 2025-08-07 Session - Phase 4: VTE-Based Test Infrastructure
+
+### User Request Summary
+
+- Complete Phase 4 of Clean I/O Abstraction refactoring (GitHub issue #71)
+- Build test infrastructure with VTE parser for terminal state reconstruction
+- Convert test output from println!/eprintln! to tracing
+
+### What We Accomplished
+
+#### 1. VTE-Based Test Infrastructure ✅
+
+- **Implemented VteRenderStream** with proper VTE parser integration
+  - Created `VtePerformer` implementing `vte::Perform` trait
+  - Handles ANSI escape sequences (cursor movement, colors, screen control)
+  - Uses constants for ANSI sequences with proper naming
+  - Dynamic line number width for debug output
+
+- **Created Test Directory Structure**
+  - `tests/integration_tests.rs` - Main test runner with tracing subscriber
+  - `tests/common/terminal_state.rs` - Terminal state parsing and assertions
+  - `tests/common/world.rs` - Cucumber world implementation (no global state)
+
+- **Key Technical Decisions**
+  - Used type aliases (`CapturedOutput`, `CursorPosition`) to reduce complexity
+  - All test utilities marked with `#[allow(dead_code)]` until used
+  - Proper async handling with Arc/Mutex for thread safety
+
+#### 2. Tracing Integration ✅
+
+- **Replaced all println!/eprintln! with tracing**
+  - Added tracing subscriber in test main with EnvFilter support
+  - Debug/trace logging throughout test infrastructure
+  - Test-friendly output with `with_test_writer()`
+  
+- **Usage**: `RUST_LOG=debug cargo test --test integration_tests`
+
+### Important Implementation Details
+
+1. **VTE Parser**: Properly interprets escape sequences including:
+   - SGR (colors, bold, reverse)
+   - Cursor movement (CUP, CUU, CUD, CUF, CUB)
+   - Screen/line clearing (ED, EL)
+   - All standard control characters
+
+2. **Dynamic Line Numbers**: Terminal debug output adjusts line number width based on content
+
+3. **Clean Architecture**: No global state, proper dependency injection throughout
+
+### Commits Made
+
+- (Ready to commit VTE test infrastructure implementation)
+
+### Next Steps
+
+- Phase 5: Implement actual integration tests using Cucumber feature files
+- Test the tricky cursor positioning and visual selection scenarios
+
+---
+
+## 2025-08-07 Session - Phase 3 Completion: Clean I/O Abstraction & Mode-Aware Cursor
+
+### User Request Summary
+
+- Complete Phase 3 of Clean I/O Abstraction refactoring
+- Extract hardcoded ANSI escape codes to named constants
+- Fix visual selection colors for better readability
+- Fix off-by-one horizontal scrolling bug with wrapped lines
+- Implement proper Vim-style cursor behavior in Normal vs Insert modes
+
+### What We Accomplished
+
+#### 1. ANSI Escape Codes Extraction ✅
+
+- Created `/src/repl/views/ansi_escape_codes.rs` with comprehensive ANSI constants
+- Extracted all hardcoded escape sequences to named constants
+- Added semantic color aliases (FG_SELECTED, BG_SELECTED, etc.)
+- User feedback: "overengineered but good"
+
+#### 2. Visual Selection Colors ✅
+
+- Changed from dark blue/black to lighter blue/white for better visibility
+- Updated to use BG_SELECTED and FG_SELECTED constants directly
+- User selected BG_256_DEEP_SKY_BLUE for selection background
+
+#### 3. Fixed Off-by-One Horizontal Scrolling Bug ✅
+
+- Issue: Cursor at column 111 (width 112) triggered unwanted scroll before wrapping
+- Solution: Allow cursor at content_width position without scrolling
+- Immediately wrap to next line when reaching content_width boundary
+- User feedback: "high five!!!" when fixed
+
+#### 4. Response Pane Cursor Reset ✅
+
+- Fixed cursor staying at invalid position when response content changed
+- Now resets cursor and scroll positions to origin when loading new response
+- User feedback: "well done!"
+
+#### 5. Vim Normal Mode Cursor Behavior ✅
+
+- Implemented proper Vim cursor constraints:
+  - Normal mode: cursor can only be ON characters (indices 0 to n-1)
+  - Insert mode: cursor can be positioned AFTER last character (index n)
+- Fixed all movement commands: l, $, G, j, k, h
+- Added comments explaining the -1 adjustments as requested
+
+#### 6. Mode-Aware Cursor Positioning (Major Enhancement) ✅
+
+- **Added `editor_mode` to `PaneState`** - each pane now tracks its own mode
+- Created `LineEndForAppend` movement direction for 'A' command
+- 'A' command now positions cursor AFTER last character for insertion
+- Mode transitions automatically adjust cursor position
+- Applied mode-aware constraints to all navigation commands
+
+### Key Technical Decisions
+
+1. **Mode per Pane**: User correctly suggested making `editor_mode` a property of `PaneState` rather than global, as panes could technically have different modes.
+
+2. **Cursor Position Philosophy**:
+   - Normal/Visual modes: cursor is ON characters (like selecting)
+   - Insert mode: cursor is BETWEEN characters (insertion point)
+   - This matches standard Vim behavior
+
+3. **Automatic Adjustments**: When switching from Insert to Normal mode, cursor automatically pulls back if beyond last character.
+
+### Known Issues
+
+- Ghost cursoring issue has returned and is "pretty heavy" - leaving for future fix
+- User will reset session for Phase 4
+
+### Commits Made
+
+1. "fix: Match Vim normal mode cursor behavior at line end"
+2. "feat: Implement mode-aware cursor positioning"
+3. "fix: Apply mode-aware cursor constraints to j/k/h navigation"
+
+### Next Phase
+
+Moving to Phase 4 of the Clean I/O Abstraction refactoring (new session)
+
+### Important Context for Next Session
+
+- Phase 1 and 2 completed previously
+- Phase 3 now complete with all ANSI codes extracted and mode-aware cursoring
+- Ghost cursor issue exists but deferred
+- Check GitHub issue #74 for Phase 4 requirements
+
+---
+
+## 2025-08-06 Session - Clean I/O Abstraction Refactoring Phases 1-2
 
 ### Phase 1 Complete ✅
+
 - Removed test pollution from production code
 - Fixed failing test with proper ICU word segmentation
 - Tagged: `clean-io-abstraction-phase1-complete`
 
 ### Phase 2 Complete ✅
+
 - Created EventStream and RenderStream traits
 - Implemented TerminalEventStream and TerminalRenderStream
 - Updated AppController to use dependency injection
 - Created MockEventStream and MockRenderStream for testing
 - Tagged: `clean-io-abstraction-phase2-complete`
-
-### Phase 3 In Progress 🚧
-- GitHub Issue #74: Refactor AppController with Dependency Injection
-- Started refactoring TerminalRenderer to use RenderStream
-- Key architectural decision: View layer (TerminalRenderer) owns RenderStream
-- AppController no longer needs direct access to RenderStream
-
-#### Current Status
-- ✅ AppController updated to pass RenderStream to TerminalRenderer
-- ✅ TerminalRenderer struct updated to use RenderStream instead of Write
-- ✅ All `self.writer` references changed to `self.render_stream`
-- 🚧 ViewRenderer trait implementation needs updating
-- 🚧 Default implementation needs fixing
-- 🚧 Tests need updating to use with_render_stream()
-- 🚧 Crossterm imports still need to be removed
-
-#### Architecture Decisions
-- **Option C chosen**: TerminalRenderer owns the RenderStream
-- All rendering operations go through the View layer
-- Controller delegates all terminal operations to View
-- Clean separation of concerns maintained
-
-#### Next Steps
-1. Fix ViewRenderer trait implementation for RenderStream
-2. Update Default implementation or remove it
-3. Fix all tests that use TerminalRenderer::new()
-4. Update initialize() and cleanup() methods to use RenderStream
-5. Remove direct crossterm usage from TerminalRenderer
-6. Test with MockRenderStream
-
-### Key Principles Followed
-- ✅ Check often, test often, commit often
-- ✅ Make minimal changes
-- ✅ Protect working application
-- ✅ Explain plan before implementing
-- ✅ Clean dependency injection without concrete types
-
-### Files Modified
-- `/src/repl/controllers/app_controller.rs` - Removed render_stream ownership
-- `/src/repl/views/terminal_renderer.rs` - Updated to use RenderStream
-- `/src/repl/io/mock.rs` - Created mock implementations
-- `/src/repl/io/mod.rs` - Added trait definitions
-- `/src/repl/io/terminal.rs` - Terminal implementations
-
-### Commits
-- Phase 1: "refactor: Remove test pollution from production code"
-- Phase 2: Multiple commits for I/O abstraction layer
-- Phase 3 WIP: "Refactor TerminalRenderer to use RenderStream"
-
-### Notes for Tomorrow
-- The compilation is currently broken (expected - WIP)
-- Need to fix the ViewRenderer trait implementation first
-- Then update all the tests
-- Finally remove crossterm dependencies
 
 ---
 
