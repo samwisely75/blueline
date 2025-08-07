@@ -951,9 +951,33 @@ impl PaneManager {
                 .get_display_line(current_display_pos.row)
             {
                 let new_col = current_line.move_right_by_character(current_display_pos.col);
-                new_display_pos = Position::new(current_display_pos.row, new_col);
-                self.panes[self.current_pane].display_cursor = new_display_pos;
-                moved = true;
+
+                // When wrap is enabled, check if we've moved past the visible width
+                // If so, wrap to the next line instead of staying on the current line
+                let content_width = self.get_content_width();
+                if self.wrap_enabled && new_col >= content_width {
+                    // Check if there's a next line to wrap to
+                    let next_display_line = current_display_pos.row + 1;
+                    if self.panes[self.current_pane]
+                        .display_cache
+                        .get_display_line(next_display_line)
+                        .is_some()
+                    {
+                        new_display_pos = Position::new(next_display_line, 0);
+                    } else {
+                        // No next line, stay at current position
+                        new_display_pos =
+                            Position::new(current_display_pos.row, current_display_pos.col);
+                        moved = false;
+                    }
+                } else {
+                    new_display_pos = Position::new(current_display_pos.row, new_col);
+                }
+
+                if moved || new_display_pos != current_display_pos {
+                    self.panes[self.current_pane].display_cursor = new_display_pos;
+                    moved = true;
+                }
             }
         } else if can_move_to_next_line {
             new_display_pos = Position::new(current_display_pos.row + 1, 0);

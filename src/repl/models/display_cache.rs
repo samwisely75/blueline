@@ -172,23 +172,10 @@ impl DisplayLine {
 
     /// Move right by one character from the given display column position
     pub fn move_right_by_character(&self, current_display_col: usize) -> usize {
-        let mut current_display_pos = 0;
-
-        for display_char in &self.chars {
-            let char_width = display_char.display_width();
-
-            // Check if we're within this character's display range
-            if current_display_pos <= current_display_col
-                && current_display_col < current_display_pos + char_width
-            {
-                // Move to the next character
-                return current_display_pos + char_width;
-            }
-            current_display_pos += char_width;
-        }
-
-        // If we're past the end, return current position
-        current_display_col
+        // Simple approach: just move right by 1
+        // Allow moving past the last character position (to display_width())
+        // which is necessary for wrapped lines to trigger wrapping to next line
+        current_display_col + 1
     }
 
     /// Find the next word boundary from the current display column position using ICU segmentation
