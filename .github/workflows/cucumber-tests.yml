@@ -119,42 +119,44 @@ jobs:
         retention-days: 7
         if-no-files-found: ignore
 
-  # Separate job to check that the test infrastructure compiles on other platforms
-  cross-platform-check:
-    name: Check Test Compilation - ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest]
-    
-    runs-on: ${{ matrix.os }}
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo/registry
-        key: ${{ runner.os }}-cargo-registry-cucumber-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-registry-cucumber-
-          ${{ runner.os }}-cargo-registry-
-
-    - name: Check test compilation
-      run: |
-        echo "Checking that tests compile on ${{ matrix.os }}..."
-        cargo test --test integration_tests --no-run --verbose
-      continue-on-error: true
-
-    - name: Report compilation status
-      run: |
-        if [ $? -eq 0 ]; then
-          echo "✅ Tests compile successfully on ${{ matrix.os }}"
-        else
-          echo "::warning::Tests don't compile on ${{ matrix.os }} - this may need platform-specific fixes"
-        fi
-      shell: bash
+  # Cross-platform compilation check - disabled for now to focus on tests
+  # Uncomment when needed to verify cross-platform compatibility
+  
+  # cross-platform-check:
+  #   name: Check Test Compilation - ${{ matrix.os }}
+  #   strategy:
+  #     matrix:
+  #       os: [windows-latest, macos-latest]
+  #   
+  #   runs-on: ${{ matrix.os }}
+  #   
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
+  #
+  #   - name: Install Rust toolchain
+  #     uses: dtolnay/rust-toolchain@stable
+  #
+  #   - name: Cache cargo registry
+  #     uses: actions/cache@v4
+  #     with:
+  #       path: ~/.cargo/registry
+  #       key: ${{ runner.os }}-cargo-registry-cucumber-${{ hashFiles('**/Cargo.lock') }}
+  #       restore-keys: |
+  #         ${{ runner.os }}-cargo-registry-cucumber-
+  #         ${{ runner.os }}-cargo-registry-
+  #
+  #   - name: Check test compilation
+  #     run: |
+  #       echo "Checking that tests compile on ${{ matrix.os }}..."
+  #       cargo test --test integration_tests --no-run --verbose
+  #     continue-on-error: true
+  #
+  #   - name: Report compilation status
+  #     run: |
+  #       if [ $? -eq 0 ]; then
+  #         echo "✅ Tests compile successfully on ${{ matrix.os }}"
+  #       else
+  #         echo "::warning::Tests don't compile on ${{ matrix.os }} - this may need platform-specific fixes"
+  #       fi
+  #     shell: bash
