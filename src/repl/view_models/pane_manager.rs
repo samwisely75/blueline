@@ -950,7 +950,11 @@ impl PaneManager {
                     if line_display_width == 0 {
                         false // Empty line - no movement allowed
                     } else {
-                        current_display_pos.col < line_display_width.saturating_sub(1)
+                        // Check if moving right would keep us within the line
+                        // We simulate the movement to see if it would go past the end
+                        let next_pos =
+                            current_line.move_right_by_character(current_display_pos.col);
+                        next_pos < line_display_width
                     }
                 }
             }
@@ -1372,5 +1376,10 @@ impl PaneManager {
     /// Set editor mode for a specific pane
     pub fn set_pane_mode(&mut self, pane: Pane, mode: EditorMode) {
         self.panes[pane].set_mode(mode);
+    }
+
+    /// Get reference to the currently active pane state
+    pub fn get_current_pane_state(&self) -> Option<&PaneState> {
+        Some(&self.panes[self.current_pane])
     }
 }
