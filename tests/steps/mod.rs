@@ -1,7 +1,20 @@
 //! Step definitions for Cucumber tests
 //!
 //! This module contains all the step definitions for Blueline integration tests.
+//!
+//! Steps are organized by feature domain for better maintainability:
+//! - `application` - App lifecycle and setup
+//! - `modes` - Mode transitions and verification
+//! - `navigation` - Cursor movement and navigation
+//! - `text_manipulation` - Text input and editing
+//! - `visual_mode` - Visual mode operations
+//! - `terminal` - Terminal state and rendering
 
-pub mod mode_transitions;
+pub mod application;
+pub mod modes;
+pub mod navigation;
+pub mod terminal;
+pub mod text_manipulation;
+pub mod visual_mode;
 
 // Re-export all step functions

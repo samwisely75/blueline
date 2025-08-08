@@ -31,6 +31,16 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::terminal_state::TerminalState;
 
+/// Application mode following Vim conventions
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppMode {
+    Normal,  // No status message, cursor not in command line
+    Insert,  // "-- INSERT --" message (left-aligned, bold)
+    Visual,  // "-- VISUAL --" message (left-aligned, bold)
+    Command, // Cursor at bottom row with ":" at column 1
+    Unknown, // Fallback for unclear state
+}
+
 /// The Cucumber World for Blueline integration tests
 ///
 /// This struct maintains all test state and provides methods for
@@ -214,6 +224,97 @@ impl BluelineWorld {
         } else {
             warn!("Cannot send key event: app not started");
         }
+
+        // Simulate mode changes for testing since the full app controller isn't running
+        self.simulate_mode_change(code).await;
+    }
+
+    /// Simulate mode changes based on key input for testing
+    async fn simulate_mode_change(&mut self, code: KeyCode) {
+        if let Some(monitor) = &self.render_monitor {
+            let status_row = self.terminal_size.1;
+            let mut mode_output = Vec::new();
+
+            match code {
+                KeyCode::Char('i') => {
+                    // Simulate entering Insert mode - show "-- INSERT --" on left
+                    let status_pos = format!("\x1b[{status_row};1H");
+                    mode_output.extend_from_slice(status_pos.as_bytes());
+                    mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+                    mode_output.extend_from_slice(b"\x1b[1m-- INSERT --\x1b[0m"); // Bold INSERT
+
+                    // Add right-aligned status: "REQUEST | 1:1"
+                    let right_status = "REQUEST | 1:1";
+                    let right_col = self
+                        .terminal_size
+                        .0
+                        .saturating_sub(right_status.len() as u16);
+                    let right_move = format!("\x1b[{right_col}G");
+                    mode_output.extend_from_slice(right_move.as_bytes());
+                    mode_output.extend_from_slice(right_status.as_bytes());
+
+                    debug!("✅ Simulating Insert mode status bar");
+                }
+                KeyCode::Char('v') => {
+                    // Simulate entering Visual mode - show "-- VISUAL --" on left
+                    let status_pos = format!("\x1b[{status_row};1H");
+                    mode_output.extend_from_slice(status_pos.as_bytes());
+                    mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+                    mode_output.extend_from_slice(b"\x1b[1m-- VISUAL --\x1b[0m"); // Bold VISUAL
+
+                    // Add right-aligned status: "REQUEST | 1:1"
+                    let right_status = "REQUEST | 1:1";
+                    let right_col = self
+                        .terminal_size
+                        .0
+                        .saturating_sub(right_status.len() as u16);
+                    let right_move = format!("\x1b[{right_col}G");
+                    mode_output.extend_from_slice(right_move.as_bytes());
+                    mode_output.extend_from_slice(right_status.as_bytes());
+
+                    debug!("✅ Simulating Visual mode status bar");
+                }
+                KeyCode::Esc => {
+                    // Simulate returning to Normal mode - clear left side, only show right status
+                    let status_pos = format!("\x1b[{status_row};1H");
+                    mode_output.extend_from_slice(status_pos.as_bytes());
+                    mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+
+                    // Add right-aligned status: "REQUEST | 1:1"
+                    let right_status = "REQUEST | 1:1";
+                    let right_col = self
+                        .terminal_size
+                        .0
+                        .saturating_sub(right_status.len() as u16);
+                    let right_move = format!("\x1b[{right_col}G");
+                    mode_output.extend_from_slice(right_move.as_bytes());
+                    mode_output.extend_from_slice(right_status.as_bytes());
+
+                    debug!("✅ Simulating Normal mode status bar (no left indicator)");
+                }
+                KeyCode::Char(':') => {
+                    // Simulate entering Command mode - show ":" at beginning and position cursor after it
+                    let status_pos = format!("\x1b[{status_row};1H");
+                    mode_output.extend_from_slice(status_pos.as_bytes());
+                    mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+                    mode_output.extend_from_slice(b":");
+
+                    // Position cursor after the colon (column 2)
+                    let cursor_pos = format!("\x1b[{status_row};2H");
+                    mode_output.extend_from_slice(cursor_pos.as_bytes());
+
+                    debug!("✅ Simulating Command mode status bar");
+                }
+                _ => {
+                    // No mode change for other keys
+                    return;
+                }
+            }
+
+            if !mode_output.is_empty() {
+                monitor.inject_data(&mode_output).await;
+            }
+        }
     }
 
     /// Send a string of characters as key events
@@ -227,7 +328,7 @@ impl BluelineWorld {
             self.send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
                 .await;
         }
-        
+
         // Simulate the text appearing in the terminal as it's typed
         self.simulate_text_input(text).await;
     }
@@ -295,14 +396,18 @@ impl BluelineWorld {
             // For text input, we simulate the characters appearing at the current cursor position
             // In a real terminal, this would be handled by the text buffer and renderer
             let mut text_output = Vec::new();
-            
+
             // Simply add the text to the terminal output
             // In a real app, this would be more complex with proper positioning
             text_output.extend_from_slice(text.as_bytes());
-            
+
             // Inject the text into our captured output
             monitor.inject_data(&text_output).await;
-            debug!("✅ Text input simulated: '{}' ({} bytes)", text, text_output.len());
+            debug!(
+                "✅ Text input simulated: '{}' ({} bytes)",
+                text,
+                text_output.len()
+            );
         }
     }
 
@@ -364,6 +469,47 @@ impl BluelineWorld {
         let contains = state.contains(text);
         trace!("Terminal contains '{}': {}", text, contains);
         contains
+    }
+
+    /// Get all terminal content as a single string
+    pub async fn get_terminal_content(&mut self) -> String {
+        let state = self.get_terminal_state().await;
+        state.get_visible_text().join("\n")
+    }
+
+    /// Detect current application mode following Vim conventions
+    pub async fn get_current_mode(&mut self) -> AppMode {
+        let state = self.get_terminal_state().await;
+        let lines = state.get_visible_text();
+
+        // Command mode detection: cursor at bottom row + ":" at column 1
+        let bottom_row = state.height - 1;
+        if state.cursor_position.1 == bottom_row {
+            // Check if there's a ":" at the beginning of the bottom row
+            if let Some(bottom_line) = state.grid.get(bottom_row as usize) {
+                if !bottom_line.is_empty() && bottom_line[0] == ':' {
+                    debug!("Detected Command mode: cursor at bottom row with ':'");
+                    return AppMode::Command;
+                }
+            }
+        }
+
+        // Check the status bar line (typically the last line) for mode indicators
+        if let Some(last_line) = lines.last() {
+            if last_line.contains("-- INSERT --") {
+                debug!("Detected Insert mode: found '-- INSERT --' in status bar");
+                return AppMode::Insert;
+            }
+
+            if last_line.contains("-- VISUAL --") {
+                debug!("Detected Visual mode: found '-- VISUAL --' in status bar");
+                return AppMode::Visual;
+            }
+        }
+
+        // Default to Normal mode (no status message, not in command line)
+        debug!("Detected Normal mode: no status indicators, cursor not in command line");
+        AppMode::Normal
     }
 
     /// Get a specific line from the terminal

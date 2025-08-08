@@ -700,15 +700,6 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             write!(self.render_stream, "{}", ansi::CURSOR_BAR)?;
             self.render_stream.show_cursor()?;
         } else {
-            // Show normal status information
-            let mode_text = match view_model.get_mode() {
-                EditorMode::Normal => "NORMAL",
-                EditorMode::Insert => "INSERT",
-                EditorMode::Command => "COMMAND", // Shouldn't reach here
-                EditorMode::GPrefix => "NORMAL",  // Show as NORMAL since it's a prefix mode
-                EditorMode::Visual => "VISUAL",   // Visual text selection mode
-            };
-
             let pane_text = match view_model.get_current_pane() {
                 Pane::Request => "REQUEST",
                 Pane::Response => "RESPONSE",
@@ -716,20 +707,47 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
             let cursor = view_model.get_cursor_position();
 
-            // Build status parts
-            let mut status_text = String::new();
+            // Build status parts - left side for vim mode indicators, right side for info
+            let mut left_status_text = String::new();
+            let mut right_status_text = String::new();
 
-            // 0. Show custom status message when present (highest priority)
-            if let Some(message) = view_model.get_status_message() {
-                status_text.push_str(&format!("{message} | "));
+            // Left side: Vim-style mode indicators (highest priority)
+            match view_model.get_mode() {
+                EditorMode::Insert => {
+                    left_status_text.push_str(&format!(
+                        "{}-- INSERT --{}",
+                        ansi::BOLD,
+                        ansi::RESET
+                    ));
+                }
+                EditorMode::Visual => {
+                    left_status_text.push_str(&format!(
+                        "{}-- VISUAL --{}",
+                        ansi::BOLD,
+                        ansi::RESET
+                    ));
+                }
+                _ => {
+                    // Normal mode shows no status message (following Vim exactly)
+                    // Command mode shows ex command buffer (handled above)
+                    // GPrefix mode shows no status message
+                }
             }
-            // 1. Show "Executing..." when request is being processed (highest priority)
-            else if view_model.is_executing_request() {
-                let bullet = ansi::STATUS_BULLET_YELLOW;
-                status_text.push_str(&format!("{bullet} Executing... | "))
+
+            // If no vim mode indicator and we have custom status message, show it
+            if left_status_text.is_empty() {
+                if let Some(message) = view_model.get_status_message() {
+                    left_status_text.push_str(message);
+                }
+                // Show "Executing..." when request is being processed
+                else if view_model.is_executing_request() {
+                    let bullet = ansi::STATUS_BULLET_YELLOW;
+                    left_status_text.push_str(&format!("{bullet} Executing..."));
+                }
             }
-            // 2. HTTP response info (optional, when present and not executing)
-            else if let Some(status_code) = view_model.get_response_status_code() {
+
+            // Right side: HTTP response info (optional, when present)
+            if let Some(status_code) = view_model.get_response_status_code() {
                 let status_message_opt = view_model.get_response_status_message();
                 let status_message = status_message_opt.as_deref().unwrap_or("");
                 let status_full = format!("{status_code} {status_message}");
@@ -741,25 +759,21 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                     _ => ansi::STATUS_BULLET_DEFAULT,
                 };
 
-                status_text.push_str(&format!("{signal_icon}{status_full}"));
+                right_status_text.push_str(&format!("{signal_icon}{status_full}"));
 
                 // TAT (ephemeral)
                 if let Some(duration_ms) = view_model.get_response_duration_ms() {
                     let duration = std::time::Duration::from_millis(duration_ms);
                     let duration_text = humantime::format_duration(duration).to_string();
-                    status_text.push_str(&format!(" | {duration_text}"));
+                    right_status_text.push_str(&format!(" | {duration_text}"));
                 }
 
-                status_text.push_str(" | ");
+                right_status_text.push_str(" | ");
             }
 
-            // Mode (persistent)
-            status_text.push_str(mode_text);
-            status_text.push_str(" | ");
-
-            // Pane and Position (no separator between them)
-            status_text.push_str(pane_text);
-            status_text.push(' ');
+            // Pane and Position (no mode, no separator between pane and position)
+            right_status_text.push_str(pane_text);
+            right_status_text.push(' ');
 
             // Use consistent position formatting with render_position_indicator
             let position_text = if view_model.is_display_cursor_visible() {
@@ -780,25 +794,25 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             } else {
                 format!("{}:{}", cursor.line + 1, cursor.column + 1)
             };
-            status_text.push_str(&position_text);
+            right_status_text.push_str(&position_text);
 
             let available_width = self.terminal_size.0 as usize;
-            let visual_len = self.visual_length(&status_text);
 
-            // Truncate if too long (based on visual length)
-            let final_text = if visual_len > available_width {
-                // This is complex to truncate while preserving ANSI codes
-                // For now, just use the original text and let terminal handle overflow
-                status_text
-            } else {
-                status_text
-            };
+            // Render left status text (vim mode indicators) at the beginning
+            if !left_status_text.is_empty() {
+                self.render_stream.move_cursor(0, status_row)?;
+                write!(self.render_stream, "{left_status_text}")?;
+            }
 
-            // Calculate right alignment based on visual length
-            let padding = available_width.saturating_sub(visual_len);
+            // Render right status text (HTTP | pane & location) right-aligned
+            if !right_status_text.is_empty() {
+                let right_visual_len = self.visual_length(&right_status_text);
+                let right_padding = available_width.saturating_sub(right_visual_len);
 
-            self.render_stream.move_cursor(0, status_row)?;
-            write!(self.render_stream, "{}{}", " ".repeat(padding), final_text)?;
+                self.render_stream
+                    .move_cursor(right_padding as u16, status_row)?;
+                write!(self.render_stream, "{right_status_text}")?;
+            }
         }
 
         Ok(())
@@ -808,15 +822,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         let status_row = self.terminal_size.1 - 1;
         let cursor = view_model.get_cursor_position();
 
-        // Get current mode and pane
-        let mode_text = match view_model.get_mode() {
-            EditorMode::Normal => "NORMAL",
-            EditorMode::Insert => "INSERT",
-            EditorMode::Command => "COMMAND",
-            EditorMode::GPrefix => "NORMAL", // Show as NORMAL since it's a prefix mode
-            EditorMode::Visual => "VISUAL",  // Visual text selection mode
-        };
-
+        // Get current pane
         let pane_text = match view_model.get_current_pane() {
             Pane::Request => "REQUEST",
             Pane::Response => "RESPONSE",
@@ -876,8 +882,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             right_text.push_str(" | ");
         }
 
-        // Add mode, pane, and position
-        right_text.push_str(&format!("{mode_text} | {pane_text} {position_text}"));
+        // Add pane and position (no mode)
+        right_text.push_str(&format!("{pane_text} {position_text}"));
 
         // Calculate where this portion should start to be right-aligned
         let available_width = self.terminal_size.0 as usize;
