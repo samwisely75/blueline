@@ -20,7 +20,6 @@ pub type DisplayLineData = (String, Option<usize>, bool, usize, usize);
 /// The central ViewModel that coordinates all business logic
 pub struct ViewModel {
     // Core state
-    pub(super) editor_mode: EditorMode,
     pub(super) response: ResponseModel,
 
     // Pane management - encapsulates all pane-related state and operations
@@ -53,7 +52,6 @@ impl ViewModel {
         let terminal_dimensions = (80, 24);
 
         Self {
-            editor_mode: EditorMode::Normal,
             response,
             pane_manager: PaneManager::new(terminal_dimensions),
             status_line: StatusLine::new(),
@@ -214,16 +212,16 @@ impl ViewModel {
 
     // === Editor State Management ===
 
-    /// Get current editor mode
+    /// Get current editor mode from the active pane
     pub fn mode(&self) -> EditorMode {
-        self.editor_mode
+        self.pane_manager.get_current_pane_mode()
     }
 
-    /// Set editor mode, returning event if changed
+    /// Set editor mode for the active pane, returning event if changed
     pub fn set_mode(&mut self, new_mode: EditorMode) -> Option<ModelEvent> {
-        if self.editor_mode != new_mode {
-            let old_mode = self.editor_mode;
-            self.editor_mode = new_mode;
+        let old_mode = self.pane_manager.get_current_pane_mode();
+        if old_mode != new_mode {
+            self.pane_manager.set_current_pane_mode(new_mode);
             Some(ModelEvent::ModeChanged { old_mode, new_mode })
         } else {
             None

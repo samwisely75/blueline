@@ -3,7 +3,7 @@
 //! Contains the PaneState struct and its implementations for managing individual pane state.
 //! This includes scrolling, cursor positioning, word navigation, and display cache management.
 
-use crate::repl::events::{LogicalPosition, Pane};
+use crate::repl::events::{EditorMode, LogicalPosition, Pane};
 use crate::repl::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache};
 use std::ops::{Index, IndexMut};
@@ -57,6 +57,7 @@ pub struct PaneState {
     pub visual_selection_start: Option<LogicalPosition>,
     pub visual_selection_end: Option<LogicalPosition>,
     pub pane_dimensions: Dimensions, // (width, height)
+    pub editor_mode: EditorMode,     // Current editor mode for this pane
 }
 
 impl PaneState {
@@ -69,6 +70,7 @@ impl PaneState {
             visual_selection_start: None,
             visual_selection_end: None,
             pane_dimensions: Dimensions::new(pane_width, pane_height),
+            editor_mode: EditorMode::Normal, // Start in Normal mode
         };
         pane_state.build_display_cache(pane_width, wrap_enabled);
         pane_state
@@ -593,6 +595,17 @@ impl PaneState {
         }
 
         None
+    }
+
+    // Mode management methods
+    /// Get current editor mode for this pane
+    pub fn get_mode(&self) -> EditorMode {
+        self.editor_mode
+    }
+
+    /// Set editor mode for this pane
+    pub fn set_mode(&mut self, mode: EditorMode) {
+        self.editor_mode = mode;
     }
 }
 

@@ -19,13 +19,18 @@ impl ViewModel {
         self.mode()
     }
 
-    /// Change editor mode
+    /// Change editor mode for the current active pane
     pub fn change_mode(&mut self, mode: EditorMode) -> Result<()> {
-        let old_mode = self.mode();
-        tracing::debug!("Changing mode from {:?} to {:?}", old_mode, mode);
+        // Get current mode from the active pane
+        let old_mode = self.pane_manager.get_current_pane_mode();
+        tracing::debug!(
+            "Changing mode from {:?} to {:?} for current pane",
+            old_mode,
+            mode
+        );
 
-        let _event = self.set_mode(mode);
-        // TODO: self.emit_model_event(event);
+        // Set mode for the current pane
+        self.pane_manager.set_current_pane_mode(mode);
 
         // Update status line mode
         self.status_line.set_editor_mode(mode);
@@ -55,7 +60,7 @@ impl ViewModel {
         let _ = self.emit_view_event(events);
 
         tracing::info!(
-            "Successfully changed mode from {:?} to {:?}",
+            "Successfully changed mode from {:?} to {:?} for current pane",
             old_mode,
             mode
         );
