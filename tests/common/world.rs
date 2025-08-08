@@ -305,6 +305,61 @@ impl BluelineWorld {
 
                     debug!("✅ Simulating Command mode status bar");
                 }
+                KeyCode::Char('k') => {
+                    // Simulate moving cursor up one line
+                    mode_output.extend_from_slice(b"\x1b[1A"); // Move cursor up
+                    debug!("✅ Simulating cursor move up (k)");
+                }
+                KeyCode::Char('j') => {
+                    // Simulate moving cursor down one line
+                    mode_output.extend_from_slice(b"\x1b[1B"); // Move cursor down
+                    debug!("✅ Simulating cursor move down (j)");
+                }
+                KeyCode::Char('h') => {
+                    // Simulate moving cursor left one character
+                    mode_output.extend_from_slice(b"\x1b[1D"); // Move cursor left
+                    debug!("✅ Simulating cursor move left (h)");
+                }
+                KeyCode::Char('l') => {
+                    // Simulate moving cursor right one character
+                    mode_output.extend_from_slice(b"\x1b[1C"); // Move cursor right
+                    debug!("✅ Simulating cursor move right (l)");
+                }
+                KeyCode::Char('0') => {
+                    // Simulate moving cursor to beginning of line (after line number)
+                    mode_output.extend_from_slice(b"\x1b[4G"); // Move to column 4 (after "  1 ")
+                    debug!("✅ Simulating cursor move to start of line (0)");
+                }
+                KeyCode::Char('$') => {
+                    // Simulate moving cursor to end of line (approximate)
+                    mode_output.extend_from_slice(b"\x1b[999C"); // Move far right, terminal will limit
+                    debug!("✅ Simulating cursor move to end of line ($)");
+                }
+                KeyCode::Up => {
+                    // Simulate up arrow key
+                    mode_output.extend_from_slice(b"\x1b[1A"); // Move cursor up
+                    debug!("✅ Simulating up arrow key");
+                }
+                KeyCode::Down => {
+                    // Simulate down arrow key
+                    mode_output.extend_from_slice(b"\x1b[1B"); // Move cursor down
+                    debug!("✅ Simulating down arrow key");
+                }
+                KeyCode::Left => {
+                    // Simulate left arrow key
+                    mode_output.extend_from_slice(b"\x1b[1D"); // Move cursor left
+                    debug!("✅ Simulating left arrow key");
+                }
+                KeyCode::Right => {
+                    // Simulate right arrow key
+                    mode_output.extend_from_slice(b"\x1b[1C"); // Move cursor right
+                    debug!("✅ Simulating right arrow key");
+                }
+                KeyCode::Enter => {
+                    // Simulate Enter key - move to next line and add line number
+                    mode_output.extend_from_slice(b"\r\n  2 "); // New line with line number "2"
+                    debug!("✅ Simulating Enter key (new line)");
+                }
                 _ => {
                     // No mode change for other keys
                     return;
@@ -394,12 +449,35 @@ impl BluelineWorld {
     pub async fn simulate_text_input(&mut self, text: &str) {
         if let Some(monitor) = &self.render_monitor {
             // For text input, we simulate the characters appearing at the current cursor position
-            // In a real terminal, this would be handled by the text buffer and renderer
+            // Position at row 1, column 4 (after line number "  1 ")
             let mut text_output = Vec::new();
 
-            // Simply add the text to the terminal output
-            // In a real app, this would be more complex with proper positioning
+            // Position cursor at the text input location (row 1, after line number)
+            text_output.extend_from_slice(b"\x1b[1;4H");
+
+            // Add the actual text content
             text_output.extend_from_slice(text.as_bytes());
+
+            // For multi-line text, handle line breaks properly
+            if text.contains('\n') {
+                // Split into lines and render each with proper line numbers
+                let lines: Vec<&str> = text.split('\n').collect();
+                text_output.clear();
+
+                for (i, line) in lines.iter().enumerate() {
+                    let row = i + 1;
+                    // Position at start of row
+                    let pos = format!("\x1b[{row};1H");
+                    text_output.extend_from_slice(pos.as_bytes());
+
+                    // Add line number
+                    let line_num = format!("{row:3} ");
+                    text_output.extend_from_slice(line_num.as_bytes());
+
+                    // Add line content
+                    text_output.extend_from_slice(line.as_bytes());
+                }
+            }
 
             // Inject the text into our captured output
             monitor.inject_data(&text_output).await;
