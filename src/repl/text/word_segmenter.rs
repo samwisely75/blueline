@@ -10,6 +10,8 @@
 //! - Optimized for caching at the logical buffer level
 //! - Clean abstraction allowing future segmentation backend changes
 
+use cjk;
+
 /// Word boundary flags for a character position
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct WordFlags {
@@ -157,57 +159,61 @@ impl WordSegmenter for UnicodeWordSegmenter {
         // Add the start position (byte 0)
         positions.push(0);
 
-        let mut char_index = 0;
         let mut byte_pos = 0;
 
-        while char_index < chars.len() {
-            let current_char = chars[char_index];
+        // Process each character, tracking transitions between different types
+        let mut prev_type: Option<CharType> = None;
 
-            if is_word_char(current_char) {
-                // Skip through word characters
-                while char_index < chars.len() && is_word_char(chars[char_index]) {
-                    byte_pos += chars[char_index].len_utf8();
-                    char_index += 1;
-                }
-            } else if is_cjk_char(current_char) {
-                // For CJK characters, each character is a word boundary
-                // First add boundary at start of this character
-                if byte_pos > 0 && !positions.contains(&byte_pos) {
-                    positions.push(byte_pos);
-                }
+        for ch in chars.iter() {
+            let current_type = get_char_type(*ch);
 
-                byte_pos += chars[char_index].len_utf8();
-                char_index += 1;
-            } else {
-                // Skip whitespace and punctuation characters without adding boundaries
-                while char_index < chars.len()
-                    && !is_word_char(chars[char_index])
-                    && !is_cjk_char(chars[char_index])
-                {
-                    byte_pos += chars[char_index].len_utf8();
-                    char_index += 1;
-                }
+            // Add boundary at transitions between different meaningful character types
+            match (prev_type, current_type) {
+                // Transitions that require boundaries
+                (Some(CharType::Word), CharType::Cjk) => positions.push(byte_pos),
+                (Some(CharType::Cjk), CharType::Word) => positions.push(byte_pos),
+                (Some(CharType::Cjk), CharType::Cjk) => positions.push(byte_pos), // Each CJK is separate
+                (Some(CharType::Other), CharType::Word) => positions.push(byte_pos),
+                (Some(CharType::Other), CharType::Cjk) => positions.push(byte_pos),
+                (Some(CharType::Word), CharType::Other) => {} // Don't add boundary after word
+                (Some(CharType::Cjk), CharType::Other) => {}  // Don't add boundary after CJK
+                _ => {}                                       // No boundary needed
             }
 
-            // Add boundary at the current byte position if we're not at the end
-            // and if the current position represents a word or CJK character start
-            if char_index < chars.len()
-                && (is_word_char(chars[char_index]) || is_cjk_char(chars[char_index]))
-            {
-                positions.push(byte_pos);
-            }
+            byte_pos += ch.len_utf8();
+
+            // Always update prev_type to properly track transitions
+            prev_type = Some(current_type);
         }
 
-        // Ensure we have the end position (total byte length)
-        if !positions.contains(&text.len()) {
-            positions.push(text.len());
-        }
+        // Note: ICU segmenter does not include end position as a boundary
+        // End position is not a "word start" - only include actual word boundaries
 
         // Ensure positions are sorted and unique
         positions.sort_unstable();
         positions.dedup();
 
         Ok(WordBoundaries { positions })
+    }
+}
+
+/// Character types for boundary detection
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum CharType {
+    Word,  // ASCII alphanumeric + underscore
+    Cjk,   // CJK characters (each is a separate word)
+    Other, // Whitespace, punctuation, symbols
+}
+
+/// Get the character type for boundary detection
+fn get_char_type(ch: char) -> CharType {
+    // Check CJK first since CJK chars also return true for is_alphanumeric()
+    if is_cjk_char(ch) {
+        CharType::Cjk
+    } else if is_word_char(ch) {
+        CharType::Word
+    } else {
+        CharType::Other
     }
 }
 
@@ -218,16 +224,7 @@ fn is_word_char(ch: char) -> bool {
 
 /// Check if a character is from CJK (Chinese, Japanese, Korean) scripts
 fn is_cjk_char(ch: char) -> bool {
-    let code = ch as u32;
-    // CJK ranges (same as used in buffer_char.rs)
-    (0x3040..=0x309F).contains(&code) // Hiragana
-        || (0x30A0..=0x30FF).contains(&code) // Katakana  
-        || (0x4E00..=0x9FAF).contains(&code) // CJK Unified Ideographs
-        || (0x3400..=0x4DBF).contains(&code) // CJK Extension A
-        || (0x20000..=0x2A6DF).contains(&code) // CJK Extension B
-        || (0xF900..=0xFAFF).contains(&code) // CJK Compatibility Ideographs
-        || (0xFF00..=0xFFEF).contains(&code) // Full-width characters
-        || (0xAC00..=0xD7AF).contains(&code) // Hangul (Korean)
+    cjk::is_cjk_codepoint(ch)
 }
 
 /// Factory for creating word segmenters
@@ -272,9 +269,9 @@ mod tests {
         assert!(!boundaries.positions.is_empty());
         assert_eq!(boundaries.positions[0], 0); // Start of text
 
-        // Should have boundaries around words and whitespace
-        // Unicode-segmentation treats whitespace as separate segments
-        assert!(boundaries.positions.contains(&11)); // Should have boundary at end
+        // Should have word start boundaries (no end position)
+        // Our vim-like segmentation provides word start boundaries only
+        assert!(boundaries.positions.contains(&6)); // Should have boundary at "World"
 
         // Test that we can convert to flags without panicking
         let flags = boundaries.to_word_flags("Hello World");
@@ -341,13 +338,17 @@ mod tests {
         let text = "hello こんにちは world";
         let boundaries = segmenter.find_word_boundaries(text).unwrap();
 
-        // Expected: [0, 6, 22, 27] (byte positions)
+        // Expected: [0, 6, 9, 12, 15, 18, 22] (byte positions without end)
         // 0: start of "hello"
-        // 6: start of "こんにちは"
+        // 6: start of "こ" (first CJK character)
+        // 9: start of "ん" (each CJK character is a separate word)
+        // 12: start of "に"
+        // 15: start of "ち"
+        // 18: start of "は"
         // 22: start of "world"
-        // 27: end of text (27 bytes total)
+        // Note: Each CJK character is treated as a separate word for vim navigation
 
-        assert_eq!(boundaries.positions, vec![0, 6, 22, 27]);
+        assert_eq!(boundaries.positions, vec![0, 6, 9, 12, 15, 18, 22]);
         assert_eq!(text.len(), 27); // Verify total byte count
 
         // Test that positions point to valid character boundaries
@@ -355,6 +356,42 @@ mod tests {
             if pos < text.len() {
                 // Should not panic when slicing at these byte positions
                 let _ = &text[pos..];
+            }
+        }
+    }
+
+    #[test]
+    fn test_multibyte_single_byte_transitions() {
+        let segmenter = UnicodeWordSegmenter::new().unwrap();
+
+        // Test cases where multibyte and single-byte characters are adjacent
+        let test_cases = vec![
+            ("helloこんにちは", "ASCII word adjacent to CJK"),
+            ("こんにちはworld", "CJK adjacent to ASCII word"),
+            ("testこんにちはworld", "ASCII-CJK-ASCII transitions"),
+            ("こa", "Single CJK + single ASCII"),
+            ("aこ", "Single ASCII + single CJK"),
+            (
+                "test test test 日本語テスト",
+                "Multiple words with spaces before CJK",
+            ),
+            ("こんにちは Borat です", "CJK-ASCII-CJK mixed text"),
+        ];
+
+        for (text, description) in test_cases {
+            println!("\n=== {description} ===");
+            println!("Text: '{text}'");
+
+            let boundaries = segmenter.find_word_boundaries(text).unwrap();
+            println!("Boundaries: {:?}", boundaries.positions);
+
+            // Verify boundaries point to valid character starts
+            for &pos in &boundaries.positions {
+                if pos < text.len() {
+                    let slice = &text[pos..];
+                    let first_char = slice.chars().next().unwrap();
+                    println!("  Byte {pos} -> '{first_char}'");
+                }
             }
         }
     }
