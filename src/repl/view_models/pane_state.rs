@@ -443,10 +443,36 @@ impl PaneState {
             };
 
             if should_scroll {
-                new_horizontal_offset = display_pos
+                // DISPLAY-COLUMN-AWARE HORIZONTAL SCROLL: Calculate the actual display columns needed
+                // to make the cursor visible, accounting for DBCS character widths
+
+                // CHARACTER-WIDTH-AWARE HORIZONTAL SCROLL: When scrolling, we need to scroll past
+                // complete characters, accounting for their actual display widths
+                let min_scroll_needed = display_pos
                     .col
                     .saturating_sub(content_width.saturating_sub(1));
-                tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen right at pos {} in mode {:?}, adjusting horizontal offset from {} to {}", display_pos.col, self.editor_mode, old_horizontal_offset, new_horizontal_offset);
+
+                // CHARACTER-WIDTH-BASED SCROLL: HSO should equal the width of the leftmost character
+                if let Some(display_line) = self.display_cache.get_display_line(display_pos.row) {
+                    if let Some(leftmost_char) =
+                        display_line.char_at_display_col(old_horizontal_offset)
+                    {
+                        // Scroll by the width of the leftmost character
+                        let char_width = leftmost_char.display_width();
+                        new_horizontal_offset = old_horizontal_offset + char_width;
+
+                        tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen at pos {}, scrolling past leftmost char '{}' width={} from {} to {}", 
+                            display_pos.col, leftmost_char.ch(), char_width, old_horizontal_offset, new_horizontal_offset);
+                    } else {
+                        // Fallback: no character found, use mathematical minimum
+                        new_horizontal_offset = old_horizontal_offset + min_scroll_needed;
+                        tracing::debug!("PaneState::ensure_cursor_visible: no leftmost char found, using min_scroll_needed={}", min_scroll_needed);
+                    }
+                } else {
+                    // Fallback: no display line found
+                    new_horizontal_offset = old_horizontal_offset + min_scroll_needed;
+                    tracing::debug!("PaneState::ensure_cursor_visible: no display line found, using min_scroll_needed={}", min_scroll_needed);
+                }
             }
         }
 

@@ -794,11 +794,12 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
                 let viewport_relative_col = display_cursor.col.saturating_sub(scroll_offset.col);
 
                 format!(
-                    "{}:{} ({}:{})",
+                    "{}:{} ({}:{}) HSO:{}",
                     cursor.line + 1,
                     cursor.column + 1,
                     viewport_relative_row + 1,
-                    viewport_relative_col + 1
+                    viewport_relative_col + 1,
+                    scroll_offset.col
                 )
             } else {
                 format!("{}:{}", cursor.line + 1, cursor.column + 1)
@@ -864,11 +865,12 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             let viewport_relative_col = display_cursor.col.saturating_sub(scroll_offset.col);
 
             format!(
-                "{}:{} ({}:{})",
+                "{}:{} ({}:{}) HSO:{}",
                 cursor.line + 1,
                 cursor.column + 1,
                 viewport_relative_row + 1,
-                viewport_relative_col + 1
+                viewport_relative_col + 1,
+                scroll_offset.col
             )
         } else {
             format!("{}:{}", cursor.line + 1, cursor.column + 1)

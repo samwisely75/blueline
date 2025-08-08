@@ -46,7 +46,7 @@ impl PaneManager {
         Self {
             panes: [request_pane, response_pane],
             current_pane: Pane::Request,
-            wrap_enabled: true,
+            wrap_enabled: false,
             terminal_dimensions,
             request_pane_height: terminal_dimensions.1 / 2,
         }
