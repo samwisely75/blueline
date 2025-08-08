@@ -429,11 +429,25 @@ impl PaneState {
         if display_pos.col < old_horizontal_offset {
             new_horizontal_offset = display_pos.col;
             tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen left, adjusting horizontal offset to {}", new_horizontal_offset);
-        } else if display_pos.col >= old_horizontal_offset + content_width && content_width > 0 {
-            new_horizontal_offset = display_pos
-                .col
-                .saturating_sub(content_width.saturating_sub(1));
-            tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen right at pos {}, adjusting horizontal offset from {} to {}", display_pos.col, old_horizontal_offset, new_horizontal_offset);
+        } else if content_width > 0 {
+            // MODE-AWARE HORIZONTAL SCROLL: Different trigger points for Insert vs Normal mode
+            let should_scroll = match self.editor_mode {
+                EditorMode::Insert => {
+                    // Insert mode: Scroll early to make room for typing next character
+                    display_pos.col >= old_horizontal_offset + content_width
+                }
+                _ => {
+                    // Normal/Visual mode: Only scroll when absolutely necessary
+                    display_pos.col > old_horizontal_offset + content_width
+                }
+            };
+
+            if should_scroll {
+                new_horizontal_offset = display_pos
+                    .col
+                    .saturating_sub(content_width.saturating_sub(1));
+                tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen right at pos {} in mode {:?}, adjusting horizontal offset from {} to {}", display_pos.col, self.editor_mode, old_horizontal_offset, new_horizontal_offset);
+            }
         }
 
         // Update scroll offset if changed

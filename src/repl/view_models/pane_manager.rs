@@ -843,7 +843,7 @@ impl PaneManager {
     }
 
     /// Get content width for current pane (temporary - will be moved to internal calculation)
-    fn get_content_width(&self) -> usize {
+    pub fn get_content_width(&self) -> usize {
         // Use current pane's line number width calculation
         // This is a simplified version - should be improved later
         (self.terminal_dimensions.0 as usize).saturating_sub(4)
