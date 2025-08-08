@@ -57,6 +57,8 @@ pub struct BufferChar {
     pub byte_length: usize,
     /// Logical length (always 1 for any character)
     pub logical_length: usize,
+    /// Display width in terminal columns (1 for ASCII, 2 for CJK, 0 for combining chars)
+    pub display_width: usize,
     /// Whether this character is selected (for visual mode)
     pub selected: bool,
     /// Whether this character starts a word (from ICU segmentation)
@@ -68,13 +70,18 @@ pub struct BufferChar {
 impl BufferChar {
     /// Create a new BufferChar
     pub fn new(ch: char, logical_index: usize, byte_offset: usize) -> Self {
+        use unicode_width::UnicodeWidthChar;
+
         let byte_length = ch.len_utf8();
+        let display_width = UnicodeWidthChar::width(ch).unwrap_or(1);
+
         Self {
             ch,
             logical_index,
             byte_offset,
             byte_length,
             logical_length: 1, // Always 1 for any character
+            display_width,
             selected: false,
             is_word_start: false, // Will be set by word segmentation
             is_word_end: false,   // Will be set by word segmentation
