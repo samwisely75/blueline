@@ -869,6 +869,69 @@ impl BluelineWorld {
         state.debug_print();
     }
 
+    /// Press a single key (for navigation, commands, etc.)
+    pub async fn press_key(&mut self, key: char) {
+        let code = match key {
+            '0'..='9' | 'a'..='z' | 'A'..='Z' => KeyCode::Char(key),
+            '$' => KeyCode::Char('$'),
+            ':' => KeyCode::Char(':'),
+            _ => KeyCode::Char(key),
+        };
+        self.send_key_event(code, KeyModifiers::empty()).await;
+    }
+
+    /// Press multiple keys in sequence (for commands like "gg", "dd", etc.)
+    pub async fn press_keys(&mut self, keys: &str) {
+        for key in keys.chars() {
+            self.press_key(key).await;
+            // Small delay between keys for command recognition
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    }
+
+    /// Press the Backspace key
+    pub async fn press_backspace(&mut self) {
+        self.send_key_event(KeyCode::Backspace, KeyModifiers::empty())
+            .await;
+
+        // Update text buffer if in Insert mode
+        if self.current_mode == AppMode::Insert && !self.text_buffer.is_empty() {
+            let last_idx = self.text_buffer.len() - 1;
+            if !self.text_buffer[last_idx].is_empty() {
+                self.text_buffer[last_idx].pop();
+            }
+        }
+    }
+
+    /// Press the Delete key
+    pub async fn press_delete(&mut self) {
+        self.send_key_event(KeyCode::Delete, KeyModifiers::empty())
+            .await;
+    }
+
+    /// Clear the request buffer
+    pub async fn clear_request_buffer(&mut self) {
+        // Clear our internal text buffer
+        self.text_buffer.clear();
+
+        // If app is running, send commands to clear the buffer
+        if self.app_running {
+            // Go to normal mode first
+            self.press_escape().await;
+            self.tick().await.ok();
+
+            // Select all and delete
+            self.press_keys("ggVG").await;
+            self.tick().await.ok();
+            self.press_key('d').await;
+            self.tick().await.ok();
+
+            // Switch to insert mode for typing
+            self.press_key('i').await;
+            self.tick().await.ok();
+        }
+    }
+
     /// Simulate initial terminal rendering for tests
     /// This injects the expected terminal output that would normally come from app initialization
     async fn simulate_initial_rendering(&mut self) -> Result<()> {
