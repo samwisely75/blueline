@@ -5,6 +5,7 @@
 //! Steps are organized by feature domain for better maintainability:
 //! - `application` - App lifecycle and setup
 //! - `command_line` - Command mode and ex commands
+//! - `http` - HTTP request/response operations
 //! - `modes` - Mode transitions and verification
 //! - `navigation` - Cursor movement and navigation
 //! - `text_manipulation` - Text input and editing
@@ -13,6 +14,7 @@
 
 pub mod application;
 pub mod command_line;
+pub mod http;
 pub mod modes;
 pub mod navigation;
 pub mod terminal;

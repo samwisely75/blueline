@@ -89,6 +89,13 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
                 .send_key_event(KeyCode::Char('0'), KeyModifiers::empty())
                 .await
         }
+        // Deletion/editing keys
+        "d" => {
+            info!("Pressing 'd' key for delete command");
+            world
+                .send_key_event(KeyCode::Char('d'), KeyModifiers::empty())
+                .await
+        }
         _ => panic!("Unsupported key: {key}"),
     }
     world.tick().await.expect("Failed to tick");
