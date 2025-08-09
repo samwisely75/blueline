@@ -3,7 +3,7 @@
 //! Contains the PaneState struct and its implementations for managing individual pane state.
 //! This includes scrolling, cursor positioning, word navigation, and display cache management.
 
-use crate::repl::events::{LogicalPosition, Pane};
+use crate::repl::events::{EditorMode, LogicalPosition, Pane};
 use crate::repl::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache};
 use std::ops::{Index, IndexMut};
@@ -57,6 +57,7 @@ pub struct PaneState {
     pub visual_selection_start: Option<LogicalPosition>,
     pub visual_selection_end: Option<LogicalPosition>,
     pub pane_dimensions: Dimensions, // (width, height)
+    pub editor_mode: EditorMode,     // Current editor mode for this pane
 }
 
 impl PaneState {
@@ -69,6 +70,7 @@ impl PaneState {
             visual_selection_start: None,
             visual_selection_end: None,
             pane_dimensions: Dimensions::new(pane_width, pane_height),
+            editor_mode: EditorMode::Normal, // Start in Normal mode
         };
         pane_state.build_display_cache(pane_width, wrap_enabled);
         pane_state
@@ -427,11 +429,51 @@ impl PaneState {
         if display_pos.col < old_horizontal_offset {
             new_horizontal_offset = display_pos.col;
             tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen left, adjusting horizontal offset to {}", new_horizontal_offset);
-        } else if display_pos.col >= old_horizontal_offset + content_width && content_width > 0 {
-            new_horizontal_offset = display_pos
-                .col
-                .saturating_sub(content_width.saturating_sub(1));
-            tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen right at pos {}, adjusting horizontal offset from {} to {}", display_pos.col, old_horizontal_offset, new_horizontal_offset);
+        } else if content_width > 0 {
+            // MODE-AWARE HORIZONTAL SCROLL: Different trigger points for Insert vs Normal mode
+            let should_scroll = match self.editor_mode {
+                EditorMode::Insert => {
+                    // Insert mode: Scroll early to make room for typing next character
+                    display_pos.col >= old_horizontal_offset + content_width
+                }
+                _ => {
+                    // Normal/Visual mode: Only scroll when absolutely necessary
+                    display_pos.col > old_horizontal_offset + content_width
+                }
+            };
+
+            if should_scroll {
+                // DISPLAY-COLUMN-AWARE HORIZONTAL SCROLL: Calculate the actual display columns needed
+                // to make the cursor visible, accounting for DBCS character widths
+
+                // CHARACTER-WIDTH-AWARE HORIZONTAL SCROLL: When scrolling, we need to scroll past
+                // complete characters, accounting for their actual display widths
+                let min_scroll_needed = display_pos
+                    .col
+                    .saturating_sub(content_width.saturating_sub(1));
+
+                // CHARACTER-WIDTH-BASED SCROLL: HSO should equal the width of the leftmost character
+                if let Some(display_line) = self.display_cache.get_display_line(display_pos.row) {
+                    if let Some(leftmost_char) =
+                        display_line.char_at_display_col(old_horizontal_offset)
+                    {
+                        // Scroll by the width of the leftmost character
+                        let char_width = leftmost_char.display_width();
+                        new_horizontal_offset = old_horizontal_offset + char_width;
+
+                        tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen at pos {}, scrolling past leftmost char '{}' width={} from {} to {}", 
+                            display_pos.col, leftmost_char.ch(), char_width, old_horizontal_offset, new_horizontal_offset);
+                    } else {
+                        // Fallback: no character found, use mathematical minimum
+                        new_horizontal_offset = old_horizontal_offset + min_scroll_needed;
+                        tracing::debug!("PaneState::ensure_cursor_visible: no leftmost char found, using min_scroll_needed={}", min_scroll_needed);
+                    }
+                } else {
+                    // Fallback: no display line found
+                    new_horizontal_offset = old_horizontal_offset + min_scroll_needed;
+                    tracing::debug!("PaneState::ensure_cursor_visible: no display line found, using min_scroll_needed={}", min_scroll_needed);
+                }
+            }
         }
 
         // Update scroll offset if changed
@@ -593,6 +635,17 @@ impl PaneState {
         }
 
         None
+    }
+
+    // Mode management methods
+    /// Get current editor mode for this pane
+    pub fn get_mode(&self) -> EditorMode {
+        self.editor_mode
+    }
+
+    /// Set editor mode for this pane
+    pub fn set_mode(&mut self, mode: EditorMode) {
+        self.editor_mode = mode;
     }
 }
 

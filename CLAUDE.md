@@ -2,7 +2,9 @@
 
 ## CRITICAL: Read and Follow These Documents
 
-PLEASE READ AND STRICTLY FOLLOW THE GUIDANCE IN `docs/DEV_GUIDE.md` AND `docs/DEV_WORKFLOW.md`.
+PLEASE READ AND STRICTLY FOLLOW THE GUIDANCE IN `docs/DEV_GUIDE.md`, `docs/DEV_CODING.md`, AND `docs/DEV_WORKFLOW.md`.
+
+**Especially important**: Follow the formatting macro guidelines in `docs/DEV_CODING.md` - use embedded expressions like `format!("Hello, {name}")` and `assert_eq!(result, expected, "Expected {expected}, got {result}")` instead of old positional syntax.
 
 ## Development Workflow
 

@@ -635,8 +635,14 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             .pane_manager()
             .get_pane_boundaries(view_model.get_response_status_code().is_some());
 
-        // Offset cursor position by line number width + space
-        let screen_col = display_cursor.col + line_num_width + 1;
+        // HORIZONTAL SCROLL FIX: Get current scroll offset to adjust cursor position
+        let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
+
+        // Calculate screen column: display_cursor.col - horizontal_scroll + line_numbers + padding
+        // When horizontally scrolled, we need to subtract the scroll offset to get the visible position
+        let screen_col = display_cursor.col
+            .saturating_sub(scroll_offset.col) // Subtract horizontal scroll offset
+            + line_num_width + 1; // Add line number width and padding
         let screen_row = match current_pane {
             Pane::Request => display_cursor.row,
             Pane::Response => display_cursor.row + response_start as usize,
@@ -644,8 +650,8 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
 
         let terminal_size = self.terminal_size;
         tracing::debug!(
-            "render_cursor: current_pane={:?}, display_cursor=({}, {}), response_start={}, line_num_width={}, screen_pos=({}, {}) with terminal size ({}, {})", 
-            current_pane, display_cursor.col, display_cursor.row, response_start, line_num_width, screen_col, screen_row, terminal_size.0, terminal_size.1
+            "render_cursor: current_pane={:?}, display_cursor=({}, {}), scroll_offset=({}, {}), response_start={}, line_num_width={}, screen_pos=({}, {}) with terminal size ({}, {})", 
+            current_pane, display_cursor.col, display_cursor.row, scroll_offset.row, scroll_offset.col, response_start, line_num_width, screen_col, screen_row, terminal_size.0, terminal_size.1
         );
 
         // Validate and clamp cursor coordinates to terminal bounds
@@ -788,11 +794,12 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
                 let viewport_relative_col = display_cursor.col.saturating_sub(scroll_offset.col);
 
                 format!(
-                    "{}:{} ({}:{})",
+                    "{}:{} ({}:{}) HSO:{}",
                     cursor.line + 1,
                     cursor.column + 1,
                     viewport_relative_row + 1,
-                    viewport_relative_col + 1
+                    viewport_relative_col + 1,
+                    scroll_offset.col
                 )
             } else {
                 format!("{}:{}", cursor.line + 1, cursor.column + 1)
@@ -858,11 +865,12 @@ impl<W: Write> ViewRenderer for TerminalRenderer<W> {
             let viewport_relative_col = display_cursor.col.saturating_sub(scroll_offset.col);
 
             format!(
-                "{}:{} ({}:{})",
+                "{}:{} ({}:{}) HSO:{}",
                 cursor.line + 1,
                 cursor.column + 1,
                 viewport_relative_row + 1,
-                viewport_relative_col + 1
+                viewport_relative_col + 1,
+                scroll_offset.col
             )
         } else {
             format!("{}:{}", cursor.line + 1, cursor.column + 1)

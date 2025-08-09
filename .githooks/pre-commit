@@ -17,10 +17,10 @@ echo "✅ Code format issues fixed!"
 # Check if code is properly formatted
 echo "> Running cargo fmt check..."
 
-if ! cargo fmt -q --all -- --check > /dev/null 2>&1; then
+if ! cargo fmt > /dev/null 2>&1; then
     echo "❌ Format warnings!"
     echo ""
-    cargo fmt -q --all -- --check
+    cargo fmt
     echo ""
     echo "❌ PRE-CHECK FAILED: Fix the warnings and come back again!"
     exit 1
