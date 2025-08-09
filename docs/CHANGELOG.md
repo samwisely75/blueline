@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.1] - 2025-08-09
+
+### Fixed
+
+- **Integration Test Text Insertion**: Fixed issue #86 where text entered after multiple Enter presses wasn't appearing in terminal output during integration tests
+  - Modified test infrastructure to consistently use simulated terminal content
+  - Ensured `terminal_contains()` and `get_terminal_content()` methods use the same source of truth
+  - Resolved the "John issue" where multiline text input was not being displayed correctly
+
 ## [0.24.1] - 2025-07-30
 
 ### Fixed
