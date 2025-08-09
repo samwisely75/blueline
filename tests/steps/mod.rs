@@ -13,9 +13,11 @@
 //! - `terminal` - Terminal state and rendering
 //! - `window` - Window/pane management
 //! - `text_advanced` - Advanced text operations (undo/redo, copy/paste)
+//! - `cursor` - Cursor visibility and styling
 
 pub mod application;
 pub mod command_line;
+pub mod cursor;
 pub mod http;
 pub mod modes;
 pub mod navigation;
