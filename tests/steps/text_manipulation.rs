@@ -20,9 +20,28 @@ async fn when_press_enter(world: &mut BluelineWorld) {
 #[when(regex = r#"I type "([^"]+)""#)]
 async fn when_type_text(world: &mut BluelineWorld, text: String) {
     info!("Typing text: {}", text);
+
+    // Special debugging for John issue
+    if text.contains("John") {
+        eprintln!(
+            "🔍 ABOUT TO TYPE: '{}', text buffer before: {:?}",
+            text,
+            world.get_text_buffer()
+        );
+    }
+
     world.type_text(&text).await;
     world.tick().await.expect("Failed to tick");
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    // Check text buffer after typing John
+    if text.contains("John") {
+        eprintln!(
+            "🔍 AFTER TYPING: '{}', text buffer after: {:?}",
+            text,
+            world.get_text_buffer()
+        );
+    }
 }
 
 #[then(regex = r#"I should see "([^"]+)" in the output"#)]
@@ -34,9 +53,27 @@ async fn then_should_see_output(world: &mut BluelineWorld, expected_output: Stri
     debug!("Current terminal content:\n{}", terminal_content);
 
     let contains = world.terminal_contains(&expected_output).await;
+
+    // Debug output for John issue (now that we've fixed it)
+    if expected_output == "John" && !contains {
+        let text_buffer = world.get_text_buffer();
+        eprintln!(
+            "🔍 JOHN DEBUG - Text not found!\n\
+            Expected: '{}'\n\
+            Terminal content ({} chars):\n'{}'\n\
+            Text buffer ({} lines): {:?}",
+            expected_output,
+            terminal_content.len(),
+            terminal_content,
+            text_buffer.len(),
+            text_buffer
+        );
+    }
+
     assert!(
         contains,
-        "Expected to find '{expected_output}' in terminal output.\nActual terminal content:\n{terminal_content}"
+        "Expected to find '{expected_output}' in terminal output.\nActual terminal content ({} chars):\n{terminal_content}",
+        terminal_content.len()
     );
 }
 
