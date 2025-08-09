@@ -37,6 +37,9 @@ async fn given_executed_request(world: &mut BluelineWorld) {
         .await;
     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     world.tick().await.expect("Failed to tick");
+
+    // Give more time for the mock request to be processed
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 }
 
 // === PANE VISIBILITY ===
@@ -127,10 +130,32 @@ async fn when_press_tab(world: &mut BluelineWorld) {
 #[then("I should be in the Response pane")]
 async fn then_in_response_pane(world: &mut BluelineWorld) {
     debug!("Verifying we are in Response pane");
+
+    // Debug: show current terminal content
+    let terminal_content = world.get_terminal_content().await;
+    debug!(
+        "Current terminal content for Response pane check:\n{}",
+        terminal_content
+    );
+
     // Check for Response pane indicator in status bar or title
     let in_response = world.terminal_contains("Response").await
         || world.terminal_contains("[Response]").await
         || world.terminal_contains("RESPONSE").await;
+
+    if !in_response {
+        eprintln!("❌ Response pane indicators not found. Terminal content:\n{terminal_content}");
+        // Check if this might be because there's no actual response content
+        let has_response_content = world.terminal_contains("200").await
+            || world.terminal_contains("404").await
+            || world.terminal_contains("Error").await
+            || world.terminal_contains("│").await;
+
+        if !has_response_content {
+            eprintln!("💡 No response content detected - Tab navigation may not work without actual HTTP response");
+        }
+    }
+
     assert!(in_response, "Should be in Response pane");
 }
 
