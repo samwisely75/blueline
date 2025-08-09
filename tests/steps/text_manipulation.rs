@@ -28,10 +28,15 @@ async fn when_type_text(world: &mut BluelineWorld, text: String) {
 #[then(regex = r#"I should see "([^"]+)" in the output"#)]
 async fn then_should_see_output(world: &mut BluelineWorld, expected_output: String) {
     debug!("Checking for expected output: '{}'", expected_output);
+
+    // Get the full terminal content for debugging
+    let terminal_content = world.get_terminal_content().await;
+    debug!("Current terminal content:\n{}", terminal_content);
+
     let contains = world.terminal_contains(&expected_output).await;
     assert!(
         contains,
-        "Expected to find '{expected_output}' in terminal output"
+        "Expected to find '{expected_output}' in terminal output.\nActual terminal content:\n{terminal_content}"
     );
 }
 

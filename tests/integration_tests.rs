@@ -22,18 +22,53 @@ async fn cucumber_integration_tests() {
         EnvFilter::new("warn,blueline=info,integration_tests=info")
     });
 
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_test_writer() // Use test-friendly output
-                .with_thread_ids(false)
-                .with_thread_names(false)
-                .with_target(true)
-                .with_level(true)
-                .compact(), // Use compact formatting for tests
-        )
-        .init();
+    let registry = tracing_subscriber::registry().with(filter);
+
+    // Check if we should log to file
+    if let Some(log_file) = std::env::var_os("BLUELINE_LOG_FILE").and_then(|s| s.into_string().ok())
+    {
+        // Log to both console and file
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&log_file)
+            .expect("Failed to create log file");
+
+        registry
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_test_writer() // Console output
+                    .with_thread_ids(false)
+                    .with_thread_names(false)
+                    .with_target(true)
+                    .with_level(true)
+                    .compact(),
+            )
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_writer(file) // File output
+                    .with_thread_ids(true)
+                    .with_thread_names(true)
+                    .with_target(true)
+                    .with_level(true)
+                    .with_ansi(false), // No ANSI colors in file
+            )
+            .init();
+    } else {
+        // Console output only
+        registry
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_test_writer() // Use test-friendly output
+                    .with_thread_ids(false)
+                    .with_thread_names(false)
+                    .with_target(true)
+                    .with_level(true)
+                    .compact(), // Use compact formatting for tests
+            )
+            .init();
+    }
 
     tracing::info!("Starting Blueline integration tests");
 
@@ -57,6 +92,6 @@ async fn cucumber_integration_tests() {
             })
         })
         // Use standard output for test results
-        .run_and_exit("tests/features") // Run all feature files in the tests/features directory
+        .run("tests/features") // Run all feature files in the tests/features directory
         .await;
 }

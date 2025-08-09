@@ -33,6 +33,7 @@ fn init_tracing_subscriber() {
     let log_file = env::var_os("BLUELINE_LOG_FILE").and_then(|s| s.into_string().ok());
 
     let env_filter = EnvFilter::try_from_env("BLUELINE_LOG_LEVEL")
+        .or_else(|_| EnvFilter::try_from_env("RUST_LOG"))
         .unwrap_or_else(|_| EnvFilter::new("info"))
         .add_directive("reqwest=warn".parse().unwrap())
         .add_directive("hyper=warn".parse().unwrap())
@@ -70,6 +71,7 @@ fn init_tracing_subscriber() {
         // In REPL mode, minimize logging to prevent any potential background scrolling
         // Use the most restrictive filter and file output only
         let minimal_filter = EnvFilter::try_from_env("BLUELINE_LOG_LEVEL")
+            .or_else(|_| EnvFilter::try_from_env("RUST_LOG"))
             .unwrap_or_else(|_| EnvFilter::new("off")) // Default to no logging
             .add_directive("blueline=warn".parse().unwrap()) // Only warnings and errors from our code
             .add_directive("reqwest=off".parse().unwrap())

@@ -92,3 +92,31 @@ async fn then_status_bar_shows(world: &mut BluelineWorld, status_text: String) {
         panic!("No terminal content found");
     }
 }
+
+#[then(regex = r#"I should see "([^"]+)" in the status line"#)]
+async fn then_should_see_in_status_line(world: &mut BluelineWorld, expected_text: String) {
+    debug!("Checking status line for text: '{}'", expected_text);
+    let state = world.get_terminal_state().await;
+
+    // The status line is typically the last line of the terminal
+    if let Some(last_row) = state.grid.last() {
+        let line: String = last_row.iter().collect();
+        let trimmed = line.trim();
+        assert!(
+            trimmed.contains(&expected_text) || line.contains(&expected_text),
+            "Status line should contain '{expected_text}'. Status line content: '{line}'"
+        );
+        debug!("✅ Status line contains expected text: '{}'", expected_text);
+    } else {
+        // If we can't get the last line, check the full terminal content
+        let terminal_content = world.get_terminal_content().await;
+        assert!(
+            terminal_content.contains(&expected_text),
+            "Terminal should contain '{expected_text}' in status line. Full content: {terminal_content}"
+        );
+        debug!(
+            "✅ Terminal contains expected status text: '{}'",
+            expected_text
+        );
+    }
+}
