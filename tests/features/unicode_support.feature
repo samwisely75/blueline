@@ -57,7 +57,10 @@ Feature: Unicode and Double-Byte Character Support
     And I type "Content-Type: application/json"
     And I press Enter
     And I press Enter
-    And I type "{\"greeting\": \"こんにちは\", \"name\": \"田中さん\"}"
+    And I type the following JSON:
+      """
+      {"greeting": "こんにちは", "name": "田中さん"}
+      """
     Then the screen should not be blank
     And I should see "こんにちは" in the output
     And I should see "田中さん" in the output

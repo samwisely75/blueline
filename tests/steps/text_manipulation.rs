@@ -219,6 +219,14 @@ async fn then_lines_joined(_world: &mut BluelineWorld) {
     // This is verified by the next step checking the actual text
 }
 
+#[when(regex = r"^I type the following JSON:$")]
+async fn when_type_json(world: &mut BluelineWorld, step: &gherkin::Step) {
+    let json_text = step.docstring.as_deref().unwrap_or("");
+    info!("Typing JSON text: {}", json_text);
+    world.type_text(json_text).await;
+    world.tick().await.expect("Failed to tick");
+}
+
 #[then(regex = r"^the text becomes:$")]
 async fn then_text_becomes(world: &mut BluelineWorld, step: &gherkin::Step) {
     let expected = step.docstring.as_deref().unwrap_or("");
