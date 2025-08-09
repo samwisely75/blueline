@@ -205,12 +205,7 @@ async fn then_last_char_removed(_world: &mut BluelineWorld) {
     // This is verified by the next step checking the actual text
 }
 
-#[then(regex = r#"I should see "([^"]+)" in the request pane"#)]
-async fn then_should_see_in_request_pane(world: &mut BluelineWorld, expected: String) {
-    debug!("Checking for text in request pane: '{}'", expected);
-    let contains = world.terminal_contains(&expected).await;
-    assert!(contains, "Expected to find '{expected}' in request pane");
-}
+// Note: Using the definition from http.rs for "I should see ... in the request pane"
 
 #[then("the screen should not be blank")]
 async fn then_screen_not_blank(world: &mut BluelineWorld) {

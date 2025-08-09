@@ -12,6 +12,7 @@
 //! - `visual_mode` - Visual mode operations
 //! - `terminal` - Terminal state and rendering
 //! - `window` - Window/pane management
+//! - `text_advanced` - Advanced text operations (undo/redo, copy/paste)
 
 pub mod application;
 pub mod command_line;
@@ -19,6 +20,7 @@ pub mod http;
 pub mod modes;
 pub mod navigation;
 pub mod terminal;
+pub mod text_advanced;
 pub mod text_manipulation;
 pub mod visual_mode;
 pub mod window;
