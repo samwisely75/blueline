@@ -40,15 +40,38 @@ impl ViewModel {
             let display_line_idx = vertical_scroll_offset + start_row + row;
 
             if let Some(display_line) = display_cache.get_display_line(display_line_idx) {
-                // Apply horizontal scrolling to content
+                // Apply horizontal scrolling to content using display column positions
                 let content = display_line.content();
                 let visible_content =
                     if horizontal_scroll_offset > 0 || content.len() > content_width {
-                        // Use character-aware slicing to avoid UTF-8 boundary issues
-                        let chars: Vec<char> = content.chars().collect();
-                        let start_char = horizontal_scroll_offset.min(chars.len());
-                        let end_char = (horizontal_scroll_offset + content_width).min(chars.len());
-                        chars[start_char..end_char].iter().collect()
+                        // Use display-column-aware slicing for DBCS support
+                        use unicode_width::UnicodeWidthChar;
+                        let mut result = String::new();
+                        let mut current_col = 0;
+                        let mut collecting = false;
+                        let mut collected_width = 0;
+
+                        for ch in content.chars() {
+                            let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+
+                            // Start collecting when we reach the horizontal scroll offset
+                            if !collecting && current_col >= horizontal_scroll_offset {
+                                collecting = true;
+                            }
+
+                            // Collect characters until we've filled the content width
+                            if collecting {
+                                if collected_width + char_width <= content_width {
+                                    result.push(ch);
+                                    collected_width += char_width;
+                                } else {
+                                    break; // Stop when adding this char would exceed content width
+                                }
+                            }
+
+                            current_col += char_width;
+                        }
+                        result
                     } else {
                         content.to_string()
                     };

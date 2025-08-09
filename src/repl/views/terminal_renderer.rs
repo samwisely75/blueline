@@ -618,10 +618,12 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
         // Calculate viewport-relative position by subtracting scroll offset
         let viewport_relative_row = display_cursor.row.saturating_sub(scroll_offset.row);
-        let viewport_relative_col = display_cursor.col.saturating_sub(scroll_offset.col);
 
-        // Offset cursor position by line number width + space
-        let screen_col = viewport_relative_col + line_num_width + 1;
+        // Calculate screen column: display_cursor.col - horizontal_scroll + line_numbers + padding
+        // When horizontally scrolled, we need to subtract the scroll offset to get the visible position
+        let screen_col = display_cursor.col
+            .saturating_sub(scroll_offset.col) // Subtract horizontal scroll offset
+            + line_num_width + 1; // Add line number width and padding
         let screen_row = match current_pane {
             Pane::Request => viewport_relative_row,
             Pane::Response => viewport_relative_row + response_start as usize,
@@ -629,8 +631,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
         let terminal_size = self.terminal_size;
         tracing::debug!(
-            "render_cursor: current_pane={:?}, display_cursor=({}, {}), response_start={}, line_num_width={}, screen_pos=({}, {}) with terminal size ({}, {})", 
-            current_pane, display_cursor.col, display_cursor.row, response_start, line_num_width, screen_col, screen_row, terminal_size.0, terminal_size.1
+            "render_cursor: current_pane={:?}, display_cursor=({}, {}), scroll_offset=({}, {}), response_start={}, line_num_width={}, screen_pos=({}, {}) with terminal size ({}, {})", 
+            current_pane, display_cursor.col, display_cursor.row, scroll_offset.row, scroll_offset.col, response_start, line_num_width, screen_col, screen_row, terminal_size.0, terminal_size.1
         );
 
         // Validate and clamp cursor coordinates to terminal bounds
@@ -785,11 +787,12 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                 let viewport_relative_col = display_cursor.col.saturating_sub(scroll_offset.col);
 
                 format!(
-                    "{}:{} ({}:{})",
+                    "{}:{} ({}:{}) HSO:{}",
                     cursor.line + 1,
                     cursor.column + 1,
                     viewport_relative_row + 1,
-                    viewport_relative_col + 1
+                    viewport_relative_col + 1,
+                    scroll_offset.col
                 )
             } else {
                 format!("{}:{}", cursor.line + 1, cursor.column + 1)
@@ -844,11 +847,12 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             let viewport_relative_col = display_cursor.col.saturating_sub(scroll_offset.col);
 
             format!(
-                "{}:{} ({}:{})",
+                "{}:{} ({}:{}) HSO:{}",
                 cursor.line + 1,
                 cursor.column + 1,
                 viewport_relative_row + 1,
-                viewport_relative_col + 1
+                viewport_relative_col + 1,
+                scroll_offset.col
             )
         } else {
             format!("{}:{}", cursor.line + 1, cursor.column + 1)
