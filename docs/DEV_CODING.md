@@ -24,7 +24,9 @@ Everyone, including Generative AI Engine like Copilot and Claude Code, must foll
 
 1. **Handle errors in a standard way**: We standardize error handling across the codebase by using Rust's `Result` and `Option` types, and propagate errors with the `?` operator. For convenience and consistency, all functions that can return errors use `anyhow::Result`, which allows flexible error management and reporting. Commands return `Result<()>`, and any errors encountered are displayed in the status bar. Network errors provide detailed connection information when running in verbose mode.
 
-1. **Use embedded expressions for format! macro**: Use embedded expressions for string formatting, e.g., `format!("Hello, {name}")` instead of `format!("Hello, {}", name)`. The latter is deprecated in Rust 2021 edition.
+1. **Use embedded expressions for formatting macros**: Use embedded expressions for string formatting in `format!` and `assert*!` macros, e.g., `format!("Hello, {name}")` instead of `format!("Hello, {}", name)`, and `assert_eq!(result, expected, "Expected {expected}, got {result}")` instead of `assert_eq!(result, expected, "Expected {}, got {}", expected, result)`. The old positional format syntax is deprecated in Rust 2021 edition.
+
+1. **Use `std::env::var_os` for environment variables**: Always use `std::env::var_os` instead of `std::env::var` when reading environment variables. This prevents potential panics from invalid UTF-8 sequences and is more robust, as environment variables are not guaranteed to be valid UTF-8. Use `.and_then(|os_str| os_str.to_str())` if you need a string slice.
 
 1. **Measure before claiming victory**: Run `cargo clippy --all-targets --all-features -- -D warnings` and `cargo fmt` before you say it's complete to ensure code quality and consistency at every change you make. I.e., do not have me stuck at the pre-commit stage and ask you to run these commands again and again.
 
