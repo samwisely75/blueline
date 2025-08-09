@@ -51,8 +51,8 @@ Feature: Command Line Operations
     Then I should be in Command mode
     When I type "unknown"
     And I press Enter
-    Then I should see an error message "Unknown command: unknown"
-    And I should be in Normal mode
+    Then I should be in Normal mode
+    And the status bar is cleared
 
   Scenario: Navigate to line 1
     Given the request buffer contains:
