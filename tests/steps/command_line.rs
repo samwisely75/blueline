@@ -84,14 +84,7 @@ async fn then_should_see_error_message(world: &mut BluelineWorld, error: String)
 
 // === CURSOR POSITION STEPS ===
 
-#[given("the cursor is at line 1")]
-async fn given_cursor_at_line_1(world: &mut BluelineWorld) {
-    info!("Moving cursor to line 1");
-    world.press_keys("gg").await;
-    world.tick().await.expect("Failed to tick");
-}
-
-#[given(regex = r#"the cursor is at line (\d+)"#)]
+#[given(regex = r#"^the cursor is at line (\d+)$"#)]
 async fn given_cursor_at_line_n(world: &mut BluelineWorld, line_num: usize) {
     info!("Moving cursor to line {}", line_num);
     // First go to top
@@ -105,15 +98,7 @@ async fn given_cursor_at_line_n(world: &mut BluelineWorld, line_num: usize) {
     world.tick().await.expect("Failed to tick");
 }
 
-#[then("the cursor should be at line 1")]
-async fn then_cursor_should_be_at_line_1(world: &mut BluelineWorld) {
-    debug!("Verifying cursor is at line 1");
-    // Check that the status bar shows line 1
-    let contains = world.terminal_contains("1:").await;
-    assert!(contains, "Expected cursor to be at line 1");
-}
-
-#[then(regex = r#"the cursor should be at line (\d+)"#)]
+#[then(regex = r#"^the cursor should be at line (\d+)$"#)]
 async fn then_cursor_should_be_at_line_n(world: &mut BluelineWorld, line_num: usize) {
     debug!("Verifying cursor is at line {}", line_num);
     // Check that the status bar shows the line number

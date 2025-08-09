@@ -74,7 +74,7 @@ async fn then_block_cursor_at_column(world: &mut BluelineWorld, column: String) 
     debug!("Cursor confirmed at column {}", column);
 }
 
-#[then(regex = r#"the status bar should show "([^"]+)" aligned to the right"#)]
+#[then(regex = r#"^the status bar should show "([^"]+)" aligned to the right$"#)]
 async fn then_status_bar_shows(world: &mut BluelineWorld, status_text: String) {
     debug!("Verifying status bar shows: '{}'", status_text);
     let state = world.get_terminal_state().await;

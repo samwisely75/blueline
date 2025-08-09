@@ -84,13 +84,6 @@ async fn when_move_to_new_position(world: &mut BluelineWorld) {
     world.tick().await.expect("Failed to tick");
 }
 
-#[when("I press \"$\"")]
-async fn when_press_dollar(world: &mut BluelineWorld) {
-    info!("Pressing '$' to move to end of line");
-    world.press_key('$').await;
-    world.tick().await.expect("Failed to tick");
-}
-
 // === MULTIPLE KEY PRESSES ===
 
 #[when(regex = r#"I press "([a-z])" (\d+) times"#)]

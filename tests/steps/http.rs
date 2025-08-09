@@ -94,7 +94,7 @@ async fn then_should_not_see_in_request_pane(world: &mut BluelineWorld, text: St
 
 // === STATUS BAR ===
 
-#[then(regex = r#"the status bar should show "([^"]+)""#)]
+#[then(regex = r#"^the status bar should show "([^"]+)"$"#)]
 async fn then_status_bar_shows(world: &mut BluelineWorld, status: String) {
     debug!("Checking if status bar shows '{}'", status);
     let contains = world.terminal_contains(&status).await;
