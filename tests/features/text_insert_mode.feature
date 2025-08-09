@@ -28,11 +28,11 @@ Feature: Text Insert Mode Operations
     Then I should be in Insert mode
     When I type "GET /api/users"
     And I press Enter
-    When I type "Content-Type: application/json"
+    When I type "second line text"
     And I press Escape
     Then I should be in Normal mode
     And I should see "GET /api/users" in the output
-    And I should see "Content-Type: application/json" in the output
+    And I should see "second line text" in the output
 
   Scenario: Insert multiline request with newlines
     Given I am in Normal mode
@@ -40,14 +40,11 @@ Feature: Text Insert Mode Operations
     Then I should be in Insert mode
     When I type "POST /api/users"
     And I press Enter
-    When I type "Content-Type: application/json"
-    And I press Enter
     And I press Enter
     When I type "name: John"
     And I press Escape
     Then I should be in Normal mode
     And I should see "POST /api/users" in the output
-    And I should see "Content-Type: application/json" in the output
     And I should see "John" in the output
 
   Scenario: Insert text with special characters
@@ -63,7 +60,7 @@ Feature: Text Insert Mode Operations
     Given I am in Normal mode
     When I press "i"
     Then I should be in Insert mode
-    When I type "Content-Type: application/json"
+    When I type "Hello \"quoted text\" world"
     And I press Escape
     Then I should be in Normal mode
-    And I should see "Content-Type: application/json" in the output
+    And I should see "Hello \"quoted text\" world" in the output

@@ -74,7 +74,7 @@ async fn then_block_cursor_at_column(world: &mut BluelineWorld, column: String) 
     debug!("Cursor confirmed at column {}", column);
 }
 
-#[then(regex = r#"the status bar should show "([^"]+)" aligned to the right"#)]
+#[then(regex = r#"^the status bar should show "([^"]+)" aligned to the right$"#)]
 async fn then_status_bar_shows(world: &mut BluelineWorld, status_text: String) {
     debug!("Verifying status bar shows: '{}'", status_text);
     let state = world.get_terminal_state().await;
@@ -119,4 +119,31 @@ async fn then_should_see_in_status_line(world: &mut BluelineWorld, expected_text
             expected_text
         );
     }
+}
+
+#[then("the terminal state should be valid")]
+async fn then_terminal_state_should_be_valid(world: &mut BluelineWorld) {
+    debug!("Verifying terminal state is valid");
+
+    // Get terminal state and verify it's not corrupted
+    let terminal_content = world.get_terminal_content().await;
+
+    // Basic sanity checks for valid terminal state
+    assert!(
+        !terminal_content.is_empty(),
+        "Terminal should have some content"
+    );
+
+    assert!(
+        terminal_content.len() < 100_000,
+        "Terminal content should not be excessively large (possible corruption)"
+    );
+
+    // Check that terminal doesn't have obvious corruption markers
+    assert!(
+        !terminal_content.contains("\0"),
+        "Terminal should not contain null characters"
+    );
+
+    debug!("✅ Terminal state is valid");
 }

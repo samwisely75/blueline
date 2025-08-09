@@ -659,6 +659,38 @@ impl BluelineWorld {
         }
     }
 
+    /// Simulate HTTP response for testing pane switching
+    pub async fn simulate_http_response(&mut self, status: &str, body: &str) {
+        info!("Simulating HTTP response: {} with body: {}", status, body);
+
+        if let Some(monitor) = &self.render_monitor {
+            let mut response_output = Vec::new();
+
+            // Simulate response pane content with proper formatting
+            // This should make the Response pane available for Tab navigation
+            let response_content =
+                format!("HTTP/1.1 {status}\nContent-Type: application/json\n\n{body}");
+
+            // Position response in lower half of screen (response pane area)
+            let response_start_row = (self.terminal_size.1 / 2) + 2; // Start after request pane
+
+            for (i, line) in response_content.lines().enumerate() {
+                let row = response_start_row + i as u16;
+                let pos = format!("\x1b[{row};1H");
+                response_output.extend_from_slice(pos.as_bytes());
+                response_output.extend_from_slice(line.as_bytes());
+            }
+
+            // Add visual separator
+            let separator_pos = format!("\x1b[{};1H", self.terminal_size.1 / 2);
+            response_output.extend_from_slice(separator_pos.as_bytes());
+            response_output.extend_from_slice("-".repeat(self.terminal_size.0 as usize).as_bytes());
+
+            // Inject the response content
+            monitor.inject_data(&response_output).await;
+        }
+    }
+
     /// Process events (tick the application)
     /// This allows time for the app to process events and produce output
     pub async fn tick(&mut self) -> Result<()> {
@@ -867,6 +899,93 @@ impl BluelineWorld {
         debug!("Dumping current terminal state");
         let state = self.get_terminal_state().await;
         state.debug_print();
+    }
+
+    /// Press a single key (for navigation, commands, etc.)
+    pub async fn press_key(&mut self, key: char) {
+        let code = match key {
+            '0'..='9' | 'a'..='z' | 'A'..='Z' => KeyCode::Char(key),
+            '$' => KeyCode::Char('$'),
+            ':' => KeyCode::Char(':'),
+            _ => KeyCode::Char(key),
+        };
+        self.send_key_event(code, KeyModifiers::empty()).await;
+    }
+
+    /// Press multiple keys in sequence (for commands like "gg", "dd", etc.)
+    pub async fn press_keys(&mut self, keys: &str) {
+        for key in keys.chars() {
+            self.press_key(key).await;
+            // Small delay between keys for command recognition
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    }
+
+    /// Press the Backspace key
+    pub async fn press_backspace(&mut self) {
+        self.send_key_event(KeyCode::Backspace, KeyModifiers::empty())
+            .await;
+
+        // Update text buffer if in Insert mode
+        if self.current_mode == AppMode::Insert && !self.text_buffer.is_empty() {
+            let last_idx = self.text_buffer.len() - 1;
+            if !self.text_buffer[last_idx].is_empty() {
+                self.text_buffer[last_idx].pop();
+            }
+        }
+    }
+
+    /// Press the Delete key
+    pub async fn press_delete(&mut self) {
+        self.send_key_event(KeyCode::Delete, KeyModifiers::empty())
+            .await;
+    }
+
+    /// Press the Up arrow key
+    pub async fn press_arrow_up(&mut self) {
+        self.send_key_event(KeyCode::Up, KeyModifiers::empty())
+            .await;
+    }
+
+    /// Press the Down arrow key
+    pub async fn press_arrow_down(&mut self) {
+        self.send_key_event(KeyCode::Down, KeyModifiers::empty())
+            .await;
+    }
+
+    /// Press the Left arrow key
+    pub async fn press_arrow_left(&mut self) {
+        self.send_key_event(KeyCode::Left, KeyModifiers::empty())
+            .await;
+    }
+
+    /// Press the Right arrow key
+    pub async fn press_arrow_right(&mut self) {
+        self.send_key_event(KeyCode::Right, KeyModifiers::empty())
+            .await;
+    }
+
+    /// Clear the request buffer
+    pub async fn clear_request_buffer(&mut self) {
+        // Clear our internal text buffer
+        self.text_buffer.clear();
+
+        // If app is running, send commands to clear the buffer
+        if self.app_running {
+            // Go to normal mode first
+            self.press_escape().await;
+            self.tick().await.ok();
+
+            // Select all and delete
+            self.press_keys("ggVG").await;
+            self.tick().await.ok();
+            self.press_key('d').await;
+            self.tick().await.ok();
+
+            // Switch to insert mode for typing
+            self.press_key('i').await;
+            self.tick().await.ok();
+        }
     }
 
     /// Simulate initial terminal rendering for tests

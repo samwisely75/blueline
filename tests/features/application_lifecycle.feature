@@ -17,7 +17,7 @@ Feature: Application Lifecycle
 
   Scenario: Quit application with colon command
     Given I am in Normal mode
-    When I press ":"
+    When I enter command mode
     Then I should be in Command mode
     And I type "q"
     And I press Enter
@@ -30,7 +30,7 @@ Feature: Application Lifecycle
     When I type "some unsaved content"
     When I press Escape
     Then I should be in Normal mode
-    When I press ":"
+    When I enter command mode
     And I type "q!"
     And I press Enter
     Then the application should terminate without saving

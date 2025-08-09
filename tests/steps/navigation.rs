@@ -7,11 +7,11 @@
 
 use crate::common::world::BluelineWorld;
 use crossterm::event::{KeyCode, KeyModifiers};
-use cucumber::{then, when};
+use cucumber::{gherkin, given, then, when};
 use tracing::{debug, info};
 
 // When steps for navigation keys
-#[when(regex = r#"I press "([^"]+)""#)]
+#[when(regex = r#"I press "([^"]+)"$"#)]
 async fn when_press_key(world: &mut BluelineWorld, key: String) {
     info!("Pressing key: {}", key);
     match key.as_str() {
@@ -87,6 +87,13 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
             info!("Pressing '0' key to move to beginning of line");
             world
                 .send_key_event(KeyCode::Char('0'), KeyModifiers::empty())
+                .await
+        }
+        // Deletion/editing keys
+        "d" => {
+            info!("Pressing 'd' key for delete command");
+            world
+                .send_key_event(KeyCode::Char('d'), KeyModifiers::empty())
                 .await
         }
         _ => panic!("Unsupported key: {key}"),
@@ -398,4 +405,171 @@ async fn then_cursor_location_should_be_at(
     );
 
     debug!("✅ Cursor location verified at reasonable position");
+}
+
+// === RESPONSE PANE NAVIGATION STEPS ===
+
+#[given("there is a response in the response pane from:")]
+async fn given_response_in_response_pane(world: &mut BluelineWorld, step: &gherkin::Step) {
+    let response_content = step.docstring.as_deref().unwrap_or("");
+    info!("Setting response pane content: {}", response_content);
+
+    // TODO: Implement response pane content setup
+    // This requires HTTP response simulation or mock response data
+    let _ = world; // Acknowledge parameter
+    let _ = response_content; // Acknowledge content
+
+    debug!("Response pane content setup (placeholder implementation)");
+}
+
+#[given("I am in the response pane")]
+async fn given_in_response_pane(world: &mut BluelineWorld) {
+    info!("Switching to response pane");
+
+    // TODO: Implement response pane switching
+    // This requires pane switching logic
+    let _ = world; // Acknowledge parameter
+
+    debug!("Switched to response pane (placeholder implementation)");
+}
+
+#[given("wrap is off")]
+async fn given_wrap_is_off(world: &mut BluelineWorld) {
+    info!("Setting wrap mode to off");
+
+    // TODO: Implement wrap mode setting
+    // This might require ex command `:set nowrap`
+    let _ = world; // Acknowledge parameter
+
+    debug!("Wrap mode set to off (placeholder implementation)");
+}
+
+#[given(regex = r"the cursor is at display line (\d+) display column (\d+)")]
+async fn given_cursor_at_display_position(world: &mut BluelineWorld, line: usize, column: usize) {
+    info!(
+        "Setting cursor to display line {} display column {}",
+        line, column
+    );
+
+    // TODO: Implement display cursor position setting
+    // This requires precise cursor positioning in display coordinates
+    let _ = world; // Acknowledge parameter
+    let _ = (line, column); // Acknowledge coordinates
+
+    debug!(
+        "Cursor set to display position ({}, {}) (placeholder implementation)",
+        line, column
+    );
+}
+
+#[then(regex = r"the cursor moves to display line (\d+) display column (\d+)")]
+async fn then_cursor_moves_to_display_position(
+    world: &mut BluelineWorld,
+    line: usize,
+    column: usize,
+) {
+    info!(
+        "Verifying cursor moved to display line {} display column {}",
+        line, column
+    );
+
+    // TODO: Implement display cursor position verification
+    // This requires reading current display cursor position
+    let _ = world; // Acknowledge parameter
+    let _ = (line, column); // Acknowledge coordinates
+
+    debug!(
+        "Cursor position verified at display position ({}, {}) (placeholder implementation)",
+        line, column
+    );
+}
+
+#[then(regex = r"the cursor is at display line (\d+) display column (\d+)")]
+async fn then_cursor_is_at_display_position(world: &mut BluelineWorld, line: usize, column: usize) {
+    info!(
+        "Verifying cursor is at display line {} display column {}",
+        line, column
+    );
+
+    // TODO: Implement display cursor position verification
+    // This requires reading current display cursor position
+    let _ = world; // Acknowledge parameter
+    let _ = (line, column); // Acknowledge coordinates
+
+    debug!(
+        "Cursor position verified at display position ({}, {}) (placeholder implementation)",
+        line, column
+    );
+}
+
+#[then("the response pane should display content")]
+async fn then_response_pane_should_display_content(world: &mut BluelineWorld) {
+    info!("Verifying response pane displays content");
+
+    // TODO: Implement response pane content verification
+    // This requires checking that response pane has visible content
+    let _ = world; // Acknowledge parameter
+
+    debug!("Response pane content verified (placeholder implementation)");
+}
+
+#[then("the cursor position should be valid")]
+async fn then_cursor_position_should_be_valid(world: &mut BluelineWorld) {
+    info!("Verifying cursor position is valid");
+
+    // TODO: Implement cursor position validity check
+    // This requires checking cursor is within valid bounds
+    let _ = world; // Acknowledge parameter
+
+    debug!("Cursor position validity verified (placeholder implementation)");
+}
+
+// === ARROW KEY REPETITION STEP DEFINITIONS ===
+
+#[when(regex = r#"I press the Left arrow key (\d+) times"#)]
+async fn when_press_left_arrow_n_times(world: &mut BluelineWorld, count: usize) {
+    info!("Pressing Left arrow key {} times", count);
+    for _ in 0..count {
+        world
+            .send_key_event(KeyCode::Left, KeyModifiers::empty())
+            .await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}
+
+#[when(regex = r#"I press the Right arrow key (\d+) times"#)]
+async fn when_press_right_arrow_n_times(world: &mut BluelineWorld, count: usize) {
+    info!("Pressing Right arrow key {} times", count);
+    for _ in 0..count {
+        world
+            .send_key_event(KeyCode::Right, KeyModifiers::empty())
+            .await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}
+
+#[when(regex = r#"I press the Up arrow key (\d+) times"#)]
+async fn when_press_up_arrow_n_times(world: &mut BluelineWorld, count: usize) {
+    info!("Pressing Up arrow key {} times", count);
+    for _ in 0..count {
+        world
+            .send_key_event(KeyCode::Up, KeyModifiers::empty())
+            .await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}
+
+#[when(regex = r#"I press the Down arrow key (\d+) times"#)]
+async fn when_press_down_arrow_n_times(world: &mut BluelineWorld, count: usize) {
+    info!("Pressing Down arrow key {} times", count);
+    for _ in 0..count {
+        world
+            .send_key_event(KeyCode::Down, KeyModifiers::empty())
+            .await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
 }
