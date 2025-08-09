@@ -11,6 +11,7 @@
 //! - `text_manipulation` - Text input and editing
 //! - `visual_mode` - Visual mode operations
 //! - `terminal` - Terminal state and rendering
+//! - `window` - Window/pane management
 
 pub mod application;
 pub mod command_line;
@@ -20,5 +21,6 @@ pub mod navigation;
 pub mod terminal;
 pub mod text_manipulation;
 pub mod visual_mode;
+pub mod window;
 
 // Re-export all step functions
