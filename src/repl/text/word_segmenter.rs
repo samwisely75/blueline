@@ -131,7 +131,7 @@ impl WordBoundaries {
 }
 
 /// Trait for word segmentation implementations
-pub trait WordSegmenter {
+pub trait WordSegmenter: Send {
     /// Find word boundaries in the given text
     fn find_word_boundaries(&self, text: &str) -> SegmentationResult;
 }

@@ -79,6 +79,7 @@ pub enum MovementDirection {
     Down,
     LineStart,
     LineEnd,
+    LineEndForAppend, // Special case for 'A' command - positions AFTER last character
     DocumentStart,
     DocumentEnd,
     WordForward,

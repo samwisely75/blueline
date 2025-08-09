@@ -17,7 +17,6 @@
 //!
 //! ```text
 //! Production:   AppController ──▶ TerminalEventSource ──▶ crossterm::event::read()
-//! Testing:      AppController ──▶ TestEventSource     ──▶ VecDeque<Event>
 //! ```
 //!
 //! ## Key Benefits
@@ -31,28 +30,18 @@
 //! ## Usage Pattern
 //!
 //! ```rust,no_run
-//! use blueline::{AppController, TestEventSource};
+//! use blueline::AppController;
 //! use blueline::cmd_args::CommandLineArgs;
-//! use crossterm::event::{Event, KeyEvent, KeyCode, KeyModifiers};
 //!
-//! let cmd_args = CommandLineArgs::parse_from(["test"]);
-//!
-//! // Production
-//! let app_controller = AppController::new(cmd_args.clone()); // Uses TerminalEventSource
-//!
-//! // Testing  
-//! let test_events = TestEventSource::with_events(vec![
-//!     Event::Key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE)),
-//!     Event::Key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE)),
-//! ]);
-//! let app_controller = AppController::with_event_source(cmd_args, test_events);
+//! let cmd_args = CommandLineArgs::parse_from(["blueline"]);
+//! let app_controller = AppController::new(cmd_args); // Uses TerminalEventSource
 //! ```
 //!
 //! This abstraction enables comprehensive integration testing while maintaining
 //! production behavior and performance.
 
 use anyhow::Result;
-use crossterm::event::{Event, KeyEvent};
+use crossterm::event::Event;
 use std::time::Duration;
 
 /// Trait for abstracting event input sources
@@ -81,22 +70,4 @@ pub trait EventSource {
     fn is_exhausted(&self) -> bool {
         false
     }
-}
-
-/// Helper trait for test event sources to inject events
-pub trait TestEventSource: EventSource {
-    /// Add a key event to the test queue
-    fn push_key_event(&mut self, key_event: KeyEvent);
-
-    /// Add a resize event to the test queue
-    fn push_resize_event(&mut self, width: u16, height: u16);
-
-    /// Add a generic event to the test queue
-    fn push_event(&mut self, event: Event);
-
-    /// Clear all pending events from the queue
-    fn clear_events(&mut self);
-
-    /// Get the number of pending events in the queue
-    fn pending_count(&self) -> usize;
 }

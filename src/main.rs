@@ -3,7 +3,11 @@
 //! Clean MVVM HTTP client with vim-style interface.
 
 use anyhow::Result;
-use blueline::{cmd_args::CommandLineArgs, AppController};
+use blueline::{
+    cmd_args::CommandLineArgs,
+    repl::io::{TerminalEventStream, TerminalRenderStream},
+    AppController,
+};
 use std::env;
 use tracing_subscriber::{fmt::time::ChronoLocal, EnvFilter};
 
@@ -12,7 +16,14 @@ async fn main() -> Result<()> {
     init_tracing_subscriber();
 
     let cmd_args = CommandLineArgs::parse();
-    let mut app = AppController::new(cmd_args)?;
+
+    // Explicit dependency injection - clear what implementations are being used
+    let mut app = AppController::with_io_streams(
+        cmd_args,
+        TerminalEventStream::new(),
+        TerminalRenderStream::new(),
+    )?;
+
     app.run().await?;
     Ok(())
 }
@@ -22,6 +33,7 @@ fn init_tracing_subscriber() {
     let log_file = env::var_os("BLUELINE_LOG_FILE").and_then(|s| s.into_string().ok());
 
     let env_filter = EnvFilter::try_from_env("BLUELINE_LOG_LEVEL")
+        .or_else(|_| EnvFilter::try_from_env("RUST_LOG"))
         .unwrap_or_else(|_| EnvFilter::new("info"))
         .add_directive("reqwest=warn".parse().unwrap())
         .add_directive("hyper=warn".parse().unwrap())
@@ -59,6 +71,7 @@ fn init_tracing_subscriber() {
         // In REPL mode, minimize logging to prevent any potential background scrolling
         // Use the most restrictive filter and file output only
         let minimal_filter = EnvFilter::try_from_env("BLUELINE_LOG_LEVEL")
+            .or_else(|_| EnvFilter::try_from_env("RUST_LOG"))
             .unwrap_or_else(|_| EnvFilter::new("off")) // Default to no logging
             .add_directive("blueline=warn".parse().unwrap()) // Only warnings and errors from our code
             .add_directive("reqwest=off".parse().unwrap())

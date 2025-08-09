@@ -729,6 +729,14 @@ impl PaneManager {
             .content_mut()
             .set_text(text);
 
+        // Reset cursor and scroll positions to avoid out-of-bounds issues
+        self.panes[Pane::Response].display_cursor = Position::origin();
+        self.panes[Pane::Response].scroll_offset = Position::origin();
+
+        // Clear any visual selection in the response pane
+        self.panes[Pane::Response].visual_selection_start = None;
+        self.panes[Pane::Response].visual_selection_end = None;
+
         // Rebuild display cache to ensure rendering sees the updated content
         let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4); // Same as Request pane
         self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
@@ -981,9 +989,33 @@ impl PaneManager {
                 .get_display_line(current_display_pos.row)
             {
                 let new_col = current_line.move_right_by_character(current_display_pos.col);
-                new_display_pos = Position::new(current_display_pos.row, new_col);
-                self.panes[self.current_pane].display_cursor = new_display_pos;
-                moved = true;
+
+                // When wrap is enabled, check if we've moved past the visible width
+                // If so, wrap to the next line instead of staying on the current line
+                let content_width = self.get_content_width();
+                if self.wrap_enabled && new_col >= content_width {
+                    // Check if there's a next line to wrap to
+                    let next_display_line = current_display_pos.row + 1;
+                    if self.panes[self.current_pane]
+                        .display_cache
+                        .get_display_line(next_display_line)
+                        .is_some()
+                    {
+                        new_display_pos = Position::new(next_display_line, 0);
+                    } else {
+                        // No next line, stay at current position
+                        new_display_pos =
+                            Position::new(current_display_pos.row, current_display_pos.col);
+                        moved = false;
+                    }
+                } else {
+                    new_display_pos = Position::new(current_display_pos.row, new_col);
+                }
+
+                if moved || new_display_pos != current_display_pos {
+                    self.panes[self.current_pane].display_cursor = new_display_pos;
+                    moved = true;
+                }
             }
         } else if can_move_to_next_line {
             // CASE 2: Move to beginning of next line (line wrap navigation)
@@ -1036,16 +1068,24 @@ impl PaneManager {
     /// Move cursor up in current area
     pub fn move_cursor_up(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.panes[self.current_pane].editor_mode;
 
         if current_display_pos.row > 0 {
             let new_line = current_display_pos.row - 1;
 
             // Clamp column to the length of the new line to prevent cursor going beyond line end
+            // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
             let new_col = if let Some(display_line) = self.panes[self.current_pane]
                 .display_cache
                 .get_display_line(new_line)
             {
-                current_display_pos.col.min(display_line.display_width())
+                let line_char_count = display_line.char_count();
+                let max_col = if current_mode == EditorMode::Insert {
+                    line_char_count // Insert mode: can be positioned after last character
+                } else {
+                    line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+                };
+                current_display_pos.col.min(max_col)
             } else {
                 current_display_pos.col
             };
@@ -1093,14 +1133,26 @@ impl PaneManager {
     /// Move cursor down in current area
     pub fn move_cursor_down(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.panes[self.current_pane].editor_mode;
 
         let next_display_line = current_display_pos.row + 1;
+
+        // Check if the next display line actually exists in the display cache
+        // This prevents cursor from moving beyond actual content
         if let Some(display_line) = self.panes[self.current_pane]
             .display_cache
             .get_display_line(next_display_line)
         {
+            // Only move if there's actual content at the next line
             // Clamp column to the length of the new line to prevent cursor going beyond line end
-            let new_col = current_display_pos.col.min(display_line.display_width());
+            // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
+            let line_char_count = display_line.char_count();
+            let max_col = if current_mode == EditorMode::Insert {
+                line_char_count // Insert mode: can be positioned after last character
+            } else {
+                line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+            };
+            let new_col = current_display_pos.col.min(max_col);
             let new_display_pos = Position::new(next_display_line, new_col);
 
             self.panes[self.current_pane].display_cursor = new_display_pos;
@@ -1182,8 +1234,9 @@ impl PaneManager {
         events
     }
 
-    /// Move cursor to end of current line
-    pub fn move_cursor_to_end_of_line(&mut self) -> Vec<ViewEvent> {
+    /// Move cursor to end of current line for append (A command)
+    /// This positions the cursor AFTER the last character for insert mode
+    pub fn move_cursor_to_line_end_for_append(&mut self) -> Vec<ViewEvent> {
         // Get current logical position
         let current_logical = self.panes[self.current_pane].buffer.cursor();
 
@@ -1200,8 +1253,71 @@ impl PaneManager {
         {
             let line_length = line.chars().count();
 
+            // For the 'A' command, position cursor AFTER the last character
+            // This allows inserting at the end of the line
+            let end_position = line_length; // Position after last character
+            let new_logical = LogicalPosition::new(current_logical.line, end_position);
+
+            // Update logical cursor first
+            self.panes[self.current_pane].buffer.set_cursor(new_logical);
+
+            // Sync display cursor with logical cursor
+            self.panes[self.current_pane].sync_display_cursor_with_logical();
+
+            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+            if self.panes[self.current_pane]
+                .visual_selection_start
+                .is_some()
+            {
+                self.panes[self.current_pane].visual_selection_end = Some(new_logical);
+                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+                tracing::debug!(
+                    "Line end append movement updated visual selection end to {:?}",
+                    new_logical
+                );
+            }
+        }
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
+        events
+    }
+
+    /// Move cursor to end of current line
+    pub fn move_cursor_to_end_of_line(&mut self) -> Vec<ViewEvent> {
+        // Get current logical position
+        let current_logical = self.panes[self.current_pane].buffer.cursor();
+        let current_mode = self.panes[self.current_pane].editor_mode;
+
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Get the current line content to find its length
+        if let Some(line) = self.panes[self.current_pane]
+            .buffer
+            .content()
+            .get_line(current_logical.line)
+        {
+            let line_length = line.chars().count();
+
             // Create new logical position at end of current line
-            let new_logical = LogicalPosition::new(current_logical.line, line_length);
+            // Mode-dependent positioning:
+            // - Normal/Visual mode: cursor stops at the last character (index n-1)
+            // - Insert mode: cursor can be positioned after last character (index n)
+            // This is used for the 'A' command which should position after last char
+            let end_position = if current_mode == EditorMode::Insert && line_length > 0 {
+                line_length // Position after last character for insert mode
+            } else if line_length > 0 {
+                line_length - 1 // Stop at last character for normal/visual mode
+            } else {
+                0 // Empty line, stay at position 0
+            };
+            let new_logical = LogicalPosition::new(current_logical.line, end_position);
 
             // Update logical cursor first
             self.panes[self.current_pane].buffer.set_cursor(new_logical);

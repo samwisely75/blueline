@@ -1,14 +1,20 @@
-// Feature-based step definitions organized by user-facing behavior
+//! Step definitions for Cucumber tests
+//!
+//! This module contains all the step definitions for Blueline integration tests.
+//!
+//! Steps are organized by feature domain for better maintainability:
+//! - `application` - App lifecycle and setup
+//! - `modes` - Mode transitions and verification
+//! - `navigation` - Cursor movement and navigation
+//! - `text_manipulation` - Text input and editing
+//! - `visual_mode` - Visual mode operations
+//! - `terminal` - Terminal state and rendering
 
-pub mod application_lifecycle;
-pub mod cursor_and_scrolling;
-pub mod http_interaction;
-pub mod mode_transitions;
-pub mod pane_management;
-pub mod status_bar;
+pub mod application;
+pub mod modes;
+pub mod navigation;
+pub mod terminal;
 pub mod text_manipulation;
-pub mod unicode_support;
 pub mod visual_mode;
-pub mod window_management;
 
 // Re-export all step functions

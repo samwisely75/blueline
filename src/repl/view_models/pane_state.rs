@@ -426,6 +426,11 @@ impl PaneState {
         }
 
         // Horizontal scrolling
+        // The visible range is from old_horizontal_offset to (old_horizontal_offset + content_width - 1)
+        // For example, if offset=0 and width=112, visible columns are 0-111
+        // HOWEVER, when wrap is enabled and we're on a wrapped line, position content_width (e.g., 112)
+        // represents the cursor being just after the last character, which should NOT trigger scrolling
+        // as it will wrap to the next line
         if display_pos.col < old_horizontal_offset {
             new_horizontal_offset = display_pos.col;
             tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen left, adjusting horizontal offset to {}", new_horizontal_offset);

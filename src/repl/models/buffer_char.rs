@@ -6,7 +6,7 @@
 use crate::text::word_segmenter::{WordBoundaries, WordSegmenter, WordSegmenterFactory};
 
 /// Type alias for boxed word segmenter to improve readability
-type BoxedWordSegmenter = Option<Box<dyn WordSegmenter>>;
+type BoxedWordSegmenter = Option<Box<dyn WordSegmenter + Send>>;
 
 /// Check if a character is an ideographic character (CJK and similar scripts)
 pub fn is_ideographic_character(ch: char) -> bool {
