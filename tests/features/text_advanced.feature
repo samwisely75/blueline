@@ -4,7 +4,10 @@ Feature: Advanced Text Operations
   So that I can edit HTTP requests efficiently
 
   Background:
-    Given I am in Normal mode
+    Given the application is started with default settings
+    And the request buffer is empty
+    And I am in the Request pane
+    And I am in Normal mode
 
   # === UNDO/REDO SCENARIOS ===
 

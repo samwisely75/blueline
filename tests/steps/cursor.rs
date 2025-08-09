@@ -28,14 +28,17 @@ async fn then_cursor_visible(world: &mut BluelineWorld) {
         || world.terminal_contains("│").await
         || world.terminal_contains("_").await
         || world.terminal_contains("▁").await;
-    
+
     // In test environment, cursor might not be rendered visually
     // but we can check that we're not in Command mode
     if !has_cursor {
         let not_in_command = !world.terminal_contains(":").await
             || world.terminal_contains("Normal").await
             || world.terminal_contains("Insert").await;
-        assert!(not_in_command, "Cursor should be visible outside Command mode");
+        assert!(
+            not_in_command,
+            "Cursor should be visible outside Command mode"
+        );
     }
 }
 
@@ -44,8 +47,7 @@ async fn then_cursor_hidden(world: &mut BluelineWorld) {
     debug!("Verifying cursor is hidden");
     // In Command mode, cursor should be hidden
     // We can verify this by checking we're in Command mode
-    let in_command = world.terminal_contains(":").await
-        || world.terminal_contains("Command").await;
+    let in_command = world.terminal_contains(":").await || world.terminal_contains("Command").await;
     assert!(in_command, "Cursor should be hidden in Command mode");
 }
 

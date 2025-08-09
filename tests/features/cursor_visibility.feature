@@ -4,7 +4,10 @@ Feature: Cursor Visibility Management
   So that the command line interface is clean and focused
 
   Background:
-    Given I am in Normal mode
+    Given the application is started with default settings
+    And the request buffer is empty
+    And I am in the Request pane
+    And I am in Normal mode
 
   Scenario: Real cursor visibility transitions
     Given the cursor is visible
