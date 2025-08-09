@@ -909,6 +909,30 @@ impl BluelineWorld {
             .await;
     }
 
+    /// Press the Up arrow key
+    pub async fn press_arrow_up(&mut self) {
+        self.send_key_event(KeyCode::Up, KeyModifiers::empty())
+            .await;
+    }
+
+    /// Press the Down arrow key
+    pub async fn press_arrow_down(&mut self) {
+        self.send_key_event(KeyCode::Down, KeyModifiers::empty())
+            .await;
+    }
+
+    /// Press the Left arrow key
+    pub async fn press_arrow_left(&mut self) {
+        self.send_key_event(KeyCode::Left, KeyModifiers::empty())
+            .await;
+    }
+
+    /// Press the Right arrow key
+    pub async fn press_arrow_right(&mut self) {
+        self.send_key_event(KeyCode::Right, KeyModifiers::empty())
+            .await;
+    }
+
     /// Clear the request buffer
     pub async fn clear_request_buffer(&mut self) {
         // Clear our internal text buffer

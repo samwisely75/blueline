@@ -37,7 +37,7 @@ Feature: Mode Transitions
 
     Scenario: Switch from Normal to Command mode
         Given I am in Normal mode
-        When I press ":"
+        When I enter command mode
         Then I should be in Command mode
         And I should see ":" in the status line
         When I type "help"
