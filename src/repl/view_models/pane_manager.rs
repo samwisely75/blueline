@@ -347,6 +347,14 @@ impl PaneManager {
                 .logical_to_display_position(logical.line, logical.column)
             {
                 self.panes[pane].display_cursor = display_pos;
+            } else {
+                // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                tracing::warn!(
+                    "sync_display_cursors: logical_to_display_position failed for {:?} pane at {:?} - using fallback", 
+                    pane, logical
+                );
+                // Fallback: Use logical position as display position (works for non-wrapped content)
+                self.panes[pane].display_cursor = Position::new(logical.line, logical.column);
             }
         }
     }
@@ -426,6 +434,16 @@ impl PaneManager {
                 .logical_to_display_position(logical.line, logical.column)
             {
                 self.panes[Pane::Request].display_cursor = display_pos;
+            } else {
+                // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                // This can happen with empty lines or edge cases after multiple newlines in Insert mode
+                tracing::warn!(
+                    "logical_to_display_position failed for cursor at {:?} - using fallback display position", 
+                    logical
+                );
+                // Fallback: Use logical position as display position (works for non-wrapped content)
+                self.panes[Pane::Request].display_cursor =
+                    Position::new(logical.line, logical.column);
             }
 
             let mut events = vec![
@@ -494,6 +512,14 @@ impl PaneManager {
                     .logical_to_display_position(new_cursor.line, new_cursor.column)
                 {
                     request_pane.display_cursor = display_pos;
+                } else {
+                    // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                    tracing::warn!(
+                        "delete_char_before_cursor: logical_to_display_position failed at {:?} - using fallback", 
+                        new_cursor
+                    );
+                    // Fallback: Use logical position as display position (works for non-wrapped content)
+                    request_pane.display_cursor = Position::new(new_cursor.line, new_cursor.column);
                 }
 
                 let mut events = vec![
@@ -552,6 +578,14 @@ impl PaneManager {
                     .logical_to_display_position(new_cursor.line, new_cursor.column)
                 {
                     request_pane.display_cursor = display_pos;
+                } else {
+                    // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                    tracing::warn!(
+                        "delete_char_before_cursor: logical_to_display_position failed at {:?} - using fallback", 
+                        new_cursor
+                    );
+                    // Fallback: Use logical position as display position (works for non-wrapped content)
+                    request_pane.display_cursor = Position::new(new_cursor.line, new_cursor.column);
                 }
 
                 return vec![
@@ -613,6 +647,15 @@ impl PaneManager {
                         .logical_to_display_position(current_logical.line, current_logical.column)
                     {
                         request_pane.display_cursor = display_pos;
+                    } else {
+                        // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                        tracing::warn!(
+                            "delete_char_after_cursor: logical_to_display_position failed at {:?} - using fallback", 
+                            current_logical
+                        );
+                        // Fallback: Use logical position as display position (works for non-wrapped content)
+                        request_pane.display_cursor =
+                            Position::new(current_logical.line, current_logical.column);
                     }
 
                     return vec![
@@ -651,6 +694,15 @@ impl PaneManager {
                         .logical_to_display_position(current_logical.line, current_logical.column)
                     {
                         request_pane.display_cursor = display_pos;
+                    } else {
+                        // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                        tracing::warn!(
+                            "delete_char_after_cursor: logical_to_display_position failed at {:?} - using fallback", 
+                            current_logical
+                        );
+                        // Fallback: Use logical position as display position (works for non-wrapped content)
+                        request_pane.display_cursor =
+                            Position::new(current_logical.line, current_logical.column);
                     }
 
                     return vec![
@@ -682,6 +734,15 @@ impl PaneManager {
             .logical_to_display_position(clamped_position.line, clamped_position.column)
         {
             self.panes[self.current_pane].display_cursor = display_pos;
+        } else {
+            // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+            tracing::warn!(
+                "set_current_cursor_position: logical_to_display_position failed at {:?} - using fallback", 
+                clamped_position
+            );
+            // Fallback: Use logical position as display position (works for non-wrapped content)
+            self.panes[self.current_pane].display_cursor =
+                Position::new(clamped_position.line, clamped_position.column);
         }
 
         // Update visual selection if active
