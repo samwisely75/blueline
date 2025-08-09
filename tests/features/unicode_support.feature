@@ -50,11 +50,9 @@ Feature: Unicode and Double-Byte Character Support
     Then the screen should not be blank
     And I should see "Hello 🌍 World 🚀" in the output
 
-  Scenario: Unicode in HTTP request headers
+  Scenario: Doublebyte characters in JSON text
     When I enter Insert mode
     And I type "POST /api/message"
-    And I press Enter
-    And I type "Content-Type: application/json"
     And I press Enter
     And I press Enter
     And I type the following JSON:
@@ -67,7 +65,7 @@ Feature: Unicode and Double-Byte Character Support
 
   Scenario: Long lines with double-byte characters
     When I enter Insert mode
-    And I type "This is a very long line with Japanese こんにちはこんにちはこんにちは and more English text"
+    And I type "This is a very long line with doublebyte こんにちはこんにちはこんにちは and more English text"
     Then the screen should not be blank
     And I should see "こんにちは" in the output
 

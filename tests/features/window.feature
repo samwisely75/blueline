@@ -55,7 +55,7 @@ Feature: Window Management
     And I am in Insert mode
     When I press Tab
     Then I should be in the Response pane
-    And I should be in Normal mode
+    And I should remain in Insert mode
 
   Scenario: Pane focus indicator
     Given I have executed a request

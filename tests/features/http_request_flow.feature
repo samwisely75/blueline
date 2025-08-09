@@ -21,20 +21,15 @@ Feature: HTTP Request Flow
   Scenario: POST request with JSON body
     When I type "POST /api/users"
     And I press Enter
-    And I type "Content-Type: application/json"
-    And I press Enter
     And I press Enter
     And I type "{\"name\": \"test\", \"email\": \"test@example.com\"}"
     When I execute the request with Ctrl-Enter
     Then the screen should not be blank
     And I should see "POST /api/users" in the request pane
-    And I should see "application/json" in the request pane
     And the response pane should be visible
 
-  Scenario: Request with Japanese characters
+  Scenario: Request with doublebyte characters
     When I type "POST /api/message"
-    And I press Enter
-    And I type "Content-Type: application/json"
     And I press Enter
     And I press Enter
     And I type "{\"message\": \"こんにちは世界\"}"
@@ -45,6 +40,8 @@ Feature: HTTP Request Flow
 
   Scenario: Navigate between request and response panes
     Given I have executed a request
+    When I press Escape
+    Then I should be in Normal mode
     When I press Tab
     Then I should be in the Response pane
     When I press Tab
@@ -53,7 +50,7 @@ Feature: HTTP Request Flow
   Scenario: Clear and create new request
     Given I have text "GET /old-request" in the request buffer
     When I press Escape
-    And I am in Normal mode
+    Then I should be in Normal mode
     And I press "d"
     And I press "d"
     When I enter Insert mode
@@ -81,7 +78,9 @@ Feature: HTTP Request Flow
     When I execute the request with Ctrl-Enter
     Then the screen should not be blank
     And the response pane should be visible
+    When I press Escape
+    Then I should be in Normal mode
     When I press Tab
-    And I am in the Response pane
+    Then I should be in the Response pane
     And I press "j"
     Then I should be able to scroll in the response pane

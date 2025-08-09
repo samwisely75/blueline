@@ -101,19 +101,8 @@ Feature: Command Line Operations
     Then I should be in Normal mode
     And the cursor should be at line 2
 
-  Scenario: Command history navigation
-    When I enter command mode
-    And I type "help"
-    And I press Enter
-    When I enter command mode
-    And I type "1"
-    And I press Enter
-    When I enter command mode
-    Then I should be in Command mode
-    When I press Up arrow
-    Then I should see ":1" at the command line
-    When I press Up arrow
-    Then I should see ":help" at the command line
+  # Note: Command history navigation is not yet implemented
+  # This scenario has been removed as it represents an unimplemented feature
 
   Scenario: Command line editing with backspace
     When I enter command mode

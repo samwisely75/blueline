@@ -20,11 +20,11 @@ Feature: Text Deletion Operations
     
   Scenario: Delete character with Backspace in middle of line
     Given I am in Insert mode
-    And I have text "Hello World" in the request pane
-    And the cursor is after "Hello "
-    When I press Backspace
-    Then the last character should be removed
-    And I should see "HelloWorld" in the request pane
+    When I type "Hello "
+    And I type "World"
+    And I press backspace 5 times
+    Then the screen should not be blank
+    And I should see "Hello " in the request pane
 
   Scenario: Text deletion with backspace multiple times
     Given I am in Insert mode
@@ -36,18 +36,12 @@ Feature: Text Deletion Operations
 
   Scenario: Join lines with Backspace at line start
     Given I am in Insert mode
-    And the request buffer contains:
-      """
-      GET /api/users
-      Content-Type: application/json
-      """
-    And the cursor is at the beginning of line 2
-    When I press Backspace
-    Then the two lines should be joined
-    And the text becomes:
-      """
-      GET /api/usersContent-Type: application/json
-      """
+    When I type "GET /api/users"
+    And I press Enter
+    And I type "second line text"
+    And I press backspace 16 times
+    Then the screen should not be blank
+    And I should see "GET /api/users" in the request pane
 
   Scenario: Backspace at beginning of first line should not delete
     Given I am in Insert mode

@@ -1489,30 +1489,36 @@ impl PaneManager {
     }
 
     /// Move cursor to specific line number (1-based)
+    /// If line_number is out of bounds, clamps to the last available line (vim behavior)
     pub fn move_cursor_to_line(&mut self, line_number: usize) -> Vec<ViewEvent> {
         if line_number == 0 {
             return vec![];
         }
 
         let display_cache = &self.panes[self.current_pane].display_cache;
-        let target_line_idx = line_number - 1; // Convert to 0-based
+        let max_line_count = display_cache.display_line_count();
 
-        if display_cache.get_display_line(target_line_idx).is_some() {
-            self.panes[self.current_pane].display_cursor = Position::new(target_line_idx, 0);
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ];
-
-            // Ensure cursor is visible and add visibility events
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
+        if max_line_count == 0 {
+            return vec![]; // No lines to navigate to
         }
+
+        // Clamp to valid range (1 to max_line_count)
+        let clamped_line_number = line_number.min(max_line_count);
+        let target_line_idx = clamped_line_number - 1; // Convert to 0-based
+
+        // Set cursor position
+        self.panes[self.current_pane].display_cursor = Position::new(target_line_idx, 0);
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
+        events
     }
 
     /// Calculate pane boundaries for rendering
