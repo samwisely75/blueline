@@ -63,17 +63,7 @@ Feature: Navigation Commands
     When I type "single line"
     And I press Escape
     Then I should be in Normal mode
-    When I press "h"
-    And I press "h"
-    And I press "h"
-    And I press "h"
-    And I press "h"
-    And I press "h"
-    And I press "h"
-    And I press "h"
-    And I press "h"
-    And I press "h"
-    And I press "h"
+    When I press "h" 11 times
     Then the cursor should not move beyond the start of line
     When I press "$"
     Then the cursor should be at the end of the line
@@ -91,12 +81,9 @@ Feature: Navigation Commands
     When I type "third line"
     And I press Escape
     Then I should be in Normal mode
-    When I press "k"
-    And I press "k"
+    When I press "k" 2 times
     Then the cursor should be on line 1
-    When I press "j"
-    Then the cursor should be on line 2
-    When I press "j"
+    When I press "j" 2 times
     Then the cursor should be on line 3
     When I press "j"
     Then the cursor should remain on line 3

@@ -523,3 +523,53 @@ async fn then_cursor_position_should_be_valid(world: &mut BluelineWorld) {
 
     debug!("Cursor position validity verified (placeholder implementation)");
 }
+
+// === ARROW KEY REPETITION STEP DEFINITIONS ===
+
+#[when(regex = r#"I press the Left arrow key (\d+) times"#)]
+async fn when_press_left_arrow_n_times(world: &mut BluelineWorld, count: usize) {
+    info!("Pressing Left arrow key {} times", count);
+    for _ in 0..count {
+        world
+            .send_key_event(KeyCode::Left, KeyModifiers::empty())
+            .await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}
+
+#[when(regex = r#"I press the Right arrow key (\d+) times"#)]
+async fn when_press_right_arrow_n_times(world: &mut BluelineWorld, count: usize) {
+    info!("Pressing Right arrow key {} times", count);
+    for _ in 0..count {
+        world
+            .send_key_event(KeyCode::Right, KeyModifiers::empty())
+            .await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}
+
+#[when(regex = r#"I press the Up arrow key (\d+) times"#)]
+async fn when_press_up_arrow_n_times(world: &mut BluelineWorld, count: usize) {
+    info!("Pressing Up arrow key {} times", count);
+    for _ in 0..count {
+        world
+            .send_key_event(KeyCode::Up, KeyModifiers::empty())
+            .await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}
+
+#[when(regex = r#"I press the Down arrow key (\d+) times"#)]
+async fn when_press_down_arrow_n_times(world: &mut BluelineWorld, count: usize) {
+    info!("Pressing Down arrow key {} times", count);
+    for _ in 0..count {
+        world
+            .send_key_event(KeyCode::Down, KeyModifiers::empty())
+            .await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}

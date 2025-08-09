@@ -91,24 +91,10 @@ Feature: Arrow Key Navigation in All Modes
     When I press "i"
     Then I should be in Insert mode
     When I type "content"
-    When I press the Left arrow key
-    And I press the Left arrow key
-    And I press the Left arrow key
-    And I press the Left arrow key
-    And I press the Left arrow key
-    And I press the Left arrow key
-    And I press the Left arrow key
-    And I press the Left arrow key
+    When I press the Left arrow key 8 times
     Then the cursor should not move beyond the start of line
     And I should remain in Insert mode
-    When I press the Right arrow key
-    And I press the Right arrow key
-    And I press the Right arrow key
-    And I press the Right arrow key
-    And I press the Right arrow key
-    And I press the Right arrow key
-    And I press the Right arrow key
-    And I press the Right arrow key
+    When I press the Right arrow key 8 times
     Then the cursor should be at the end of the content
     And I should remain in Insert mode
 
@@ -119,8 +105,7 @@ Feature: Arrow Key Navigation in All Modes
     When I type "mixed navigation test"
     And I press Escape
     Then I should be in Normal mode
-    When I press the Left arrow key
-    And I press the Left arrow key
+    When I press the Left arrow key 2 times
     Then the cursor should move left
     When I press "h"
     Then the cursor should move left one character
