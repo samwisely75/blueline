@@ -6,7 +6,7 @@
 //! - Text verification
 
 use crate::common::world::BluelineWorld;
-use cucumber::{given, then, when};
+use cucumber::{gherkin, given, then, when};
 use tracing::{debug, info};
 
 #[when("I press Enter")]
@@ -150,13 +150,14 @@ async fn when_press_delete_n_times(world: &mut BluelineWorld, count: usize) {
     }
 }
 
-#[given(regex = r#"the request buffer contains:"#)]
-async fn given_request_buffer_contains(world: &mut BluelineWorld, text: String) {
-    info!("Setting request buffer with multiline text");
+#[given(regex = r"^the request buffer contains:$")]
+async fn given_request_buffer_contains(world: &mut BluelineWorld, step: &gherkin::Step) {
+    let docstring = step.docstring.as_deref().unwrap_or("");
+    info!("Setting request buffer with multiline text: {}", docstring);
     // Clear any existing text first
     world.clear_request_buffer().await;
     // Type the multiline text
-    world.type_text(&text).await;
+    world.type_text(docstring).await;
     world.tick().await.expect("Failed to tick");
 }
 
@@ -218,9 +219,13 @@ async fn then_lines_joined(_world: &mut BluelineWorld) {
     // This is verified by the next step checking the actual text
 }
 
-#[then(regex = r#"the text becomes:"#)]
-async fn then_text_becomes(world: &mut BluelineWorld, expected: String) {
-    debug!("Checking if text matches expected multiline content");
+#[then(regex = r"^the text becomes:$")]
+async fn then_text_becomes(world: &mut BluelineWorld, step: &gherkin::Step) {
+    let expected = step.docstring.as_deref().unwrap_or("");
+    debug!(
+        "Checking if text matches expected multiline content: {}",
+        expected
+    );
     // Check each line of the expected text
     for line in expected.lines() {
         let contains = world.terminal_contains(line).await;

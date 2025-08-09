@@ -92,6 +92,10 @@ async fn cucumber_integration_tests() {
             })
         })
         // Use standard output for test results
-        .run("tests/features") // Run all feature files in the tests/features directory
+        .run(
+            std::env::var_os("CUCUMBER_FEATURES")
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "tests/features".to_string()),
+        ) // Allow feature path override
         .await;
 }
