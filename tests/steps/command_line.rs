@@ -131,12 +131,7 @@ async fn when_press_up_arrow(world: &mut BluelineWorld) {
     world.tick().await.expect("Failed to tick");
 }
 
-#[when("I press Backspace")]
-async fn when_press_backspace_command(world: &mut BluelineWorld) {
-    info!("Pressing Backspace in command mode");
-    world.press_backspace().await;
-    world.tick().await.expect("Failed to tick");
-}
+// Removed - using the definition from text_manipulation.rs instead
 
 // === REQUEST BUFFER CONTENT STEPS ===
 
