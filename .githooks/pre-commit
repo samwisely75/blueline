@@ -39,5 +39,11 @@ if ! cargo clippy --all-targets --all-features -- -D warnings > /dev/null 2>&1; 
     exit 1
 fi
 
+# Run clippy with warnings as errors
+if ! cargo test --lib; then
+    echo "❌ PRE-CHECK FAILED: Fix the unit test and come back again!"
+    exit 1
+fi
+
 echo "✅ Clippy check passed!"
 echo "✅ PRE-CHECK SUCCESSFUL: You can now commit your changes."
