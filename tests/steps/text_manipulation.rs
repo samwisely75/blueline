@@ -6,6 +6,7 @@
 //! - Text verification
 
 use crate::common::world::BluelineWorld;
+use crossterm::event::{KeyCode, KeyModifiers};
 use cucumber::{gherkin, given, then, when};
 use tracing::{debug, info};
 
@@ -117,19 +118,43 @@ async fn given_cursor_at_beginning(world: &mut BluelineWorld) {
 #[given(regex = r#"the cursor is after "([^"]+)""#)]
 async fn given_cursor_after_text(world: &mut BluelineWorld, text: String) {
     info!("Positioning cursor after '{}'", text);
-    // Move to beginning then forward by text length
-    world.press_key('0').await;
-    for _ in 0..text.chars().count() {
-        world.press_key('l').await;
-    }
+
+    // Don't clear existing text - just position cursor
+    // Move to beginning of line first by pressing Home key
+    world
+        .send_key_event(KeyCode::Home, KeyModifiers::empty())
+        .await;
     world.tick().await.expect("Failed to tick");
+
+    // Then move right by the number of characters in the text
+    for _ in 0..text.chars().count() {
+        world.press_arrow_right().await;
+        world.tick().await.expect("Failed to tick");
+    }
+
+    info!("Cursor should now be positioned after '{}'", text);
 }
 
 #[when("I press Backspace")]
 async fn when_press_backspace(world: &mut BluelineWorld) {
     info!("Pressing Backspace key");
+
+    // Debug: show content before backspace
+    let before_content = world.get_terminal_content().await;
+    info!(
+        "Terminal content BEFORE backspace: '{}'",
+        before_content.lines().collect::<Vec<_>>().join(" | ")
+    );
+
     world.press_backspace().await;
     world.tick().await.expect("Failed to tick");
+
+    // Debug: show content after backspace
+    let after_content = world.get_terminal_content().await;
+    info!(
+        "Terminal content AFTER backspace: '{}'",
+        after_content.lines().collect::<Vec<_>>().join(" | ")
+    );
 }
 
 #[when(regex = r#"I press backspace (\d+) times"#)]
@@ -154,26 +179,51 @@ async fn when_press_delete_n_times(world: &mut BluelineWorld, count: usize) {
 async fn given_request_buffer_contains(world: &mut BluelineWorld, step: &gherkin::Step) {
     let docstring = step.docstring.as_deref().unwrap_or("");
     info!("Setting request buffer with multiline text: {}", docstring);
+
+    let line_count = docstring.lines().count();
+    info!("Docstring has {} lines", line_count);
+    for (i, line) in docstring.lines().enumerate() {
+        info!("Line {}: '{}'", i + 1, line);
+    }
+
     // Clear any existing text first
     world.clear_request_buffer().await;
     // Type the multiline text
     world.type_text(docstring).await;
     world.tick().await.expect("Failed to tick");
+
+    // Debug: show terminal content after insertion
+    let terminal_content = world.get_terminal_content().await;
+    info!(
+        "Terminal content after docstring insertion:\n{}",
+        terminal_content
+    );
 }
 
 #[given(regex = r#"the cursor is at the beginning of line (\d+)"#)]
 async fn given_cursor_at_line_beginning(world: &mut BluelineWorld, line_num: usize) {
     info!("Moving cursor to beginning of line {}", line_num);
-    // Move to beginning of buffer
-    world.press_keys("gg").await;
-    // Move down to target line (1-indexed)
+
+    // Use Insert mode navigation (arrow keys) instead of vim commands
+    // First go to top of document using Ctrl+Home or many Up arrows
+    for _ in 0..100 {
+        // Go up many times to ensure we reach the top
+        world.press_arrow_up().await;
+        world.tick().await.expect("Failed to tick");
+    }
+
+    // Then move down to target line (1-indexed)
     if line_num > 1 {
         for _ in 0..(line_num - 1) {
-            world.press_key('j').await;
+            world.press_arrow_down().await;
+            world.tick().await.expect("Failed to tick");
         }
     }
-    // Move to beginning of line
-    world.press_key('0').await;
+
+    // Move to beginning of line using Home key
+    world
+        .send_key_event(KeyCode::Home, KeyModifiers::empty())
+        .await;
     world.tick().await.expect("Failed to tick");
 }
 
@@ -234,10 +284,31 @@ async fn then_text_becomes(world: &mut BluelineWorld, step: &gherkin::Step) {
         "Checking if text matches expected multiline content: {}",
         expected
     );
+
+    // Debug: show actual terminal content
+    let terminal_content = world.get_terminal_content().await;
+    eprintln!("=== EXPECTED TEXT ===");
+    eprintln!("'{expected}'");
+    eprintln!("=== ACTUAL TERMINAL CONTENT ===");
+    for (i, line) in terminal_content.lines().enumerate() {
+        eprintln!("{:2}: '{}'", i + 1, line);
+    }
+    eprintln!("=== END COMPARISON ===");
+
     // Check each line of the expected text
     for line in expected.lines() {
-        let contains = world.terminal_contains(line).await;
-        assert!(contains, "Expected to find line '{line}' in terminal");
+        if !line.trim().is_empty() {
+            // Skip empty lines
+            let contains = world.terminal_contains(line).await;
+            if !contains {
+                eprintln!("❌ Missing line: '{line}'");
+                eprintln!(
+                    "Terminal content: '{}'",
+                    terminal_content.replace('\n', "\\n")
+                );
+            }
+            assert!(contains, "Expected to find line '{line}' in terminal");
+        }
     }
 }
 
