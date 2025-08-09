@@ -44,6 +44,15 @@ async fn given_normal_mode(world: &mut BluelineWorld) {
 }
 
 // When steps for mode transitions
+#[when("I enter Insert mode")]
+async fn when_enter_insert_mode(world: &mut BluelineWorld) {
+    info!("Entering Insert mode by pressing 'i'");
+    world
+        .send_key_event(KeyCode::Char('i'), KeyModifiers::empty())
+        .await;
+    world.tick().await.expect("Failed to tick");
+}
+
 #[when("I press Escape")]
 async fn when_press_escape(world: &mut BluelineWorld) {
     info!("Pressing Escape key");
