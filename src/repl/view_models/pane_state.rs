@@ -447,11 +447,6 @@ impl PaneState {
                     display_pos.col > old_horizontal_offset + content_width
                 }
             };
-            
-            tracing::debug!(
-                "PaneState::ensure_cursor_visible: initial should_scroll_horizontally={} (mode={:?}, col={}, offset={}, width={})",
-                should_scroll_horizontally, self.editor_mode, display_pos.col, old_horizontal_offset, content_width
-            );
 
             // DOUBLE-BYTE CHARACTER FIX: Check if the character at cursor position
             // extends beyond the visible area (for double-byte characters)
@@ -464,20 +459,11 @@ impl PaneState {
                         // If the character extends beyond the visible area, trigger scrolling
                         // This includes when cursor is exactly at the boundary but character is 2-wide
                         if display_pos.col + char_width > old_horizontal_offset + content_width {
-                            tracing::debug!(
-                                "PaneState::ensure_cursor_visible: character at col {} with width {} extends beyond visible area ({}), triggering horizontal scroll",
-                                display_pos.col, char_width, old_horizontal_offset + content_width
-                            );
                             should_scroll_horizontally = true;
                         }
                     }
                 }
             }
-            
-            tracing::debug!(
-                "PaneState::ensure_cursor_visible: final should_scroll_horizontally={}",
-                should_scroll_horizontally
-            );
 
             if should_scroll_horizontally {
                 // DISPLAY-COLUMN-AWARE HORIZONTAL SCROLL: Calculate the actual display columns needed

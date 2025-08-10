@@ -1366,29 +1366,6 @@ impl PaneManager {
         {
             let line_length = line.chars().count();
 
-            // Debug: Check actual line content
-            let last_chars: String = line
-                .chars()
-                .rev()
-                .take(5)
-                .collect::<String>()
-                .chars()
-                .rev()
-                .collect();
-            tracing::debug!(
-                "move_cursor_to_end_of_line: line_length={}, last_5_chars='{}', mode={:?}",
-                line_length,
-                last_chars,
-                current_mode
-            );
-
-            // Debug: Check for discrepancy between buffer and string representation
-            // This helps identify if there's an issue with character counting
-            tracing::debug!(
-                "move_cursor_to_end_of_line: Using line_length={} for positioning",
-                line_length
-            );
-
             // Create new logical position at end of current line
             // Mode-dependent positioning:
             // - Normal/Visual mode: cursor stops at the last character (index n-1)
