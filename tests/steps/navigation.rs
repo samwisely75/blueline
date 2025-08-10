@@ -20,6 +20,12 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
                 .send_key_event(KeyCode::Char('i'), KeyModifiers::empty())
                 .await
         }
+        "a" => {
+            info!("Pressing 'a' key to enter append mode");
+            world
+                .send_key_event(KeyCode::Char('a'), KeyModifiers::empty())
+                .await
+        }
         "v" => {
             info!("Pressing 'v' key to enter visual mode");
             world
@@ -94,6 +100,33 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
             info!("Pressing 'd' key for delete command");
             world
                 .send_key_event(KeyCode::Char('d'), KeyModifiers::empty())
+                .await
+        }
+        "shift+Left" => {
+            info!("Pressing Shift+Left for horizontal scroll left");
+            world
+                .send_key_event(KeyCode::Left, KeyModifiers::SHIFT)
+                .await
+        }
+        "shift+Right" => {
+            info!("Pressing Shift+Right for horizontal scroll right");
+            world
+                .send_key_event(KeyCode::Right, KeyModifiers::SHIFT)
+                .await
+        }
+        "shift+ctrl+a" => {
+            info!("Pressing Shift+Ctrl+A for select all");
+            world
+                .send_key_event(
+                    KeyCode::Char('a'),
+                    KeyModifiers::SHIFT | KeyModifiers::CONTROL,
+                )
+                .await
+        }
+        "Delete" => {
+            info!("Pressing Delete key");
+            world
+                .send_key_event(KeyCode::Delete, KeyModifiers::empty())
                 .await
         }
         _ => panic!("Unsupported key: {key}"),
@@ -572,4 +605,72 @@ async fn when_press_down_arrow_n_times(world: &mut BluelineWorld, count: usize) 
         world.tick().await.expect("Failed to tick");
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
+}
+
+// Repeated key press step definitions for horizontal scrolling
+#[when(regex = r#"I press "shift\+Left" (\d+) times"#)]
+async fn when_press_shift_left_n_times(world: &mut BluelineWorld, count: usize) {
+    info!("Pressing Shift+Left {} times", count);
+    for _ in 0..count {
+        world
+            .send_key_event(KeyCode::Left, KeyModifiers::SHIFT)
+            .await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+}
+
+#[when(regex = r#"I press "shift\+Right" (\d+) times"#)]
+async fn when_press_shift_right_n_times(world: &mut BluelineWorld, count: usize) {
+    info!("Pressing Shift+Right {} times", count);
+    for _ in 0..count {
+        world
+            .send_key_event(KeyCode::Right, KeyModifiers::SHIFT)
+            .await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+}
+
+// Cursor visibility verification
+#[then("the cursor should be visible")]
+async fn then_cursor_should_be_visible(world: &mut BluelineWorld) {
+    let state = world.get_terminal_state().await;
+    let cursor_pos = state.cursor_position;
+
+    // Cursor should be within terminal bounds
+    assert!(
+        cursor_pos.0 < 80,
+        "Cursor column {} should be within terminal width",
+        cursor_pos.0
+    );
+    assert!(
+        cursor_pos.1 < 24,
+        "Cursor row {} should be within terminal height",
+        cursor_pos.1
+    );
+
+    info!(
+        "Cursor is visible at position ({}, {})",
+        cursor_pos.0, cursor_pos.1
+    );
+}
+
+// Double-byte character display verification
+#[then("I should see complete double-byte characters in the output")]
+async fn then_should_see_complete_double_byte_characters(world: &mut BluelineWorld) {
+    let state = world.get_terminal_state().await;
+    let visible_lines = state.get_visible_text();
+
+    // Check that we don't have broken double-byte characters
+    // This is a simplified check - in a real implementation, you might want more sophisticated validation
+    let has_broken_chars = visible_lines.iter().any(|line| {
+        line.chars().any(|c| c == '\u{FFFD}' || c == '?') // Replacement characters indicate broken encoding
+    });
+
+    assert!(
+        !has_broken_chars,
+        "Output should not contain broken double-byte characters"
+    );
+    info!("All double-byte characters appear complete in output");
 }
