@@ -436,7 +436,8 @@ impl PaneState {
             tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen left, adjusting horizontal offset to {}", new_horizontal_offset);
         } else if content_width > 0 {
             // MODE-AWARE HORIZONTAL SCROLL: Different trigger points for Insert vs Normal mode
-            let should_scroll = match self.editor_mode {
+            // Also check if the character at cursor position extends beyond the visible area
+            let mut should_scroll = match self.editor_mode {
                 EditorMode::Insert => {
                     // Insert mode: Scroll early to make room for typing next character
                     display_pos.col >= old_horizontal_offset + content_width
@@ -446,6 +447,25 @@ impl PaneState {
                     display_pos.col > old_horizontal_offset + content_width
                 }
             };
+
+            // DOUBLE-BYTE CHARACTER FIX: Check if the character at cursor position
+            // extends beyond the visible area (for double-byte characters)
+            if !should_scroll && display_pos.col < old_horizontal_offset + content_width {
+                if let Some(display_line) = self.display_cache.get_display_line(display_pos.row) {
+                    if let Some(char_at_cursor) = display_line.char_at_display_col(display_pos.col)
+                    {
+                        let char_width = char_at_cursor.display_width();
+                        // If the character extends beyond the visible area, trigger scrolling
+                        if display_pos.col + char_width > old_horizontal_offset + content_width {
+                            tracing::debug!(
+                                "PaneState::ensure_cursor_visible: character at col {} with width {} extends beyond visible area ({}), triggering scroll",
+                                display_pos.col, char_width, old_horizontal_offset + content_width
+                            );
+                            should_scroll = true;
+                        }
+                    }
+                }
+            }
 
             if should_scroll {
                 // DISPLAY-COLUMN-AWARE HORIZONTAL SCROLL: Calculate the actual display columns needed

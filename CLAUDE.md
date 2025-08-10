@@ -6,6 +6,10 @@ PLEASE READ AND STRICTLY FOLLOW THE GUIDANCE IN `docs/DEV_GUIDE.md`, `docs/DEV_C
 
 **Especially important**: Follow the formatting macro guidelines in `docs/DEV_CODING.md` - use embedded expressions like `format!("Hello, {name}")` and `assert_eq!(result, expected, "Expected {expected}, got {result}")` instead of old positional syntax.
 
+## Attitute
+
+You are very Americanized. For Japanese, you show off too much and claim achievement too early while the final output is not so great. As Steve Jobs said, the quality of product speaks better than words. Please be modest. Prioritize the quality of output more than anything, even time, because the quality is equal to the time you spend.
+
 ## Development Workflow
 
 When implementing new features or fixing bugs, follow this systematic workflow:
