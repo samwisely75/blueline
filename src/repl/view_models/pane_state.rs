@@ -577,20 +577,11 @@ impl PaneState {
                 // extends beyond the visible area (for double-byte characters)
                 // This handles the case where cursor is at the edge and the character is wider than 1 column
                 if !should_scroll_horizontally {
-                    if let Some(display_line) = self.display_cache.get_display_line(display_pos.row)
-                    {
-                        if let Some(char_at_cursor) =
-                            display_line.char_at_display_col(display_pos.col)
-                        {
-                            let char_width = char_at_cursor.display_width();
-                            // If the character extends beyond the visible area, trigger scrolling
-                            // This includes when cursor is exactly at the boundary but character is 2-wide
-                            if display_pos.col + char_width > old_horizontal_offset + content_width
-                            {
-                                should_scroll_horizontally = true;
-                            }
-                        }
-                    }
+                    should_scroll_horizontally = self.check_character_extends_beyond_visible_area(
+                        display_pos,
+                        old_horizontal_offset,
+                        content_width,
+                    );
                 }
 
                 if should_scroll_horizontally {
@@ -604,35 +595,15 @@ impl PaneState {
                         .saturating_sub(content_width.saturating_sub(1));
 
                     // CHARACTER-WIDTH-BASED SCROLL: Calculate total width of characters to scroll past
-                    // We need to scroll by enough complete characters to satisfy min_scroll_needed
-                    if let Some(display_line) = self.display_cache.get_display_line(display_pos.row)
-                    {
-                        let mut accumulated_width = 0;
-                        let mut check_col = old_horizontal_offset;
+                    new_horizontal_offset = self.calculate_horizontal_scroll_offset(
+                        display_pos.row,
+                        old_horizontal_offset,
+                        min_scroll_needed,
+                    );
 
-                        // Keep scrolling past complete characters until we've scrolled enough
-                        while accumulated_width < min_scroll_needed {
-                            if let Some(char_at_col) = display_line.char_at_display_col(check_col) {
-                                let char_width = char_at_col.display_width();
-                                accumulated_width += char_width;
-                                check_col += char_width;
-
-                                tracing::debug!("PaneState::ensure_cursor_visible: scrolling past char '{}' width={}, accumulated={}", 
-                                char_at_col.ch(), char_width, accumulated_width);
-                            } else {
-                                // No more characters, use what we have
-                                break;
-                            }
-                        }
-
-                        new_horizontal_offset = old_horizontal_offset + accumulated_width;
-                        tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen at pos {}, need to scroll {}, scrolling {} from {} to {}", 
-                        display_pos.col, min_scroll_needed, accumulated_width, old_horizontal_offset, new_horizontal_offset);
-                    } else {
-                        // Fallback: no display line found
-                        new_horizontal_offset = old_horizontal_offset + min_scroll_needed;
-                        tracing::debug!("PaneState::ensure_cursor_visible: no display line found, using min_scroll_needed={}", min_scroll_needed);
-                    }
+                    let scroll_amount = new_horizontal_offset - old_horizontal_offset;
+                    tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen at pos {}, need to scroll {}, scrolling {} from {} to {}", 
+                        display_pos.col, min_scroll_needed, scroll_amount, old_horizontal_offset, new_horizontal_offset);
                 }
             }
         }
@@ -830,6 +801,61 @@ impl PaneState {
     /// Set editor mode for this pane
     pub fn set_mode(&mut self, mode: EditorMode) {
         self.editor_mode = mode;
+    }
+
+    // Helper methods to reduce arrow code complexity
+
+    /// Check if character at cursor position extends beyond visible area
+    fn check_character_extends_beyond_visible_area(
+        &self,
+        display_pos: Position,
+        horizontal_offset: usize,
+        content_width: usize,
+    ) -> bool {
+        let Some(display_line) = self.display_cache.get_display_line(display_pos.row) else {
+            return false;
+        };
+
+        let Some(char_at_cursor) = display_line.char_at_display_col(display_pos.col) else {
+            return false;
+        };
+
+        let char_width = char_at_cursor.display_width();
+        // If the character extends beyond the visible area, trigger scrolling
+        // This includes when cursor is exactly at the boundary but character is 2-wide
+        display_pos.col + char_width > horizontal_offset + content_width
+    }
+
+    /// Calculate horizontal scroll offset accounting for character widths
+    fn calculate_horizontal_scroll_offset(
+        &self,
+        display_row: usize,
+        old_horizontal_offset: usize,
+        min_scroll_needed: usize,
+    ) -> usize {
+        let Some(display_line) = self.display_cache.get_display_line(display_row) else {
+            return old_horizontal_offset + min_scroll_needed;
+        };
+
+        let mut accumulated_width = 0;
+        let mut check_col = old_horizontal_offset;
+
+        // Keep scrolling past complete characters until we've scrolled enough
+        while accumulated_width < min_scroll_needed {
+            let Some(char_at_col) = display_line.char_at_display_col(check_col) else {
+                // No more characters, use what we have
+                break;
+            };
+
+            let char_width = char_at_col.display_width();
+            accumulated_width += char_width;
+            check_col += char_width;
+
+            tracing::debug!("PaneState::calculate_horizontal_scroll: scrolling past char '{}' width={}, accumulated={}", 
+                char_at_col.ch(), char_width, accumulated_width);
+        }
+
+        old_horizontal_offset + accumulated_width
     }
 }
 

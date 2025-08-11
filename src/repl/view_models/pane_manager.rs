@@ -161,69 +161,69 @@ impl PaneManager {
     /// Check if a position is within visual selection
     pub fn is_position_selected(&self, position: LogicalPosition, pane: Pane) -> bool {
         let pane_state = &self.panes[pane];
-        if let (Some(start), Some(end)) = (
+
+        // Early return if no selection exists
+        let (Some(start), Some(end)) = (
             pane_state.visual_selection_start,
             pane_state.visual_selection_end,
-        ) {
-            // Normalize selection range (start <= end)
-            let (normalized_start, normalized_end) = if start.line < end.line
-                || (start.line == end.line && start.column <= end.column)
-            {
+        ) else {
+            tracing::trace!("is_position_selected: no visual selection active");
+            return false;
+        };
+
+        // Normalize selection range (start <= end)
+        let (normalized_start, normalized_end) =
+            if start.line < end.line || (start.line == end.line && start.column <= end.column) {
                 (start, end)
             } else {
                 (end, start)
             };
 
-            tracing::trace!(
-                "is_position_selected: checking position={:?} against selection start={:?} end={:?} (normalized: start={:?} end={:?})", 
-                position, start, end, normalized_start, normalized_end
-            );
+        tracing::trace!(
+            "is_position_selected: checking position={:?} against selection start={:?} end={:?} (normalized: start={:?} end={:?})", 
+            position, start, end, normalized_start, normalized_end
+        );
 
-            // Check if position is within selection range
-            if position.line < normalized_start.line || position.line > normalized_end.line {
-                tracing::trace!("is_position_selected: position outside line range");
-                return false;
-            }
-
-            if position.line == normalized_start.line && position.line == normalized_end.line {
-                // Single line selection
-                let is_selected = position.column >= normalized_start.column
-                    && position.column <= normalized_end.column;
-                tracing::trace!(
-                    "is_position_selected: single line selection, result={}",
-                    is_selected
-                );
-                return is_selected;
-            }
-
-            if position.line == normalized_start.line {
-                // First line of multi-line selection
-                let is_selected = position.column >= normalized_start.column;
-                tracing::trace!(
-                    "is_position_selected: first line of multi-line selection, result={}",
-                    is_selected
-                );
-                return is_selected;
-            }
-
-            if position.line == normalized_end.line {
-                // Last line of multi-line selection
-                let is_selected = position.column <= normalized_end.column;
-                tracing::trace!(
-                    "is_position_selected: last line of multi-line selection, result={}",
-                    is_selected
-                );
-                return is_selected;
-            }
-
-            // Middle line of multi-line selection
-            tracing::trace!(
-                "is_position_selected: middle line of multi-line selection, result=true"
-            );
-            return true;
+        // Early return if position is outside line range
+        if position.line < normalized_start.line || position.line > normalized_end.line {
+            tracing::trace!("is_position_selected: position outside line range");
+            return false;
         }
-        tracing::trace!("is_position_selected: no visual selection active");
-        false
+
+        // Check single line selection
+        if position.line == normalized_start.line && position.line == normalized_end.line {
+            let is_selected = position.column >= normalized_start.column
+                && position.column <= normalized_end.column;
+            tracing::trace!(
+                "is_position_selected: single line selection, result={}",
+                is_selected
+            );
+            return is_selected;
+        }
+
+        // Check first line of multi-line selection
+        if position.line == normalized_start.line {
+            let is_selected = position.column >= normalized_start.column;
+            tracing::trace!(
+                "is_position_selected: first line of multi-line selection, result={}",
+                is_selected
+            );
+            return is_selected;
+        }
+
+        // Check last line of multi-line selection
+        if position.line == normalized_end.line {
+            let is_selected = position.column <= normalized_end.column;
+            tracing::trace!(
+                "is_position_selected: last line of multi-line selection, result={}",
+                is_selected
+            );
+            return is_selected;
+        }
+
+        // Middle line of multi-line selection
+        tracing::trace!("is_position_selected: middle line of multi-line selection, result=true");
+        true
     }
 
     /// Start visual selection in current area
@@ -504,9 +504,10 @@ impl PaneManager {
     pub fn delete_char_before_cursor_in_request(&mut self) -> Vec<ViewEvent> {
         tracing::debug!("🗑️  PaneManager::delete_char_before_cursor_in_request called");
 
+        // Early return if not in request pane
         if !self.is_in_request_pane() {
             tracing::debug!("🗑️  Not in request pane, skipping deletion");
-            return vec![]; // Can't edit in display area
+            return vec![];
         }
 
         tracing::debug!("🗑️  In request pane, performing actual deletion");
@@ -516,126 +517,132 @@ impl PaneManager {
 
         tracing::debug!("🗑️  Current cursor position: {:?}", current_cursor);
 
+        // Dispatch to appropriate deletion method
         if current_cursor.column > 0 {
-            // Delete character before cursor in the same line
-            tracing::debug!("🗑️  Deleting character before cursor in same line");
+            self.delete_char_in_line(current_cursor)
+        } else if current_cursor.line > 0 {
+            self.join_with_previous_line(current_cursor)
+        } else {
+            tracing::debug!("🗑️  No deletion performed - at start of buffer");
+            vec![]
+        }
+    }
 
-            let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
-            let delete_end = LogicalPosition::new(current_cursor.line, current_cursor.column);
-            let delete_range = LogicalRange::new(delete_start, delete_end);
+    /// Delete a character within the current line
+    fn delete_char_in_line(&mut self, current_cursor: LogicalPosition) -> Vec<ViewEvent> {
+        tracing::debug!("🗑️  Deleting character before cursor in same line");
 
-            // Use the existing delete_range method
-            if let Some(_event) = request_pane
-                .buffer
-                .content_mut()
-                .delete_range(self.current_pane, delete_range)
-            {
-                // Move cursor left
-                let new_cursor =
-                    LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
-                request_pane.buffer.set_cursor(new_cursor);
+        let request_pane = &mut self.panes[Pane::Request];
+        let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
+        let delete_end = LogicalPosition::new(current_cursor.line, current_cursor.column);
+        let delete_range = LogicalRange::new(delete_start, delete_end);
 
-                tracing::debug!(
-                    "🗑️  Deleted character in line, new cursor: {:?}",
+        // Attempt deletion
+        let Some(_event) = request_pane
+            .buffer
+            .content_mut()
+            .delete_range(self.current_pane, delete_range)
+        else {
+            return vec![];
+        };
+
+        // Move cursor left after successful deletion
+        let new_cursor = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
+        request_pane.buffer.set_cursor(new_cursor);
+
+        tracing::debug!(
+            "🗑️  Deleted character in line, new cursor: {:?}",
+            new_cursor
+        );
+
+        // Rebuild display cache and sync cursor
+        self.rebuild_display_and_sync_cursor(new_cursor);
+
+        // Build result events
+        let mut events = vec![
+            ViewEvent::RequestContentChanged,
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::CurrentAreaRedrawRequired,
+        ];
+
+        // Ensure cursor is visible after deletion
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
+        events
+    }
+
+    /// Join current line with previous line
+    fn join_with_previous_line(&mut self, current_cursor: LogicalPosition) -> Vec<ViewEvent> {
+        tracing::debug!("🗑️  At line start, joining with previous line");
+
+        let request_pane = &mut self.panes[Pane::Request];
+
+        // Get length of previous line to position cursor correctly
+        let prev_line_length = request_pane
+            .buffer
+            .content()
+            .get_line(current_cursor.line - 1)
+            .map(|line| line.len())
+            .unwrap_or(0);
+
+        // Create range to delete the newline character (join lines)
+        let delete_start = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
+        let delete_end = LogicalPosition::new(current_cursor.line, 0);
+        let delete_range = LogicalRange::new(delete_start, delete_end);
+
+        // Attempt deletion
+        let Some(_event) = request_pane
+            .buffer
+            .content_mut()
+            .delete_range(self.current_pane, delete_range)
+        else {
+            return vec![];
+        };
+
+        // Move cursor to end of previous line (where the join happened)
+        let new_cursor = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
+        request_pane.buffer.set_cursor(new_cursor);
+
+        tracing::debug!("🗑️  Joined lines, new cursor: {:?}", new_cursor);
+
+        // Rebuild display cache and sync cursor
+        self.rebuild_display_and_sync_cursor(new_cursor);
+
+        vec![
+            ViewEvent::RequestContentChanged,
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::CurrentAreaRedrawRequired,
+        ]
+    }
+
+    /// Helper to rebuild display cache and sync cursor position
+    fn rebuild_display_and_sync_cursor(&mut self, new_cursor: LogicalPosition) {
+        let request_pane = &mut self.panes[Pane::Request];
+        let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+
+        // Rebuild display cache since content changed
+        request_pane.build_display_cache(content_width, self.wrap_enabled);
+
+        // Sync display cursor with new logical position after cache rebuild
+        match request_pane
+            .display_cache
+            .logical_to_display_position(new_cursor.line, new_cursor.column)
+        {
+            Some(display_pos) => {
+                request_pane.display_cursor = display_pos;
+            }
+            None => {
+                // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                tracing::warn!(
+                    "delete_char_before_cursor: logical_to_display_position failed at {:?} - using fallback", 
                     new_cursor
                 );
-
-                // Rebuild display cache since content changed
-                let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
-                request_pane.build_display_cache(content_width, self.wrap_enabled);
-
-                // Sync display cursor with new logical position after cache rebuild
-                if let Some(display_pos) = request_pane
-                    .display_cache
-                    .logical_to_display_position(new_cursor.line, new_cursor.column)
-                {
-                    request_pane.display_cursor = display_pos;
-                } else {
-                    // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
-                    tracing::warn!(
-                        "delete_char_before_cursor: logical_to_display_position failed at {:?} - using fallback", 
-                        new_cursor
-                    );
-                    // Fallback: Use logical position as display position (works for non-wrapped content)
-                    request_pane.display_cursor = Position::new(new_cursor.line, new_cursor.column);
-                }
-
-                let mut events = vec![
-                    ViewEvent::RequestContentChanged,
-                    ViewEvent::ActiveCursorUpdateRequired,
-                    ViewEvent::CurrentAreaRedrawRequired,
-                ];
-
-                // Ensure cursor is visible after deletion
-                let content_width = self.get_content_width();
-                let visibility_events = self.ensure_current_cursor_visible(content_width);
-                events.extend(visibility_events);
-
-                return events;
-            }
-        } else if current_cursor.line > 0 {
-            // At beginning of line, join with previous line (backspace at line start)
-            tracing::debug!("🗑️  At line start, joining with previous line");
-
-            // Get length of previous line to position cursor correctly
-            let prev_line_length = if let Some(prev_line) = request_pane
-                .buffer
-                .content()
-                .get_line(current_cursor.line - 1)
-            {
-                prev_line.len()
-            } else {
-                0
-            };
-
-            // Create range to delete the newline character (join lines)
-            // We delete from end of previous line to start of current line
-            let delete_start = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
-            let delete_end = LogicalPosition::new(current_cursor.line, 0);
-            let delete_range = LogicalRange::new(delete_start, delete_end);
-
-            // Use the existing delete_range method
-            if let Some(_event) = request_pane
-                .buffer
-                .content_mut()
-                .delete_range(self.current_pane, delete_range)
-            {
-                // Move cursor to end of previous line (where the join happened)
-                let new_cursor = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
-                request_pane.buffer.set_cursor(new_cursor);
-
-                tracing::debug!("🗑️  Joined lines, new cursor: {:?}", new_cursor);
-
-                // Rebuild display cache since content structure changed
-                let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
-                request_pane.build_display_cache(content_width, self.wrap_enabled);
-
-                // Sync display cursor with new logical position after cache rebuild
-                if let Some(display_pos) = request_pane
-                    .display_cache
-                    .logical_to_display_position(new_cursor.line, new_cursor.column)
-                {
-                    request_pane.display_cursor = display_pos;
-                } else {
-                    // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
-                    tracing::warn!(
-                        "delete_char_before_cursor: logical_to_display_position failed at {:?} - using fallback", 
-                        new_cursor
-                    );
-                    // Fallback: Use logical position as display position (works for non-wrapped content)
-                    request_pane.display_cursor = Position::new(new_cursor.line, new_cursor.column);
-                }
-
-                return vec![
-                    ViewEvent::RequestContentChanged,
-                    ViewEvent::ActiveCursorUpdateRequired,
-                    ViewEvent::CurrentAreaRedrawRequired,
-                ];
+                // Fallback: Use logical position as display position (works for non-wrapped content)
+                request_pane.display_cursor = Position::new(new_cursor.line, new_cursor.column);
             }
         }
-
-        tracing::debug!("🗑️  No deletion performed - at start of buffer or invalid state");
-        vec![] // Nothing to delete (at start of first line)
     }
 
     /// Delete character after cursor in Request pane

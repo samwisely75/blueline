@@ -142,66 +142,84 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // MAIN EVENT LOOP: Handle user input and update display
         while !self.should_quit {
-            // STEP 1: Poll for terminal events with 100ms timeout
-            if self.event_stream.poll(Duration::from_millis(100))? {
-                match self.event_stream.read()? {
-                    Event::Key(key_event) => {
-                        // STEP 2: Keyboard Input Processing Pipeline
-                        tracing::debug!("Received key event: {:?}", key_event);
-
-                        // STEP 2a: Create command context snapshot for command processing
-                        // This snapshot preserves current application state during command evaluation
-                        let context = CommandContext::new(ViewModelSnapshot::from_view_model(
-                            &self.view_model,
-                        ));
-
-                        // STEP 2b: Convert key event to command events via registry
-                        // CommandRegistry translates raw keyboard input into semantic actions
-                        if let Ok(events) = self.command_registry.process_event(key_event, &context)
-                        {
-                            tracing::debug!("Command events generated: {:?}", events);
-                            if !events.is_empty() {
-                                // STEP 2c: Apply command events to ViewModel (business logic layer)
-                                // Each command event modifies application state and emits ViewEvents
-                                for event in events {
-                                    self.apply_command_event(event).await?;
-                                }
-
-                                // STEP 2d: Selective rendering with throttling (view layer)
-                                if !self.should_quit {
-                                    // Throttle rapid rendering to prevent ghost cursors
-                                    let now = std::time::Instant::now();
-                                    let min_render_interval = Duration::from_micros(500);
-
-                                    if now.duration_since(self.last_render_time)
-                                        >= min_render_interval
-                                    {
-                                        let view_events =
-                                            self.view_model.collect_pending_view_events();
-                                        self.process_view_events(view_events)?;
-                                        self.last_render_time = now;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Event::Resize(width, height) => {
-                        // STEP 3: Terminal Resize Handling
-                        // Synchronize both model and view with new terminal dimensions
-                        self.view_model.update_terminal_size(width, height);
-                        self.view_renderer.update_size(width, height);
-                        // Full redraw required after resize to handle layout changes
-                        self.view_renderer.render_full(&self.view_model)?;
-                    }
-                    _ => {
-                        // Ignore other events for now
-                    }
-                }
-            }
+            self.process_next_event().await?;
         }
 
         // Cleanup (all handled by view renderer)
         self.view_renderer.cleanup()?;
+
+        Ok(())
+    }
+
+    /// Process the next terminal event if available
+    async fn process_next_event(&mut self) -> Result<()> {
+        // Poll for terminal events with 100ms timeout
+        if !self.event_stream.poll(Duration::from_millis(100))? {
+            return Ok(());
+        }
+
+        match self.event_stream.read()? {
+            Event::Key(key_event) => self.handle_key_event(key_event).await?,
+            Event::Resize(width, height) => self.handle_resize_event(width, height)?,
+            _ => {} // Ignore other events for now
+        }
+
+        Ok(())
+    }
+
+    /// Handle keyboard input events
+    async fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
+        tracing::debug!("Received key event: {:?}", key_event);
+
+        // Create command context snapshot for command processing
+        let context = CommandContext::new(ViewModelSnapshot::from_view_model(&self.view_model));
+
+        // Convert key event to command events via registry
+        let Ok(events) = self.command_registry.process_event(key_event, &context) else {
+            return Ok(());
+        };
+
+        tracing::debug!("Command events generated: {:?}", events);
+
+        if events.is_empty() {
+            return Ok(());
+        }
+
+        // Apply command events to ViewModel
+        for event in events {
+            self.apply_command_event(event).await?;
+        }
+
+        // Perform throttled rendering if needed
+        if !self.should_quit {
+            self.render_if_needed()?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle terminal resize events
+    fn handle_resize_event(&mut self, width: u16, height: u16) -> Result<()> {
+        // Synchronize both model and view with new terminal dimensions
+        self.view_model.update_terminal_size(width, height);
+        self.view_renderer.update_size(width, height);
+        // Full redraw required after resize to handle layout changes
+        self.view_renderer.render_full(&self.view_model)?;
+        Ok(())
+    }
+
+    /// Perform rendering with throttling to prevent ghost cursors
+    fn render_if_needed(&mut self) -> Result<()> {
+        let now = std::time::Instant::now();
+        let min_render_interval = Duration::from_micros(500);
+
+        if now.duration_since(self.last_render_time) < min_render_interval {
+            return Ok(());
+        }
+
+        let view_events = self.view_model.collect_pending_view_events();
+        self.process_view_events(view_events)?;
+        self.last_render_time = now;
 
         Ok(())
     }
