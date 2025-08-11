@@ -1,6 +1,17 @@
 //! # Buffer Operations
 //!
 //! Handles text insertion, deletion, and buffer content manipulation.
+//!
+//! HIGH-LEVEL LOGIC FLOW:
+//! This module provides the core text editing operations for the REPL editor.
+//! All operations are mode-aware and pane-aware, ensuring text modification
+//! only occurs in appropriate contexts (Insert mode, Request pane).
+//!
+//! ARCHITECTURAL PATTERN:
+//! - Operations validate mode and pane context before execution
+//! - All changes go through PaneManager for proper event emission
+//! - ViewEvents are emitted for selective rendering optimization
+//! - Character-by-character processing maintains semantic consistency
 
 use crate::repl::events::EditorMode;
 use crate::repl::view_models::core::ViewModel;

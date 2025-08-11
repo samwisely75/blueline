@@ -2,6 +2,19 @@
 //!
 //! Handles pane switching, mode changes, and pane-related state management.
 //! Contains the PaneManager struct that encapsulates all pane-related operations.
+//!
+//! HIGH-LEVEL ARCHITECTURE:
+//! PaneManager implements the Manager pattern to encapsulate all pane-related operations:
+//! - Manages Request and Response panes as an array with semantic operations
+//! - Provides high-level pane switching without exposing internal array indices
+//! - Handles terminal dimension updates and pane layout calculations
+//! - Coordinates cursor management, scrolling, and text operations across panes
+//!
+//! CORE RESPONSIBILITIES:
+//! 1. Pane State Management: Maintains mode, cursor position, scroll state for each pane
+//! 2. Layout Calculation: Computes pane dimensions based on terminal size
+//! 3. Semantic Operations: Provides request/response-specific operations without array access
+//! 4. Event Coordination: Emits ViewEvents for selective rendering optimizations
 
 use crate::repl::events::{EditorMode, LogicalPosition, LogicalRange, Pane, ViewEvent};
 use crate::repl::geometry::Position;
@@ -16,6 +29,11 @@ type VisualSelectionState = (
 
 /// PaneManager encapsulates all pane-related state and operations
 /// This eliminates the need for array indexing operations throughout the codebase
+///
+/// HIGH-LEVEL DESIGN PATTERN:
+/// Implements encapsulation by hiding the panes array and providing semantic operations.
+/// All external access goes through method calls that handle array indexing internally,
+/// improving type safety and preventing index-related bugs throughout the application.
 #[derive(Debug)]
 pub struct PaneManager {
     panes: [PaneState; 2], // Private - no external access
@@ -27,6 +45,13 @@ pub struct PaneManager {
 
 impl PaneManager {
     /// Create a new PaneManager with default state
+    ///
+    /// HIGH-LEVEL INITIALIZATION:
+    /// Sets up the two-pane layout with calculated dimensions:
+    /// 1. Computes content width accounting for line numbers (4 chars)
+    /// 2. Splits terminal height between request and response panes
+    /// 3. Reserves space for separator and status bar
+    /// 4. Initializes both panes with proper display caches
     pub fn new(terminal_dimensions: (u16, u16)) -> Self {
         // Build initial display caches
         let content_width = (terminal_dimensions.0 as usize).saturating_sub(4); // Account for line numbers

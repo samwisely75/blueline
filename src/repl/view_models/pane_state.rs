@@ -2,6 +2,24 @@
 //!
 //! Contains the PaneState struct and its implementations for managing individual pane state.
 //! This includes scrolling, cursor positioning, word navigation, and display cache management.
+//!
+//! HIGH-LEVEL ARCHITECTURE:
+//! PaneState encapsulates all state and operations for a single editor pane:
+//! - Manages cursor position in both logical and display coordinates
+//! - Handles horizontal and vertical scrolling with bounds checking
+//! - Coordinates text operations with DisplayCache for proper wrapping
+//! - Maintains editor mode state and line number width calculations
+//!
+//! CORE RESPONSIBILITIES:
+//! 1. Cursor Management: Tracks logical position and converts to display coordinates
+//! 2. Scroll Coordination: Maintains viewport position and cursor visibility
+//! 3. Text Operations: Handles character insertion/deletion with proper event emission
+//! 4. Display Integration: Works with DisplayCache for text wrapping and rendering
+//!
+//! CRITICAL ARCHITECTURAL DECISION:
+//! PaneState eliminates feature envy by keeping all pane-specific logic centralized.
+//! Previously scattered across multiple classes, this consolidation improves maintainability
+//! and follows the Single Responsibility Principle.
 
 use crate::repl::events::{EditorMode, LogicalPosition, Pane};
 use crate::repl::geometry::{Dimensions, Position};
@@ -51,6 +69,15 @@ pub struct ScrollAdjustResult {
 }
 
 /// State container for a single pane (Request or Response)
+///
+/// HIGH-LEVEL DESIGN:
+/// This struct aggregates all state needed for a single editor pane:
+/// - BufferModel: Contains the actual text content and logical operations
+/// - DisplayCache: Handles text wrapping and display line calculations  
+/// - Position tracking: Maintains both logical and display cursor coordinates
+/// - Scroll management: Tracks viewport offset for large content navigation
+/// - Visual selection: Supports Vim-style visual mode selections
+/// - Mode state: Each pane maintains its own editor mode independently
 #[derive(Debug, Clone)]
 pub struct PaneState {
     pub buffer: BufferModel,
