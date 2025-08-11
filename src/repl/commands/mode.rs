@@ -215,9 +215,7 @@ impl Command for ExCommandModeCommand {
             }
             KeyCode::Backspace => Ok(vec![CommandEvent::ExCommandBackspaceRequested]),
             KeyCode::Enter => Ok(vec![CommandEvent::ExCommandExecuteRequested]),
-            KeyCode::Esc => Ok(vec![CommandEvent::ModeChangeRequested {
-                new_mode: EditorMode::Normal,
-            }]),
+            KeyCode::Esc => Ok(vec![CommandEvent::restore_previous_mode()]),
             _ => Ok(vec![]),
         }
     }
@@ -373,12 +371,7 @@ mod tests {
 
         let result = cmd.execute(event, &context).unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(
-            result[0],
-            CommandEvent::ModeChangeRequested {
-                new_mode: EditorMode::Normal
-            }
-        );
+        assert_eq!(result[0], CommandEvent::restore_previous_mode());
     }
 
     #[test]

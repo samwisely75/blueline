@@ -38,6 +38,9 @@ pub struct StatusLine {
     /// Current editor mode
     editor_mode: EditorMode,
 
+    /// Previous editor mode (for restoring after command cancellation)
+    previous_mode: EditorMode,
+
     /// Current pane and cursor position
     current_pane: Pane,
     cursor_position: LogicalPosition,
@@ -65,6 +68,7 @@ impl StatusLine {
             profile_name: "default".to_string(),
             profile_path: "~/.blueline/profile".to_string(),
             editor_mode: EditorMode::Normal,
+            previous_mode: EditorMode::Normal,
             current_pane: Pane::Request,
             cursor_position: LogicalPosition::zero(),
             is_executing: false,
@@ -174,12 +178,18 @@ impl StatusLine {
 
     /// Set editor mode
     pub fn set_editor_mode(&mut self, mode: EditorMode) {
+        self.previous_mode = self.editor_mode;
         self.editor_mode = mode;
     }
 
     /// Get editor mode
     pub fn editor_mode(&self) -> EditorMode {
         self.editor_mode
+    }
+
+    /// Get previous editor mode
+    pub fn previous_mode(&self) -> EditorMode {
+        self.previous_mode
     }
 
     /// Set current pane
@@ -323,6 +333,11 @@ mod tests {
 
         status.set_editor_mode(EditorMode::Insert);
         assert_eq!(status.editor_mode(), EditorMode::Insert);
+        assert_eq!(status.previous_mode(), EditorMode::Normal); // Previous mode should be tracked
+
+        status.set_editor_mode(EditorMode::Visual);
+        assert_eq!(status.editor_mode(), EditorMode::Visual);
+        assert_eq!(status.previous_mode(), EditorMode::Insert); // Previous mode should update
 
         status.set_current_pane(Pane::Response);
         assert_eq!(status.current_pane(), Pane::Response);

@@ -19,6 +19,11 @@ impl ViewModel {
         self.mode()
     }
 
+    /// Get previous editor mode
+    pub fn get_previous_mode(&self) -> EditorMode {
+        self.status_line.previous_mode()
+    }
+
     /// Change editor mode for the current active pane
     pub fn change_mode(&mut self, mode: EditorMode) -> Result<()> {
         // Get current mode from the active pane
