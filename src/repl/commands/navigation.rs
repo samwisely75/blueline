@@ -388,6 +388,12 @@ pub struct PageDownCommand;
 /// Page up navigation (Ctrl+b)
 pub struct PageUpCommand;
 
+/// Half page down navigation (Ctrl+d)
+pub struct HalfPageDownCommand;
+
+/// Half page up navigation (Ctrl+u)
+pub struct HalfPageUpCommand;
+
 impl Command for PageDownCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         let is_ctrl_f = matches!(event.code, KeyCode::Char('f'))
@@ -451,6 +457,76 @@ impl Command for PageUpCommand {
 
     fn name(&self) -> &'static str {
         "PageUp"
+    }
+}
+
+impl Command for HalfPageDownCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        let is_ctrl_d = matches!(event.code, KeyCode::Char('d'))
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && !event.modifiers.contains(KeyModifiers::SHIFT)
+            && !event.modifiers.contains(KeyModifiers::ALT);
+
+        let is_normal_or_visual_mode = context.state.current_mode == EditorMode::Normal
+            || context.state.current_mode == EditorMode::Visual;
+
+        let is_relevant = is_ctrl_d && is_normal_or_visual_mode;
+
+        if is_ctrl_d {
+            tracing::debug!(
+                "HalfPageDownCommand.is_relevant(): ctrl+d={}, mode={:?}, result={}",
+                is_ctrl_d,
+                context.state.current_mode,
+                is_relevant
+            );
+        }
+
+        is_relevant
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(
+            MovementDirection::HalfPageDown,
+        )])
+    }
+
+    fn name(&self) -> &'static str {
+        "HalfPageDown"
+    }
+}
+
+impl Command for HalfPageUpCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        let is_ctrl_u = matches!(event.code, KeyCode::Char('u'))
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && !event.modifiers.contains(KeyModifiers::SHIFT)
+            && !event.modifiers.contains(KeyModifiers::ALT);
+
+        let is_normal_or_visual_mode = context.state.current_mode == EditorMode::Normal
+            || context.state.current_mode == EditorMode::Visual;
+
+        let is_relevant = is_ctrl_u && is_normal_or_visual_mode;
+
+        if is_ctrl_u {
+            tracing::debug!(
+                "HalfPageUpCommand.is_relevant(): ctrl+u={}, mode={:?}, result={}",
+                is_ctrl_u,
+                context.state.current_mode,
+                is_relevant
+            );
+        }
+
+        is_relevant
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(
+            MovementDirection::HalfPageUp,
+        )])
+    }
+
+    fn name(&self) -> &'static str {
+        "HalfPageUp"
     }
 }
 

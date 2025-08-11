@@ -1902,6 +1902,298 @@ impl PaneManager {
         events
     }
 
+    /// Move cursor down half a page (Ctrl+d)
+    pub fn move_cursor_half_page_down(&mut self) -> Vec<ViewEvent> {
+        let current_pane_state = &self.panes[self.current_pane];
+        let display_cache = &current_pane_state.display_cache;
+        let max_line_count = display_cache.display_line_count();
+
+        if max_line_count == 0 {
+            return vec![]; // No lines to navigate
+        }
+
+        // Calculate half page size based on current pane height
+        let page_size = current_pane_state.pane_dimensions.height;
+        if page_size == 0 {
+            return vec![];
+        }
+        let half_page_size = page_size.div_ceil(2); // Round up for odd numbers
+
+        let current_line = current_pane_state.display_cursor.row;
+
+        // Move cursor down by half_page_size, but don't go beyond the last line
+        let new_line = (current_line + half_page_size).min(max_line_count - 1);
+
+        // If we're already at the bottom, don't move
+        if new_line == current_line {
+            return vec![];
+        }
+
+        tracing::debug!(
+            "HalfPageDown: current_line={}, half_page_size={}, new_line={}, max_lines={}",
+            current_line,
+            half_page_size,
+            new_line,
+            max_line_count
+        );
+
+        // Get the display line at the target position to check its width
+        let target_display_line = if let Some(display_line) =
+            current_pane_state.display_cache.get_display_line(new_line)
+        {
+            display_line
+        } else {
+            // Fallback: if we can't get the display line, just use column 0
+            let new_display_pos = Position::new(new_line, 0);
+            self.panes[self.current_pane].display_cursor = new_display_pos;
+
+            // Still need to sync logical cursor
+            if let Some(logical_pos) = self.panes[self.current_pane]
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.panes[self.current_pane]
+                    .buffer
+                    .set_cursor(new_logical_pos);
+
+                if self.panes[self.current_pane]
+                    .visual_selection_start
+                    .is_some()
+                {
+                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                    tracing::debug!(
+                        "HalfPageDown updated visual selection end to {:?}",
+                        new_logical_pos
+                    );
+                }
+            }
+
+            let mut events = vec![
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::PositionIndicatorUpdateRequired,
+            ];
+
+            let content_width = self.get_content_width();
+            let visibility_events = self.ensure_current_cursor_visible(content_width);
+            events.extend(visibility_events);
+
+            return events;
+        };
+
+        // Vim-style virtual column: try to restore the desired column position
+        let current_mode = current_pane_state.editor_mode;
+        let virtual_col = current_pane_state.virtual_column;
+        let line_char_count = target_display_line.char_count();
+
+        // Clamp virtual column to the length of the target line to prevent cursor going beyond line end
+        // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
+        let max_col = if current_mode == EditorMode::Insert {
+            line_char_count // Insert mode: can be positioned after last character
+        } else {
+            line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+        };
+        let clamped_col = virtual_col.min(max_col);
+
+        // CRITICAL FIX: Snap to character boundary to handle DBCS characters
+        let boundary_snapped_col = target_display_line.snap_to_character_boundary(clamped_col);
+
+        tracing::debug!(
+            "HalfPageDown: line_char_count={}, max_col={}, virtual_col={}, current_col={}, clamped_col={}, boundary_snapped_col={}",
+            line_char_count,
+            max_col,
+            virtual_col,
+            current_pane_state.display_cursor.col,
+            clamped_col,
+            boundary_snapped_col
+        );
+
+        // Set new display cursor position with DBCS boundary-snapped column
+        let new_display_pos = Position::new(new_line, boundary_snapped_col);
+        self.panes[self.current_pane].display_cursor = new_display_pos;
+
+        // Sync logical cursor with new display position
+        if let Some(logical_pos) = self.panes[self.current_pane]
+            .display_cache
+            .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+        {
+            let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+            self.panes[self.current_pane]
+                .buffer
+                .set_cursor(new_logical_pos);
+
+            // Update visual selection if active
+            if self.panes[self.current_pane]
+                .visual_selection_start
+                .is_some()
+            {
+                self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                tracing::debug!(
+                    "HalfPageDown updated visual selection end to {:?}",
+                    new_logical_pos
+                );
+            }
+        }
+
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
+        events
+    }
+
+    /// Move cursor up half a page (Ctrl+u)
+    pub fn move_cursor_half_page_up(&mut self) -> Vec<ViewEvent> {
+        let current_pane_state = &self.panes[self.current_pane];
+        let display_cache = &current_pane_state.display_cache;
+        let max_line_count = display_cache.display_line_count();
+
+        if max_line_count == 0 {
+            return vec![]; // No lines to navigate
+        }
+
+        // Calculate half page size based on current pane height
+        let page_size = current_pane_state.pane_dimensions.height;
+        if page_size == 0 {
+            return vec![];
+        }
+        let half_page_size = page_size.div_ceil(2); // Round up for odd numbers
+
+        let current_line = current_pane_state.display_cursor.row;
+
+        // Move cursor up by half_page_size, but don't go before the first line
+        let new_line = current_line.saturating_sub(half_page_size);
+
+        // If we're already at the top, don't move
+        if new_line == current_line {
+            return vec![];
+        }
+
+        tracing::debug!(
+            "HalfPageUp: current_line={}, half_page_size={}, new_line={}, max_lines={}",
+            current_line,
+            half_page_size,
+            new_line,
+            max_line_count
+        );
+
+        // Get the display line at the target position to check its width
+        let target_display_line = if let Some(display_line) =
+            current_pane_state.display_cache.get_display_line(new_line)
+        {
+            display_line
+        } else {
+            // Fallback: if we can't get the display line, just use column 0
+            let new_display_pos = Position::new(new_line, 0);
+            self.panes[self.current_pane].display_cursor = new_display_pos;
+
+            // Still need to sync logical cursor
+            if let Some(logical_pos) = self.panes[self.current_pane]
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.panes[self.current_pane]
+                    .buffer
+                    .set_cursor(new_logical_pos);
+
+                if self.panes[self.current_pane]
+                    .visual_selection_start
+                    .is_some()
+                {
+                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                    tracing::debug!(
+                        "HalfPageUp updated visual selection end to {:?}",
+                        new_logical_pos
+                    );
+                }
+            }
+
+            let mut events = vec![
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::PositionIndicatorUpdateRequired,
+            ];
+
+            let content_width = self.get_content_width();
+            let visibility_events = self.ensure_current_cursor_visible(content_width);
+            events.extend(visibility_events);
+
+            return events;
+        };
+
+        // Vim-style virtual column: try to restore the desired column position
+        let current_mode = current_pane_state.editor_mode;
+        let virtual_col = current_pane_state.virtual_column;
+        let line_char_count = target_display_line.char_count();
+
+        // Clamp virtual column to the length of the target line to prevent cursor going beyond line end
+        // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
+        let max_col = if current_mode == EditorMode::Insert {
+            line_char_count // Insert mode: can be positioned after last character
+        } else {
+            line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+        };
+        let clamped_col = virtual_col.min(max_col);
+
+        // CRITICAL FIX: Snap to character boundary to handle DBCS characters
+        let boundary_snapped_col = target_display_line.snap_to_character_boundary(clamped_col);
+
+        tracing::debug!(
+            "HalfPageUp: line_char_count={}, max_col={}, virtual_col={}, current_col={}, clamped_col={}, boundary_snapped_col={}",
+            line_char_count,
+            max_col,
+            virtual_col,
+            current_pane_state.display_cursor.col,
+            clamped_col,
+            boundary_snapped_col
+        );
+
+        // Set new display cursor position with DBCS boundary-snapped column
+        let new_display_pos = Position::new(new_line, boundary_snapped_col);
+        self.panes[self.current_pane].display_cursor = new_display_pos;
+
+        // Sync logical cursor with new display position
+        if let Some(logical_pos) = self.panes[self.current_pane]
+            .display_cache
+            .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+        {
+            let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+            self.panes[self.current_pane]
+                .buffer
+                .set_cursor(new_logical_pos);
+
+            // Update visual selection if active
+            if self.panes[self.current_pane]
+                .visual_selection_start
+                .is_some()
+            {
+                self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                tracing::debug!(
+                    "HalfPageUp updated visual selection end to {:?}",
+                    new_logical_pos
+                );
+            }
+        }
+
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
+        events
+    }
+
     /// Calculate pane boundaries for rendering
     /// Returns (request_height, response_start, response_height)
     #[allow(clippy::type_complexity)]

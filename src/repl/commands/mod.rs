@@ -59,9 +59,10 @@ pub use mode::{
 };
 pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
-    GoToBottomCommand, GoToTopCommand, HomeKeyCommand, MoveCursorDownCommand,
-    MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand, NextWordCommand,
-    PageDownCommand, PageUpCommand, PreviousWordCommand, ScrollLeftCommand, ScrollRightCommand,
+    GoToBottomCommand, GoToTopCommand, HalfPageDownCommand, HalfPageUpCommand, HomeKeyCommand,
+    MoveCursorDownCommand, MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand,
+    NextWordCommand, PageDownCommand, PageUpCommand, PreviousWordCommand, ScrollLeftCommand,
+    ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -92,6 +93,8 @@ impl CommandRegistry {
             // Pagination commands (high priority - Ctrl+key combinations)
             Box::new(PageDownCommand),
             Box::new(PageUpCommand),
+            Box::new(HalfPageDownCommand),
+            Box::new(HalfPageUpCommand),
             // Movement commands
             Box::new(MoveCursorLeftCommand),
             Box::new(MoveCursorRightCommand),
@@ -401,5 +404,67 @@ mod tests {
                 amount: 1
             }
         ));
+    }
+
+    #[test]
+    fn registry_should_handle_ctrl_d_half_page_down_command() {
+        let registry = CommandRegistry::new();
+        let context = create_test_context();
+
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+        let events = registry.process_event(event, &context).unwrap();
+
+        // Should produce a half page down cursor movement event
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            events[0],
+            CommandEvent::CursorMoveRequested {
+                direction: MovementDirection::HalfPageDown,
+                amount: 1
+            }
+        ));
+    }
+
+    #[test]
+    fn registry_should_handle_ctrl_u_half_page_up_command() {
+        let registry = CommandRegistry::new();
+        let context = create_test_context();
+
+        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+        let events = registry.process_event(event, &context).unwrap();
+
+        // Should produce a half page up cursor movement event
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            events[0],
+            CommandEvent::CursorMoveRequested {
+                direction: MovementDirection::HalfPageUp,
+                amount: 1
+            }
+        ));
+    }
+
+    #[test]
+    fn registry_should_not_handle_regular_d_as_half_page_down() {
+        let registry = CommandRegistry::new();
+        let context = create_test_context();
+
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
+        let events = registry.process_event(event, &context).unwrap();
+
+        // Should not produce any events (regular 'd' has no command in Normal mode)
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn registry_should_not_handle_regular_u_as_half_page_up() {
+        let registry = CommandRegistry::new();
+        let context = create_test_context();
+
+        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::empty());
+        let events = registry.process_event(event, &context).unwrap();
+
+        // Should not produce any events (regular 'u' has no command in Normal mode)
+        assert!(events.is_empty());
     }
 }
