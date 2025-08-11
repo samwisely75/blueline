@@ -473,8 +473,13 @@ impl DisplayLine {
 
         for display_char in &self.chars {
             // POSITION CHECK: Have we reached the target logical index?
-            // Example: logical_index=2 → stop before char at logical_index=2, return display_col
-            if display_char.buffer_char.logical_index >= logical_index {
+            // Convert absolute logical_index to relative by comparing with relative position
+            // Example: logical_index=2, display_char at absolute pos 44, logical_start_col=44 → relative_pos=0
+            let relative_pos = display_char
+                .buffer_char
+                .logical_index
+                .saturating_sub(self.logical_start_col);
+            if relative_pos >= logical_index {
                 return display_col;
             }
             display_col += display_char.display_width();

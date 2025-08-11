@@ -222,21 +222,74 @@ impl PaneState {
             }];
         }
 
-        let mut segments = Vec::new();
-        let chars: Vec<char> = line.chars().collect();
-        let mut start = 0;
+        // Convert line to BufferChars for accurate display width calculation
+        use crate::repl::models::buffer_char::BufferLine;
+        let buffer_line = BufferLine::from_string(line);
+        let buffer_chars = buffer_line.chars();
 
-        while start < chars.len() {
-            let end = (start + content_width).min(chars.len());
-            let segment_content: String = chars[start..end].iter().collect();
+        let mut segments = Vec::new();
+        let mut current_char_pos = 0;
+        let total_chars = buffer_chars.len();
+
+        while current_char_pos < total_chars {
+            let mut current_display_width = 0;
+            let mut segment_end_char_pos = current_char_pos;
+            let mut last_word_boundary_char_pos = None;
+
+            // Find how many characters fit within content_width display columns
+            while segment_end_char_pos < total_chars && current_display_width < content_width {
+                let buffer_char = &buffer_chars[segment_end_char_pos];
+                use unicode_width::UnicodeWidthChar;
+                let char_display_width = UnicodeWidthChar::width(buffer_char.ch).unwrap_or(0);
+
+                // Check if adding this character would exceed the content width
+                if current_display_width + char_display_width > content_width {
+                    break;
+                }
+
+                // Mark word boundaries for better wrapping
+                if buffer_char.ch.is_whitespace() {
+                    last_word_boundary_char_pos = Some(segment_end_char_pos + 1);
+                }
+
+                current_display_width += char_display_width;
+                segment_end_char_pos += 1;
+            }
+
+            // If we haven't advanced and we're not at the last character, force advance by one
+            // to prevent infinite loops with zero-width characters
+            if segment_end_char_pos == current_char_pos && current_char_pos < total_chars {
+                segment_end_char_pos = current_char_pos + 1;
+            }
+
+            // Try to break at word boundary if possible (only if we have more characters to process)
+            let actual_end = if segment_end_char_pos < total_chars {
+                if let Some(word_boundary) = last_word_boundary_char_pos {
+                    if word_boundary > current_char_pos {
+                        word_boundary
+                    } else {
+                        segment_end_char_pos
+                    }
+                } else {
+                    segment_end_char_pos
+                }
+            } else {
+                segment_end_char_pos
+            };
+
+            // Extract the segment content
+            let segment_content: String = buffer_chars[current_char_pos..actual_end]
+                .iter()
+                .map(|bc| bc.ch)
+                .collect();
 
             segments.push(WrappedSegment {
                 content: segment_content,
-                logical_start: start,
-                logical_end: end,
+                logical_start: current_char_pos,
+                logical_end: actual_end,
             });
 
-            start = end;
+            current_char_pos = actual_end;
         }
 
         if segments.is_empty() {
@@ -426,83 +479,93 @@ impl PaneState {
         }
 
         // Horizontal scrolling
-        // The visible range is from old_horizontal_offset to (old_horizontal_offset + content_width - 1)
-        // For example, if offset=0 and width=112, visible columns are 0-111
-        // HOWEVER, when wrap is enabled and we're on a wrapped line, position content_width (e.g., 112)
-        // represents the cursor being just after the last character, which should NOT trigger scrolling
-        // as it will wrap to the next line
-        if display_pos.col < old_horizontal_offset {
-            new_horizontal_offset = display_pos.col;
-            tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen left, adjusting horizontal offset to {}", new_horizontal_offset);
-        } else if content_width > 0 {
-            // MODE-AWARE HORIZONTAL SCROLL: Different trigger points for Insert vs Normal mode
-            // Also check if the character at cursor position extends beyond the visible area
-            let mut should_scroll_horizontally = match self.editor_mode {
-                EditorMode::Insert => {
-                    // Insert mode: Scroll early to make room for typing next character
-                    display_pos.col >= old_horizontal_offset + content_width
-                }
-                _ => {
-                    // Normal/Visual mode: Only scroll when absolutely necessary
-                    display_pos.col > old_horizontal_offset + content_width
-                }
-            };
+        // WRAP MODE FIX: When wrap is enabled, disable horizontal scrolling completely
+        // Content should flow to multiple display lines instead of requiring horizontal scrolling
+        if self.display_cache.wrap_enabled {
+            // Reset horizontal offset to 0 when wrap mode is enabled
+            new_horizontal_offset = 0;
+            tracing::debug!("PaneState::ensure_cursor_visible: wrap mode enabled, resetting horizontal offset to 0");
+        } else {
+            // NOWRAP MODE: Normal horizontal scrolling behavior
+            // The visible range is from old_horizontal_offset to (old_horizontal_offset + content_width - 1)
+            // For example, if offset=0 and width=112, visible columns are 0-111
+            if display_pos.col < old_horizontal_offset {
+                new_horizontal_offset = display_pos.col;
+                tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen left, adjusting horizontal offset to {}", new_horizontal_offset);
+            } else if content_width > 0 {
+                // MODE-AWARE HORIZONTAL SCROLL: Different trigger points for Insert vs Normal mode
+                // Also check if the character at cursor position extends beyond the visible area
+                let mut should_scroll_horizontally = match self.editor_mode {
+                    EditorMode::Insert => {
+                        // Insert mode: Scroll early to make room for typing next character
+                        display_pos.col >= old_horizontal_offset + content_width
+                    }
+                    _ => {
+                        // Normal/Visual mode: Only scroll when absolutely necessary
+                        display_pos.col > old_horizontal_offset + content_width
+                    }
+                };
 
-            // DOUBLE-BYTE CHARACTER FIX: Check if the character at cursor position
-            // extends beyond the visible area (for double-byte characters)
-            // This handles the case where cursor is at the edge and the character is wider than 1 column
-            if !should_scroll_horizontally {
-                if let Some(display_line) = self.display_cache.get_display_line(display_pos.row) {
-                    if let Some(char_at_cursor) = display_line.char_at_display_col(display_pos.col)
+                // DOUBLE-BYTE CHARACTER FIX: Check if the character at cursor position
+                // extends beyond the visible area (for double-byte characters)
+                // This handles the case where cursor is at the edge and the character is wider than 1 column
+                if !should_scroll_horizontally {
+                    if let Some(display_line) = self.display_cache.get_display_line(display_pos.row)
                     {
-                        let char_width = char_at_cursor.display_width();
-                        // If the character extends beyond the visible area, trigger scrolling
-                        // This includes when cursor is exactly at the boundary but character is 2-wide
-                        if display_pos.col + char_width > old_horizontal_offset + content_width {
-                            should_scroll_horizontally = true;
+                        if let Some(char_at_cursor) =
+                            display_line.char_at_display_col(display_pos.col)
+                        {
+                            let char_width = char_at_cursor.display_width();
+                            // If the character extends beyond the visible area, trigger scrolling
+                            // This includes when cursor is exactly at the boundary but character is 2-wide
+                            if display_pos.col + char_width > old_horizontal_offset + content_width
+                            {
+                                should_scroll_horizontally = true;
+                            }
                         }
                     }
                 }
-            }
 
-            if should_scroll_horizontally {
-                // DISPLAY-COLUMN-AWARE HORIZONTAL SCROLL: Calculate the actual display columns needed
-                // to make the cursor visible, accounting for DBCS character widths
+                if should_scroll_horizontally {
+                    // DISPLAY-COLUMN-AWARE HORIZONTAL SCROLL: Calculate the actual display columns needed
+                    // to make the cursor visible, accounting for DBCS character widths
 
-                // CHARACTER-WIDTH-AWARE HORIZONTAL SCROLL: When scrolling, we need to scroll past
-                // complete characters, accounting for their actual display widths
-                let min_scroll_needed = display_pos
-                    .col
-                    .saturating_sub(content_width.saturating_sub(1));
+                    // CHARACTER-WIDTH-AWARE HORIZONTAL SCROLL: When scrolling, we need to scroll past
+                    // complete characters, accounting for their actual display widths
+                    let min_scroll_needed = display_pos
+                        .col
+                        .saturating_sub(content_width.saturating_sub(1));
 
-                // CHARACTER-WIDTH-BASED SCROLL: Calculate total width of characters to scroll past
-                // We need to scroll by enough complete characters to satisfy min_scroll_needed
-                if let Some(display_line) = self.display_cache.get_display_line(display_pos.row) {
-                    let mut accumulated_width = 0;
-                    let mut check_col = old_horizontal_offset;
+                    // CHARACTER-WIDTH-BASED SCROLL: Calculate total width of characters to scroll past
+                    // We need to scroll by enough complete characters to satisfy min_scroll_needed
+                    if let Some(display_line) = self.display_cache.get_display_line(display_pos.row)
+                    {
+                        let mut accumulated_width = 0;
+                        let mut check_col = old_horizontal_offset;
 
-                    // Keep scrolling past complete characters until we've scrolled enough
-                    while accumulated_width < min_scroll_needed {
-                        if let Some(char_at_col) = display_line.char_at_display_col(check_col) {
-                            let char_width = char_at_col.display_width();
-                            accumulated_width += char_width;
-                            check_col += char_width;
+                        // Keep scrolling past complete characters until we've scrolled enough
+                        while accumulated_width < min_scroll_needed {
+                            if let Some(char_at_col) = display_line.char_at_display_col(check_col) {
+                                let char_width = char_at_col.display_width();
+                                accumulated_width += char_width;
+                                check_col += char_width;
 
-                            tracing::debug!("PaneState::ensure_cursor_visible: scrolling past char '{}' width={}, accumulated={}", 
+                                tracing::debug!("PaneState::ensure_cursor_visible: scrolling past char '{}' width={}, accumulated={}", 
                                 char_at_col.ch(), char_width, accumulated_width);
-                        } else {
-                            // No more characters, use what we have
-                            break;
+                            } else {
+                                // No more characters, use what we have
+                                break;
+                            }
                         }
-                    }
 
-                    new_horizontal_offset = old_horizontal_offset + accumulated_width;
-                    tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen at pos {}, need to scroll {}, scrolling {} from {} to {}", 
+                        new_horizontal_offset = old_horizontal_offset + accumulated_width;
+                        tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen at pos {}, need to scroll {}, scrolling {} from {} to {}", 
                         display_pos.col, min_scroll_needed, accumulated_width, old_horizontal_offset, new_horizontal_offset);
-                } else {
-                    // Fallback: no display line found
-                    new_horizontal_offset = old_horizontal_offset + min_scroll_needed;
-                    tracing::debug!("PaneState::ensure_cursor_visible: no display line found, using min_scroll_needed={}", min_scroll_needed);
+                    } else {
+                        // Fallback: no display line found
+                        new_horizontal_offset = old_horizontal_offset + min_scroll_needed;
+                        tracing::debug!("PaneState::ensure_cursor_visible: no display line found, using min_scroll_needed={}", min_scroll_needed);
+                    }
                 }
             }
         }
