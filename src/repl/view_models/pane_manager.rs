@@ -1755,6 +1755,153 @@ impl PaneManager {
         events
     }
 
+    /// Move cursor up one page (Ctrl+b)
+    pub fn move_cursor_page_up(&mut self) -> Vec<ViewEvent> {
+        let current_pane_state = &self.panes[self.current_pane];
+        let display_cache = &current_pane_state.display_cache;
+        let max_line_count = display_cache.display_line_count();
+
+        if max_line_count == 0 {
+            return vec![]; // No lines to navigate
+        }
+
+        // Calculate page size based on current pane height
+        let page_size = current_pane_state.pane_dimensions.height;
+        if page_size == 0 {
+            return vec![];
+        }
+
+        let current_line = current_pane_state.display_cursor.row;
+
+        // Move cursor up by page_size, but don't go below line 0
+        let new_line = current_line.saturating_sub(page_size);
+
+        // If we're already at the top, don't move
+        if new_line == current_line {
+            return vec![];
+        }
+
+        tracing::debug!(
+            "PageUp: current_line={}, page_size={}, new_line={}",
+            current_line,
+            page_size,
+            new_line
+        );
+
+        // Get the display line at the target position to check its width
+        let target_display_line = if let Some(display_line) =
+            current_pane_state.display_cache.get_display_line(new_line)
+        {
+            display_line
+        } else {
+            // Fallback: if we can't get the display line, just use column 0
+            let new_display_pos = Position::new(new_line, 0);
+            self.panes[self.current_pane].display_cursor = new_display_pos;
+
+            // Still need to sync logical cursor
+            if let Some(logical_pos) = self.panes[self.current_pane]
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.panes[self.current_pane]
+                    .buffer
+                    .set_cursor(new_logical_pos);
+
+                if self.panes[self.current_pane]
+                    .visual_selection_start
+                    .is_some()
+                {
+                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                    tracing::debug!(
+                        "PageUp updated visual selection end to {:?}",
+                        new_logical_pos
+                    );
+                }
+            }
+
+            let mut events = vec![
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::PositionIndicatorUpdateRequired,
+            ];
+
+            let content_width = self.get_content_width();
+            let visibility_events = self.ensure_current_cursor_visible(content_width);
+            events.extend(visibility_events);
+
+            return events;
+        };
+
+        // Vim-style virtual column: try to restore the desired column position
+        // Instead of using current column, use the virtual column (desired position)
+        let current_mode = current_pane_state.editor_mode;
+        let virtual_col = current_pane_state.virtual_column;
+        let line_char_count = target_display_line.char_count();
+
+        // Clamp virtual column to the length of the target line to prevent cursor going beyond line end
+        // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
+        let max_col = if current_mode == EditorMode::Insert {
+            line_char_count // Insert mode: can be positioned after last character
+        } else {
+            line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+        };
+        let clamped_col = virtual_col.min(max_col);
+
+        // CRITICAL FIX: Snap to character boundary to handle DBCS characters
+        // If the virtual column lands in the middle of a double-byte character,
+        // we need to pull it back to the start of that character
+        let boundary_snapped_col = target_display_line.snap_to_character_boundary(clamped_col);
+
+        tracing::debug!(
+            "PageUp: line_char_count={}, max_col={}, virtual_col={}, current_col={}, clamped_col={}, boundary_snapped_col={}",
+            line_char_count,
+            max_col,
+            virtual_col,
+            current_pane_state.display_cursor.col,
+            clamped_col,
+            boundary_snapped_col
+        );
+
+        // Set new display cursor position with DBCS boundary-snapped column
+        let new_display_pos = Position::new(new_line, boundary_snapped_col);
+        self.panes[self.current_pane].display_cursor = new_display_pos;
+
+        // Sync logical cursor with new display position
+        if let Some(logical_pos) = self.panes[self.current_pane]
+            .display_cache
+            .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+        {
+            let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+            self.panes[self.current_pane]
+                .buffer
+                .set_cursor(new_logical_pos);
+
+            // Update visual selection if active
+            if self.panes[self.current_pane]
+                .visual_selection_start
+                .is_some()
+            {
+                self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
+                tracing::debug!(
+                    "PageUp updated visual selection end to {:?}",
+                    new_logical_pos
+                );
+            }
+        }
+
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
+        events
+    }
+
     /// Calculate pane boundaries for rendering
     /// Returns (request_height, response_start, response_height)
     #[allow(clippy::type_complexity)]
@@ -2065,6 +2212,192 @@ mod tests {
         );
 
         tracing::debug!("Virtual column behavior test completed successfully");
+    }
+
+    // Tests for move_cursor_page_up functionality
+    #[test]
+    fn move_cursor_page_up_should_work() {
+        let mut manager = PaneManager::new((80, 24));
+
+        // Set up content with many lines to test page up functionality
+        let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10\nLine 11\nLine 12\nLine 13\nLine 14\nLine 15\nLine 16\nLine 17\nLine 18\nLine 19\nLine 20\nLine 21\nLine 22\nLine 23\nLine 24\nLine 25\nLine 26\nLine 27\nLine 28\nLine 29\nLine 30";
+        manager.set_request_content(content);
+
+        // Rebuild display caches to ensure content is processed
+        let content_width = manager.get_content_width();
+        manager.rebuild_display_caches(content_width);
+
+        // Position cursor near the end of content (line 25)
+        let start_line = 25;
+        manager.panes[manager.current_pane].display_cursor = Position::new(start_line, 0);
+
+        // Update virtual column and sync logical cursor
+        manager.panes[manager.current_pane].update_virtual_column();
+        if let Some(logical_pos) = manager.panes[manager.current_pane]
+            .display_cache
+            .display_to_logical_position(start_line, 0)
+        {
+            let logical_position = LogicalPosition::new(logical_pos.row, logical_pos.col);
+            manager.panes[manager.current_pane]
+                .buffer
+                .set_cursor(logical_position);
+        }
+
+        let initial_cursor = manager.get_current_cursor_position();
+        assert_eq!(initial_cursor.line, start_line);
+        assert_eq!(initial_cursor.column, 0);
+
+        // Debug: check line count and pane height
+        let line_count = manager.panes[manager.current_pane]
+            .display_cache
+            .display_line_count();
+        let pane_height = manager.panes[manager.current_pane].pane_dimensions.height;
+        tracing::debug!(
+            "Test page up: start_line={}, pane_height={}, line_count={}",
+            start_line,
+            pane_height,
+            line_count
+        );
+
+        // Perform page up
+        let events = manager.move_cursor_page_up();
+
+        // Should have generated events for cursor update
+        assert!(
+            !events.is_empty(),
+            "Expected events for page up but got none. pane_height={pane_height}, line_count={line_count}"
+        );
+        assert!(events.iter().any(|e| matches!(
+            e,
+            crate::repl::events::ViewEvent::ActiveCursorUpdateRequired
+        )));
+
+        // Cursor should have moved up by page size (pane height)
+        let new_cursor = manager.get_current_cursor_position();
+        let expected_new_line = start_line.saturating_sub(pane_height);
+        tracing::debug!(
+            "Test page up: moved from line {} to line {}, expected line {}",
+            initial_cursor.line,
+            new_cursor.line,
+            expected_new_line
+        );
+
+        assert_eq!(
+            new_cursor.line, expected_new_line,
+            "Cursor should have moved from line {} to line {}, but got line {}",
+            start_line, expected_new_line, new_cursor.line
+        );
+        assert_eq!(new_cursor.column, 0); // Column should remain at 0
+    }
+
+    #[test]
+    fn move_cursor_page_up_should_not_move_above_first_line() {
+        let mut manager = PaneManager::new((80, 24));
+
+        // Set up some content
+        let content = "Line 1\nLine 2\nLine 3";
+        manager.set_request_content(content);
+
+        // Rebuild display caches
+        let content_width = manager.get_content_width();
+        manager.rebuild_display_caches(content_width);
+
+        // Start at line 0 (already at top)
+        let initial_cursor = manager.get_current_cursor_position();
+        assert_eq!(initial_cursor.line, 0);
+
+        // Try to page up - should not move since we're already at the top
+        let events = manager.move_cursor_page_up();
+
+        // Should return empty events since no movement occurred
+        assert!(events.is_empty());
+
+        // Cursor should stay at line 0
+        let cursor = manager.get_current_cursor_position();
+        assert_eq!(cursor.line, 0);
+    }
+
+    #[test]
+    fn move_cursor_page_up_should_handle_empty_content() {
+        let mut manager = PaneManager::new((80, 24));
+
+        // Empty content (use default empty content)
+
+        // Try to page up
+        let events = manager.move_cursor_page_up();
+
+        // Should return empty events since there's no content
+        assert!(events.is_empty());
+
+        // Cursor should remain at origin
+        let cursor = manager.get_current_cursor_position();
+        assert_eq!(cursor.line, 0);
+        assert_eq!(cursor.column, 0);
+    }
+
+    #[test]
+    fn move_cursor_page_up_should_maintain_virtual_column() {
+        let mut manager = PaneManager::new((80, 10)); // Small height for easier testing
+
+        // Create content with varying line lengths
+        let mut content_lines = Vec::new();
+        for i in 0..30 {
+            if i % 4 == 0 {
+                content_lines.push("This is a very long line that extends well beyond most other lines in this test content");
+            } else if i % 3 == 0 {
+                content_lines.push("Short");
+            } else {
+                content_lines.push("Medium length line here");
+            }
+        }
+
+        let content = content_lines.join("\n");
+        manager.set_request_content(&content);
+
+        // Rebuild display caches
+        let content_width = manager.get_content_width();
+        manager.rebuild_display_caches(content_width);
+
+        // Position cursor at column 30 on line 25 (a long line)
+        let start_line = 25;
+        let target_virtual_column = 30;
+        manager.panes[manager.current_pane].display_cursor =
+            Position::new(start_line, target_virtual_column);
+
+        // Set virtual column to remember this position
+        manager.panes[manager.current_pane].set_virtual_column(target_virtual_column);
+
+        // Sync logical cursor
+        if let Some(logical_pos) = manager.panes[manager.current_pane]
+            .display_cache
+            .display_to_logical_position(start_line, target_virtual_column)
+        {
+            let logical_position = LogicalPosition::new(logical_pos.row, logical_pos.col);
+            manager.panes[manager.current_pane]
+                .buffer
+                .set_cursor(logical_position);
+        }
+
+        // Perform page up
+        let events = manager.move_cursor_page_up();
+        assert!(!events.is_empty());
+
+        // Virtual column should be preserved
+        assert_eq!(
+            manager.panes[manager.current_pane].get_virtual_column(),
+            target_virtual_column,
+            "Virtual column should be preserved after page up"
+        );
+
+        // Cursor should have moved up by page size
+        let pane_height = manager.panes[manager.current_pane].pane_dimensions.height;
+        let new_cursor = manager.get_current_cursor_position();
+        let expected_line = start_line.saturating_sub(pane_height);
+
+        assert_eq!(
+            new_cursor.line, expected_line,
+            "Cursor should be on line {expected_line} after page up from line {start_line}"
+        );
     }
 
     #[test]

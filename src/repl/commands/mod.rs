@@ -61,7 +61,7 @@ pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
     GoToBottomCommand, GoToTopCommand, HomeKeyCommand, MoveCursorDownCommand,
     MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand, NextWordCommand,
-    PageDownCommand, PreviousWordCommand, ScrollLeftCommand, ScrollRightCommand,
+    PageDownCommand, PageUpCommand, PreviousWordCommand, ScrollLeftCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -91,6 +91,7 @@ impl CommandRegistry {
             Box::new(ScrollRightCommand),
             // Pagination commands (high priority - Ctrl+key combinations)
             Box::new(PageDownCommand),
+            Box::new(PageUpCommand),
             // Movement commands
             Box::new(MoveCursorLeftCommand),
             Box::new(MoveCursorRightCommand),
@@ -362,5 +363,43 @@ mod tests {
 
         // Should not produce any events (regular 'f' has no command in Normal mode)
         assert!(events.is_empty());
+    }
+
+    #[test]
+    fn registry_should_handle_ctrl_b_page_up_command() {
+        let registry = CommandRegistry::new();
+        let context = create_test_context();
+
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+        let events = registry.process_event(event, &context).unwrap();
+
+        // Should produce a page up cursor movement event
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            events[0],
+            CommandEvent::CursorMoveRequested {
+                direction: MovementDirection::PageUp,
+                amount: 1
+            }
+        ));
+    }
+
+    #[test]
+    fn registry_should_not_handle_regular_b_as_page_up() {
+        let registry = CommandRegistry::new();
+        let context = create_test_context();
+
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::empty());
+        let events = registry.process_event(event, &context).unwrap();
+
+        // Should produce previous word event (regular 'b' in Normal mode)
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            events[0],
+            CommandEvent::CursorMoveRequested {
+                direction: MovementDirection::WordBackward,
+                amount: 1
+            }
+        ));
     }
 }

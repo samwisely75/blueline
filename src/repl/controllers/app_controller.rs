@@ -281,10 +281,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                             self.view_model.move_cursor_to_line(line_number)?
                         }
                         MovementDirection::PageDown => self.view_model.move_cursor_page_down()?,
-                        MovementDirection::PageUp => {
-                            // TODO: Implement in future - placeholder for compilation
-                            tracing::warn!("PageUp movement not yet implemented");
-                        }
+                        MovementDirection::PageUp => self.view_model.move_cursor_page_up()?,
                         MovementDirection::HalfPageDown => {
                             // TODO: Implement in future - placeholder for compilation
                             tracing::warn!("HalfPageDown movement not yet implemented");

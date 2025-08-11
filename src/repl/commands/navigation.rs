@@ -385,6 +385,9 @@ impl Command for EndKeyCommand {
 /// Page down navigation (Ctrl+f)
 pub struct PageDownCommand;
 
+/// Page up navigation (Ctrl+b)
+pub struct PageUpCommand;
+
 impl Command for PageDownCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         let is_ctrl_f = matches!(event.code, KeyCode::Char('f'))
@@ -415,6 +418,39 @@ impl Command for PageDownCommand {
 
     fn name(&self) -> &'static str {
         "PageDown"
+    }
+}
+
+impl Command for PageUpCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        let is_ctrl_b = matches!(event.code, KeyCode::Char('b'))
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && !event.modifiers.contains(KeyModifiers::SHIFT)
+            && !event.modifiers.contains(KeyModifiers::ALT);
+
+        let is_normal_or_visual_mode = context.state.current_mode == EditorMode::Normal
+            || context.state.current_mode == EditorMode::Visual;
+
+        let is_relevant = is_ctrl_b && is_normal_or_visual_mode;
+
+        if is_ctrl_b {
+            tracing::debug!(
+                "PageUpCommand.is_relevant(): ctrl+b={}, mode={:?}, result={}",
+                is_ctrl_b,
+                context.state.current_mode,
+                is_relevant
+            );
+        }
+
+        is_relevant
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(MovementDirection::PageUp)])
+    }
+
+    fn name(&self) -> &'static str {
+        "PageUp"
     }
 }
 
@@ -1064,5 +1100,95 @@ mod tests {
     fn page_down_should_return_correct_command_name() {
         let cmd = PageDownCommand;
         assert_eq!(cmd.name(), "PageDown");
+    }
+
+    // Tests for PageUpCommand (Ctrl+b)
+    #[test]
+    fn page_up_should_be_relevant_for_ctrl_b_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_up_should_be_relevant_for_ctrl_b_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = PageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_up_should_not_be_relevant_for_ctrl_b_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = PageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_up_should_not_be_relevant_for_ctrl_b_in_command_mode() {
+        let context = create_test_context(EditorMode::Command);
+        let cmd = PageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_up_should_not_be_relevant_for_b_without_ctrl() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PageUpCommand;
+        let event = create_test_key_event(KeyCode::Char('b'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_up_should_not_be_relevant_for_ctrl_shift_b() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PageUpCommand;
+        let event = KeyEvent::new(
+            KeyCode::Char('b'),
+            KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+        );
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_up_should_not_be_relevant_for_ctrl_alt_b() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PageUpCommand;
+        let event = KeyEvent::new(
+            KeyCode::Char('b'),
+            KeyModifiers::CONTROL | KeyModifiers::ALT,
+        );
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_up_should_produce_page_up_movement_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PageUpCommand;
+        let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL);
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::PageUp)
+        );
+    }
+
+    #[test]
+    fn page_up_should_return_correct_command_name() {
+        let cmd = PageUpCommand;
+        assert_eq!(cmd.name(), "PageUp");
     }
 }
