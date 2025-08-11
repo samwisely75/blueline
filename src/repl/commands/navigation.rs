@@ -382,6 +382,42 @@ impl Command for EndKeyCommand {
     }
 }
 
+/// Page down navigation (Ctrl+f)
+pub struct PageDownCommand;
+
+impl Command for PageDownCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        let is_ctrl_f = matches!(event.code, KeyCode::Char('f'))
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && !event.modifiers.contains(KeyModifiers::SHIFT)
+            && !event.modifiers.contains(KeyModifiers::ALT);
+
+        let is_normal_or_visual_mode = context.state.current_mode == EditorMode::Normal
+            || context.state.current_mode == EditorMode::Visual;
+
+        let is_relevant = is_ctrl_f && is_normal_or_visual_mode;
+
+        if is_ctrl_f {
+            tracing::debug!(
+                "PageDownCommand.is_relevant(): ctrl+f={}, mode={:?}, result={}",
+                is_ctrl_f,
+                context.state.current_mode,
+                is_relevant
+            );
+        }
+
+        is_relevant
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::cursor_move(MovementDirection::PageDown)])
+    }
+
+    fn name(&self) -> &'static str {
+        "PageDown"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -938,5 +974,95 @@ mod tests {
         let event = create_test_key_event(KeyCode::Char('g'));
 
         assert!(cmd.is_relevant(&context, &event));
+    }
+
+    // Tests for PageDownCommand (Ctrl+f)
+    #[test]
+    fn page_down_should_be_relevant_for_ctrl_f_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_down_should_be_relevant_for_ctrl_f_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual);
+        let cmd = PageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_down_should_not_be_relevant_for_ctrl_f_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert);
+        let cmd = PageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_down_should_not_be_relevant_for_ctrl_f_in_command_mode() {
+        let context = create_test_context(EditorMode::Command);
+        let cmd = PageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_down_should_not_be_relevant_for_f_without_ctrl() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PageDownCommand;
+        let event = create_test_key_event(KeyCode::Char('f'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_down_should_not_be_relevant_for_ctrl_shift_f() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PageDownCommand;
+        let event = KeyEvent::new(
+            KeyCode::Char('f'),
+            KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+        );
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_down_should_not_be_relevant_for_ctrl_alt_f() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PageDownCommand;
+        let event = KeyEvent::new(
+            KeyCode::Char('f'),
+            KeyModifiers::CONTROL | KeyModifiers::ALT,
+        );
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn page_down_should_produce_page_down_movement_event() {
+        let context = create_test_context(EditorMode::Normal);
+        let cmd = PageDownCommand;
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+        let events = cmd.execute(event, &context).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::cursor_move(MovementDirection::PageDown)
+        );
+    }
+
+    #[test]
+    fn page_down_should_return_correct_command_name() {
+        let cmd = PageDownCommand;
+        assert_eq!(cmd.name(), "PageDown");
     }
 }

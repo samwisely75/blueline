@@ -90,6 +90,14 @@ pub enum MovementDirection {
     WordEnd,
     ScrollLeft,
     ScrollRight,
+    /// Full page down (Ctrl+f)
+    PageDown,
+    /// Full page up (Ctrl+b)
+    PageUp,
+    /// Half page down (Ctrl+d)
+    HalfPageDown,
+    /// Half page up (Ctrl+u)
+    HalfPageUp,
     /// Move to a specific line number (1-based)
     LineNumber(usize),
 }

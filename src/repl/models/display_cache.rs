@@ -204,6 +204,44 @@ impl DisplayLine {
         current_display_col
     }
 
+    /// Snap column position to a valid character boundary for DBCS support
+    ///
+    /// This is crucial for virtual column positioning with double-byte characters.
+    /// If the requested column is in the middle of a DBCS character, this method
+    /// returns the start position of that character to avoid invalid cursor placement.
+    ///
+    /// HIGH-LEVEL LOGIC:
+    /// 1. Walk through characters, tracking display positions
+    /// 2. Find the character that contains the requested display column
+    /// 3. Return the start position of that character
+    /// 4. Handle past-the-end case by returning the end of line
+    pub fn snap_to_character_boundary(&self, requested_display_col: usize) -> usize {
+        if requested_display_col == 0 {
+            return 0;
+        }
+
+        let mut current_display_pos = 0;
+        for display_char in &self.chars {
+            let char_width = display_char.display_width();
+            let char_end = current_display_pos + char_width;
+
+            // If requested position is within this character's span, return start of character
+            if current_display_pos <= requested_display_col && requested_display_col < char_end {
+                return current_display_pos;
+            }
+
+            // If requested position exactly matches the end of this character, that's valid
+            if requested_display_col == char_end {
+                return requested_display_col;
+            }
+
+            current_display_pos = char_end;
+        }
+
+        // FALLBACK: Past the end, return the total display width
+        self.display_width()
+    }
+
     /// Find the next word boundary from the current display column position using ICU segmentation
     ///
     /// HIGH-LEVEL LOGIC:

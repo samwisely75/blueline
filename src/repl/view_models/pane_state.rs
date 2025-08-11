@@ -89,6 +89,7 @@ pub struct PaneState {
     pub pane_dimensions: Dimensions, // (width, height)
     pub editor_mode: EditorMode,     // Current editor mode for this pane
     pub line_number_width: usize,    // Width needed for line numbers display
+    pub virtual_column: usize,       // Vim-style virtual column - desired cursor position
 }
 
 impl PaneState {
@@ -103,6 +104,7 @@ impl PaneState {
             pane_dimensions: Dimensions::new(pane_width, pane_height),
             editor_mode: EditorMode::Normal, // Start in Normal mode
             line_number_width: MIN_LINE_NUMBER_WIDTH, // Start with minimum width
+            virtual_column: 0,               // Start at column 0
         };
         pane_state.build_display_cache(pane_width, wrap_enabled);
         // Calculate initial line number width based on content
@@ -801,6 +803,23 @@ impl PaneState {
     /// Set editor mode for this pane
     pub fn set_mode(&mut self, mode: EditorMode) {
         self.editor_mode = mode;
+    }
+
+    // Virtual column management methods for Vim-style navigation
+
+    /// Update virtual column to current cursor column (called when horizontal movement occurs)
+    pub fn update_virtual_column(&mut self) {
+        self.virtual_column = self.display_cursor.col;
+    }
+
+    /// Get the current virtual column
+    pub fn get_virtual_column(&self) -> usize {
+        self.virtual_column
+    }
+
+    /// Set virtual column explicitly (used for restoring desired position)
+    pub fn set_virtual_column(&mut self, column: usize) {
+        self.virtual_column = column;
     }
 
     // Helper methods to reduce arrow code complexity

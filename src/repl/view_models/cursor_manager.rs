@@ -103,5 +103,11 @@ impl ViewModel {
         self.emit_view_event(events)
     }
 
+    /// Move cursor down one page in current area (Ctrl+f)
+    pub fn move_cursor_page_down(&mut self) -> Result<()> {
+        let events = self.pane_manager.move_cursor_page_down();
+        self.emit_view_event(events)
+    }
+
     // Scrolling methods are implemented elsewhere - avoiding duplication
 }

@@ -61,7 +61,7 @@ pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
     GoToBottomCommand, GoToTopCommand, HomeKeyCommand, MoveCursorDownCommand,
     MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand, NextWordCommand,
-    PreviousWordCommand, ScrollLeftCommand, ScrollRightCommand,
+    PageDownCommand, PreviousWordCommand, ScrollLeftCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -89,6 +89,8 @@ impl CommandRegistry {
             // Scroll commands (higher priority than regular movement)
             Box::new(ScrollLeftCommand),
             Box::new(ScrollRightCommand),
+            // Pagination commands (high priority - Ctrl+key combinations)
+            Box::new(PageDownCommand),
             // Movement commands
             Box::new(MoveCursorLeftCommand),
             Box::new(MoveCursorRightCommand),
@@ -329,5 +331,36 @@ mod tests {
         registry.add_command(Box::new(crate::repl::commands::pane::SwitchPaneCommand));
 
         assert_eq!(registry.commands.len(), initial_count + 1);
+    }
+
+    #[test]
+    fn registry_should_handle_ctrl_f_page_down_command() {
+        let registry = CommandRegistry::new();
+        let context = create_test_context();
+
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+        let events = registry.process_event(event, &context).unwrap();
+
+        // Should produce a page down cursor movement event
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            events[0],
+            CommandEvent::CursorMoveRequested {
+                direction: MovementDirection::PageDown,
+                amount: 1
+            }
+        ));
+    }
+
+    #[test]
+    fn registry_should_not_handle_regular_f_as_page_down() {
+        let registry = CommandRegistry::new();
+        let context = create_test_context();
+
+        let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::empty());
+        let events = registry.process_event(event, &context).unwrap();
+
+        // Should not produce any events (regular 'f' has no command in Normal mode)
+        assert!(events.is_empty());
     }
 }
