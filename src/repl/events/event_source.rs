@@ -32,9 +32,12 @@
 //! ```rust,no_run
 //! use blueline::AppController;
 //! use blueline::cmd_args::CommandLineArgs;
+//! use blueline::repl::io::{TerminalEventStream, TerminalRenderStream};
 //!
 //! let cmd_args = CommandLineArgs::parse_from(["blueline"]);
-//! let app_controller = AppController::new(cmd_args); // Uses TerminalEventSource
+//! let event_stream = TerminalEventStream::new();
+//! let render_stream = TerminalRenderStream::new();
+//! let app_controller = AppController::with_io_streams(cmd_args, event_stream, render_stream).unwrap();
 //! ```
 //!
 //! This abstraction enables comprehensive integration testing while maintaining

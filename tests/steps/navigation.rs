@@ -11,7 +11,7 @@ use cucumber::{gherkin, given, then, when};
 use tracing::{debug, info};
 
 // When steps for navigation keys
-#[when(regex = r#"I press "([^"]+)"$"#)]
+#[when(regex = r#"^(?:And )?I press "([^"]+)"$"#)]
 async fn when_press_key(world: &mut BluelineWorld, key: String) {
     info!("Pressing key: {}", key);
     match key.as_str() {
@@ -135,8 +135,25 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
                 .send_key_event(KeyCode::Delete, KeyModifiers::empty())
                 .await
         }
+        "Enter" => {
+            info!("Pressing Enter key");
+            world
+                .send_key_event(KeyCode::Enter, KeyModifiers::empty())
+                .await
+        }
         _ => panic!("Unsupported key: {key}"),
     }
+    world.tick().await.expect("Failed to tick");
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+}
+
+// Handle "And I press j" pattern (single character without quotes)
+#[when(regex = r#"^(?:And )?I press ([a-zA-Z0-9])$"#)]
+async fn when_press_single_char(world: &mut BluelineWorld, key: char) {
+    info!("Pressing single character key: {}", key);
+    world
+        .send_key_event(KeyCode::Char(key), KeyModifiers::empty())
+        .await;
     world.tick().await.expect("Failed to tick");
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 }
