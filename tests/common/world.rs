@@ -391,6 +391,46 @@ impl BluelineWorld {
 
                     debug!("✅ Simulating Enter key (new line with content preservation)");
                 }
+                KeyCode::Char('A') => {
+                    // Simulate A command - append at end of line and enter Insert mode
+                    self.current_mode = AppMode::Insert;
+                    let status_pos = format!("\x1b[{status_row};1H");
+                    mode_output.extend_from_slice(status_pos.as_bytes());
+                    mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+                    mode_output.extend_from_slice(b"\x1b[1m-- INSERT --\x1b[0m"); // Bold INSERT
+
+                    // Add right-aligned status: "REQUEST | 1:1"
+                    let right_status = "REQUEST | 1:1";
+                    let right_col = self
+                        .terminal_size
+                        .0
+                        .saturating_sub(right_status.len() as u16);
+                    let right_move = format!("\x1b[{right_col}G");
+                    mode_output.extend_from_slice(right_move.as_bytes());
+                    mode_output.extend_from_slice(right_status.as_bytes());
+
+                    debug!("✅ Simulating A command (append at end) -> Insert mode");
+                }
+                KeyCode::Char('a') => {
+                    // Simulate a command - append after cursor and enter Insert mode
+                    self.current_mode = AppMode::Insert;
+                    let status_pos = format!("\x1b[{status_row};1H");
+                    mode_output.extend_from_slice(status_pos.as_bytes());
+                    mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+                    mode_output.extend_from_slice(b"\x1b[1m-- INSERT --\x1b[0m"); // Bold INSERT
+
+                    // Add right-aligned status: "REQUEST | 1:1"
+                    let right_status = "REQUEST | 1:1";
+                    let right_col = self
+                        .terminal_size
+                        .0
+                        .saturating_sub(right_status.len() as u16);
+                    let right_move = format!("\x1b[{right_col}G");
+                    mode_output.extend_from_slice(right_move.as_bytes());
+                    mode_output.extend_from_slice(right_status.as_bytes());
+
+                    debug!("✅ Simulating a command (append after cursor) -> Insert mode");
+                }
                 _ => {
                     // No mode change for other keys
                     return;
