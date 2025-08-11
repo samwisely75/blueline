@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0] - 2025-01-11
+
+### Added
+
+- **Half Page Navigation**: Complete vim-style half page scrolling commands (issue #78)
+  - Ctrl+d: Half page down with proper vim-style virtual column behavior
+  - Ctrl+u: Half page up with proper vim-style virtual column behavior
+  - DBCS character boundary snapping for multibyte character support
+  - Visual selection support during navigation
+  - Comprehensive unit testing (4 new tests)
+
+### Technical
+
+- Enhanced PaneManager with `move_cursor_half_page_down()` and `move_cursor_half_page_up()` methods using `div_ceil(2)` for proper half-page calculation
+- Added HalfPageDownCommand and HalfPageUpCommand with strict modifier key validation
+- Updated AppController to handle HalfPageDown/HalfPageUp movement directions
+- Extended CursorManager with wrapper methods for consistent API patterns
+
 ## [0.28.0] - 2025-01-12
 
 ### Refactored
