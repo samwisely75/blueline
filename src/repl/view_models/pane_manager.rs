@@ -792,6 +792,10 @@ impl PaneManager {
             .buffer
             .content_mut()
             .set_text(text);
+
+        // Update line number width after content changes
+        self.panes[Pane::Request].update_line_number_width();
+
         vec![ViewEvent::RequestContentChanged]
     }
 
@@ -803,6 +807,9 @@ impl PaneManager {
             .buffer
             .content_mut()
             .set_text(text);
+
+        // Update line number width after content changes
+        self.panes[Pane::Response].update_line_number_width();
 
         // Reset cursor and scroll positions to avoid out-of-bounds issues
         self.panes[Pane::Response].display_cursor = Position::origin();
@@ -827,6 +834,16 @@ impl PaneManager {
     /// Get display cache for specific pane (rare usage)
     pub fn get_display_cache(&self, pane: Pane) -> &crate::repl::models::DisplayCache {
         &self.panes[pane].display_cache
+    }
+
+    /// Get line number width for current pane
+    pub fn get_current_line_number_width(&self) -> usize {
+        self.panes[self.current_pane].get_line_number_width()
+    }
+
+    /// Get line number width for specific pane
+    pub fn get_line_number_width(&self, pane: Pane) -> usize {
+        self.panes[pane].get_line_number_width()
     }
 
     /// Sync display cursor with logical cursor for current pane

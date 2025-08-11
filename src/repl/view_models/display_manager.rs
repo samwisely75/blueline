@@ -8,9 +8,6 @@ use crate::repl::geometry::Position;
 use crate::repl::models::DisplayCache;
 use crate::repl::view_models::core::{DisplayLineData, ViewModel};
 
-/// Minimum width for line number column as specified in requirements
-const MIN_LINE_NUMBER_WIDTH: usize = 3;
-
 impl ViewModel {
     /// Get display cache for a specific pane
     pub(super) fn get_display_cache(&self, pane: Pane) -> &DisplayCache {
@@ -167,29 +164,6 @@ impl ViewModel {
         let screen_col = display_pos.col.saturating_sub(horizontal_offset);
 
         (screen_row, screen_col)
-    }
-
-    /// Get line number width for a pane
-    /// BUGFIX: Calculate dynamic line number width based on document size
-    /// Without this dynamic calculation, cursor positioning becomes invalid for large documents
-    /// (e.g., jumping to line 1547 with hardcoded width=3 causes cursor to appear next to "7" of "1547")
-    pub fn get_line_number_width(&self, pane: Pane) -> usize {
-        let content = match pane {
-            Pane::Request => self.pane_manager.get_request_text(),
-            Pane::Response => self.pane_manager.get_response_text(),
-        };
-
-        let line_count = if content.is_empty() {
-            1 // At least show line 1 even for empty content
-        } else {
-            content.lines().count().max(1)
-        };
-
-        // Calculate width needed for the largest line number to prevent cursor positioning bugs
-        let width = line_count.to_string().len();
-
-        // Minimum width as specified in the requirements (never smaller than 3)
-        width.max(MIN_LINE_NUMBER_WIDTH)
     }
 
     // get_content_width method moved to core.rs to avoid duplication

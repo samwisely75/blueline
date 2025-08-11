@@ -271,7 +271,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
     ) -> Result<()> {
         // Get display lines for rendering from ViewModel
         let display_lines = view_model.get_display_lines_for_rendering(pane, 0, height as usize);
-        let line_num_width = view_model.get_line_number_width(pane);
+        let line_num_width = view_model.pane_manager().get_line_number_width(pane);
 
         for (row, display_data) in display_lines.iter().enumerate() {
             let terminal_row = start_row + row as u16;
@@ -455,7 +455,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                 let height = (request_height as usize).saturating_sub(start_line);
                 let display_lines =
                     view_model.get_display_lines_for_rendering(pane, start_line, height);
-                let line_num_width = view_model.get_line_number_width(pane);
+                let line_num_width = view_model.pane_manager().get_line_number_width(pane);
 
                 for (idx, display_data) in display_lines.iter().enumerate() {
                     let terminal_row = start_line as u16 + idx as u16;
@@ -530,7 +530,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                     let height = (response_height as usize).saturating_sub(start_line);
                     let display_lines =
                         view_model.get_display_lines_for_rendering(pane, start_line, height);
-                    let line_num_width = view_model.get_line_number_width(pane);
+                    let line_num_width = view_model.pane_manager().get_line_number_width(pane);
 
                     for (idx, display_data) in display_lines.iter().enumerate() {
                         let terminal_row = response_start + start_line as u16 + idx as u16;
@@ -608,7 +608,9 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         // Get display cursor position and adjust for line numbers and pane offset
         let display_cursor = view_model.get_display_cursor_position();
         let current_pane = view_model.get_current_pane();
-        let line_num_width = view_model.get_line_number_width(current_pane);
+        let line_num_width = view_model
+            .pane_manager()
+            .get_line_number_width(current_pane);
 
         // Get scroll offset to calculate viewport-relative position
         let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
