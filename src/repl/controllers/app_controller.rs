@@ -543,21 +543,19 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         if needs_full_redraw {
             self.view_renderer.render_full(&self.view_model)?;
         } else {
-            // Selective rendering - hide cursor once at the beginning
+            // Selective rendering - renderer handles cursor visibility
             let has_content_updates = needs_current_area_redraw
                 || needs_secondary_area_redraw
                 || !partial_redraws.is_empty();
             if has_content_updates {
                 tracing::debug!(
-                    "controller: hiding cursor for content updates - current: {}, secondary: {}, partial: {:?}",
+                    "controller: content updates - current: {}, secondary: {}, partial: {:?}",
                     needs_current_area_redraw,
                     needs_secondary_area_redraw,
                     partial_redraws.keys().collect::<Vec<_>>()
                 );
-                // View renderer handles cursor management and flushing
-                // Add a tiny delay to ensure cursor hide command is processed by terminal
-                // This prevents ghost cursors during rapid key repetition
-                std::thread::sleep(std::time::Duration::from_micros(100));
+                // Cursor hiding is now handled by each render method in the renderer
+                // to ensure consistent behavior and prevent ghost cursors
             }
 
             // Render current area if needed

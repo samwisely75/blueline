@@ -405,7 +405,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
     }
 
     fn render_pane(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()> {
-        // Cursor hiding is now handled by the controller
+        // Hide cursor before any rendering to prevent ghost cursors
+        self.render_stream.hide_cursor()?;
 
         let (request_height, response_start, response_height) = view_model
             .pane_manager()
@@ -439,7 +440,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         pane: Pane,
         start_line: usize,
     ) -> Result<()> {
-        // Cursor hiding is now handled by the controller
+        // Hide cursor before any rendering to prevent ghost cursors
+        self.render_stream.hide_cursor()?;
 
         let (request_height, response_start, response_height) = view_model
             .pane_manager()
