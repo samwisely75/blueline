@@ -212,6 +212,17 @@ impl PaneState {
         })
     }
 
+    /// Calculate display width for a range of buffer characters
+    fn calculate_display_width(
+        buffer_chars: &[crate::repl::models::buffer_char::BufferChar],
+    ) -> usize {
+        use unicode_width::UnicodeWidthChar;
+        buffer_chars
+            .iter()
+            .map(|bc| UnicodeWidthChar::width(bc.ch).unwrap_or(0))
+            .sum()
+    }
+
     /// Wrap a line into segments with position tracking
     fn wrap_line_with_positions(line: &str, content_width: usize) -> Vec<WrappedSegment> {
         if content_width == 0 {
@@ -290,6 +301,28 @@ impl PaneState {
             });
 
             current_char_pos = actual_end;
+        }
+
+        // WRAP MODE CURSOR POSITIONING FIX: Create an empty continuation segment for cursor positioning
+        // When content exactly fills display lines, we need a place for the cursor to wrap to
+        if !segments.is_empty() {
+            let last_segment = segments.last().unwrap();
+            // Only process if we've reached the end of all characters
+            if last_segment.logical_end == total_chars && total_chars > 0 {
+                // Check if the last segment exactly fills a display line
+                let segment_display_width = Self::calculate_display_width(
+                    &buffer_chars[last_segment.logical_start..last_segment.logical_end],
+                );
+
+                // If this segment exactly fills the content width, create empty continuation
+                if segment_display_width == content_width {
+                    segments.push(WrappedSegment {
+                        content: String::new(),
+                        logical_start: total_chars,
+                        logical_end: total_chars,
+                    });
+                }
+            }
         }
 
         if segments.is_empty() {
