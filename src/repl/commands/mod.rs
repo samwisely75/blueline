@@ -15,7 +15,7 @@ pub use context::*;
 pub use events::*;
 
 /// Command trait for event-driven architecture
-pub trait Command {
+pub trait Command: Send {
     /// Check if command is relevant for current state and event
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool;
 
@@ -28,7 +28,7 @@ pub trait Command {
 }
 
 /// Command trait for commands that need HTTP client access
-pub trait HttpCommand {
+pub trait HttpCommand: Send {
     /// Check if command is relevant for current state and event
     fn is_relevant(&self, context: &HttpCommandContext, event: &KeyEvent) -> bool;
 
@@ -61,14 +61,13 @@ pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
     GoToBottomCommand, GoToTopCommand, HomeKeyCommand, MoveCursorDownCommand,
     MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand, NextWordCommand,
-    PreviousWordCommand, ScrollHalfPageDownCommand, ScrollHalfPageUpCommand, ScrollLeftCommand,
-    ScrollPageDownCommand, ScrollPageUpCommand, ScrollRightCommand,
+    PreviousWordCommand, ScrollLeftCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
 
 /// Type alias for command collection to reduce complexity
-pub type CommandCollection = Vec<Box<dyn Command>>;
+pub type CommandCollection = Vec<Box<dyn Command + Send>>;
 
 /// Registry for managing all available commands
 pub struct CommandRegistry {
@@ -88,10 +87,6 @@ impl CommandRegistry {
             // Scroll commands (higher priority than regular movement)
             Box::new(ScrollLeftCommand),
             Box::new(ScrollRightCommand),
-            Box::new(ScrollPageDownCommand),
-            Box::new(ScrollPageUpCommand),
-            Box::new(ScrollHalfPageDownCommand),
-            Box::new(ScrollHalfPageUpCommand),
             // Movement commands
             Box::new(MoveCursorLeftCommand),
             Box::new(MoveCursorRightCommand),
@@ -187,7 +182,7 @@ impl CommandRegistry {
     }
 
     /// Add a custom command to the registry
-    pub fn add_command(&mut self, command: Box<dyn Command>) {
+    pub fn add_command(&mut self, command: Box<dyn Command + Send>) {
         self.commands.push(command);
     }
 

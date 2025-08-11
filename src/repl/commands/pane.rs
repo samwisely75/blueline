@@ -13,7 +13,16 @@ pub struct SwitchPaneCommand;
 
 impl Command for SwitchPaneCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Tab) && context.state.current_mode == EditorMode::Normal
+        let relevant =
+            matches!(event.code, KeyCode::Tab) && context.state.current_mode == EditorMode::Normal;
+        if matches!(event.code, KeyCode::Tab) {
+            tracing::debug!(
+                "SwitchPaneCommand: Tab key pressed, mode={:?}, relevant={}",
+                context.state.current_mode,
+                relevant
+            );
+        }
+        relevant
     }
 
     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -22,6 +31,11 @@ impl Command for SwitchPaneCommand {
             Pane::Request => Pane::Response,
             Pane::Response => Pane::Request,
         };
+        tracing::debug!(
+            "SwitchPaneCommand: switching from {:?} to {:?}",
+            context.state.current_pane,
+            new_pane
+        );
         Ok(vec![CommandEvent::pane_switch(new_pane)])
     }
 

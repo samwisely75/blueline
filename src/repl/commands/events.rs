@@ -79,6 +79,7 @@ pub enum MovementDirection {
     Down,
     LineStart,
     LineEnd,
+    LineEndForAppend, // Special case for 'A' command - positions AFTER last character
     DocumentStart,
     DocumentEnd,
     WordForward,
@@ -86,10 +87,6 @@ pub enum MovementDirection {
     WordEnd,
     ScrollLeft,
     ScrollRight,
-    PageDown,
-    PageUp,
-    HalfPageDown,
-    HalfPageUp,
     /// Move to a specific line number (1-based)
     LineNumber(usize),
 }

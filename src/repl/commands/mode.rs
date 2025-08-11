@@ -137,7 +137,7 @@ impl Command for AppendAtEndOfLineCommand {
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
         Ok(vec![
-            CommandEvent::cursor_move(MovementDirection::LineEnd),
+            CommandEvent::cursor_move(MovementDirection::LineEndForAppend),
             CommandEvent::mode_change(EditorMode::Insert),
         ])
     }
@@ -307,7 +307,7 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(
             result[0],
-            CommandEvent::cursor_move(MovementDirection::LineEnd)
+            CommandEvent::cursor_move(MovementDirection::LineEndForAppend)
         );
         assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
     }

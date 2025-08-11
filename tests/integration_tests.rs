@@ -1,65 +1,101 @@
+//! Integration tests for Blueline REPL
+//!
+//! This module sets up the Cucumber test runner for BDD-style integration testing.
+//! Tests are defined in .feature files and implemented via step definitions.
+
 use cucumber::World;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-pub mod common;
+mod common;
+mod steps;
 
-pub use common::world::BluelineWorld;
+// Re-export the world for easy access
+use common::world::BluelineWorld;
 
-/// Integration tests using Cucumber BDD framework
-/// Run with: cargo test --test integration_tests
-#[tokio::main]
-async fn main() {
-    // Skip integration tests in CI environments as they require TTY interaction
-    if std::env::var_os("CI").is_some() {
-        println!("⏭️  Skipping integration tests in CI environment");
-        return;
+#[tokio::test]
+async fn cucumber_integration_tests() {
+    // Initialize tracing subscriber for tests
+    // Use RUST_LOG environment variable to control log level
+    // Example: RUST_LOG=debug cargo test --test integration_tests
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        // Default to info level for blueline, warn for others
+        EnvFilter::new("warn,blueline=info,integration_tests=info")
+    });
+
+    let registry = tracing_subscriber::registry().with(filter);
+
+    // Check if we should log to file
+    if let Some(log_file) = std::env::var_os("BLUELINE_LOG_FILE").and_then(|s| s.into_string().ok())
+    {
+        // Log to both console and file
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&log_file)
+            .expect("Failed to create log file");
+
+        registry
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_test_writer() // Console output
+                    .with_thread_ids(false)
+                    .with_thread_names(false)
+                    .with_target(true)
+                    .with_level(true)
+                    .compact(),
+            )
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_writer(file) // File output
+                    .with_thread_ids(true)
+                    .with_thread_names(true)
+                    .with_target(true)
+                    .with_level(true)
+                    .with_ansi(false), // No ANSI colors in file
+            )
+            .init();
+    } else {
+        // Console output only
+        registry
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_test_writer() // Use test-friendly output
+                    .with_thread_ids(false)
+                    .with_thread_names(false)
+                    .with_target(true)
+                    .with_level(true)
+                    .compact(), // Use compact formatting for tests
+            )
+            .init();
     }
 
-    // Serialize feature execution to prevent resource conflicts
-    run_features_sequentially().await;
-}
+    tracing::info!("Starting Blueline integration tests");
 
-/// Run each feature file sequentially to avoid resource conflicts
-async fn run_features_sequentially() {
-    let features = [
-        "features/application.feature",
-        "features/command_line.feature",
-        "features/double_byte_rendering_bug.feature",
-        "features/integration.feature",
-        "features/mode_transitions.feature",
-        "features/navigation_command.feature",
-        // "features/real_application_bug.feature", // Disabled - step definitions commented out causing timeout
-        // "features/real_vte_bug_test.feature", // Disabled - debugging test for separate issue
-        "features/text_editing.feature",
-    ];
-
-    // Run the main features first
-    println!(
-        "Running {} main feature files sequentially...",
-        features.len()
-    );
-
-    for (i, feature) in features.iter().enumerate() {
-        println!("\n[{}/{}] Running {feature}...", i + 1, features.len());
-        BluelineWorld::run(feature).await;
-        println!("✓ {feature} completed successfully");
-    }
-
-    println!("\n🎉 All feature files completed successfully!");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn run_integration_tests() {
-        // Skip integration tests in CI environments as they require TTY interaction
-        if std::env::var_os("CI").is_some() {
-            println!("⏭️  Skipping integration tests in CI environment");
-            return;
-        }
-
-        // Run features sequentially in tests as well
-        run_features_sequentially().await;
-    }
+    // Configure and run Cucumber tests
+    BluelineWorld::cucumber()
+        .max_concurrent_scenarios(1) // Run scenarios sequentially to avoid state conflicts
+        .before(|_feature, _rule, scenario, world| {
+            Box::pin(async move {
+                tracing::debug!("Starting scenario: {}", scenario.name);
+                // Initialize world before each scenario
+                world.initialize().await;
+            })
+        })
+        .after(|_feature, _rule, scenario, _event, world| {
+            Box::pin(async move {
+                tracing::debug!("Finishing scenario: {}", scenario.name);
+                // Clean up after each scenario
+                if let Some(world) = world {
+                    world.cleanup().await;
+                }
+            })
+        })
+        // Use standard output for test results
+        .run(
+            std::env::var_os("CUCUMBER_FEATURES")
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "tests/features".to_string()),
+        ) // Allow feature path override
+        .await;
 }

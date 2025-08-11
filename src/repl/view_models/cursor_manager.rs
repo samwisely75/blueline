@@ -4,6 +4,7 @@
 //! This module provides high-level cursor operations that work with the current/other area abstraction.
 
 use crate::repl::events::LogicalPosition;
+use crate::repl::geometry::Position;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 
@@ -14,7 +15,7 @@ impl ViewModel {
     }
 
     /// Get current display cursor position for the active area
-    pub fn get_display_cursor_position(&self) -> (usize, usize) {
+    pub fn get_display_cursor_position(&self) -> Position {
         self.pane_manager.get_current_display_cursor()
     }
 
@@ -45,6 +46,12 @@ impl ViewModel {
     /// Move cursor to end of current line
     pub fn move_cursor_to_end_of_line(&mut self) -> Result<()> {
         let events = self.pane_manager.move_cursor_to_end_of_line();
+        self.emit_view_event(events)
+    }
+
+    /// Move cursor to end of current line for append (A command)
+    pub fn move_cursor_to_line_end_for_append(&mut self) -> Result<()> {
+        let events = self.pane_manager.move_cursor_to_line_end_for_append();
         self.emit_view_event(events)
     }
 

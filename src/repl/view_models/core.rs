@@ -20,7 +20,6 @@ pub type DisplayLineData = (String, Option<usize>, bool, usize, usize);
 /// The central ViewModel that coordinates all business logic
 pub struct ViewModel {
     // Core state
-    pub(super) editor_mode: EditorMode,
     pub(super) response: ResponseModel,
 
     // Pane management - encapsulates all pane-related state and operations
@@ -53,7 +52,6 @@ impl ViewModel {
         let terminal_dimensions = (80, 24);
 
         Self {
-            editor_mode: EditorMode::Normal,
             response,
             pane_manager: PaneManager::new(terminal_dimensions),
             status_line: StatusLine::new(),
@@ -214,16 +212,16 @@ impl ViewModel {
 
     // === Editor State Management ===
 
-    /// Get current editor mode
+    /// Get current editor mode from the active pane
     pub fn mode(&self) -> EditorMode {
-        self.editor_mode
+        self.pane_manager.get_current_pane_mode()
     }
 
-    /// Set editor mode, returning event if changed
+    /// Set editor mode for the active pane, returning event if changed
     pub fn set_mode(&mut self, new_mode: EditorMode) -> Option<ModelEvent> {
-        if self.editor_mode != new_mode {
-            let old_mode = self.editor_mode;
-            self.editor_mode = new_mode;
+        let old_mode = self.pane_manager.get_current_pane_mode();
+        if old_mode != new_mode {
+            self.pane_manager.set_current_pane_mode(new_mode);
             Some(ModelEvent::ModeChanged { old_mode, new_mode })
         } else {
             None
@@ -247,5 +245,74 @@ impl ViewModel {
 impl Default for ViewModel {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repl::events::EditorMode;
+
+    /// Test for Issue #84: Wrap mode cursor positioning bug
+    ///
+    /// When wrap mode is enabled and exactly enough characters are typed to fill
+    /// a display line (e.g., 106 chars in 106-width display), the cursor should
+    /// wrap to the beginning of the next display line, not stay at the end of
+    /// the current line.
+    ///
+    /// This test verifies:
+    /// 1. No horizontal scrolling occurs in wrap mode
+    /// 2. Display cursor properly wraps to next line at exact boundary
+    /// 3. Logical cursor position remains correct
+    #[test]
+    fn test_issue_84_wrap_cursor_positioning() {
+        let mut vm = ViewModel::new();
+
+        // Set terminal size to get exactly 106 content width (as per issue #84)
+        vm.update_terminal_size(110, 24);
+
+        // Enable wrap mode
+        vm.pane_manager.set_wrap_enabled(true);
+
+        // Switch to insert mode
+        vm.change_mode(EditorMode::Insert).unwrap();
+
+        let content_width = vm.pane_manager.get_content_width();
+        assert_eq!(
+            content_width, 106,
+            "Test setup should give 106 content width"
+        );
+
+        // Type exactly 106 characters (should fill first display line completely)
+        let test_line: String = "a".repeat(106);
+        for ch in test_line.chars() {
+            vm.insert_char(ch).unwrap();
+        }
+
+        // Check state after 106 characters
+        let logical_cursor = vm.pane_manager.get_current_cursor_position();
+        let display_cursor = vm.pane_manager.get_current_display_cursor();
+        let scroll_offset = vm.pane_manager.get_current_scroll_offset();
+
+        // Issue #84: After 106 characters, cursor should be at beginning of second display line
+
+        assert_eq!(
+            scroll_offset.col, 0,
+            "No horizontal scrolling should occur in wrap mode"
+        );
+        assert_eq!(logical_cursor.line, 0, "Logical line should remain 0");
+        assert_eq!(logical_cursor.column, 106, "Logical column should be 106");
+
+        // The fix: display cursor should be at beginning of next display line when content exactly fills line
+
+        // This assertion should pass when the bug is fixed
+        assert_eq!(
+            display_cursor.row, 1,
+            "Display cursor should be on second display line after 106 chars"
+        );
+        assert_eq!(
+            display_cursor.col, 0,
+            "Display cursor should be at beginning of second display line"
+        );
     }
 }

@@ -6,6 +6,7 @@
 use crate::repl::{
     commands::{CommandContext, CommandEvent, CommandRegistry, HttpHeaders, ViewModelSnapshot},
     events::{Pane, SimpleEventBus},
+    io::{EventStream, RenderStream},
     utils::parse_request_from_text,
     view_models::ViewModel,
     views::{TerminalRenderer, ViewRenderer},
@@ -13,31 +14,32 @@ use crate::repl::{
 use crate::{cmd_args::CommandLineArgs, config};
 use anyhow::Result;
 use bluenote::{get_blank_profile, HttpConnectionProfile, IniProfileStore};
-use crossterm::{
-    event::{self, Event},
-    execute, terminal,
-};
-use std::{
-    io::{self, Write},
-    time::Duration,
-};
+use crossterm::event::{Event, KeyEvent};
+use std::time::Duration;
 
 /// The main application controller that orchestrates the MVVM pattern
-pub struct AppController {
+pub struct AppController<ES: EventStream, RS: RenderStream> {
     view_model: ViewModel,
-    view_renderer: TerminalRenderer<io::Stdout>,
+    view_renderer: TerminalRenderer<RS>,
     command_registry: CommandRegistry,
     #[allow(dead_code)]
     event_bus: SimpleEventBus,
+    event_stream: ES,
     should_quit: bool,
     last_render_time: std::time::Instant,
 }
 
-impl AppController {
-    /// Create new application controller with command line arguments
-    pub fn new(cmd_args: CommandLineArgs) -> Result<Self> {
+impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
+    /// Create new application controller with injected I/O streams (dependency injection)
+    pub fn with_io_streams(
+        cmd_args: CommandLineArgs,
+        event_stream: ES,
+        render_stream: RS,
+    ) -> Result<Self> {
         let mut view_model = ViewModel::new();
-        let view_renderer = TerminalRenderer::new()?;
+
+        // Pass RenderStream ownership to the View layer (TerminalRenderer)
+        let view_renderer = TerminalRenderer::with_render_stream(render_stream)?;
         let command_registry = CommandRegistry::new();
         let event_bus = SimpleEventBus::new();
 
@@ -45,13 +47,38 @@ impl AppController {
         let (width, height) = view_renderer.terminal_size();
         view_model.update_terminal_size(width, height);
 
-        // Load profile from INI file by name specified in --profile argument
+        // Load profile from configuration
         let profile_name = cmd_args.profile();
         let profile_path = config::get_profile_path();
+        let profile = Self::load_profile(profile_name, &profile_path)?;
 
+        // Configure view model with profile and settings
+        Self::configure_view_model(
+            &mut view_model,
+            &profile,
+            profile_name,
+            &profile_path,
+            &cmd_args,
+        );
+
+        Ok(Self {
+            view_model,
+            view_renderer,
+            command_registry,
+            event_bus,
+            event_stream,
+            should_quit: false,
+            last_render_time: std::time::Instant::now(),
+        })
+    }
+}
+
+impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
+    /// Load profile from INI file or return blank profile if not found
+    fn load_profile(profile_name: &str, profile_path: &str) -> Result<impl HttpConnectionProfile> {
         tracing::debug!("Loading profile '{}' from '{}'", profile_name, profile_path);
 
-        let ini_store = IniProfileStore::new(&profile_path);
+        let ini_store = IniProfileStore::new(profile_path);
         let profile_result = ini_store.get_profile(profile_name)?;
 
         let profile = match profile_result {
@@ -65,38 +92,36 @@ impl AppController {
             }
         };
 
+        Ok(profile)
+    }
+
+    /// Configure view model with profile settings and command line arguments
+    fn configure_view_model(
+        view_model: &mut ViewModel,
+        profile: &impl HttpConnectionProfile,
+        profile_name: &str,
+        profile_path: &str,
+        cmd_args: &CommandLineArgs,
+    ) {
         // Set up HTTP client with the loaded profile
-        if let Err(e) = view_model.set_http_client(&profile) {
+        if let Err(e) = view_model.set_http_client(profile) {
             tracing::warn!("Failed to create HTTP client with profile: {}", e);
             // Continue with default client
         }
 
         // Store profile information for display
-        view_model.set_profile_info(profile_name.clone(), profile_path);
+        view_model.set_profile_info(profile_name.to_string(), profile_path.to_string());
 
         // Set verbose mode from command line args
         view_model.set_verbose(cmd_args.verbose());
 
         // Set up event bus in view model
         view_model.set_event_bus(Box::new(SimpleEventBus::new()));
-
-        Ok(Self {
-            view_model,
-            view_renderer,
-            command_registry,
-            event_bus,
-            should_quit: false,
-            last_render_time: std::time::Instant::now(),
-        })
     }
 
     /// Run the main application loop
     pub async fn run(&mut self) -> Result<()> {
-        // Initialize terminal explicitly (matching MVC pattern)
-        terminal::enable_raw_mode().map_err(anyhow::Error::from)?;
-        execute!(io::stdout(), terminal::EnterAlternateScreen)?;
-
-        // Initialize view renderer (this will clear screen and set initial cursor)
+        // Initialize view renderer (handles all terminal setup)
         self.view_renderer.initialize()?;
 
         // Initial render
@@ -105,8 +130,8 @@ impl AppController {
         // Main event loop
         while !self.should_quit {
             // Handle terminal events with timeout
-            if event::poll(Duration::from_millis(100))? {
-                match event::read()? {
+            if self.event_stream.poll(Duration::from_millis(100))? {
+                match self.event_stream.read()? {
                     Event::Key(key_event) => {
                         // Debug log the key event
                         tracing::debug!("Received key event: {:?}", key_event);
@@ -147,6 +172,7 @@ impl AppController {
                     Event::Resize(width, height) => {
                         self.view_model.update_terminal_size(width, height);
                         self.view_renderer.update_size(width, height);
+                        // Render on terminal resize
                         self.view_renderer.render_full(&self.view_model)?;
                     }
                     _ => {
@@ -156,10 +182,8 @@ impl AppController {
             }
         }
 
-        // Cleanup (matching MVC pattern)
+        // Cleanup (all handled by view renderer)
         self.view_renderer.cleanup()?;
-        execute!(io::stdout(), terminal::LeaveAlternateScreen)?;
-        terminal::disable_raw_mode().map_err(anyhow::Error::from)?;
 
         Ok(())
     }
@@ -179,6 +203,9 @@ impl AppController {
                         MovementDirection::LineEnd => {
                             self.view_model.move_cursor_to_end_of_line()?
                         }
+                        MovementDirection::LineEndForAppend => {
+                            self.view_model.move_cursor_to_line_end_for_append()?
+                        }
                         MovementDirection::LineStart => {
                             self.view_model.move_cursor_to_start_of_line()?
                         }
@@ -193,18 +220,6 @@ impl AppController {
                         }
                         MovementDirection::DocumentEnd => {
                             self.view_model.move_cursor_to_document_end()?
-                        }
-                        MovementDirection::PageDown => {
-                            self.view_model.scroll_vertically_by_page(1)?
-                        }
-                        MovementDirection::PageUp => {
-                            self.view_model.scroll_vertically_by_page(-1)?
-                        }
-                        MovementDirection::HalfPageDown => {
-                            self.view_model.scroll_vertically_by_half_page(1)?
-                        }
-                        MovementDirection::HalfPageUp => {
-                            self.view_model.scroll_vertically_by_half_page(-1)?
                         }
                         MovementDirection::WordForward => {
                             self.view_model.move_cursor_to_next_word()?
@@ -382,7 +397,7 @@ impl AppController {
                         .set_response(0, format!("Error: {error_message}"));
                     // Clear executing status on error
                     self.view_model.set_executing_request(false);
-                    // Refresh status bar to show error
+                    // Refresh status bar to show error (skip in CI mode)
                     self.view_renderer.render_status_bar(&self.view_model)?;
                     return Ok(());
                 }
@@ -539,9 +554,7 @@ impl AppController {
                     needs_secondary_area_redraw,
                     partial_redraws.keys().collect::<Vec<_>>()
                 );
-                execute!(io::stdout(), crossterm::cursor::Hide)?;
-                io::stdout().flush().map_err(anyhow::Error::from)?;
-
+                // View renderer handles cursor management and flushing
                 // Add a tiny delay to ensure cursor hide command is processed by terminal
                 // This prevents ghost cursors during rapid key repetition
                 std::thread::sleep(std::time::Duration::from_micros(100));
@@ -591,6 +604,64 @@ impl AppController {
         let message = format!("[{profile_name}] in {profile_path}");
         self.view_model.set_status_message(message);
     }
+
+    /// Process a single key event without running the full event loop (for testing)
+    pub async fn process_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
+        tracing::debug!("Processing key event: {:?}", key_event);
+        tracing::debug!("AppController: process_key_event called with {key_event:?}");
+
+        // Create command context from current state
+        tracing::debug!("AppController: Creating command context");
+        let context = CommandContext::new(ViewModelSnapshot::from_view_model(&self.view_model));
+        tracing::debug!("AppController: Command context created");
+
+        // Process through command registry
+        tracing::debug!("AppController: About to call command_registry.process_event");
+        if let Ok(events) = self.command_registry.process_event(key_event, &context) {
+            tracing::debug!(
+                "AppController: Command events generated: {} events",
+                events.len()
+            );
+            tracing::debug!("Command events generated: {:?}", events);
+            if !events.is_empty() {
+                // Apply events to view model (this will emit appropriate ViewEvents)
+                tracing::debug!(
+                    "AppController: About to apply {} command events",
+                    events.len()
+                );
+                for (i, event) in events.iter().enumerate() {
+                    tracing::debug!(
+                        "AppController: Applying event {}/{}: {:?}",
+                        i + 1,
+                        events.len(),
+                        event
+                    );
+                    self.apply_command_event(event.clone()).await?;
+                    tracing::debug!(
+                        "AppController: Applied event {}/{} successfully",
+                        i + 1,
+                        events.len()
+                    );
+                }
+                tracing::debug!("AppController: All command events applied successfully");
+
+                // Render after processing key events
+                self.view_renderer.render_full(&self.view_model)?;
+            } else {
+                tracing::debug!("AppController: No command events generated");
+            }
+        } else {
+            tracing::warn!("AppController: Failed to process key event: {key_event:?}");
+        }
+
+        tracing::debug!("AppController: process_key_event completed successfully");
+        Ok(())
+    }
+
+    /// Check if the application should quit (for testing)
+    pub fn should_quit(&self) -> bool {
+        self.should_quit
+    }
 }
 
 #[cfg(test)]
@@ -602,7 +673,11 @@ mod tests {
     fn app_controller_should_create() {
         if crossterm::terminal::size().is_ok() {
             let cmd_args = CommandLineArgs::parse_from(["test"]);
-            let controller = AppController::new(cmd_args);
+            let controller = AppController::with_io_streams(
+                cmd_args,
+                crate::repl::io::TerminalEventStream::new(),
+                crate::repl::io::TerminalRenderStream::new(),
+            );
             assert!(controller.is_ok());
 
             let controller = controller.unwrap();

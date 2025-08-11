@@ -3,7 +3,8 @@
 //! Handles pane switching, mode changes, and pane-related state management.
 //! Contains the PaneManager struct that encapsulates all pane-related operations.
 
-use crate::repl::events::{LogicalPosition, LogicalRange, Pane, ViewEvent};
+use crate::repl::events::{EditorMode, LogicalPosition, LogicalRange, Pane, ViewEvent};
+use crate::repl::geometry::Position;
 use crate::repl::view_models::pane_state::PaneState;
 
 /// Type alias for visual selection state to reduce complexity
@@ -45,7 +46,7 @@ impl PaneManager {
         Self {
             panes: [request_pane, response_pane],
             current_pane: Pane::Request,
-            wrap_enabled: true,
+            wrap_enabled: false,
             terminal_dimensions,
             request_pane_height: terminal_dimensions.1 / 2,
         }
@@ -269,7 +270,16 @@ impl PaneManager {
 
     /// Set word wrap enabled state
     pub fn set_wrap_enabled(&mut self, enabled: bool) {
+        tracing::debug!(
+            "🔧 PaneManager::set_wrap_enabled: changing from {} to {}",
+            self.wrap_enabled,
+            enabled
+        );
         self.wrap_enabled = enabled;
+        tracing::debug!(
+            "✅ PaneManager::set_wrap_enabled: wrap_enabled is now {}",
+            self.wrap_enabled
+        );
     }
 
     /// Update terminal size and recalculate pane dimensions
@@ -324,6 +334,10 @@ impl PaneManager {
 
     /// Rebuild display caches for both panes and sync cursors (complete rebuild process)
     pub fn rebuild_display_caches_and_sync(&mut self) -> Vec<ViewEvent> {
+        tracing::debug!(
+            "🔄 PaneManager::rebuild_display_caches_and_sync: starting with wrap_enabled={}",
+            self.wrap_enabled
+        );
         let content_width = self.get_content_width();
 
         // Rebuild display caches
@@ -346,17 +360,25 @@ impl PaneManager {
                 .logical_to_display_position(logical.line, logical.column)
             {
                 self.panes[pane].display_cursor = display_pos;
+            } else {
+                // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                tracing::warn!(
+                    "sync_display_cursors: logical_to_display_position failed for {:?} pane at {:?} - using fallback", 
+                    pane, logical
+                );
+                // Fallback: Use logical position as display position (works for non-wrapped content)
+                self.panes[pane].display_cursor = Position::new(logical.line, logical.column);
             }
         }
     }
 
     /// Get display cursor position for current pane
-    pub fn get_current_display_cursor(&self) -> (usize, usize) {
+    pub fn get_current_display_cursor(&self) -> Position {
         self.panes[self.current_pane].display_cursor
     }
 
     /// Get scroll offset for current pane
-    pub fn get_current_scroll_offset(&self) -> (usize, usize) {
+    pub fn get_current_scroll_offset(&self) -> Position {
         self.panes[self.current_pane].scroll_offset
     }
 
@@ -425,6 +447,16 @@ impl PaneManager {
                 .logical_to_display_position(logical.line, logical.column)
             {
                 self.panes[Pane::Request].display_cursor = display_pos;
+            } else {
+                // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                // This can happen with empty lines or edge cases after multiple newlines in Insert mode
+                tracing::warn!(
+                    "logical_to_display_position failed for cursor at {:?} - using fallback display position", 
+                    logical
+                );
+                // Fallback: Use logical position as display position (works for non-wrapped content)
+                self.panes[Pane::Request].display_cursor =
+                    Position::new(logical.line, logical.column);
             }
 
             let mut events = vec![
@@ -493,6 +525,14 @@ impl PaneManager {
                     .logical_to_display_position(new_cursor.line, new_cursor.column)
                 {
                     request_pane.display_cursor = display_pos;
+                } else {
+                    // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                    tracing::warn!(
+                        "delete_char_before_cursor: logical_to_display_position failed at {:?} - using fallback", 
+                        new_cursor
+                    );
+                    // Fallback: Use logical position as display position (works for non-wrapped content)
+                    request_pane.display_cursor = Position::new(new_cursor.line, new_cursor.column);
                 }
 
                 let mut events = vec![
@@ -551,6 +591,14 @@ impl PaneManager {
                     .logical_to_display_position(new_cursor.line, new_cursor.column)
                 {
                     request_pane.display_cursor = display_pos;
+                } else {
+                    // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                    tracing::warn!(
+                        "delete_char_before_cursor: logical_to_display_position failed at {:?} - using fallback", 
+                        new_cursor
+                    );
+                    // Fallback: Use logical position as display position (works for non-wrapped content)
+                    request_pane.display_cursor = Position::new(new_cursor.line, new_cursor.column);
                 }
 
                 return vec![
@@ -612,6 +660,15 @@ impl PaneManager {
                         .logical_to_display_position(current_logical.line, current_logical.column)
                     {
                         request_pane.display_cursor = display_pos;
+                    } else {
+                        // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                        tracing::warn!(
+                            "delete_char_after_cursor: logical_to_display_position failed at {:?} - using fallback", 
+                            current_logical
+                        );
+                        // Fallback: Use logical position as display position (works for non-wrapped content)
+                        request_pane.display_cursor =
+                            Position::new(current_logical.line, current_logical.column);
                     }
 
                     return vec![
@@ -650,6 +707,15 @@ impl PaneManager {
                         .logical_to_display_position(current_logical.line, current_logical.column)
                     {
                         request_pane.display_cursor = display_pos;
+                    } else {
+                        // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                        tracing::warn!(
+                            "delete_char_after_cursor: logical_to_display_position failed at {:?} - using fallback", 
+                            current_logical
+                        );
+                        // Fallback: Use logical position as display position (works for non-wrapped content)
+                        request_pane.display_cursor =
+                            Position::new(current_logical.line, current_logical.column);
                     }
 
                     return vec![
@@ -681,6 +747,15 @@ impl PaneManager {
             .logical_to_display_position(clamped_position.line, clamped_position.column)
         {
             self.panes[self.current_pane].display_cursor = display_pos;
+        } else {
+            // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+            tracing::warn!(
+                "set_current_cursor_position: logical_to_display_position failed at {:?} - using fallback", 
+                clamped_position
+            );
+            // Fallback: Use logical position as display position (works for non-wrapped content)
+            self.panes[self.current_pane].display_cursor =
+                Position::new(clamped_position.line, clamped_position.column);
         }
 
         // Update visual selection if active
@@ -728,6 +803,14 @@ impl PaneManager {
             .content_mut()
             .set_text(text);
 
+        // Reset cursor and scroll positions to avoid out-of-bounds issues
+        self.panes[Pane::Response].display_cursor = Position::origin();
+        self.panes[Pane::Response].scroll_offset = Position::origin();
+
+        // Clear any visual selection in the response pane
+        self.panes[Pane::Response].visual_selection_start = None;
+        self.panes[Pane::Response].visual_selection_end = None;
+
         // Rebuild display cache to ensure rendering sees the updated content
         let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4); // Same as Request pane
         self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
@@ -752,7 +835,7 @@ impl PaneManager {
     }
 
     /// Set display cursor position for current area
-    pub fn set_current_display_cursor(&mut self, position: (usize, usize)) -> Vec<ViewEvent> {
+    pub fn set_current_display_cursor(&mut self, position: Position) -> Vec<ViewEvent> {
         let _result = self.panes[self.current_pane].set_display_cursor(position);
 
         let mut events = vec![
@@ -788,66 +871,6 @@ impl PaneManager {
 
         if result.cursor_moved {
             events.push(ViewEvent::ActiveCursorUpdateRequired);
-        }
-
-        events
-    }
-
-    /// Handle vertical page scrolling in current area
-    pub fn scroll_current_vertically_by_page(&mut self, direction: i32) -> Vec<ViewEvent> {
-        let result = self.panes[self.current_pane].scroll_vertically_by_page(direction);
-
-        let mut events = vec![ViewEvent::CurrentAreaScrollChanged {
-            old_offset: result.old_offset,
-            new_offset: result.new_offset,
-        }];
-
-        if result.cursor_moved {
-            events.push(ViewEvent::ActiveCursorUpdateRequired);
-
-            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
-                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
-                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-                tracing::debug!(
-                    "Page scroll updated visual selection end to {:?}",
-                    new_cursor_pos
-                );
-            }
-        }
-
-        events
-    }
-
-    /// Handle vertical half-page scrolling in current area
-    pub fn scroll_current_vertically_by_half_page(&mut self, direction: i32) -> Vec<ViewEvent> {
-        let result = self.panes[self.current_pane].scroll_vertically_by_half_page(direction);
-
-        let mut events = vec![ViewEvent::CurrentAreaScrollChanged {
-            old_offset: result.old_offset,
-            new_offset: result.new_offset,
-        }];
-
-        if result.cursor_moved {
-            events.push(ViewEvent::ActiveCursorUpdateRequired);
-
-            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
-                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
-                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-                tracing::debug!(
-                    "Half-page scroll updated visual selection end to {:?}",
-                    new_cursor_pos
-                );
-            }
         }
 
         events
@@ -902,7 +925,7 @@ impl PaneManager {
     }
 
     /// Get content width for current pane (temporary - will be moved to internal calculation)
-    fn get_content_width(&self) -> usize {
+    pub fn get_content_width(&self) -> usize {
         // Use current pane's line number width calculation
         // This is a simplified version - should be improved later
         (self.terminal_dimensions.0 as usize).saturating_sub(4)
@@ -916,20 +939,21 @@ impl PaneManager {
         let mut moved = false;
 
         // Check if we can move left within current display line
-        if current_display_pos.1 > 0 {
+        if current_display_pos.col > 0 {
             // Use character-aware left movement
-            if let Some(current_line) = display_cache.get_display_line(current_display_pos.0) {
-                let new_col = current_line.move_left_by_character(current_display_pos.1);
-                let new_display_pos = (current_display_pos.0, new_col);
+            if let Some(current_line) = display_cache.get_display_line(current_display_pos.row) {
+                let new_col = current_line.move_left_by_character(current_display_pos.col);
+                let new_display_pos = Position::new(current_display_pos.row, new_col);
                 self.panes[self.current_pane].display_cursor = new_display_pos;
                 moved = true;
             }
-        } else if current_display_pos.0 > 0 {
+        } else if current_display_pos.row > 0 {
             // Move to end of previous display line
-            let prev_display_line = current_display_pos.0 - 1;
+            let prev_display_line = current_display_pos.row - 1;
             if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
-                let new_col = prev_line.char_count().saturating_sub(1);
-                let new_display_pos = (prev_display_line, new_col);
+                // FIXED: Use display width instead of character count for proper multibyte character support
+                let new_col = prev_line.display_width().saturating_sub(1);
+                let new_display_pos = Position::new(prev_display_line, new_col);
                 self.panes[self.current_pane].display_cursor = new_display_pos;
                 moved = true;
             }
@@ -938,11 +962,11 @@ impl PaneManager {
         if moved {
             // Sync logical cursor with new display position
             let new_display_pos = self.get_current_display_cursor();
-            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+            if let Some(logical_pos) = self.panes[self.current_pane]
                 .display_cache
-                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
-                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
                 self.panes[self.current_pane]
                     .buffer
                     .set_cursor(new_logical_pos);
@@ -975,25 +999,54 @@ impl PaneManager {
     }
 
     /// Move cursor right in current area
+    ///
+    /// HIGH-LEVEL LOGIC:
+    /// 1. Check if cursor can move right within current line (mode-aware boundary check)
+    /// 2. If not, check if cursor can move to next line (line wrap navigation)
+    /// 3. Perform the actual cursor movement using character-aware positioning
+    /// 4. Sync display cursor with logical cursor and update visual selections
     pub fn move_cursor_right(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
 
         let mut moved = false;
         let mut new_display_pos = current_display_pos;
 
-        // Check movement possibility first without borrowing display_cache
+        // PHASE 1: Check if cursor can move right within current line
+        // Uses mode-aware boundary checking for proper Insert vs Normal behavior
         let can_move_right_in_line = if let Some(current_line) = self.panes[self.current_pane]
             .display_cache
-            .get_display_line(current_display_pos.0)
+            .get_display_line(current_display_pos.row)
         {
-            let line_char_count = current_line.char_count();
-            current_display_pos.1 < line_char_count
+            // MULTIBYTE FIX: Use display width instead of character count for proper CJK support
+            // MODE-AWARE: Different boundary behavior for Insert vs Normal mode
+            let line_display_width = current_line.display_width();
+            let current_mode = self.get_current_pane_mode();
+
+            match current_mode {
+                EditorMode::Insert => {
+                    // Insert mode: Allow cursor to go one position past end of line (for typing new chars)
+                    current_display_pos.col < line_display_width
+                }
+                _ => {
+                    // Normal/Visual mode: Stop at last character position (Vim behavior)
+                    if line_display_width == 0 {
+                        false // Empty line - no movement allowed
+                    } else {
+                        // Check if moving right would keep us within the line
+                        // We simulate the movement to see if it would go past the end
+                        let next_pos =
+                            current_line.move_right_by_character(current_display_pos.col);
+                        next_pos < line_display_width
+                    }
+                }
+            }
         } else {
             false
         };
 
+        // PHASE 2: Check if cursor can move to next line (when right movement in current line fails)
         let can_move_to_next_line = if !can_move_right_in_line {
-            let next_display_line = current_display_pos.0 + 1;
+            let next_display_line = current_display_pos.row + 1;
             self.panes[self.current_pane]
                 .display_cache
                 .get_display_line(next_display_line)
@@ -1002,36 +1055,62 @@ impl PaneManager {
             false
         };
 
-        // Perform the movement
+        // PHASE 3: Perform the actual cursor movement
         if can_move_right_in_line {
-            // Use character-aware right movement
+            // CASE 1: Move right within current line using character-aware positioning
             if let Some(current_line) = self.panes[self.current_pane]
                 .display_cache
-                .get_display_line(current_display_pos.0)
+                .get_display_line(current_display_pos.row)
             {
-                let new_col = current_line.move_right_by_character(current_display_pos.1);
-                new_display_pos = (current_display_pos.0, new_col);
-                self.panes[self.current_pane].display_cursor = new_display_pos;
-                moved = true;
+                let new_col = current_line.move_right_by_character(current_display_pos.col);
+
+                // When wrap is enabled, check if we've moved past the visible width
+                // If so, wrap to the next line instead of staying on the current line
+                let content_width = self.get_content_width();
+                if self.wrap_enabled && new_col >= content_width {
+                    // Check if there's a next line to wrap to
+                    let next_display_line = current_display_pos.row + 1;
+                    if self.panes[self.current_pane]
+                        .display_cache
+                        .get_display_line(next_display_line)
+                        .is_some()
+                    {
+                        new_display_pos = Position::new(next_display_line, 0);
+                    } else {
+                        // No next line, stay at current position
+                        new_display_pos =
+                            Position::new(current_display_pos.row, current_display_pos.col);
+                        moved = false;
+                    }
+                } else {
+                    new_display_pos = Position::new(current_display_pos.row, new_col);
+                }
+
+                if moved || new_display_pos != current_display_pos {
+                    self.panes[self.current_pane].display_cursor = new_display_pos;
+                    moved = true;
+                }
             }
         } else if can_move_to_next_line {
-            new_display_pos = (current_display_pos.0 + 1, 0);
+            // CASE 2: Move to beginning of next line (line wrap navigation)
+            new_display_pos = Position::new(current_display_pos.row + 1, 0);
             self.panes[self.current_pane].display_cursor = new_display_pos;
             moved = true;
         }
 
+        // PHASE 4: Synchronize cursor position and update related state
         if moved {
-            // Sync logical cursor with new display position
-            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+            // Sync logical cursor with new display position for buffer operations
+            if let Some(logical_pos) = self.panes[self.current_pane]
                 .display_cache
-                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
-                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
                 self.panes[self.current_pane]
                     .buffer
                     .set_cursor(new_logical_pos);
 
-                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
+                // VISUAL MODE: Update visual selection end point if in visual mode
                 if self.panes[self.current_pane]
                     .visual_selection_start
                     .is_some()
@@ -1041,19 +1120,21 @@ impl PaneManager {
                 }
             }
 
+            // EVENTS: Generate view events for UI updates
             let mut events = vec![
                 ViewEvent::ActiveCursorUpdateRequired,
                 ViewEvent::PositionIndicatorUpdateRequired,
                 ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
             ];
 
-            // Ensure cursor is visible and add visibility events
+            // VISIBILITY: Ensure cursor remains visible after movement (scrolling if needed)
             let content_width = self.get_content_width();
             let visibility_events = self.ensure_current_cursor_visible(content_width);
             events.extend(visibility_events);
 
             events
         } else {
+            // NO MOVEMENT: Return empty events if cursor couldn't move
             vec![]
         }
     }
@@ -1061,29 +1142,37 @@ impl PaneManager {
     /// Move cursor up in current area
     pub fn move_cursor_up(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.panes[self.current_pane].editor_mode;
 
-        if current_display_pos.0 > 0 {
-            let new_line = current_display_pos.0 - 1;
+        if current_display_pos.row > 0 {
+            let new_line = current_display_pos.row - 1;
 
             // Clamp column to the length of the new line to prevent cursor going beyond line end
+            // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
             let new_col = if let Some(display_line) = self.panes[self.current_pane]
                 .display_cache
                 .get_display_line(new_line)
             {
-                current_display_pos.1.min(display_line.display_width())
+                let line_char_count = display_line.char_count();
+                let max_col = if current_mode == EditorMode::Insert {
+                    line_char_count // Insert mode: can be positioned after last character
+                } else {
+                    line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+                };
+                current_display_pos.col.min(max_col)
             } else {
-                current_display_pos.1
+                current_display_pos.col
             };
 
-            let new_display_pos = (new_line, new_col);
+            let new_display_pos = Position::new(new_line, new_col);
             self.panes[self.current_pane].display_cursor = new_display_pos;
 
             // Sync logical cursor with new display position
-            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+            if let Some(logical_pos) = self.panes[self.current_pane]
                 .display_cache
-                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
-                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
                 self.panes[self.current_pane]
                     .buffer
                     .set_cursor(new_logical_pos);
@@ -1118,24 +1207,36 @@ impl PaneManager {
     /// Move cursor down in current area
     pub fn move_cursor_down(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.panes[self.current_pane].editor_mode;
 
-        let next_display_line = current_display_pos.0 + 1;
+        let next_display_line = current_display_pos.row + 1;
+
+        // Check if the next display line actually exists in the display cache
+        // This prevents cursor from moving beyond actual content
         if let Some(display_line) = self.panes[self.current_pane]
             .display_cache
             .get_display_line(next_display_line)
         {
+            // Only move if there's actual content at the next line
             // Clamp column to the length of the new line to prevent cursor going beyond line end
-            let new_col = current_display_pos.1.min(display_line.display_width());
-            let new_display_pos = (next_display_line, new_col);
+            // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
+            let line_char_count = display_line.char_count();
+            let max_col = if current_mode == EditorMode::Insert {
+                line_char_count // Insert mode: can be positioned after last character
+            } else {
+                line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+            };
+            let new_col = current_display_pos.col.min(max_col);
+            let new_display_pos = Position::new(next_display_line, new_col);
 
             self.panes[self.current_pane].display_cursor = new_display_pos;
 
             // Sync logical cursor with new display position
-            if let Some((logical_line, logical_col)) = self.panes[self.current_pane]
+            if let Some(logical_pos) = self.panes[self.current_pane]
                 .display_cache
-                .display_to_logical_position(new_display_pos.0, new_display_pos.1)
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
-                let new_logical_pos = LogicalPosition::new(logical_line, logical_col);
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
                 self.panes[self.current_pane]
                     .buffer
                     .set_cursor(new_logical_pos);
@@ -1207,8 +1308,9 @@ impl PaneManager {
         events
     }
 
-    /// Move cursor to end of current line
-    pub fn move_cursor_to_end_of_line(&mut self) -> Vec<ViewEvent> {
+    /// Move cursor to end of current line for append (A command)
+    /// This positions the cursor AFTER the last character for insert mode
+    pub fn move_cursor_to_line_end_for_append(&mut self) -> Vec<ViewEvent> {
         // Get current logical position
         let current_logical = self.panes[self.current_pane].buffer.cursor();
 
@@ -1225,8 +1327,81 @@ impl PaneManager {
         {
             let line_length = line.chars().count();
 
+            // For the 'A' command, position cursor AFTER the last character
+            // This allows inserting at the end of the line
+            let end_position = line_length; // Position after last character
+            let new_logical = LogicalPosition::new(current_logical.line, end_position);
+
+            // Update logical cursor first
+            self.panes[self.current_pane].buffer.set_cursor(new_logical);
+
+            // Sync display cursor with logical cursor
+            self.panes[self.current_pane].sync_display_cursor_with_logical();
+
+            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
+            if self.panes[self.current_pane]
+                .visual_selection_start
+                .is_some()
+            {
+                self.panes[self.current_pane].visual_selection_end = Some(new_logical);
+                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
+                tracing::debug!(
+                    "Line end append movement updated visual selection end to {:?}",
+                    new_logical
+                );
+            }
+        }
+
+        // Ensure cursor is visible with Insert-mode scrolling logic
+        // The A command will immediately switch to Insert mode, so we need to use
+        // Insert mode scrolling behavior here to ensure proper horizontal scrolling
+        let content_width = self.get_content_width();
+        let original_mode = self.panes[self.current_pane].editor_mode;
+
+        // Temporarily set to Insert mode for proper scrolling calculation
+        self.panes[self.current_pane].editor_mode = EditorMode::Insert;
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+
+        // Restore original mode
+        self.panes[self.current_pane].editor_mode = original_mode;
+
+        events.extend(visibility_events);
+
+        events
+    }
+
+    /// Move cursor to end of current line
+    pub fn move_cursor_to_end_of_line(&mut self) -> Vec<ViewEvent> {
+        // Get current logical position
+        let current_logical = self.panes[self.current_pane].buffer.cursor();
+        let current_mode = self.panes[self.current_pane].editor_mode;
+
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Get the current line content to find its length
+        if let Some(line) = self.panes[self.current_pane]
+            .buffer
+            .content()
+            .get_line(current_logical.line)
+        {
+            let line_length = line.chars().count();
+
             // Create new logical position at end of current line
-            let new_logical = LogicalPosition::new(current_logical.line, line_length);
+            // Mode-dependent positioning:
+            // - Normal/Visual mode: cursor stops at the last character (index n-1)
+            // - Insert mode: cursor can be positioned after last character (index n)
+            // This is used for the 'A' command which should position after last char
+            let end_position = if current_mode == EditorMode::Insert && line_length > 0 {
+                line_length // Position after last character for insert mode
+            } else if line_length > 0 {
+                line_length - 1 // Stop at last character for normal/visual mode
+            } else {
+                0 // Empty line, stay at position 0
+            };
+            let new_logical = LogicalPosition::new(current_logical.line, end_position);
 
             // Update logical cursor first
             self.panes[self.current_pane].buffer.set_cursor(new_logical);
@@ -1259,7 +1434,7 @@ impl PaneManager {
     /// Move cursor to start of document
     pub fn move_cursor_to_document_start(&mut self) -> Vec<ViewEvent> {
         // Use proper cursor positioning method to ensure logical/display sync
-        let start_position = (0, 0);
+        let start_position = Position::origin();
         let _result = self.panes[self.current_pane].set_display_cursor(start_position);
 
         let mut events = vec![
@@ -1306,8 +1481,9 @@ impl PaneManager {
         ];
 
         if let Some(last_line) = display_cache.get_display_line(last_line_idx) {
-            let line_char_count = last_line.char_count();
-            let end_position = (last_line_idx, line_char_count);
+            // FIXED: Use display width instead of character count for proper multibyte character support
+            let line_display_width = last_line.display_width();
+            let end_position = Position::new(last_line_idx, line_display_width);
 
             // Use proper cursor positioning method to ensure logical/display sync
             let _result = self.panes[self.current_pane].set_display_cursor(end_position);
@@ -1336,30 +1512,36 @@ impl PaneManager {
     }
 
     /// Move cursor to specific line number (1-based)
+    /// If line_number is out of bounds, clamps to the last available line (vim behavior)
     pub fn move_cursor_to_line(&mut self, line_number: usize) -> Vec<ViewEvent> {
         if line_number == 0 {
             return vec![];
         }
 
         let display_cache = &self.panes[self.current_pane].display_cache;
-        let target_line_idx = line_number - 1; // Convert to 0-based
+        let max_line_count = display_cache.display_line_count();
 
-        if display_cache.get_display_line(target_line_idx).is_some() {
-            self.panes[self.current_pane].display_cursor = (target_line_idx, 0);
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ];
-
-            // Ensure cursor is visible and add visibility events
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
+        if max_line_count == 0 {
+            return vec![]; // No lines to navigate to
         }
+
+        // Clamp to valid range (1 to max_line_count)
+        let clamped_line_number = line_number.min(max_line_count);
+        let target_line_idx = clamped_line_number - 1; // Convert to 0-based
+
+        // Set cursor position
+        self.panes[self.current_pane].display_cursor = Position::new(target_line_idx, 0);
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_current_cursor_visible(content_width);
+        events.extend(visibility_events);
+
+        events
     }
 
     /// Calculate pane boundaries for rendering
@@ -1379,5 +1561,31 @@ impl PaneManager {
             let response_height = 0; // Hidden
             (request_height, response_start, response_height)
         }
+    }
+
+    // Per-pane mode management methods
+    /// Get current editor mode for the currently active pane
+    pub fn get_current_pane_mode(&self) -> EditorMode {
+        self.panes[self.current_pane].get_mode()
+    }
+
+    /// Set editor mode for the currently active pane
+    pub fn set_current_pane_mode(&mut self, mode: EditorMode) {
+        self.panes[self.current_pane].set_mode(mode);
+    }
+
+    /// Get editor mode for a specific pane
+    pub fn get_pane_mode(&self, pane: Pane) -> EditorMode {
+        self.panes[pane].get_mode()
+    }
+
+    /// Set editor mode for a specific pane
+    pub fn set_pane_mode(&mut self, pane: Pane, mode: EditorMode) {
+        self.panes[pane].set_mode(mode);
+    }
+
+    /// Get reference to the currently active pane state
+    pub fn get_current_pane_state(&self) -> Option<&PaneState> {
+        Some(&self.panes[self.current_pane])
     }
 }

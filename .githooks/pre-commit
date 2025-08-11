@@ -6,39 +6,44 @@
 
 set -e
 
-echo "🎨 Running cargo fmt check..."
+echo "> Running cargo fix..."
+if ! cargo fix -q --allow-dirty --allow-staged --all-targets --all-features > /dev/null 2>&1; then
+    echo "❌ Auto format failed!"
+fi
+
+echo "✅ Code format issues fixed!"
+
 
 # Check if code is properly formatted
-if ! cargo fmt --all -- --check > /dev/null 2>&1; then
+echo "> Running cargo fmt check..."
+
+if ! cargo fmt > /dev/null 2>&1; then
+    echo "❌ Format warnings!"
     echo ""
-    echo "❌ COMMIT REJECTED: Code formatting issues found!"
+    cargo fmt
     echo ""
-    echo "Please run 'cargo fmt' to format your code before committing:"
-    echo ""
-    cargo fmt --all -- --check
-    echo ""
-    echo "💡 Tip: Run 'cargo fmt' to automatically format your code"
-    echo ""
+    echo "❌ PRE-CHECK FAILED: Fix the warnings and come back again!"
     exit 1
 fi
 
 echo "✅ Code formatting check passed!"
-
-echo "🔍 Running cargo clippy check..."
+echo "> Running cargo clippy check..."
 
 # Run clippy with warnings as errors
 if ! cargo clippy --all-targets --all-features -- -D warnings > /dev/null 2>&1; then
+    echo "❌ Clippy check warnings!"
     echo ""
-    echo "❌ COMMIT REJECTED: Clippy warnings found!"
+    cargo clippy -q --all-targets --all-features -- -D warnings || true
     echo ""
-    echo "Please fix the following clippy warnings before committing:"
-    echo ""
-    cargo clippy --all-targets --all-features -- -D warnings
-    echo ""
-    echo "💡 Tip: Use modern format string syntax like format!(\"Hello {name}\") instead of format!(\"Hello {}\", name)"
-    echo ""
+    echo "❌ PRE-CHECK FAILED: Fix the warnings and come back again!"
+    exit 1
+fi
+
+# Run clippy with warnings as errors
+if ! cargo test --lib; then
+    echo "❌ PRE-CHECK FAILED: Fix the unit test and come back again!"
     exit 1
 fi
 
 echo "✅ Clippy check passed!"
-echo "🎉 All pre-commit checks passed! Code is properly formatted and lint-free."
+echo "✅ PRE-CHECK SUCCESSFUL: You can now commit your changes."

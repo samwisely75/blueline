@@ -4,6 +4,7 @@
 //! This module coordinates between logical content and display representation.
 
 use crate::repl::events::{Pane, ViewEvent};
+use crate::repl::geometry::Position;
 use crate::repl::models::DisplayCache;
 use crate::repl::view_models::core::{DisplayLineData, ViewModel};
 
@@ -24,13 +25,14 @@ impl ViewModel {
         row_count: usize,
     ) -> Vec<Option<DisplayLineData>> {
         let display_cache = self.get_display_cache(pane);
-        let (vertical_scroll_offset, horizontal_scroll_offset) =
-            if pane == self.pane_manager.current_pane_type() {
-                self.pane_manager.get_current_scroll_offset()
-            } else {
-                // For non-current pane, access scroll offset directly (this should be made semantic later)
-                (0, 0) // Simplified for now
-            };
+        let scroll_offset = if pane == self.pane_manager.current_pane_type() {
+            self.pane_manager.get_current_scroll_offset()
+        } else {
+            // For non-current pane, access scroll offset directly (this should be made semantic later)
+            Position::origin() // Simplified for now
+        };
+        let vertical_scroll_offset = scroll_offset.row;
+        let horizontal_scroll_offset = scroll_offset.col;
         let content_width = self.get_content_width();
         let mut result = Vec::new();
 
@@ -38,15 +40,38 @@ impl ViewModel {
             let display_line_idx = vertical_scroll_offset + start_row + row;
 
             if let Some(display_line) = display_cache.get_display_line(display_line_idx) {
-                // Apply horizontal scrolling to content
+                // Apply horizontal scrolling to content using display column positions
                 let content = display_line.content();
                 let visible_content =
                     if horizontal_scroll_offset > 0 || content.len() > content_width {
-                        // Use character-aware slicing to avoid UTF-8 boundary issues
-                        let chars: Vec<char> = content.chars().collect();
-                        let start_char = horizontal_scroll_offset.min(chars.len());
-                        let end_char = (horizontal_scroll_offset + content_width).min(chars.len());
-                        chars[start_char..end_char].iter().collect()
+                        // Use display-column-aware slicing for DBCS support
+                        use unicode_width::UnicodeWidthChar;
+                        let mut result = String::new();
+                        let mut current_col = 0;
+                        let mut collecting = false;
+                        let mut collected_width = 0;
+
+                        for ch in content.chars() {
+                            let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+
+                            // Start collecting when we reach the horizontal scroll offset
+                            if !collecting && current_col >= horizontal_scroll_offset {
+                                collecting = true;
+                            }
+
+                            // Collect characters until we've filled the content width
+                            if collecting {
+                                if collected_width + char_width <= content_width {
+                                    result.push(ch);
+                                    collected_width += char_width;
+                                } else {
+                                    break; // Stop when adding this char would exceed content width
+                                }
+                            }
+
+                            current_col += char_width;
+                        }
+                        result
                     } else {
                         content.to_string()
                     };
@@ -81,19 +106,20 @@ impl ViewModel {
             self.pane_manager.get_current_display_cursor()
         } else {
             // For non-current pane, simplified for now
-            (0, 0)
+            Position::origin()
         };
-        let (vertical_offset, horizontal_offset) = if pane == self.pane_manager.current_pane_type()
-        {
+        let scroll_offset = if pane == self.pane_manager.current_pane_type() {
             self.pane_manager.get_current_scroll_offset()
         } else {
             // For non-current pane, simplified for now
-            (0, 0)
+            Position::origin()
         };
+        let vertical_offset = scroll_offset.row;
+        let horizontal_offset = scroll_offset.col;
 
         // Calculate screen-relative position
-        let screen_row = display_pos.0.saturating_sub(vertical_offset);
-        let screen_col = display_pos.1.saturating_sub(horizontal_offset);
+        let screen_row = display_pos.row.saturating_sub(vertical_offset);
+        let screen_col = display_pos.col.saturating_sub(horizontal_offset);
 
         (screen_row, screen_col)
     }
