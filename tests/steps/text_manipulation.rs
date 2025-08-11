@@ -10,7 +10,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use cucumber::{gherkin, given, then, when};
 use tracing::{debug, info};
 
-#[when("I press Enter")]
+#[when(regex = r#"^(?:And )?I press Enter$"#)]
 async fn when_press_enter(world: &mut BluelineWorld) {
     info!("Pressing Enter key");
     world.press_enter().await;

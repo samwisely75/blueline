@@ -84,3 +84,37 @@ Feature: HTTP Request Flow
     Then I should be in the Response pane
     And I press "j"
     Then I should be able to scroll in the response pane
+
+  Scenario: Lengthy singleline response displays as single wrappable line
+    # Test for Issue #58: Ensure genuinely single-line JSON (no \n) displays correctly
+    # This tests minified/compressed JSON that should remain as one logical line
+    When I type "GET /api/search"
+    And I press Escape
+    Then I am in Normal mode
+    And I press Enter
+    When I execute a request that returns a single line response in a single line
+    Then the response pane should be visible
+    And the response should display as a single line
+    When I press Tab
+    Then I should be in the Response pane
+    When I press "0"
+    Then I should be at the beginning of the response line
+    When I press "$"
+    Then I should be at the end of the response line
+
+  Scenario: Multiline response displays as multiple lines
+    # Test for Issue #115: Ensure genuinely multiline responses display correctly
+    # This tests multiline content that should preserve its line structure
+    When I type "GET /api/multiline-data"
+    And I press Escape
+    Then I am in Normal mode
+    And I press Enter
+    When I execute a request that returns a multiline response
+    Then the response pane should be visible
+    And the response should display as multiple lines
+    When I press Tab
+    Then I should be in the Response pane
+    When I press "j"
+    Then I should be able to navigate to the next line
+    When I press "k"
+    Then I should be able to navigate to the previous line
