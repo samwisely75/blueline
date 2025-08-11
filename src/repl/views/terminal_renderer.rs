@@ -447,140 +447,72 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             .pane_manager()
             .get_pane_boundaries(view_model.get_response_status_code().is_some());
 
-        match pane {
-            Pane::Request => {
-                // Calculate the starting row for the partial redraw
-                // BUGFIX: Use saturating_sub to prevent integer underflow panic
-                // This prevents crashes when start_line exceeds request_height during scrolling
-                let height = (request_height as usize).saturating_sub(start_line);
-                let display_lines =
-                    view_model.get_display_lines_for_rendering(pane, start_line, height);
-                let line_num_width = view_model.pane_manager().get_line_number_width(pane);
+        // Early return for response pane without content
+        if pane == Pane::Response && view_model.get_response_status_code().is_none() {
+            return Ok(());
+        }
 
-                for (idx, display_data) in display_lines.iter().enumerate() {
-                    let terminal_row = start_line as u16 + idx as u16;
-                    if terminal_row >= request_height {
-                        break;
+        // Calculate pane-specific parameters
+        let (pane_height, row_offset) = match pane {
+            Pane::Request => (request_height as usize, 0u16),
+            Pane::Response => (response_height as usize, response_start),
+        };
+
+        // Calculate the height for partial redraw
+        // BUGFIX: Use saturating_sub to prevent integer underflow panic
+        let height = pane_height.saturating_sub(start_line);
+        let display_lines = view_model.get_display_lines_for_rendering(pane, start_line, height);
+        let line_num_width = view_model.pane_manager().get_line_number_width(pane);
+
+        // Render each line
+        for (idx, display_data) in display_lines.iter().enumerate() {
+            let terminal_row = row_offset + start_line as u16 + idx as u16;
+
+            // Check bounds
+            if terminal_row >= row_offset + pane_height as u16 {
+                break;
+            }
+
+            let line_info = match display_data {
+                Some((content, line_number, is_continuation, logical_start_col, logical_line)) => {
+                    LineInfo {
+                        text: content,
+                        line_number: *line_number,
+                        is_continuation: *is_continuation,
+                        logical_start_col: *logical_start_col,
+                        logical_line: *logical_line,
                     }
-
-                    match display_data {
-                        Some((
-                            content,
-                            line_number,
-                            is_continuation,
-                            logical_start_col,
-                            logical_line,
-                        )) => {
-                            let line_info = LineInfo {
-                                text: content,
-                                line_number: *line_number,
-                                is_continuation: *is_continuation,
-                                logical_start_col: *logical_start_col,
-                                logical_line: *logical_line,
-                            };
-                            self.render_line_with_number(
-                                view_model,
-                                pane,
-                                terminal_row,
-                                &line_info,
-                                line_num_width,
-                            )?;
+                }
+                None => {
+                    // Special case: always show line number 1 in request pane at first position
+                    if pane == Pane::Request && idx == 0 && start_line == 0 {
+                        LineInfo {
+                            text: "",
+                            line_number: Some(1),
+                            is_continuation: false,
+                            logical_start_col: 0,
+                            logical_line: 0,
                         }
-                        None => {
-                            // Special case: always show line number 1 in request pane
-                            if pane == Pane::Request && idx == 0 && start_line == 0 {
-                                let line_info = LineInfo {
-                                    text: "",
-                                    line_number: Some(1),
-                                    is_continuation: false,
-                                    logical_start_col: 0, // logical_start_col is 0 for empty lines
-                                    logical_line: 0,      // Empty line is logical line 0
-                                };
-                                self.render_line_with_number(
-                                    view_model,
-                                    pane,
-                                    terminal_row,
-                                    &line_info,
-                                    line_num_width,
-                                )?;
-                            } else {
-                                let line_info = LineInfo {
-                                    text: "",
-                                    line_number: None,
-                                    is_continuation: false,
-                                    logical_start_col: 0, // logical_start_col is 0 for tildes
-                                    logical_line: 0,      // Tildes are beyond content, use 0
-                                };
-                                self.render_line_with_number(
-                                    view_model,
-                                    pane,
-                                    terminal_row,
-                                    &line_info,
-                                    line_num_width,
-                                )?;
-                            }
+                    } else {
+                        // Show tildes for empty lines
+                        LineInfo {
+                            text: "",
+                            line_number: None,
+                            is_continuation: false,
+                            logical_start_col: 0,
+                            logical_line: 0,
                         }
                     }
                 }
-            }
-            Pane::Response => {
-                if view_model.get_response_status_code().is_some() {
-                    // BUGFIX: Use saturating_sub to prevent integer underflow panic
-                    // This prevents crashes when start_line exceeds response_height during scrolling
-                    let height = (response_height as usize).saturating_sub(start_line);
-                    let display_lines =
-                        view_model.get_display_lines_for_rendering(pane, start_line, height);
-                    let line_num_width = view_model.pane_manager().get_line_number_width(pane);
+            };
 
-                    for (idx, display_data) in display_lines.iter().enumerate() {
-                        let terminal_row = response_start + start_line as u16 + idx as u16;
-                        if terminal_row >= response_start + response_height {
-                            break;
-                        }
-
-                        match display_data {
-                            Some((
-                                content,
-                                line_number,
-                                is_continuation,
-                                logical_start_col,
-                                logical_line,
-                            )) => {
-                                let line_info = LineInfo {
-                                    text: content,
-                                    line_number: *line_number,
-                                    is_continuation: *is_continuation,
-                                    logical_start_col: *logical_start_col,
-                                    logical_line: *logical_line,
-                                };
-                                self.render_line_with_number(
-                                    view_model,
-                                    pane,
-                                    terminal_row,
-                                    &line_info,
-                                    line_num_width,
-                                )?;
-                            }
-                            None => {
-                                let line_info = LineInfo {
-                                    text: "",
-                                    line_number: None,
-                                    is_continuation: false,
-                                    logical_start_col: 0, // logical_start_col is 0 for tildes
-                                    logical_line: 0,      // Tildes are beyond content, use 0
-                                };
-                                self.render_line_with_number(
-                                    view_model,
-                                    pane,
-                                    terminal_row,
-                                    &line_info,
-                                    line_num_width,
-                                )?;
-                            }
-                        }
-                    }
-                }
-            }
+            self.render_line_with_number(
+                view_model,
+                pane,
+                terminal_row,
+                &line_info,
+                line_num_width,
+            )?;
         }
 
         // Don't render cursor here - let the controller handle it once at the end
