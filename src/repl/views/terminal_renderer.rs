@@ -10,6 +10,9 @@ use anyhow::Result;
 // Import ANSI escape codes from the separate module
 use super::ansi_escape_codes as ansi;
 
+// Type alias for display line data to reduce complexity
+type DisplayLineData = Option<(String, Option<usize>, bool, usize, usize)>;
+
 /// Line rendering information to reduce function parameter count
 #[derive(Debug)]
 struct LineInfo<'a> {
@@ -18,6 +21,52 @@ struct LineInfo<'a> {
     is_continuation: bool,
     logical_start_col: usize,
     logical_line: usize,
+}
+
+impl<'a> LineInfo<'a> {
+    /// Create LineInfo from display data with String content
+    fn from_display_data_string(
+        display_data: &'a DisplayLineData,
+        pane: Pane,
+        row_index: usize,
+        start_line: usize,
+    ) -> Self {
+        match display_data {
+            Some((content, line_number, is_continuation, logical_start_col, logical_line)) => {
+                LineInfo {
+                    text: content.as_str(),
+                    line_number: *line_number,
+                    is_continuation: *is_continuation,
+                    logical_start_col: *logical_start_col,
+                    logical_line: *logical_line,
+                }
+            }
+            None => Self::empty_line_info(pane, row_index, start_line),
+        }
+    }
+
+    /// Create LineInfo for empty lines (tildes or line number 1)
+    fn empty_line_info(pane: Pane, row_index: usize, start_line: usize) -> Self {
+        // Special case: always show line number 1 in request pane at first position
+        if pane == Pane::Request && row_index == 0 && start_line == 0 {
+            LineInfo {
+                text: "",
+                line_number: Some(1),
+                is_continuation: false,
+                logical_start_col: 0,
+                logical_line: 0,
+            }
+        } else {
+            // Show tildes for empty lines
+            LineInfo {
+                text: "",
+                line_number: None,
+                is_continuation: false,
+                logical_start_col: 0,
+                logical_line: 0,
+            }
+        }
+    }
 }
 
 // Helper macro for safe flush operations
@@ -275,61 +324,15 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
 
         for (row, display_data) in display_lines.iter().enumerate() {
             let terminal_row = start_row + row as u16;
+            let line_info = LineInfo::from_display_data_string(display_data, pane, row, 0);
 
-            match display_data {
-                Some((content, line_number, is_continuation, logical_start_col, logical_line)) => {
-                    // Render content with optional line number
-                    let line_info = LineInfo {
-                        text: content,
-                        line_number: *line_number,
-                        is_continuation: *is_continuation,
-                        logical_start_col: *logical_start_col,
-                        logical_line: *logical_line,
-                    };
-                    self.render_line_with_number(
-                        view_model,
-                        pane,
-                        terminal_row,
-                        &line_info,
-                        line_num_width,
-                    )?;
-                }
-                None => {
-                    // Special case: always show line number 1 in request pane
-                    if pane == Pane::Request && row == 0 {
-                        let line_info = LineInfo {
-                            text: "",
-                            line_number: Some(1),
-                            is_continuation: false,
-                            logical_start_col: 0, // logical_start_col is 0 for empty lines
-                            logical_line: 0,      // Empty line is logical line 0
-                        };
-                        self.render_line_with_number(
-                            view_model,
-                            pane,
-                            terminal_row,
-                            &line_info,
-                            line_num_width,
-                        )?;
-                    } else {
-                        // Beyond content - show tilde
-                        let line_info = LineInfo {
-                            text: "",
-                            line_number: None,
-                            is_continuation: false,
-                            logical_start_col: 0, // logical_start_col is 0 for tildes
-                            logical_line: 0,      // Tildes are beyond content, use 0
-                        };
-                        self.render_line_with_number(
-                            view_model,
-                            pane,
-                            terminal_row,
-                            &line_info,
-                            line_num_width,
-                        )?;
-                    }
-                }
-            }
+            self.render_line_with_number(
+                view_model,
+                pane,
+                terminal_row,
+                &line_info,
+                line_num_width,
+            )?;
         }
 
         Ok(())
@@ -473,38 +476,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                 break;
             }
 
-            let line_info = match display_data {
-                Some((content, line_number, is_continuation, logical_start_col, logical_line)) => {
-                    LineInfo {
-                        text: content,
-                        line_number: *line_number,
-                        is_continuation: *is_continuation,
-                        logical_start_col: *logical_start_col,
-                        logical_line: *logical_line,
-                    }
-                }
-                None => {
-                    // Special case: always show line number 1 in request pane at first position
-                    if pane == Pane::Request && idx == 0 && start_line == 0 {
-                        LineInfo {
-                            text: "",
-                            line_number: Some(1),
-                            is_continuation: false,
-                            logical_start_col: 0,
-                            logical_line: 0,
-                        }
-                    } else {
-                        // Show tildes for empty lines
-                        LineInfo {
-                            text: "",
-                            line_number: None,
-                            is_continuation: false,
-                            logical_start_col: 0,
-                            logical_line: 0,
-                        }
-                    }
-                }
-            };
+            let line_info = LineInfo::from_display_data_string(display_data, pane, idx, start_line);
 
             self.render_line_with_number(
                 view_model,
