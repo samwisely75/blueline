@@ -13,8 +13,9 @@ pub struct SwitchPaneCommand;
 
 impl Command for SwitchPaneCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        let relevant =
-            matches!(event.code, KeyCode::Tab) && context.state.current_mode == EditorMode::Normal;
+        let relevant = matches!(event.code, KeyCode::Tab)
+            && context.state.current_mode == EditorMode::Normal
+            && event.modifiers.is_empty();
         if matches!(event.code, KeyCode::Tab) {
             tracing::debug!(
                 "SwitchPaneCommand: Tab key pressed, mode={:?}, relevant={}",
@@ -44,45 +45,114 @@ impl Command for SwitchPaneCommand {
     }
 }
 
-// TODO: Update tests for new event-driven API
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::Pane;
+    use crate::repl::commands::ViewModelSnapshot;
+    use crate::repl::events::LogicalPosition;
     use crossterm::event::KeyModifiers;
 
     fn create_test_key_event(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::empty())
     }
 
-    #[test]
-    fn switch_pane_should_be_relevant_for_tab() {
-        let vm = ViewModel::new();
-        let cmd = SwitchPaneCommand;
-        let event = create_test_key_event(KeyCode::Tab);
-
-        assert!(cmd.is_relevant(&vm, &event));
+    fn create_test_context() -> CommandContext {
+        CommandContext {
+            state: ViewModelSnapshot {
+                current_mode: EditorMode::Normal,
+                current_pane: Pane::Request,
+                cursor_position: LogicalPosition { line: 0, column: 0 },
+                request_text: String::new(),
+                response_text: String::new(),
+                terminal_dimensions: (80, 24),
+                verbose: false,
+            },
+        }
     }
 
     #[test]
-    fn switch_pane_should_toggle_between_panes() {
-        let mut vm = ViewModel::new();
+    fn switch_pane_should_be_relevant_for_tab_in_normal_mode() {
+        let context = create_test_context();
         let cmd = SwitchPaneCommand;
         let event = create_test_key_event(KeyCode::Tab);
 
-        // Should start in Request pane
-        assert_eq!(vm.get_current_pane(), Pane::Request);
+        assert!(cmd.is_relevant(&context, &event));
+    }
 
-        // Execute command to switch to Response
-        cmd.execute(event, &mut vm).unwrap();
-        assert_eq!(vm.get_current_pane(), Pane::Response);
-
-        // Execute again to switch back to Request
+    #[test]
+    fn switch_pane_should_not_be_relevant_for_tab_in_insert_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
+        let cmd = SwitchPaneCommand;
         let event = create_test_key_event(KeyCode::Tab);
-        cmd.execute(event, &mut vm).unwrap();
-        assert_eq!(vm.get_current_pane(), Pane::Request);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn switch_pane_should_not_be_relevant_for_tab_in_visual_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Visual;
+        let cmd = SwitchPaneCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn switch_pane_should_not_be_relevant_for_tab_in_command_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Command;
+        let cmd = SwitchPaneCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn switch_pane_should_not_be_relevant_for_other_keys() {
+        let context = create_test_context();
+        let cmd = SwitchPaneCommand;
+        let event = create_test_key_event(KeyCode::Char('a'));
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn switch_pane_should_not_be_relevant_for_tab_with_modifiers() {
+        let context = create_test_context();
+        let cmd = SwitchPaneCommand;
+        let event = KeyEvent::new(KeyCode::Tab, KeyModifiers::SHIFT);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn switch_pane_should_produce_pane_switch_event_from_request() {
+        let context = create_test_context(); // Defaults to Request pane
+        let cmd = SwitchPaneCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::pane_switch(Pane::Response));
+    }
+
+    #[test]
+    fn switch_pane_should_produce_pane_switch_event_from_response() {
+        let mut context = create_test_context();
+        context.state.current_pane = Pane::Response;
+        let cmd = SwitchPaneCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::pane_switch(Pane::Request));
+    }
+
+    #[test]
+    fn switch_pane_should_return_correct_command_name() {
+        let cmd = SwitchPaneCommand;
+        assert_eq!(cmd.name(), "SwitchPane");
     }
 }
-}
-*/

@@ -198,59 +198,125 @@ impl Default for CommandRegistry {
     }
 }
 
-// TODO: Update tests for new event-driven API
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::EditorMode;
+    use crate::repl::events::{EditorMode, LogicalPosition, Pane};
     use crossterm::event::{KeyCode, KeyModifiers};
 
     fn create_test_key_event(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::empty())
     }
 
+    fn create_test_context() -> CommandContext {
+        CommandContext {
+            state: ViewModelSnapshot {
+                current_mode: EditorMode::Normal,
+                current_pane: Pane::Request,
+                cursor_position: LogicalPosition { line: 0, column: 0 },
+                request_text: String::new(),
+                response_text: String::new(),
+                terminal_dimensions: (80, 24),
+                verbose: false,
+            },
+        }
+    }
+
     #[test]
     fn registry_should_create_with_all_commands() {
         let registry = CommandRegistry::new();
         assert!(!registry.commands.is_empty());
+        // Should have at least the core commands
+        assert!(registry.commands.len() > 10);
     }
 
     #[test]
     fn registry_should_handle_movement_command() {
         let registry = CommandRegistry::new();
-        let mut vm = ViewModel::new();
-        vm.change_mode(EditorMode::Insert).unwrap();
-        vm.insert_text("hello world").unwrap();
+        let context = create_test_context();
 
         let event = create_test_key_event(KeyCode::Left);
-        let handled = registry.process_event(event, &mut vm).unwrap();
+        let events = registry.process_event(event, &context).unwrap();
 
-        assert!(handled);
+        // Should produce a cursor move event
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            events[0],
+            CommandEvent::CursorMoveRequested { .. }
+        ));
     }
 
     #[test]
     fn registry_should_handle_mode_change_command() {
         let registry = CommandRegistry::new();
-        let mut vm = ViewModel::new();
+        let context = create_test_context();
 
         let event = create_test_key_event(KeyCode::Char('i'));
-        let handled = registry.process_event(event, &mut vm).unwrap();
+        let events = registry.process_event(event, &context).unwrap();
 
-        assert!(handled);
-        assert_eq!(vm.get_mode(), EditorMode::Insert);
+        // Should produce a mode change event to Insert mode
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0],
+            CommandEvent::ModeChangeRequested {
+                new_mode: EditorMode::Insert
+            }
+        );
     }
 
     #[test]
-    fn registry_should_return_false_for_unhandled_events() {
+    fn registry_should_handle_pane_switch_command() {
         let registry = CommandRegistry::new();
-        let mut vm = ViewModel::new();
+        let context = create_test_context();
 
-        let event = create_test_key_event(KeyCode::Char('z')); // No command for 'z'
-        let handled = registry.process_event(event, &mut vm).unwrap();
+        let event = create_test_key_event(KeyCode::Tab);
+        let events = registry.process_event(event, &context).unwrap();
 
-        assert!(!handled);
+        // Should produce a pane switch event
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            events[0],
+            CommandEvent::PaneSwitchRequested { .. }
+        ));
+    }
+
+    #[test]
+    fn registry_should_return_empty_for_unhandled_events() {
+        let registry = CommandRegistry::new();
+        let context = create_test_context();
+
+        let event = create_test_key_event(KeyCode::Char('z')); // No command for 'z' in Normal mode
+        let events = registry.process_event(event, &context).unwrap();
+
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn registry_should_respect_mode_context() {
+        let registry = CommandRegistry::new();
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
+
+        // 'i' should not be relevant in Insert mode (mode change commands are for Normal mode)
+        let event = create_test_key_event(KeyCode::Char('i'));
+        let events = registry.process_event(event, &context).unwrap();
+
+        // Should produce a character insertion event instead of mode change
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            events[0],
+            CommandEvent::TextInsertRequested { .. }
+        ));
+    }
+
+    #[test]
+    fn registry_should_allow_adding_custom_commands() {
+        let mut registry = CommandRegistry::new();
+        let initial_count = registry.commands.len();
+
+        // Add a custom command (using an existing one for simplicity)
+        registry.add_command(Box::new(crate::repl::commands::pane::SwitchPaneCommand));
+
+        assert_eq!(registry.commands.len(), initial_count + 1);
     }
 }
-}
-*/
