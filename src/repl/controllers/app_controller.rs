@@ -297,6 +297,23 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                     }
                 }
             }
+            CommandEvent::RestorePreviousModeRequested => {
+                let previous_mode = self.view_model.get_previous_mode();
+                tracing::debug!("Restoring previous mode: {:?}", previous_mode);
+                match self.view_model.change_mode(previous_mode) {
+                    Ok(_) => {
+                        tracing::info!("Successfully restored previous mode: {:?}", previous_mode);
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to restore previous mode {:?}: {}",
+                            previous_mode,
+                            e
+                        );
+                        return Err(e);
+                    }
+                }
+            }
             CommandEvent::PaneSwitchRequested { target_pane } => match target_pane {
                 Pane::Request => self.view_model.switch_to_request_pane(),
                 Pane::Response => self.view_model.switch_to_response_pane(),
