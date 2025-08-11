@@ -18,12 +18,28 @@ impl ViewModel {
     }
 
     /// Get display lines for rendering a specific pane
+    /// Get display lines prepared for terminal rendering with visual selection support
+    ///
+    /// HIGH-LEVEL LOGIC:
+    /// 1. Get the display cache and scroll offsets for the specified pane
+    /// 2. For each requested row in the viewport:
+    ///    a. Calculate the actual display line index (accounting for vertical scroll)
+    ///    b. If line exists, apply horizontal scrolling to get visible portion
+    ///    c. Track how many characters were skipped for accurate logical column calculation
+    ///    d. Package the visible content with metadata for visual selection rendering
+    /// 3. Return display data including logical positions for selection highlighting
+    ///
+    /// CRITICAL FOR VISUAL SELECTION:
+    /// - Must track the exact logical column for each visible character
+    /// - Horizontal scrolling skips characters, not just display columns
+    /// - Multi-byte characters complicate the mapping between display and logical positions
     pub fn get_display_lines_for_rendering(
         &self,
         pane: Pane,
         start_row: usize,
         row_count: usize,
     ) -> Vec<Option<DisplayLineData>> {
+        // STEP 1: Gather display context - cache, scroll offsets, and dimensions
         let display_cache = self.get_display_cache(pane);
         let scroll_offset = if pane == self.pane_manager.current_pane_type() {
             self.pane_manager.get_current_scroll_offset()
@@ -36,20 +52,29 @@ impl ViewModel {
         let content_width = self.get_content_width();
         let mut result = Vec::new();
 
+        // STEP 2: Process each row in the viewport
         for row in 0..row_count {
             let display_line_idx = vertical_scroll_offset + start_row + row;
 
             if let Some(display_line) = display_cache.get_display_line(display_line_idx) {
-                // Apply horizontal scrolling to content using display column positions
+                // STEP 2a: Get the full content of this display line
                 let content = display_line.content();
-                let visible_content =
+                // STEP 2b: Apply horizontal scrolling to extract visible portion
+                // CRITICAL: Track both the visible content AND how many characters were skipped
+                // This is essential for calculating correct logical columns for visual selection
+                let (visible_content, chars_skipped) =
                     if horizontal_scroll_offset > 0 || content.len() > content_width {
-                        // Use display-column-aware slicing for DBCS support
+                        // HORIZONTAL SCROLLING ALGORITHM:
+                        // 1. Iterate through characters tracking display column position
+                        // 2. Skip characters until we reach horizontal_scroll_offset display columns
+                        // 3. Collect characters that fit within content_width
+                        // 4. Track the count of skipped characters (not display columns!)
                         use unicode_width::UnicodeWidthChar;
                         let mut result = String::new();
                         let mut current_col = 0;
                         let mut collecting = false;
                         let mut collected_width = 0;
+                        let mut chars_skipped_count = 0;
 
                         for ch in content.chars() {
                             let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
@@ -57,6 +82,12 @@ impl ViewModel {
                             // Start collecting when we reach the horizontal scroll offset
                             if !collecting && current_col >= horizontal_scroll_offset {
                                 collecting = true;
+                            }
+
+                            // IMPORTANT: Count actual characters skipped, not display columns
+                            // This is needed for correct logical column calculation
+                            if !collecting {
+                                chars_skipped_count += 1;
                             }
 
                             // Collect characters until we've filled the content width
@@ -71,32 +102,46 @@ impl ViewModel {
 
                             current_col += char_width;
                         }
-                        result
+                        (result, chars_skipped_count)
                     } else {
-                        content.to_string()
+                        // No scrolling needed - use full content
+                        (content.to_string(), 0)
                     };
 
+                // STEP 2c: Prepare line number display
                 // Show logical line number only for first segment of wrapped lines
                 let line_number = if display_line.is_continuation {
                     None
                 } else {
-                    Some(display_line.logical_line + 1) // 1-based line numbers
+                    Some(display_line.logical_line + 1) // 1-based line numbers for display
                 };
-                // Fourth parameter provides logical start column for accurate visual selection in wrapped lines
-                // Fifth parameter provides logical line number for all lines (including continuations)
+
+                // STEP 2d: Package display data with logical position information
+                // BUGFIX #95: The logical start column must account for characters skipped
+                // due to horizontal scrolling, not just the display columns scrolled
+                //
+                // DisplayLineData tuple structure:
+                // - visible_content: The text to display (after horizontal scrolling)
+                // - line_number: Optional line number (None for continuation lines)
+                // - is_continuation: Whether this is a wrapped continuation line
+                // - logical_start_col: The logical column where visible content starts
+                // - logical_line: The logical line number (always provided)
                 result.push(Some((
                     visible_content,
                     line_number,
                     display_line.is_continuation,
-                    display_line.logical_start_col + horizontal_scroll_offset,
+                    display_line.logical_start_col + chars_skipped, // Use character count, not display columns!
                     display_line.logical_line, // Always provide logical line number
                 )));
             } else {
-                // Beyond content - show tilde (false indicates this is beyond content, not continuation)
+                // STEP 3: Handle empty rows (beyond content)
+                // These will be rendered as tildes in the terminal
                 result.push(None);
             }
         }
 
+        // Return the prepared display data for rendering
+        // Each element contains either display data or None (for tilde rows)
         result
     }
 
@@ -159,5 +204,115 @@ impl ViewModel {
             self.emit_view_event(events)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_logical_column_calculation_with_horizontal_scroll() {
+        // Test that logical column calculation correctly accounts for
+        // character count (not display columns) when horizontally scrolled
+
+        // Create a test scenario with known content
+        let content = "Hello あいうえお World"; // Mixed ASCII and multi-byte
+
+        // Simulate horizontal scrolling by 2 display columns
+        // "Hello " = 6 display columns, so we skip "He" (2 chars, 2 cols)
+        let horizontal_offset = 2;
+        let content_width = 20;
+
+        // Apply the same logic as get_display_lines_for_rendering
+        use unicode_width::UnicodeWidthChar;
+        let mut result = String::new();
+        let mut current_col = 0;
+        let mut collecting = false;
+        let mut collected_width = 0;
+        let mut chars_skipped_count = 0;
+
+        for ch in content.chars() {
+            let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+
+            if !collecting && current_col >= horizontal_offset {
+                collecting = true;
+            }
+
+            if !collecting {
+                chars_skipped_count += 1;
+            }
+
+            if collecting {
+                if collected_width + char_width <= content_width {
+                    result.push(ch);
+                    collected_width += char_width;
+                } else {
+                    break;
+                }
+            }
+
+            current_col += char_width;
+        }
+
+        // Verify we skipped 2 characters (not 2 display columns)
+        assert_eq!(
+            chars_skipped_count, 2,
+            "Should skip 2 characters for 2 display columns of ASCII"
+        );
+        assert_eq!(
+            &result[0..3],
+            "llo",
+            "Visible content should start with 'llo'"
+        );
+    }
+
+    #[test]
+    fn test_logical_column_with_multibyte_horizontal_scroll() {
+        // Test with multi-byte characters that occupy 2 display columns each
+        let content = "あいうえお"; // 5 characters, 10 display columns
+
+        // Scroll by 4 display columns (should skip 2 double-width chars)
+        let horizontal_offset = 4;
+        let content_width = 10;
+
+        use unicode_width::UnicodeWidthChar;
+        let mut result = String::new();
+        let mut current_col = 0;
+        let mut collecting = false;
+        let mut collected_width = 0;
+        let mut chars_skipped_count = 0;
+
+        for ch in content.chars() {
+            let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+
+            if !collecting && current_col >= horizontal_offset {
+                collecting = true;
+            }
+
+            if !collecting {
+                chars_skipped_count += 1;
+            }
+
+            if collecting {
+                if collected_width + char_width <= content_width {
+                    result.push(ch);
+                    collected_width += char_width;
+                } else {
+                    break;
+                }
+            }
+
+            current_col += char_width;
+        }
+
+        // Should skip 2 characters (あい) which occupy 4 display columns
+        assert_eq!(
+            chars_skipped_count, 2,
+            "Should skip 2 double-width characters"
+        );
+        assert_eq!(
+            result, "うえお",
+            "Visible content should be last 3 characters"
+        );
     }
 }
