@@ -109,5 +109,23 @@ impl ViewModel {
         self.emit_view_event(events)
     }
 
+    /// Move cursor up one page in current area (Ctrl+b)
+    pub fn move_cursor_page_up(&mut self) -> Result<()> {
+        let events = self.pane_manager.move_cursor_page_up();
+        self.emit_view_event(events)
+    }
+
+    /// Move cursor down half a page in current area (Ctrl+d)
+    pub fn move_cursor_half_page_down(&mut self) -> Result<()> {
+        let events = self.pane_manager.move_cursor_half_page_down();
+        self.emit_view_event(events)
+    }
+
+    /// Move cursor up half a page in current area (Ctrl+u)
+    pub fn move_cursor_half_page_up(&mut self) -> Result<()> {
+        let events = self.pane_manager.move_cursor_half_page_up();
+        self.emit_view_event(events)
+    }
+
     // Scrolling methods are implemented elsewhere - avoiding duplication
 }
