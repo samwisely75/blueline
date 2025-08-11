@@ -5,7 +5,7 @@
 //! The controller applies these events to maintain proper separation of concerns.
 
 use anyhow::Result;
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent};
 
 // Import and re-export command event types
 pub mod context;
@@ -136,6 +136,17 @@ impl CommandRegistry {
             context.state.current_mode,
             context.state.current_pane
         );
+
+        // Special logging for Enter key events to debug modifier handling
+        if matches!(event.code, KeyCode::Enter) {
+            tracing::warn!(
+                "🔍 ENTER KEY DETECTED: modifiers={:?}, is_empty={}, mode={:?}, pane={:?}",
+                event.modifiers,
+                event.modifiers.is_empty(),
+                context.state.current_mode,
+                context.state.current_pane
+            );
+        }
 
         for (index, command) in self.commands.iter().enumerate() {
             let command_name = command.name();
