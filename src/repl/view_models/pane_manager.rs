@@ -798,10 +798,16 @@ impl PaneManager {
     /// Set Response pane content
     pub fn set_response_content(&mut self, text: &str) -> Vec<ViewEvent> {
         self.panes[Pane::Response].buffer = crate::repl::models::BufferModel::new(Pane::Response);
+
+        // BUGFIX #58: Convert multi-line response content to single line
+        // For formatted JSON responses, replace newlines with spaces so they display
+        // as one logical line that can wrap naturally rather than multiple logical lines
+        let normalized_text = text.replace(['\n', '\r'], " ");
+
         self.panes[Pane::Response]
             .buffer
             .content_mut()
-            .set_text(text);
+            .set_text(&normalized_text);
 
         // Reset cursor and scroll positions to avoid out-of-bounds issues
         self.panes[Pane::Response].display_cursor = Position::origin();
