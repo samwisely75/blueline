@@ -80,6 +80,8 @@ impl CommandRegistry {
         let commands: CommandCollection = vec![
             // App control commands (highest priority - process first)
             Box::new(AppTerminateCommand),
+            // Request commands (high priority - must intercept Enter before other commands)
+            Box::new(ExecuteRequestCommand),
             // G mode commands (high priority - must be processed before regular g handling)
             Box::new(GoToTopCommand),
             Box::new(GoToBottomCommand),
@@ -116,8 +118,6 @@ impl CommandRegistry {
             Box::new(InsertNewLineCommand),
             Box::new(DeleteCharCommand),
             Box::new(DeleteCharAtCursorCommand),
-            // Request commands
-            Box::new(ExecuteRequestCommand),
         ];
 
         Self { commands }
