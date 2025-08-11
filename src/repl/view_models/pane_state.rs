@@ -222,21 +222,74 @@ impl PaneState {
             }];
         }
 
-        let mut segments = Vec::new();
-        let chars: Vec<char> = line.chars().collect();
-        let mut start = 0;
+        // Convert line to BufferChars for accurate display width calculation
+        use crate::repl::models::buffer_char::BufferLine;
+        let buffer_line = BufferLine::from_string(line);
+        let buffer_chars = buffer_line.chars();
 
-        while start < chars.len() {
-            let end = (start + content_width).min(chars.len());
-            let segment_content: String = chars[start..end].iter().collect();
+        let mut segments = Vec::new();
+        let mut current_char_pos = 0;
+        let total_chars = buffer_chars.len();
+
+        while current_char_pos < total_chars {
+            let mut current_display_width = 0;
+            let mut segment_end_char_pos = current_char_pos;
+            let mut last_word_boundary_char_pos = None;
+
+            // Find how many characters fit within content_width display columns
+            while segment_end_char_pos < total_chars && current_display_width < content_width {
+                let buffer_char = &buffer_chars[segment_end_char_pos];
+                use unicode_width::UnicodeWidthChar;
+                let char_display_width = UnicodeWidthChar::width(buffer_char.ch).unwrap_or(0);
+
+                // Check if adding this character would exceed the content width
+                if current_display_width + char_display_width > content_width {
+                    break;
+                }
+
+                // Mark word boundaries for better wrapping
+                if buffer_char.ch.is_whitespace() {
+                    last_word_boundary_char_pos = Some(segment_end_char_pos + 1);
+                }
+
+                current_display_width += char_display_width;
+                segment_end_char_pos += 1;
+            }
+
+            // If we haven't advanced and we're not at the last character, force advance by one
+            // to prevent infinite loops with zero-width characters
+            if segment_end_char_pos == current_char_pos && current_char_pos < total_chars {
+                segment_end_char_pos = current_char_pos + 1;
+            }
+
+            // Try to break at word boundary if possible (only if we have more characters to process)
+            let actual_end = if segment_end_char_pos < total_chars {
+                if let Some(word_boundary) = last_word_boundary_char_pos {
+                    if word_boundary > current_char_pos {
+                        word_boundary
+                    } else {
+                        segment_end_char_pos
+                    }
+                } else {
+                    segment_end_char_pos
+                }
+            } else {
+                segment_end_char_pos
+            };
+
+            // Extract the segment content
+            let segment_content: String = buffer_chars[current_char_pos..actual_end]
+                .iter()
+                .map(|bc| bc.ch)
+                .collect();
 
             segments.push(WrappedSegment {
                 content: segment_content,
-                logical_start: start,
-                logical_end: end,
+                logical_start: current_char_pos,
+                logical_end: actual_end,
             });
 
-            start = end;
+            current_char_pos = actual_end;
         }
 
         if segments.is_empty() {

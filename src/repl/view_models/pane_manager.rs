@@ -270,7 +270,16 @@ impl PaneManager {
 
     /// Set word wrap enabled state
     pub fn set_wrap_enabled(&mut self, enabled: bool) {
+        tracing::debug!(
+            "🔧 PaneManager::set_wrap_enabled: changing from {} to {}",
+            self.wrap_enabled,
+            enabled
+        );
         self.wrap_enabled = enabled;
+        tracing::debug!(
+            "✅ PaneManager::set_wrap_enabled: wrap_enabled is now {}",
+            self.wrap_enabled
+        );
     }
 
     /// Update terminal size and recalculate pane dimensions
@@ -325,6 +334,10 @@ impl PaneManager {
 
     /// Rebuild display caches for both panes and sync cursors (complete rebuild process)
     pub fn rebuild_display_caches_and_sync(&mut self) -> Vec<ViewEvent> {
+        tracing::debug!(
+            "🔄 PaneManager::rebuild_display_caches_and_sync: starting with wrap_enabled={}",
+            self.wrap_enabled
+        );
         let content_width = self.get_content_width();
 
         // Rebuild display caches
