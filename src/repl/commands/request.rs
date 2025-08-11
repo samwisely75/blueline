@@ -2,7 +2,7 @@
 //!
 //! Commands for executing HTTP requests and related operations
 
-use crate::repl::events::EditorMode;
+use crate::repl::events::{EditorMode, Pane};
 use crate::repl::utils::parse_request_from_text;
 use anyhow::Result;
 use bluenote::HttpRequestArgs;
@@ -18,8 +18,11 @@ pub struct ExecuteRequestCommand;
 
 impl HttpCommand for ExecuteRequestCommand {
     fn is_relevant(&self, context: &HttpCommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Enter) && context.state().current_mode == EditorMode::Normal
-        // Allow execution from both Request and Response panes - user should be able to execute from either
+        matches!(event.code, KeyCode::Enter)
+            && context.state().current_mode == EditorMode::Normal
+            && event.modifiers.is_empty()
+            && context.state().current_pane == Pane::Request
+        // Only allow execution from Request pane in Normal mode
     }
 
     fn execute(&self, _event: KeyEvent, context: &HttpCommandContext) -> Result<Vec<CommandEvent>> {
@@ -69,7 +72,8 @@ impl Command for ExecuteRequestCommand {
         matches!(event.code, KeyCode::Enter)
             && context.state.current_mode == EditorMode::Normal
             && event.modifiers.is_empty()
-        // Allow execution from both Request and Response panes - user should be able to execute from either
+            && context.state.current_pane == Pane::Request
+        // Only allow execution from Request pane in Normal mode
     }
 
     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -174,14 +178,14 @@ mod tests {
     }
 
     #[test]
-    fn execute_request_should_be_relevant_in_response_pane() {
+    fn execute_request_should_not_be_relevant_in_response_pane() {
         let mut context = create_test_context();
         context.state.current_pane = Pane::Response;
         let cmd = ExecuteRequestCommand;
         let event = create_test_key_event(KeyCode::Enter);
 
-        // Should be relevant from both Request and Response panes
-        assert!(Command::is_relevant(&cmd, &context, &event));
+        // Should NOT be relevant from Response pane
+        assert!(!Command::is_relevant(&cmd, &context, &event));
     }
 
     #[test]
@@ -221,5 +225,14 @@ mod tests {
     fn execute_request_should_return_correct_command_name() {
         let cmd = ExecuteRequestCommand;
         assert_eq!(Command::name(&cmd), "ExecuteRequest");
+    }
+
+    #[test]
+    fn execute_request_should_not_be_relevant_for_ctrl_enter() {
+        let context = create_test_context();
+        let cmd = ExecuteRequestCommand;
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL);
+
+        assert!(!Command::is_relevant(&cmd, &context, &event));
     }
 }
