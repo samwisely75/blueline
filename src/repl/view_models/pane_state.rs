@@ -475,22 +475,30 @@ impl PaneState {
                     .col
                     .saturating_sub(content_width.saturating_sub(1));
 
-                // CHARACTER-WIDTH-BASED SCROLL: HSO should equal the width of the leftmost character
+                // CHARACTER-WIDTH-BASED SCROLL: Calculate total width of characters to scroll past
+                // We need to scroll by enough complete characters to satisfy min_scroll_needed
                 if let Some(display_line) = self.display_cache.get_display_line(display_pos.row) {
-                    if let Some(leftmost_char) =
-                        display_line.char_at_display_col(old_horizontal_offset)
-                    {
-                        // Scroll by the width of the leftmost character
-                        let char_width = leftmost_char.display_width();
-                        new_horizontal_offset = old_horizontal_offset + char_width;
+                    let mut accumulated_width = 0;
+                    let mut check_col = old_horizontal_offset;
 
-                        tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen at pos {}, scrolling past leftmost char '{}' width={} from {} to {}", 
-                            display_pos.col, leftmost_char.ch(), char_width, old_horizontal_offset, new_horizontal_offset);
-                    } else {
-                        // Fallback: no character found, use mathematical minimum
-                        new_horizontal_offset = old_horizontal_offset + min_scroll_needed;
-                        tracing::debug!("PaneState::ensure_cursor_visible: no leftmost char found, using min_scroll_needed={}", min_scroll_needed);
+                    // Keep scrolling past complete characters until we've scrolled enough
+                    while accumulated_width < min_scroll_needed {
+                        if let Some(char_at_col) = display_line.char_at_display_col(check_col) {
+                            let char_width = char_at_col.display_width();
+                            accumulated_width += char_width;
+                            check_col += char_width;
+
+                            tracing::debug!("PaneState::ensure_cursor_visible: scrolling past char '{}' width={}, accumulated={}", 
+                                char_at_col.ch(), char_width, accumulated_width);
+                        } else {
+                            // No more characters, use what we have
+                            break;
+                        }
                     }
+
+                    new_horizontal_offset = old_horizontal_offset + accumulated_width;
+                    tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen at pos {}, need to scroll {}, scrolling {} from {} to {}", 
+                        display_pos.col, min_scroll_needed, accumulated_width, old_horizontal_offset, new_horizontal_offset);
                 } else {
                     // Fallback: no display line found
                     new_horizontal_offset = old_horizontal_offset + min_scroll_needed;

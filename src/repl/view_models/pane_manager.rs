@@ -1339,9 +1339,19 @@ impl PaneManager {
             }
         }
 
-        // Ensure cursor is visible and add visibility events
+        // Ensure cursor is visible with Insert-mode scrolling logic
+        // The A command will immediately switch to Insert mode, so we need to use
+        // Insert mode scrolling behavior here to ensure proper horizontal scrolling
         let content_width = self.get_content_width();
+        let original_mode = self.panes[self.current_pane].editor_mode;
+
+        // Temporarily set to Insert mode for proper scrolling calculation
+        self.panes[self.current_pane].editor_mode = EditorMode::Insert;
         let visibility_events = self.ensure_current_cursor_visible(content_width);
+
+        // Restore original mode
+        self.panes[self.current_pane].editor_mode = original_mode;
+
         events.extend(visibility_events);
 
         events
