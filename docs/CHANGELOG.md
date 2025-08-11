@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0] - 2025-01-12
+
+### Refactored
+
+- **Line Number State Management**: Moved line number width calculation from ViewModel to PaneState, eliminating feature envy and improving architectural consistency (issue #59)
+- **Multiline Response Display**: Fixed multiline responses being incorrectly rendered as single lines by removing aggressive newline flattening (issue #115)
+
+### Technical
+
+- Enhanced PaneState with cached line number width management and automatic updates on content changes
+- Added PaneManager methods for clean line number width access: `get_line_number_width()` and `get_current_line_number_width()`
+- Improved response content handling to preserve original line structure while maintaining single-line response compatibility
+- Enhanced test coverage with comprehensive scenarios for both single-line and multiline response handling
+- All architectural improvements maintain full backward compatibility while significantly improving code quality
+
 ## [0.24.1] - 2025-07-30
 
 ### Fixed

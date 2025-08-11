@@ -2,6 +2,20 @@
 //!
 //! Contains the main ViewModel struct and basic initialization logic.
 //! This is the central coordinator that delegates to specialized managers.
+//!
+//! HIGH-LEVEL ARCHITECTURE:
+//! The ViewModel serves as the central coordination hub in the MVVM pattern:
+//! - Aggregates specialized managers (PaneManager, StatusLine, ResponseModel)
+//! - Manages application state and business logic
+//! - Emits ViewEvents for selective rendering optimizations
+//! - Handles HTTP client operations and session state
+//! - Provides double buffering for smooth terminal rendering
+//!
+//! CORE RESPONSIBILITIES:
+//! 1. State Management: Coordinates between panes, modes, and user interactions
+//! 2. Event Processing: Converts user input into semantic operations
+//! 3. View Coordination: Emits events for efficient selective rendering
+//! 4. HTTP Operations: Manages request/response lifecycle with status updates
 
 use crate::repl::events::{EditorMode, EventBus, ModelEvent, Pane, ViewEvent};
 use crate::repl::models::{ResponseModel, StatusLine};
@@ -18,6 +32,12 @@ type EventBusOption = Option<Box<dyn EventBus>>;
 pub type DisplayLineData = (String, Option<usize>, bool, usize, usize);
 
 /// The central ViewModel that coordinates all business logic
+///
+/// HIGH-LEVEL DESIGN PATTERN:
+/// This struct implements the Coordinator pattern, delegating specific responsibilities
+/// to specialized managers while maintaining overall application state consistency.
+/// Each manager handles its domain expertise while the ViewModel orchestrates
+/// cross-cutting concerns like event emission and terminal synchronization.
 pub struct ViewModel {
     // Core state
     pub(super) response: ResponseModel,
@@ -45,6 +65,13 @@ pub struct ViewModel {
 
 impl ViewModel {
     /// Create a new ViewModel with default state
+    ///
+    /// HIGH-LEVEL INITIALIZATION:
+    /// Sets up all specialized managers with sensible defaults:
+    /// - 80x24 terminal dimensions for initial layout calculations
+    /// - Request pane as default active pane
+    /// - Normal editor mode as starting state
+    /// - Double buffering system for smooth rendering
     pub fn new() -> Self {
         let response = ResponseModel::new();
 
@@ -79,6 +106,12 @@ impl ViewModel {
     }
 
     /// Update terminal size and resize screen buffers
+    ///
+    /// HIGH-LEVEL SYNCHRONIZATION:
+    /// Ensures all rendering components stay synchronized with terminal dimensions:
+    /// 1. Updates PaneManager for layout calculations
+    /// 2. Resizes screen buffers for double buffering
+    /// 3. Considers response status for pane height calculations
     pub fn update_terminal_size(&mut self, width: u16, height: u16) {
         // Update PaneManager's terminal size and pane dimensions
         self.pane_manager.update_terminal_size(
@@ -231,8 +264,7 @@ impl ViewModel {
     /// Get content width (terminal width minus line numbers and padding)
     pub fn get_content_width(&self) -> usize {
         // Use semantic width calculation based on current area
-        let current_pane = self.pane_manager.current_pane_type();
-        let line_num_width = self.get_line_number_width(current_pane);
+        let line_num_width = self.pane_manager.get_current_line_number_width();
         (self.pane_manager.terminal_dimensions.0 as usize).saturating_sub(line_num_width + 1)
     }
 

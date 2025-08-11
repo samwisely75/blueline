@@ -120,66 +120,29 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     }
 
     /// Run the main application loop
+    ///
+    /// HIGH-LEVEL LOGIC FLOW:
+    /// 1. Initialize terminal and perform initial render
+    /// 2. Main event loop with 100ms timeout polling:
+    ///    a. Read terminal events (keyboard, resize)
+    ///    b. Convert events to commands via CommandRegistry
+    ///    c. Apply commands to ViewModel (business logic)
+    ///    d. Collect ViewEvents from ViewModel changes
+    ///    e. Render only what changed (selective rendering)
+    /// 3. Handle terminal cleanup on exit
+    ///
+    /// CRITICAL PERFORMANCE OPTIMIZATIONS:
+    /// - Throttled rendering (500μs minimum interval) prevents ghost cursors
+    /// - Selective rendering only updates changed screen regions
+    /// - Event-driven architecture minimizes unnecessary redraws
     pub async fn run(&mut self) -> Result<()> {
-        // Initialize view renderer (handles all terminal setup)
+        // INITIALIZATION PHASE: Setup terminal and initial display
         self.view_renderer.initialize()?;
-
-        // Initial render
         self.view_renderer.render_full(&self.view_model)?;
 
-        // Main event loop
+        // MAIN EVENT LOOP: Handle user input and update display
         while !self.should_quit {
-            // Handle terminal events with timeout
-            if self.event_stream.poll(Duration::from_millis(100))? {
-                match self.event_stream.read()? {
-                    Event::Key(key_event) => {
-                        // Debug log the key event
-                        tracing::debug!("Received key event: {:?}", key_event);
-
-                        // Create command context from current state
-                        let context = CommandContext::new(ViewModelSnapshot::from_view_model(
-                            &self.view_model,
-                        ));
-
-                        // Process through command registry
-                        if let Ok(events) = self.command_registry.process_event(key_event, &context)
-                        {
-                            tracing::debug!("Command events generated: {:?}", events);
-                            if !events.is_empty() {
-                                // Apply events to view model (this will emit appropriate ViewEvents)
-                                for event in events {
-                                    self.apply_command_event(event).await?;
-                                }
-
-                                // Process view events for selective rendering (if not quitting)
-                                if !self.should_quit {
-                                    // Throttle rapid rendering to prevent ghost cursors
-                                    let now = std::time::Instant::now();
-                                    let min_render_interval = Duration::from_micros(500);
-
-                                    if now.duration_since(self.last_render_time)
-                                        >= min_render_interval
-                                    {
-                                        let view_events =
-                                            self.view_model.collect_pending_view_events();
-                                        self.process_view_events(view_events)?;
-                                        self.last_render_time = now;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Event::Resize(width, height) => {
-                        self.view_model.update_terminal_size(width, height);
-                        self.view_renderer.update_size(width, height);
-                        // Render on terminal resize
-                        self.view_renderer.render_full(&self.view_model)?;
-                    }
-                    _ => {
-                        // Ignore other events for now
-                    }
-                }
-            }
+            self.process_next_event().await?;
         }
 
         // Cleanup (all handled by view renderer)
@@ -188,7 +151,91 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         Ok(())
     }
 
+    /// Process the next terminal event if available
+    async fn process_next_event(&mut self) -> Result<()> {
+        // Poll for terminal events with 100ms timeout
+        if !self.event_stream.poll(Duration::from_millis(100))? {
+            return Ok(());
+        }
+
+        match self.event_stream.read()? {
+            Event::Key(key_event) => self.handle_key_event(key_event).await?,
+            Event::Resize(width, height) => self.handle_resize_event(width, height)?,
+            _ => {} // Ignore other events for now
+        }
+
+        Ok(())
+    }
+
+    /// Handle keyboard input events
+    async fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
+        tracing::debug!("Received key event: {:?}", key_event);
+
+        // Create command context snapshot for command processing
+        let context = CommandContext::new(ViewModelSnapshot::from_view_model(&self.view_model));
+
+        // Convert key event to command events via registry
+        let Ok(events) = self.command_registry.process_event(key_event, &context) else {
+            return Ok(());
+        };
+
+        tracing::debug!("Command events generated: {:?}", events);
+
+        if events.is_empty() {
+            return Ok(());
+        }
+
+        // Apply command events to ViewModel
+        for event in events {
+            self.apply_command_event(event).await?;
+        }
+
+        // Perform throttled rendering if needed
+        if !self.should_quit {
+            self.render_if_needed()?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle terminal resize events
+    fn handle_resize_event(&mut self, width: u16, height: u16) -> Result<()> {
+        // Synchronize both model and view with new terminal dimensions
+        self.view_model.update_terminal_size(width, height);
+        self.view_renderer.update_size(width, height);
+        // Full redraw required after resize to handle layout changes
+        self.view_renderer.render_full(&self.view_model)?;
+        Ok(())
+    }
+
+    /// Perform rendering with throttling to prevent ghost cursors
+    fn render_if_needed(&mut self) -> Result<()> {
+        let now = std::time::Instant::now();
+        let min_render_interval = Duration::from_micros(500);
+
+        if now.duration_since(self.last_render_time) < min_render_interval {
+            return Ok(());
+        }
+
+        let view_events = self.view_model.collect_pending_view_events();
+        self.process_view_events(view_events)?;
+        self.last_render_time = now;
+
+        Ok(())
+    }
+
     /// Apply a command event to the view model
+    ///
+    /// HIGH-LEVEL LOGIC FLOW:
+    /// This method serves as the command processor that translates semantic commands
+    /// into specific ViewModel operations. Each CommandEvent type maps to one or more
+    /// ViewModel method calls that modify application state and emit ViewEvents.
+    ///
+    /// ARCHITECTURAL PATTERN:
+    /// - Commands are processed atomically (all-or-nothing)
+    /// - State changes emit ViewEvents for selective rendering
+    /// - Complex commands (like ex commands) can generate nested events
+    /// - HTTP requests are handled asynchronously with status updates
     async fn apply_command_event(&mut self, event: CommandEvent) -> Result<()> {
         use crate::repl::commands::MovementDirection;
 
@@ -297,6 +344,23 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                     }
                 }
             }
+            CommandEvent::RestorePreviousModeRequested => {
+                let previous_mode = self.view_model.get_previous_mode();
+                tracing::debug!("Restoring previous mode: {:?}", previous_mode);
+                match self.view_model.change_mode(previous_mode) {
+                    Ok(_) => {
+                        tracing::info!("Successfully restored previous mode: {:?}", previous_mode);
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to restore previous mode {:?}: {}",
+                            previous_mode,
+                            e
+                        );
+                        return Err(e);
+                    }
+                }
+            }
             CommandEvent::PaneSwitchRequested { target_pane } => match target_pane {
                 Pane::Request => self.view_model.switch_to_request_pane(),
                 Pane::Response => self.view_model.switch_to_response_pane(),
@@ -371,6 +435,18 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     }
 
     /// Handle HTTP request execution
+    ///
+    /// HIGH-LEVEL LOGIC FLOW:
+    /// 1. Set executing status for immediate UI feedback
+    /// 2. Parse request content from current buffer text
+    /// 3. Execute HTTP request asynchronously via bluenote client
+    /// 4. Update response pane with results or error messages  
+    /// 5. Clear executing status and refresh status bar
+    ///
+    /// CRITICAL TIMING:
+    /// - Status bar updates happen immediately (before/after request)
+    /// - Request execution is fully asynchronous
+    /// - UI remains responsive during network operations
     async fn handle_http_request(
         &mut self,
         _method: String,
@@ -440,6 +516,18 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     }
 
     /// Process view events for selective rendering instead of always doing full redraws
+    ///
+    /// HIGH-LEVEL LOGIC FLOW:
+    /// 1. Collect and group ViewEvents to minimize redundant renders
+    /// 2. Determine optimal rendering strategy based on event types
+    /// 3. Execute renders in order of efficiency (full > area > partial > status)
+    /// 4. Always render cursor last to prevent ghost cursor artifacts
+    ///
+    /// PERFORMANCE OPTIMIZATIONS:
+    /// - Event grouping prevents duplicate renders of same areas
+    /// - Selective rendering only updates changed screen regions
+    /// - Cursor management prevents flickering and ghost cursors
+    /// - Full redraw overrides all other events for simplicity
     fn process_view_events(
         &mut self,
         view_events: Vec<crate::repl::events::ViewEvent>,
@@ -543,21 +631,19 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         if needs_full_redraw {
             self.view_renderer.render_full(&self.view_model)?;
         } else {
-            // Selective rendering - hide cursor once at the beginning
+            // Selective rendering - renderer handles cursor visibility
             let has_content_updates = needs_current_area_redraw
                 || needs_secondary_area_redraw
                 || !partial_redraws.is_empty();
             if has_content_updates {
                 tracing::debug!(
-                    "controller: hiding cursor for content updates - current: {}, secondary: {}, partial: {:?}",
+                    "controller: content updates - current: {}, secondary: {}, partial: {:?}",
                     needs_current_area_redraw,
                     needs_secondary_area_redraw,
                     partial_redraws.keys().collect::<Vec<_>>()
                 );
-                // View renderer handles cursor management and flushing
-                // Add a tiny delay to ensure cursor hide command is processed by terminal
-                // This prevents ghost cursors during rapid key repetition
-                std::thread::sleep(std::time::Duration::from_micros(100));
+                // Cursor hiding is now handled by each render method in the renderer
+                // to ensure consistent behavior and prevent ghost cursors
             }
 
             // Render current area if needed

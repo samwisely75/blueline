@@ -2,11 +2,32 @@
 //!
 //! Contains the PaneState struct and its implementations for managing individual pane state.
 //! This includes scrolling, cursor positioning, word navigation, and display cache management.
+//!
+//! HIGH-LEVEL ARCHITECTURE:
+//! PaneState encapsulates all state and operations for a single editor pane:
+//! - Manages cursor position in both logical and display coordinates
+//! - Handles horizontal and vertical scrolling with bounds checking
+//! - Coordinates text operations with DisplayCache for proper wrapping
+//! - Maintains editor mode state and line number width calculations
+//!
+//! CORE RESPONSIBILITIES:
+//! 1. Cursor Management: Tracks logical position and converts to display coordinates
+//! 2. Scroll Coordination: Maintains viewport position and cursor visibility
+//! 3. Text Operations: Handles character insertion/deletion with proper event emission
+//! 4. Display Integration: Works with DisplayCache for text wrapping and rendering
+//!
+//! CRITICAL ARCHITECTURAL DECISION:
+//! PaneState eliminates feature envy by keeping all pane-specific logic centralized.
+//! Previously scattered across multiple classes, this consolidation improves maintainability
+//! and follows the Single Responsibility Principle.
 
 use crate::repl::events::{EditorMode, LogicalPosition, Pane};
 use crate::repl::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache};
 use std::ops::{Index, IndexMut};
+
+/// Minimum width for line number column as specified in requirements
+const MIN_LINE_NUMBER_WIDTH: usize = 3;
 
 /// Information about a wrapped line segment
 #[derive(Debug, Clone)]
@@ -48,6 +69,15 @@ pub struct ScrollAdjustResult {
 }
 
 /// State container for a single pane (Request or Response)
+///
+/// HIGH-LEVEL DESIGN:
+/// This struct aggregates all state needed for a single editor pane:
+/// - BufferModel: Contains the actual text content and logical operations
+/// - DisplayCache: Handles text wrapping and display line calculations  
+/// - Position tracking: Maintains both logical and display cursor coordinates
+/// - Scroll management: Tracks viewport offset for large content navigation
+/// - Visual selection: Supports Vim-style visual mode selections
+/// - Mode state: Each pane maintains its own editor mode independently
 #[derive(Debug, Clone)]
 pub struct PaneState {
     pub buffer: BufferModel,
@@ -58,6 +88,7 @@ pub struct PaneState {
     pub visual_selection_end: Option<LogicalPosition>,
     pub pane_dimensions: Dimensions, // (width, height)
     pub editor_mode: EditorMode,     // Current editor mode for this pane
+    pub line_number_width: usize,    // Width needed for line numbers display
 }
 
 impl PaneState {
@@ -71,8 +102,11 @@ impl PaneState {
             visual_selection_end: None,
             pane_dimensions: Dimensions::new(pane_width, pane_height),
             editor_mode: EditorMode::Normal, // Start in Normal mode
+            line_number_width: MIN_LINE_NUMBER_WIDTH, // Start with minimum width
         };
         pane_state.build_display_cache(pane_width, wrap_enabled);
+        // Calculate initial line number width based on content
+        pane_state.update_line_number_width();
         pane_state
     }
 
@@ -543,20 +577,11 @@ impl PaneState {
                 // extends beyond the visible area (for double-byte characters)
                 // This handles the case where cursor is at the edge and the character is wider than 1 column
                 if !should_scroll_horizontally {
-                    if let Some(display_line) = self.display_cache.get_display_line(display_pos.row)
-                    {
-                        if let Some(char_at_cursor) =
-                            display_line.char_at_display_col(display_pos.col)
-                        {
-                            let char_width = char_at_cursor.display_width();
-                            // If the character extends beyond the visible area, trigger scrolling
-                            // This includes when cursor is exactly at the boundary but character is 2-wide
-                            if display_pos.col + char_width > old_horizontal_offset + content_width
-                            {
-                                should_scroll_horizontally = true;
-                            }
-                        }
-                    }
+                    should_scroll_horizontally = self.check_character_extends_beyond_visible_area(
+                        display_pos,
+                        old_horizontal_offset,
+                        content_width,
+                    );
                 }
 
                 if should_scroll_horizontally {
@@ -570,35 +595,15 @@ impl PaneState {
                         .saturating_sub(content_width.saturating_sub(1));
 
                     // CHARACTER-WIDTH-BASED SCROLL: Calculate total width of characters to scroll past
-                    // We need to scroll by enough complete characters to satisfy min_scroll_needed
-                    if let Some(display_line) = self.display_cache.get_display_line(display_pos.row)
-                    {
-                        let mut accumulated_width = 0;
-                        let mut check_col = old_horizontal_offset;
+                    new_horizontal_offset = self.calculate_horizontal_scroll_offset(
+                        display_pos.row,
+                        old_horizontal_offset,
+                        min_scroll_needed,
+                    );
 
-                        // Keep scrolling past complete characters until we've scrolled enough
-                        while accumulated_width < min_scroll_needed {
-                            if let Some(char_at_col) = display_line.char_at_display_col(check_col) {
-                                let char_width = char_at_col.display_width();
-                                accumulated_width += char_width;
-                                check_col += char_width;
-
-                                tracing::debug!("PaneState::ensure_cursor_visible: scrolling past char '{}' width={}, accumulated={}", 
-                                char_at_col.ch(), char_width, accumulated_width);
-                            } else {
-                                // No more characters, use what we have
-                                break;
-                            }
-                        }
-
-                        new_horizontal_offset = old_horizontal_offset + accumulated_width;
-                        tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen at pos {}, need to scroll {}, scrolling {} from {} to {}", 
-                        display_pos.col, min_scroll_needed, accumulated_width, old_horizontal_offset, new_horizontal_offset);
-                    } else {
-                        // Fallback: no display line found
-                        new_horizontal_offset = old_horizontal_offset + min_scroll_needed;
-                        tracing::debug!("PaneState::ensure_cursor_visible: no display line found, using min_scroll_needed={}", min_scroll_needed);
-                    }
+                    let scroll_amount = new_horizontal_offset - old_horizontal_offset;
+                    tracing::debug!("PaneState::ensure_cursor_visible: cursor off-screen at pos {}, need to scroll {}, scrolling {} from {} to {}", 
+                        display_pos.col, min_scroll_needed, scroll_amount, old_horizontal_offset, new_horizontal_offset);
                 }
             }
         }
@@ -764,6 +769,29 @@ impl PaneState {
         None
     }
 
+    // Line number management methods
+    /// Update line number width based on current buffer content
+    /// This should be called whenever buffer content changes
+    pub fn update_line_number_width(&mut self) {
+        let content = self.buffer.content().get_text();
+        let line_count = if content.is_empty() {
+            1 // At least show line 1 even for empty content
+        } else {
+            content.lines().count().max(1)
+        };
+
+        // Calculate width needed for the largest line number to prevent cursor positioning bugs
+        let width = line_count.to_string().len();
+
+        // Minimum width as specified in the requirements (never smaller than 3)
+        self.line_number_width = width.max(MIN_LINE_NUMBER_WIDTH);
+    }
+
+    /// Get current line number width for this pane
+    pub fn get_line_number_width(&self) -> usize {
+        self.line_number_width
+    }
+
     // Mode management methods
     /// Get current editor mode for this pane
     pub fn get_mode(&self) -> EditorMode {
@@ -773,6 +801,61 @@ impl PaneState {
     /// Set editor mode for this pane
     pub fn set_mode(&mut self, mode: EditorMode) {
         self.editor_mode = mode;
+    }
+
+    // Helper methods to reduce arrow code complexity
+
+    /// Check if character at cursor position extends beyond visible area
+    fn check_character_extends_beyond_visible_area(
+        &self,
+        display_pos: Position,
+        horizontal_offset: usize,
+        content_width: usize,
+    ) -> bool {
+        let Some(display_line) = self.display_cache.get_display_line(display_pos.row) else {
+            return false;
+        };
+
+        let Some(char_at_cursor) = display_line.char_at_display_col(display_pos.col) else {
+            return false;
+        };
+
+        let char_width = char_at_cursor.display_width();
+        // If the character extends beyond the visible area, trigger scrolling
+        // This includes when cursor is exactly at the boundary but character is 2-wide
+        display_pos.col + char_width > horizontal_offset + content_width
+    }
+
+    /// Calculate horizontal scroll offset accounting for character widths
+    fn calculate_horizontal_scroll_offset(
+        &self,
+        display_row: usize,
+        old_horizontal_offset: usize,
+        min_scroll_needed: usize,
+    ) -> usize {
+        let Some(display_line) = self.display_cache.get_display_line(display_row) else {
+            return old_horizontal_offset + min_scroll_needed;
+        };
+
+        let mut accumulated_width = 0;
+        let mut check_col = old_horizontal_offset;
+
+        // Keep scrolling past complete characters until we've scrolled enough
+        while accumulated_width < min_scroll_needed {
+            let Some(char_at_col) = display_line.char_at_display_col(check_col) else {
+                // No more characters, use what we have
+                break;
+            };
+
+            let char_width = char_at_col.display_width();
+            accumulated_width += char_width;
+            check_col += char_width;
+
+            tracing::debug!("PaneState::calculate_horizontal_scroll: scrolling past char '{}' width={}, accumulated={}", 
+                char_at_col.ch(), char_width, accumulated_width);
+        }
+
+        old_horizontal_offset + accumulated_width
     }
 }
 

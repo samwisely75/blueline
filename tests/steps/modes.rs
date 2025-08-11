@@ -64,7 +64,7 @@ async fn when_press_escape(world: &mut BluelineWorld) {
 }
 
 // Then steps for mode verification
-#[then("I should be in Insert mode")]
+#[then(regex = r"^I (?:should be|am) in Insert mode$")]
 async fn then_should_be_insert_mode(world: &mut BluelineWorld) {
     let current_mode = world.get_current_mode().await;
     assert_eq!(
@@ -74,7 +74,7 @@ async fn then_should_be_insert_mode(world: &mut BluelineWorld) {
     );
 }
 
-#[then("I should be in Command mode")]
+#[then(regex = r"^I (?:should be|am) in Command mode$")]
 async fn then_should_be_command_mode(world: &mut BluelineWorld) {
     let current_mode = world.get_current_mode().await;
     assert_eq!(
@@ -84,7 +84,7 @@ async fn then_should_be_command_mode(world: &mut BluelineWorld) {
     );
 }
 
-#[then("I should be in Normal mode")]
+#[then(regex = r"^I (?:should be|am) in Normal mode$")]
 async fn then_should_be_normal_mode(world: &mut BluelineWorld) {
     let current_mode = world.get_current_mode().await;
     assert_eq!(
@@ -94,7 +94,7 @@ async fn then_should_be_normal_mode(world: &mut BluelineWorld) {
     );
 }
 
-#[then("I should be in Visual mode")]
+#[then(regex = r"^I (?:should be|am) in Visual mode$")]
 async fn then_should_be_visual_mode(world: &mut BluelineWorld) {
     let current_mode = world.get_current_mode().await;
     assert_eq!(

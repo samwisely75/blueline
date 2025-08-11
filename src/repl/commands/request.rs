@@ -2,7 +2,7 @@
 //!
 //! Commands for executing HTTP requests and related operations
 
-use crate::repl::events::EditorMode;
+use crate::repl::events::{EditorMode, Pane};
 use crate::repl::utils::parse_request_from_text;
 use anyhow::Result;
 use bluenote::HttpRequestArgs;
@@ -18,8 +18,28 @@ pub struct ExecuteRequestCommand;
 
 impl HttpCommand for ExecuteRequestCommand {
     fn is_relevant(&self, context: &HttpCommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Enter) && context.state().current_mode == EditorMode::Normal
-        // Allow execution from both Request and Response panes - user should be able to execute from either
+        let is_enter = matches!(event.code, KeyCode::Enter);
+        let is_normal_mode = context.state().current_mode == EditorMode::Normal;
+        let no_modifiers = event.modifiers.is_empty();
+        let is_request_pane = context.state().current_pane == Pane::Request;
+
+        let is_relevant = is_enter && is_normal_mode && no_modifiers && is_request_pane;
+
+        tracing::debug!(
+            "ExecuteRequestCommand(Http).is_relevant(): enter={}, normal_mode={}, no_modifiers={}, request_pane={}, result={}",
+            is_enter, is_normal_mode, no_modifiers, is_request_pane, is_relevant
+        );
+
+        if is_enter && !is_relevant {
+            tracing::info!(
+                "ExecuteRequestCommand(Http) rejected Enter: mode={:?}, modifiers={:?}, pane={:?}",
+                context.state().current_mode,
+                event.modifiers,
+                context.state().current_pane
+            );
+        }
+
+        is_relevant
     }
 
     fn execute(&self, _event: KeyEvent, context: &HttpCommandContext) -> Result<Vec<CommandEvent>> {
@@ -66,8 +86,28 @@ impl HttpCommand for ExecuteRequestCommand {
 
 impl Command for ExecuteRequestCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Enter) && context.state.current_mode == EditorMode::Normal
-        // Allow execution from both Request and Response panes - user should be able to execute from either
+        let is_enter = matches!(event.code, KeyCode::Enter);
+        let is_normal_mode = context.state.current_mode == EditorMode::Normal;
+        let no_modifiers = event.modifiers.is_empty();
+        let is_request_pane = context.state.current_pane == Pane::Request;
+
+        let is_relevant = is_enter && is_normal_mode && no_modifiers && is_request_pane;
+
+        tracing::debug!(
+            "ExecuteRequestCommand.is_relevant(): enter={}, normal_mode={}, no_modifiers={}, request_pane={}, result={}",
+            is_enter, is_normal_mode, no_modifiers, is_request_pane, is_relevant
+        );
+
+        if is_enter && !is_relevant {
+            tracing::info!(
+                "ExecuteRequestCommand rejected Enter: mode={:?}, modifiers={:?}, pane={:?}",
+                context.state.current_mode,
+                event.modifiers,
+                context.state.current_pane
+            );
+        }
+
+        is_relevant
     }
 
     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -107,46 +147,153 @@ impl Command for ExecuteRequestCommand {
     }
 }
 
-// TODO: Update tests for new event-driven API
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::EditorMode;
+    use crate::repl::commands::ViewModelSnapshot;
+    use crate::repl::events::{EditorMode, LogicalPosition, Pane};
     use crossterm::event::KeyModifiers;
 
     fn create_test_key_event(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::empty())
     }
 
+    fn create_test_context() -> CommandContext {
+        CommandContext {
+            state: ViewModelSnapshot {
+                current_mode: EditorMode::Normal,
+                current_pane: Pane::Request,
+                cursor_position: LogicalPosition { line: 0, column: 0 },
+                request_text: String::new(),
+                response_text: String::new(),
+                terminal_dimensions: (80, 24),
+                verbose: false,
+            },
+        }
+    }
+
     #[test]
     fn execute_request_should_be_relevant_for_enter_in_normal_mode() {
-        let vm = ViewModel::new(); // Starts in Normal mode, Request pane
+        let context = create_test_context(); // Normal mode, Request pane
         let cmd = ExecuteRequestCommand;
         let event = create_test_key_event(KeyCode::Enter);
 
-        assert!(cmd.is_relevant(&vm, &event));
+        assert!(Command::is_relevant(&cmd, &context, &event));
     }
 
     #[test]
     fn execute_request_should_not_be_relevant_in_insert_mode() {
-        let mut vm = ViewModel::new();
-        vm.change_mode(EditorMode::Insert).unwrap();
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Insert;
         let cmd = ExecuteRequestCommand;
         let event = create_test_key_event(KeyCode::Enter);
 
-        assert!(!cmd.is_relevant(&vm, &event));
+        assert!(!Command::is_relevant(&cmd, &context, &event));
+    }
+
+    #[test]
+    fn execute_request_should_not_be_relevant_in_visual_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Visual;
+        let cmd = ExecuteRequestCommand;
+        let event = create_test_key_event(KeyCode::Enter);
+
+        assert!(!Command::is_relevant(&cmd, &context, &event));
+    }
+
+    #[test]
+    fn execute_request_should_not_be_relevant_in_command_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Command;
+        let cmd = ExecuteRequestCommand;
+        let event = create_test_key_event(KeyCode::Enter);
+
+        assert!(!Command::is_relevant(&cmd, &context, &event));
     }
 
     #[test]
     fn execute_request_should_not_be_relevant_in_response_pane() {
-        let mut vm = ViewModel::new();
-        vm.switch_pane(Pane::Response).unwrap();
+        let mut context = create_test_context();
+        context.state.current_pane = Pane::Response;
         let cmd = ExecuteRequestCommand;
         let event = create_test_key_event(KeyCode::Enter);
 
-        assert!(!cmd.is_relevant(&vm, &event));
+        // Should NOT be relevant from Response pane
+        assert!(!Command::is_relevant(&cmd, &context, &event));
+    }
+
+    #[test]
+    fn execute_request_should_not_be_relevant_for_other_keys() {
+        let context = create_test_context();
+        let cmd = ExecuteRequestCommand;
+        let event = create_test_key_event(KeyCode::Char('a'));
+
+        assert!(!Command::is_relevant(&cmd, &context, &event));
+    }
+
+    #[test]
+    fn execute_request_should_not_be_relevant_with_modifiers() {
+        let context = create_test_context();
+        let cmd = ExecuteRequestCommand;
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT);
+
+        assert!(!Command::is_relevant(&cmd, &context, &event));
+    }
+
+    #[test]
+    fn execute_request_should_produce_http_request_event() {
+        let mut context = create_test_context();
+        context.state.request_text = "GET https://httpbin.org/get".to_string();
+        let cmd = ExecuteRequestCommand;
+        let event = create_test_key_event(KeyCode::Enter);
+
+        let result = Command::execute(&cmd, event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert!(matches!(
+            result[0],
+            CommandEvent::HttpRequestRequested { .. }
+        ));
+    }
+
+    #[test]
+    fn execute_request_should_return_correct_command_name() {
+        let cmd = ExecuteRequestCommand;
+        assert_eq!(Command::name(&cmd), "ExecuteRequest");
+    }
+
+    #[test]
+    fn execute_request_should_not_be_relevant_for_ctrl_enter() {
+        let context = create_test_context();
+        let cmd = ExecuteRequestCommand;
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL);
+
+        assert!(!Command::is_relevant(&cmd, &context, &event));
+    }
+
+    #[test]
+    fn execute_request_should_not_be_relevant_for_shift_enter() {
+        let context = create_test_context();
+        let cmd = ExecuteRequestCommand;
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT);
+
+        assert!(!Command::is_relevant(&cmd, &context, &event));
+    }
+
+    #[test]
+    fn execute_request_should_not_be_relevant_for_alt_enter() {
+        let context = create_test_context();
+        let cmd = ExecuteRequestCommand;
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::ALT);
+
+        assert!(!Command::is_relevant(&cmd, &context, &event));
+    }
+
+    #[test]
+    fn execute_request_should_not_be_relevant_for_combined_modifiers() {
+        let context = create_test_context();
+        let cmd = ExecuteRequestCommand;
+        let event = KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL | KeyModifiers::SHIFT);
+
+        assert!(!Command::is_relevant(&cmd, &context, &event));
     }
 }
-}
-*/

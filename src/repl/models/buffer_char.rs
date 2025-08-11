@@ -2,6 +2,25 @@
 //!
 //! Provides a unified representation for characters that tracks both logical
 //! and display properties, solving the single-byte/double-byte positioning problem.
+//!
+//! HIGH-LEVEL ARCHITECTURE:
+//! This module implements the Unicode-aware character handling system for the text editor:
+//! - BufferChar: Represents individual characters with logical positioning information
+//! - CharacterBuffer: Container for sequences of BufferChar with text operations
+//! - Unicode Support: Handles CJK double-byte characters, combining marks, and full-width characters
+//! - Word Segmentation: Provides language-aware word boundary detection for navigation
+//!
+//! CORE RESPONSIBILITIES:
+//! 1. Character Classification: Distinguishes between word, punctuation, whitespace, and double-byte characters
+//! 2. Unicode Normalization: Ensures consistent text representation across different input methods
+//! 3. Display Width Calculation: Accurately computes screen columns needed for rendering
+//! 4. Word Boundary Detection: Supports Vim-style word navigation with proper international text handling
+//!
+//! CRITICAL DESIGN DECISIONS:
+//! - Separates logical character position from display column position
+//! - Uses Unicode scalar values consistently to avoid grapheme cluster issues  
+//! - Implements character type classification for proper navigation behavior
+//! - Provides pluggable word segmentation for different languages and scripts
 
 use crate::text::word_segmenter::{WordBoundaries, WordSegmenter, WordSegmenterFactory};
 
@@ -45,6 +64,14 @@ pub enum CharacterType {
 }
 
 /// Represents a single character in the buffer with logical properties only
+///
+/// HIGH-LEVEL DESIGN:
+/// BufferChar encapsulates all information needed for a single character in the text buffer:
+/// - Unicode character data with proper scalar value handling
+/// - Logical positioning information for accurate cursor navigation
+/// - Byte offset tracking for efficient string operations
+/// - Display width calculation for proper terminal rendering
+/// - Character type classification for Vim-style word navigation
 #[derive(Debug, Clone, PartialEq)]
 pub struct BufferChar {
     /// The actual Unicode character
@@ -439,6 +466,19 @@ impl Default for BufferLine {
 }
 
 /// A character-aware buffer that tracks both logical and display positions
+///
+/// HIGH-LEVEL ARCHITECTURE:
+/// CharacterBuffer implements the text storage system for the REPL editor:
+/// - Multi-line text storage with Unicode-aware character handling
+/// - Logical position tracking for accurate cursor navigation
+/// - Word boundary detection for Vim-style navigation commands
+/// - Efficient insertion/deletion operations with proper indexing updates
+///
+/// CORE DESIGN PRINCIPLES:
+/// - Maintains separation between logical character position and display column
+/// - Provides O(1) character access within lines for cursor operations
+/// - Caches word segmenter for performance in navigation operations  
+/// - Supports international text with proper Unicode normalization
 pub struct CharacterBuffer {
     lines: Vec<BufferLine>,
     /// Cached word segmenter for performance

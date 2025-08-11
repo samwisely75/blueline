@@ -85,7 +85,9 @@ impl ViewModel {
 
         // Clear buffer and exit command mode
         self.status_line.clear_command_buffer();
-        self.change_mode(crate::repl::events::EditorMode::Normal)?;
+        // Restore to previous mode (Visual if we came from Visual, Normal otherwise)
+        let previous_mode = self.get_previous_mode();
+        self.change_mode(previous_mode)?;
 
         Ok(events)
     }

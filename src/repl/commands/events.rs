@@ -37,6 +37,9 @@ pub enum CommandEvent {
     /// Request mode change
     ModeChangeRequested { new_mode: EditorMode },
 
+    /// Request to restore previous mode (for command cancellation)
+    RestorePreviousModeRequested,
+
     /// Request pane switch
     PaneSwitchRequested { target_pane: Pane },
 
@@ -110,6 +113,11 @@ impl CommandEvent {
         Self::ModeChangeRequested { new_mode }
     }
 
+    /// Create a restore previous mode event
+    pub fn restore_previous_mode() -> Self {
+        Self::RestorePreviousModeRequested
+    }
+
     /// Create a pane switch event
     pub fn pane_switch(target_pane: Pane) -> Self {
         Self::PaneSwitchRequested { target_pane }
@@ -171,6 +179,12 @@ mod tests {
                 new_mode: EditorMode::Insert
             }
         );
+    }
+
+    #[test]
+    fn command_event_should_create_restore_previous_mode() {
+        let event = CommandEvent::restore_previous_mode();
+        assert_eq!(event, CommandEvent::RestorePreviousModeRequested);
     }
 
     #[test]
