@@ -231,8 +231,7 @@ impl ViewModel {
     /// Get content width (terminal width minus line numbers and padding)
     pub fn get_content_width(&self) -> usize {
         // Use semantic width calculation based on current area
-        let current_pane = self.pane_manager.current_pane_type();
-        let line_num_width = self.get_line_number_width(current_pane);
+        let line_num_width = self.pane_manager.get_current_line_number_width();
         (self.pane_manager.terminal_dimensions.0 as usize).saturating_sub(line_num_width + 1)
     }
 

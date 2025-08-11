@@ -8,6 +8,9 @@ use crate::repl::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache};
 use std::ops::{Index, IndexMut};
 
+/// Minimum width for line number column as specified in requirements
+const MIN_LINE_NUMBER_WIDTH: usize = 3;
+
 /// Information about a wrapped line segment
 #[derive(Debug, Clone)]
 struct WrappedSegment {
@@ -58,6 +61,7 @@ pub struct PaneState {
     pub visual_selection_end: Option<LogicalPosition>,
     pub pane_dimensions: Dimensions, // (width, height)
     pub editor_mode: EditorMode,     // Current editor mode for this pane
+    pub line_number_width: usize,    // Width needed for line numbers display
 }
 
 impl PaneState {
@@ -71,8 +75,11 @@ impl PaneState {
             visual_selection_end: None,
             pane_dimensions: Dimensions::new(pane_width, pane_height),
             editor_mode: EditorMode::Normal, // Start in Normal mode
+            line_number_width: MIN_LINE_NUMBER_WIDTH, // Start with minimum width
         };
         pane_state.build_display_cache(pane_width, wrap_enabled);
+        // Calculate initial line number width based on content
+        pane_state.update_line_number_width();
         pane_state
     }
 
@@ -762,6 +769,29 @@ impl PaneState {
         }
 
         None
+    }
+
+    // Line number management methods
+    /// Update line number width based on current buffer content
+    /// This should be called whenever buffer content changes
+    pub fn update_line_number_width(&mut self) {
+        let content = self.buffer.content().get_text();
+        let line_count = if content.is_empty() {
+            1 // At least show line 1 even for empty content
+        } else {
+            content.lines().count().max(1)
+        };
+
+        // Calculate width needed for the largest line number to prevent cursor positioning bugs
+        let width = line_count.to_string().len();
+
+        // Minimum width as specified in the requirements (never smaller than 3)
+        self.line_number_width = width.max(MIN_LINE_NUMBER_WIDTH);
+    }
+
+    /// Get current line number width for this pane
+    pub fn get_line_number_width(&self) -> usize {
+        self.line_number_width
     }
 
     // Mode management methods
