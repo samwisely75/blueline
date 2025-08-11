@@ -471,43 +471,48 @@ impl DisplayLine {
 
         tracing::debug!("find_end_of_word: no ICU word boundaries found, trying fallback");
 
-        // FALLBACK: Use simple character-based word detection when ICU boundaries aren't available
-        // This ensures the 'e' command works even when word segmentation fails
+        // FALLBACK: Implement vim 'e' behavior with character-based detection
+        // Vim 'e' behavior:
+        // 1. If on whitespace/punctuation: skip to next word and find its end
+        // 2. If on word character: find end of current word
+        // 3. If already at end of word: skip to next word and find its end
         let mut pos = current_index;
 
-        // VIM 'e' behavior: If we're currently on a word character, move to end of current word
-        // If we're already at the end of a word, move to end of next word
         if pos < char_positions.len() {
             let current_char = char_positions[pos].1.ch();
 
-            // If we're on a word character, first move to end of current word
             if current_char.is_alphanumeric() || current_char.is_alphabetic() {
-                while pos < char_positions.len() {
-                    let ch = char_positions[pos].1.ch();
+                // We're on a word character - find end of current word first
+                let mut word_end_pos = pos;
+                while word_end_pos < char_positions.len() {
+                    let ch = char_positions[word_end_pos].1.ch();
                     if !ch.is_alphanumeric() && !ch.is_alphabetic() {
                         break;
                     }
-                    pos += 1;
+                    word_end_pos += 1;
                 }
-                let end_pos = pos.saturating_sub(1);
+                let current_word_end = word_end_pos.saturating_sub(1);
 
-                // Check if this is where we started (meaning we're already at word end)
-                if end_pos == current_index {
-                    // We're already at end of word, so find the next word end
+                // Check if we're already at the end of the current word
+                if current_word_end == current_index {
+                    // Already at word end - skip to next word end
                     pos = current_index + 1;
                 } else {
-                    // Found end of current word
+                    // Not at word end - return current word end
                     tracing::debug!(
                         "find_end_of_word: fallback found current word end at display_col={}, char='{}'",
-                        char_positions[end_pos].0,
-                        char_positions[end_pos].1.ch()
+                        char_positions[current_word_end].0,
+                        char_positions[current_word_end].1.ch()
                     );
-                    return Some(char_positions[end_pos].0);
+                    return Some(char_positions[current_word_end].0);
                 }
             }
+            // If we reach here, we're either:
+            // - Starting on whitespace/punctuation, OR
+            // - Already at end of word and need to find next word end
         }
 
-        // Skip whitespace to find next word
+        // Skip whitespace to find next word/punctuation
         while pos < char_positions.len() {
             let ch = char_positions[pos].1.ch();
             if !ch.is_whitespace() {
@@ -516,11 +521,12 @@ impl DisplayLine {
             pos += 1;
         }
 
-        // Find end of next word
+        // Find end of next word or punctuation sequence
         if pos < char_positions.len() {
             let ch = char_positions[pos].1.ch();
+
             if ch.is_alphanumeric() || ch.is_alphabetic() {
-                // Move to the end of this word
+                // Handle word characters - find end of word
                 while pos < char_positions.len() {
                     let ch = char_positions[pos].1.ch();
                     if !ch.is_alphanumeric() && !ch.is_alphabetic() {
@@ -533,6 +539,25 @@ impl DisplayLine {
                     let end_pos = pos.saturating_sub(1);
                     tracing::debug!(
                         "find_end_of_word: fallback found next word end at display_col={}, char='{}'",
+                        char_positions[end_pos].0,
+                        char_positions[end_pos].1.ch()
+                    );
+                    return Some(char_positions[end_pos].0);
+                }
+            } else if !ch.is_whitespace() {
+                // Handle punctuation characters - find end of punctuation sequence
+                while pos < char_positions.len() {
+                    let ch = char_positions[pos].1.ch();
+                    if ch.is_alphanumeric() || ch.is_alphabetic() || ch.is_whitespace() {
+                        break;
+                    }
+                    pos += 1;
+                }
+                // Return the position of the last punctuation character
+                if pos > 0 {
+                    let end_pos = pos.saturating_sub(1);
+                    tracing::debug!(
+                        "find_end_of_word: fallback found punctuation end at display_col={}, char='{}'",
                         char_positions[end_pos].0,
                         char_positions[end_pos].1.ch()
                     );
