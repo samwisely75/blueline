@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.0] - 2025-01-12
+
+### Fixed
+
+- **e Command Navigation**: Fixed cursor positioning bug and modified behavior to only target alphanumeric words
+  - Fixed incorrect cursor index calculation that prevented the command from working in certain positions
+  - Changed behavior to treat punctuation as separators, only stopping at alphanumeric word boundaries
+  - Improved predictability when navigating code with punctuation
+
 ## [0.29.0] - 2025-01-11
 
 ### Added
