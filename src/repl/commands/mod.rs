@@ -42,6 +42,7 @@ pub trait HttpCommand: Send {
 // Import command modules
 pub mod app;
 pub mod editing;
+pub mod ex_commands;
 pub mod mode;
 pub mod navigation;
 pub mod pane;
@@ -52,6 +53,7 @@ pub use app::AppTerminateCommand;
 pub use editing::{
     DeleteCharAtCursorCommand, DeleteCharCommand, InsertCharCommand, InsertNewLineCommand,
 };
+pub use ex_commands::{ExCommand, ExCommandRegistry};
 pub use mode::{
     AppendAfterCursorCommand, AppendAtEndOfLineCommand, EnterCommandModeCommand,
     EnterInsertModeCommand, EnterVisualModeCommand, ExCommandModeCommand, ExitInsertModeCommand,

@@ -14,6 +14,7 @@ mod pane_manager;
 mod pane_state;
 mod rendering_coordinator;
 mod screen_buffer;
+mod settings_manager;
 
 // Re-export the main ViewModel
 pub use core::ViewModel;
