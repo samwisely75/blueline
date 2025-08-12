@@ -24,7 +24,7 @@ async fn when_type_text(world: &mut BluelineWorld, text: String) {
 
     // Special debugging for John issue
     if text.contains("John") {
-        eprintln!(
+        tracing::debug!(
             "🔍 ABOUT TO TYPE: '{}', text buffer before: {:?}",
             text,
             world.get_text_buffer()
@@ -37,7 +37,7 @@ async fn when_type_text(world: &mut BluelineWorld, text: String) {
 
     // Check text buffer after typing John
     if text.contains("John") {
-        eprintln!(
+        tracing::debug!(
             "🔍 AFTER TYPING: '{}', text buffer after: {:?}",
             text,
             world.get_text_buffer()
@@ -58,7 +58,7 @@ async fn then_should_see_output(world: &mut BluelineWorld, expected_output: Stri
     // Debug output for John issue (now that we've fixed it)
     if expected_output == "John" && !contains {
         let text_buffer = world.get_text_buffer();
-        eprintln!(
+        tracing::debug!(
             "🔍 JOHN DEBUG - Text not found!\n\
             Expected: '{}'\n\
             Terminal content ({} chars):\n'{}'\n\
@@ -287,13 +287,13 @@ async fn then_text_becomes(world: &mut BluelineWorld, step: &gherkin::Step) {
 
     // Debug: show actual terminal content
     let terminal_content = world.get_terminal_content().await;
-    eprintln!("=== EXPECTED TEXT ===");
-    eprintln!("'{expected}'");
-    eprintln!("=== ACTUAL TERMINAL CONTENT ===");
+    tracing::debug!("=== EXPECTED TEXT ===");
+    tracing::debug!("'{expected}'");
+    tracing::debug!("=== ACTUAL TERMINAL CONTENT ===");
     for (i, line) in terminal_content.lines().enumerate() {
-        eprintln!("{:2}: '{}'", i + 1, line);
+        tracing::debug!("{:2}: '{}'", i + 1, line);
     }
-    eprintln!("=== END COMPARISON ===");
+    tracing::debug!("=== END COMPARISON ===");
 
     // Check each line of the expected text
     for line in expected.lines() {
@@ -301,8 +301,8 @@ async fn then_text_becomes(world: &mut BluelineWorld, step: &gherkin::Step) {
             // Skip empty lines
             let contains = world.terminal_contains(line).await;
             if !contains {
-                eprintln!("❌ Missing line: '{line}'");
-                eprintln!(
+                tracing::debug!("❌ Missing line: '{line}'");
+                tracing::debug!(
                     "Terminal content: '{}'",
                     terminal_content.replace('\n', "\\n")
                 );

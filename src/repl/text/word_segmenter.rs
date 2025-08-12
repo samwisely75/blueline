@@ -262,8 +262,8 @@ mod tests {
         let boundaries = segmenter.find_word_boundaries("Hello World").unwrap();
 
         // Debug: Print what we got
-        println!("Text: 'Hello World'");
-        println!("Boundaries: {:?}", boundaries.positions);
+        tracing::debug!("Text: 'Hello World'");
+        tracing::debug!("Boundaries: {:?}", boundaries.positions);
 
         // Unicode-segmentation should give us word boundaries
         assert!(!boundaries.positions.is_empty());
@@ -280,7 +280,7 @@ mod tests {
         // Debug: Print the flags
         for (i, flag) in flags.iter().enumerate() {
             if flag.is_word_start || flag.is_word_end {
-                println!("Position {i}: {flag:?}");
+                tracing::debug!("Position {i}: {flag:?}");
             }
         }
 
@@ -288,7 +288,7 @@ mod tests {
         let has_word_starts = flags.iter().any(|flag| flag.is_word_start);
         let has_word_ends = flags.iter().any(|flag| flag.is_word_end);
 
-        println!("Has word starts: {has_word_starts}, Has word ends: {has_word_ends}");
+        tracing::debug!("Has word starts: {has_word_starts}, Has word ends: {has_word_ends}");
     }
 
     #[test]
@@ -379,18 +379,18 @@ mod tests {
         ];
 
         for (text, description) in test_cases {
-            println!("\n=== {description} ===");
-            println!("Text: '{text}'");
+            tracing::debug!("\n=== {description} ===");
+            tracing::debug!("Text: '{text}'");
 
             let boundaries = segmenter.find_word_boundaries(text).unwrap();
-            println!("Boundaries: {:?}", boundaries.positions);
+            tracing::debug!("Boundaries: {:?}", boundaries.positions);
 
             // Verify boundaries point to valid character starts
             for &pos in &boundaries.positions {
                 if pos < text.len() {
                     let slice = &text[pos..];
                     let first_char = slice.chars().next().unwrap();
-                    println!("  Byte {pos} -> '{first_char}'");
+                    tracing::debug!("  Byte {pos} -> '{first_char}'");
                 }
             }
         }
