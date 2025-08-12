@@ -16,6 +16,9 @@ pub type LogicalToDisplayMap = HashMap<usize, Vec<usize>>;
 /// Type alias for logical position (logical_line, logical_column)  
 pub type LogicalPosition = Position;
 
+/// Type alias for character position entry in display line
+type CharPosition<'a> = (usize, &'a crate::repl::models::display_char::DisplayChar);
+
 /// Pre-calculated display line with positioning metadata
 #[derive(Debug, Clone, PartialEq)]
 pub struct DisplayLine {
@@ -242,35 +245,58 @@ impl DisplayLine {
         self.display_width()
     }
 
-    /// Find the next word boundary from the current display column position using ICU segmentation
+    /// Build a character positions array mapping display columns to characters
+    fn build_character_positions(&self) -> Vec<CharPosition> {
+        let mut char_positions = Vec::new();
+        let mut current_pos = 0;
+        for display_char in &self.chars {
+            char_positions.push((current_pos, display_char));
+            current_pos += display_char.display_width();
+        }
+        char_positions
+    }
+
+    /// Find the character index corresponding to a display column
+    fn find_character_index(&self, char_positions: &[CharPosition], display_col: usize) -> usize {
+        let mut current_index = 0;
+        for (i, &(pos, dc)) in char_positions.iter().enumerate() {
+            let char_end = pos + dc.display_width();
+            // Check if this character contains the display column
+            if pos <= display_col && display_col < char_end {
+                current_index = i;
+                break;
+            }
+            // If we're past the last character, use the last index
+            if i == char_positions.len() - 1 {
+                current_index = i;
+            }
+        }
+        current_index
+    }
+
+    /// Find the next word start from the current display column position using ICU segmentation
     ///
     /// HIGH-LEVEL LOGIC:
     /// 1. Build array of (display_position, display_char) pairs for efficient lookup
     /// 2. Find the character index that corresponds to current_display_col
     /// 3. Search forward for the next character marked with is_word_start flag
     /// 4. Return the display column of that word start, or None if not found
-    pub fn find_next_word_boundary(&self, current_display_col: usize) -> Option<usize> {
+    pub fn find_next_word_start(&self, current_display_col: usize) -> Option<usize> {
         tracing::debug!(
-            "find_next_word_boundary: current_display_col={}, line_content='{}'",
+            "find_next_word_start: current_display_col={}, line_content='{}'",
             current_display_col,
             self.content().chars().take(50).collect::<String>()
         );
 
-        // PHASE 1: Build character positions array for efficient lookup
-        let mut char_positions = Vec::new();
-        let mut current_pos = 0;
-
-        for display_char in &self.chars {
-            char_positions.push((current_pos, display_char));
-            current_pos += display_char.display_width();
-        }
-
+        // Build character positions array for efficient lookup
+        let char_positions = self.build_character_positions();
         if char_positions.is_empty() {
-            tracing::debug!("find_next_word_boundary: empty line, returning None");
+            tracing::debug!("find_next_word_start: empty line, returning None");
             return None;
         }
 
-        // PHASE 2: Find character index corresponding to current display column
+        // Find character index corresponding to current display column
+        // Note: For forward search, we use simpler logic to find starting position
         let mut current_index = 0;
         for (i, &(pos, _)) in char_positions.iter().enumerate() {
             if pos >= current_display_col {
@@ -280,25 +306,25 @@ impl DisplayLine {
         }
 
         tracing::debug!(
-            "find_next_word_boundary: current_index={}, searching from char '{}'",
+            "find_next_word_start: current_index={}, searching from char '{}'",
             current_index,
             char_positions
                 .get(current_index)
                 .map_or('?', |(_, dc)| dc.ch())
         );
 
-        // PHASE 3: Search forward for next word start using ICU segmentation flags
+        // Search forward for next word start using ICU segmentation flags
         #[allow(clippy::needless_range_loop)] // Index needed for position lookup
         for i in (current_index + 1)..char_positions.len() {
             let display_char = char_positions[i].1;
             tracing::debug!(
-                "find_next_word_boundary: checking char at index {} (display_col={}): '{}', is_word_start={}",
+                "find_next_word_start: checking char at index {} (display_col={}): '{}', is_word_start={}",
                 i, char_positions[i].0, display_char.ch(), display_char.buffer_char.is_word_start
             );
             // WORD START CHECK: ICU segmentation marked this character as starting a new word
             if display_char.buffer_char.is_word_start {
                 tracing::debug!(
-                    "find_next_word_boundary: found word start at display_col={}, char='{}'",
+                    "find_next_word_start: found word start at display_col={}, char='{}'",
                     char_positions[i].0,
                     display_char.ch()
                 );
@@ -306,14 +332,14 @@ impl DisplayLine {
             }
         }
 
-        tracing::debug!("find_next_word_boundary: no word start found, returning None");
+        tracing::debug!("find_next_word_start: no word start found, returning None");
         None
     }
 
-    /// Find the previous word boundary from the current display column position using ICU segmentation
-    pub fn find_previous_word_boundary(&self, current_display_col: usize) -> Option<usize> {
+    /// Find the previous word start from the current display column position using ICU segmentation
+    pub fn find_previous_word_start(&self, current_display_col: usize) -> Option<usize> {
         tracing::debug!(
-            "find_previous_word_boundary: current_display_col={}, line_content='{}'",
+            "find_previous_word_start: current_display_col={}, line_content='{}'",
             current_display_col,
             self.content().chars().take(50).collect::<String>()
         );
@@ -322,35 +348,17 @@ impl DisplayLine {
         // when moving from position 1 back to position 0
 
         // Build character positions array
-        let mut char_positions = Vec::new();
-        let mut current_pos = 0;
-
-        for display_char in &self.chars {
-            char_positions.push((current_pos, display_char));
-            current_pos += display_char.display_width();
-        }
-
+        let char_positions = self.build_character_positions();
         if char_positions.is_empty() {
-            tracing::debug!("find_previous_word_boundary: empty line, returning None");
+            tracing::debug!("find_previous_word_start: empty line, returning None");
             return None;
         }
 
-        // Find current character index - fix for Issue #67
-        let mut current_index = 0;
-        for (i, &(pos, display_char)) in char_positions.iter().enumerate() {
-            let char_end = pos + display_char.display_width();
-            if current_display_col < char_end {
-                current_index = i;
-                break;
-            }
-            // If we're past the last character, use the last valid index
-            if i == char_positions.len() - 1 {
-                current_index = i;
-            }
-        }
+        // Find current character index - needs special logic for backward search
+        let current_index = self.find_character_index(&char_positions, current_display_col);
 
         tracing::debug!(
-            "find_previous_word_boundary: current_index={}, searching backwards from char '{}'",
+            "find_previous_word_start: current_index={}, searching backwards from char '{}'",
             current_index,
             char_positions
                 .get(current_index)
@@ -368,7 +376,7 @@ impl DisplayLine {
                     let ch = display_char.ch();
                     if !ch.is_whitespace() {
                         tracing::debug!(
-                            "find_previous_word_boundary: found word start at display_col={}, char='{}'",
+                            "find_previous_word_start: found word start at display_col={}, char='{}'",
                             char_positions[i].0,
                             display_char.ch()
                         );
@@ -384,56 +392,37 @@ impl DisplayLine {
             let first_char = char_positions[0].1;
             if !first_char.ch().is_whitespace() && current_display_col > 0 {
                 tracing::debug!(
-                    "find_previous_word_boundary: falling back to position 0 as word start, char='{}'",
+                    "find_previous_word_start: falling back to position 0 as word start, char='{}'",
                     first_char.ch()
                 );
                 return Some(0);
             }
         }
 
-        tracing::debug!("find_previous_word_boundary: no word start found, returning None");
+        tracing::debug!("find_previous_word_start: no word start found, returning None");
         None
     }
 
-    /// Find the end of the current or next word from the current display column position using ICU segmentation
-    pub fn find_end_of_word(&self, current_display_col: usize) -> Option<usize> {
+    /// Find the next word end from the current display column position using ICU segmentation
+    pub fn find_next_word_end(&self, current_display_col: usize) -> Option<usize> {
         tracing::debug!(
-            "find_end_of_word: current_display_col={}, line_content='{}'",
+            "find_next_word_end: current_display_col={}, line_content='{}'",
             current_display_col,
             self.content().chars().take(50).collect::<String>()
         );
 
         // Build character positions array
-        let mut char_positions = Vec::new();
-        let mut current_pos = 0;
-
-        for display_char in &self.chars {
-            char_positions.push((current_pos, display_char));
-            current_pos += display_char.display_width();
-        }
-
+        let char_positions = self.build_character_positions();
         if char_positions.is_empty() {
-            tracing::debug!("find_end_of_word: empty line, returning None");
+            tracing::debug!("find_next_word_end: empty line, returning None");
             return None;
         }
 
         // Find current character index - need to find which character contains the display column
-        let mut current_index = 0;
-        for (i, &(pos, dc)) in char_positions.iter().enumerate() {
-            let char_end = pos + dc.display_width();
-            // Check if this character contains the current display column
-            if pos <= current_display_col && current_display_col < char_end {
-                current_index = i;
-                break;
-            }
-            // If we're past the last character, use the last index
-            if i == char_positions.len() - 1 {
-                current_index = i;
-            }
-        }
+        let current_index = self.find_character_index(&char_positions, current_display_col);
 
         tracing::debug!(
-            "find_end_of_word: current_index={}, searching from char '{}'",
+            "find_next_word_end: current_index={}, searching from char '{}'",
             current_index,
             char_positions
                 .get(current_index)
@@ -451,7 +440,7 @@ impl DisplayLine {
             if current_char.buffer_char.is_word_end {
                 // We're at a word end, so we need to find the next word end
                 tracing::debug!(
-                    "find_end_of_word: currently at word end '{}', searching for next word end",
+                    "find_next_word_end: currently at word end '{}', searching for next word end",
                     current_char.ch()
                 );
                 start_index = current_index + 1;
@@ -466,7 +455,7 @@ impl DisplayLine {
                 let ch = display_char.ch();
                 if ch.is_alphanumeric() || ch.is_alphabetic() {
                     tracing::debug!(
-                        "find_end_of_word: found word end at display_col={}, char='{}'",
+                        "find_next_word_end: found word end at display_col={}, char='{}'",
                         char_positions[i].0,
                         display_char.ch()
                     );
@@ -475,7 +464,7 @@ impl DisplayLine {
             }
         }
 
-        tracing::debug!("find_end_of_word: no ICU word boundaries found, trying fallback");
+        tracing::debug!("find_next_word_end: no ICU word boundaries found, trying fallback");
 
         // FALLBACK: Implement vim 'e' behavior with character-based detection
         // Vim 'e' behavior:
@@ -512,7 +501,7 @@ impl DisplayLine {
                 } else {
                     // Not at word end - return current word end
                     tracing::debug!(
-                        "find_end_of_word: fallback found current word end at display_col={}, char='{}'",
+                        "find_next_word_end: fallback found current word end at display_col={}, char='{}'",
                         char_positions[current_word_end].0,
                         char_positions[current_word_end].1.ch()
                     );
@@ -547,7 +536,7 @@ impl DisplayLine {
             if pos > 0 {
                 let end_pos = pos.saturating_sub(1);
                 tracing::debug!(
-                    "find_end_of_word: fallback found next word end at display_col={}, char='{}'",
+                    "find_next_word_end: fallback found next word end at display_col={}, char='{}'",
                     char_positions[end_pos].0,
                     char_positions[end_pos].1.ch()
                 );
@@ -555,7 +544,7 @@ impl DisplayLine {
             }
         }
 
-        tracing::debug!("find_end_of_word: no word end found even with fallback, returning None");
+        tracing::debug!("find_next_word_end: no word end found even with fallback, returning None");
         None
     }
 
@@ -1226,13 +1215,13 @@ mod tests {
         // set up word boundaries properly. Word navigation requires proper
         // word boundary setup via the unicode segmenter.
         //
-        // The find_next_word_boundary method depends on is_word_start flags
+        // The find_next_word_start method depends on is_word_start flags
         // being set on display characters, which doesn't happen with from_content.
         //
         // For now, we'll test that the method doesn't panic and returns None
         // when word boundaries aren't properly set up.
 
-        let next_word = display_line.find_next_word_boundary(0);
+        let next_word = display_line.find_next_word_start(0);
         // Should return None since word boundaries aren't set up
         assert!(
             next_word.is_none(),
@@ -1287,12 +1276,12 @@ mod tests {
         let display_line = DisplayLine::new(chars, 0, 0, text.chars().count(), false);
 
         // First, move to end of "hello" (position 4)
-        let hello_end = display_line.find_end_of_word(0);
+        let hello_end = display_line.find_next_word_end(0);
         assert!(hello_end.is_some(), "Should find end of 'hello'");
         let hello_end_pos = hello_end.unwrap();
 
         // Now test the fix: when cursor is at end of "hello", 'e' should move to end of "world"
-        let world_end = display_line.find_end_of_word(hello_end_pos);
+        let world_end = display_line.find_next_word_end(hello_end_pos);
         assert!(
             world_end.is_some(),
             "Should find end of 'world' when starting from end of 'hello'"
@@ -1307,7 +1296,7 @@ mod tests {
 
         // Test advancing from end of "world" to end of "test"
         let world_end_pos = world_end.unwrap();
-        let test_end = display_line.find_end_of_word(world_end_pos);
+        let test_end = display_line.find_next_word_end(world_end_pos);
         assert!(
             test_end.is_some(),
             "Should find end of 'test' when starting from end of 'world'"
@@ -1347,7 +1336,7 @@ mod tests {
         let display_line = DisplayLine::new(chars, 0, 0, text.chars().count(), false);
 
         // Starting from 't' in "test3" (position 12), 'b' should go to 't' in "test2" (position 6)
-        let test2_pos = display_line.find_previous_word_boundary(12);
+        let test2_pos = display_line.find_previous_word_start(12);
         assert!(
             test2_pos.is_some(),
             "Should find start of 'test2' from 'test3'"
@@ -1355,7 +1344,7 @@ mod tests {
         assert_eq!(test2_pos.unwrap(), 6, "Should move to start of 'test2'");
 
         // From 't' in "test2" (position 6), 'b' should go to 't' in "test1" (position 0)
-        let test1_pos = display_line.find_previous_word_boundary(6);
+        let test1_pos = display_line.find_previous_word_start(6);
         assert!(
             test1_pos.is_some(),
             "Should find start of 'test1' from 'test2'"
@@ -1367,7 +1356,7 @@ mod tests {
         );
 
         // From 't' in "test1" (position 0), 'b' should return None (can't go further back)
-        let before_start = display_line.find_previous_word_boundary(0);
+        let before_start = display_line.find_previous_word_start(0);
         assert!(
             before_start.is_none(),
             "Should not move before first character"

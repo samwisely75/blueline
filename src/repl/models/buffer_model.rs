@@ -337,7 +337,7 @@ impl BufferModel {
         let current = self.cursor;
 
         if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
-            if let Some(next_pos) = buffer_line.find_next_word_boundary(current.column) {
+            if let Some(next_pos) = buffer_line.find_next_word_start(current.column) {
                 return self.set_cursor(LogicalPosition::new(current.line, next_pos));
             }
         }
@@ -355,7 +355,7 @@ impl BufferModel {
         let current = self.cursor;
 
         if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
-            if let Some(prev_pos) = buffer_line.find_previous_word_boundary(current.column) {
+            if let Some(prev_pos) = buffer_line.find_previous_word_start(current.column) {
                 return self.set_cursor(LogicalPosition::new(current.line, prev_pos));
             }
         }
@@ -375,7 +375,7 @@ impl BufferModel {
         let current = self.cursor;
 
         if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
-            if let Some(end_pos) = buffer_line.find_end_of_word(current.column) {
+            if let Some(end_pos) = buffer_line.find_next_word_end(current.column) {
                 return self.set_cursor(LogicalPosition::new(current.line, end_pos));
             }
         }
@@ -747,7 +747,7 @@ mod tests {
     }
 
     #[test]
-    fn buffer_model_should_find_end_of_word() {
+    fn buffer_model_should_find_next_word_end() {
         let mut buffer = BufferModel::new(Pane::Request);
         buffer.insert_text("hello こんにちは world");
         buffer.set_cursor(LogicalPosition::new(0, 0));

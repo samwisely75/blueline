@@ -648,7 +648,7 @@ impl PaneState {
         while current_line < self.display_cache.display_line_count() {
             if let Some(line_info) = self.display_cache.get_display_line(current_line) {
                 // Try to find next word on current line
-                if let Some(new_col) = line_info.find_next_word_boundary(current_col) {
+                if let Some(new_col) = line_info.find_next_word_start(current_col) {
                     return Some(Position::new(current_line, new_col));
                 }
 
@@ -660,7 +660,7 @@ impl PaneState {
                 if current_line < self.display_cache.display_line_count() {
                     if let Some(next_line_info) = self.display_cache.get_display_line(current_line)
                     {
-                        if let Some(new_col) = next_line_info.find_next_word_boundary(0) {
+                        if let Some(new_col) = next_line_info.find_next_word_start(0) {
                             return Some(Position::new(current_line, new_col));
                         }
                     }
@@ -692,7 +692,7 @@ impl PaneState {
                 current_line, line_info.char_count(), line_info.display_width(), current_col);
 
             // Try to find previous word on current line
-            if let Some(new_col) = line_info.find_previous_word_boundary(current_col) {
+            if let Some(new_col) = line_info.find_previous_word_start(current_col) {
                 tracing::debug!(
                     "find_previous_word_position: found word on line {} at col {}",
                     current_line,
@@ -714,7 +714,7 @@ impl PaneState {
                     tracing::debug!("find_previous_word_position: moved to line {}, set current_col to display_width={}", 
                         current_line, current_col);
                     // Try to find previous word from the end of the previous line
-                    if let Some(new_col) = prev_line_info.find_previous_word_boundary(current_col) {
+                    if let Some(new_col) = prev_line_info.find_previous_word_start(current_col) {
                         tracing::debug!(
                             "find_previous_word_position: found word on prev line {} at col {}",
                             current_line,
@@ -738,7 +738,7 @@ impl PaneState {
     /// Find the position of the end of the current or next word from current position
     /// Returns None if no word end is found
     /// Now supports Japanese characters as word characters
-    pub fn find_end_of_word_position(&self, current_pos: Position) -> OptionalPosition {
+    pub fn find_next_word_end_position(&self, current_pos: Position) -> OptionalPosition {
         let mut current_line = current_pos.row;
         let mut current_col = current_pos.col;
 
@@ -746,7 +746,7 @@ impl PaneState {
         while current_line < self.display_cache.display_line_count() {
             if let Some(line_info) = self.display_cache.get_display_line(current_line) {
                 // Try to find end of word on current line
-                if let Some(new_col) = line_info.find_end_of_word(current_col) {
+                if let Some(new_col) = line_info.find_next_word_end(current_col) {
                     return Some(Position::new(current_line, new_col));
                 }
 
@@ -758,7 +758,7 @@ impl PaneState {
                 if current_line < self.display_cache.display_line_count() {
                     if let Some(next_line_info) = self.display_cache.get_display_line(current_line)
                     {
-                        if let Some(new_col) = next_line_info.find_end_of_word(0) {
+                        if let Some(new_col) = next_line_info.find_next_word_end(0) {
                             return Some(Position::new(current_line, new_col));
                         }
                     }

@@ -963,7 +963,7 @@ impl PaneManager {
         let current_display_pos = self.get_current_display_cursor();
 
         if let Some(new_pos) =
-            self.panes[self.current_pane].find_end_of_word_position(current_display_pos)
+            self.panes[self.current_pane].find_next_word_end_position(current_display_pos)
         {
             let events = self.set_current_display_cursor(new_pos);
             let mut all_events = events;
