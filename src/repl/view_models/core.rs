@@ -51,7 +51,6 @@ pub struct ViewModel {
     // HTTP client and configuration
     pub(super) http_client: Option<HttpClient>,
     pub(super) http_session_headers: HashMap<String, String>,
-    pub(super) http_verbose: bool,
 
     // Event management
     pub(super) event_bus: EventBusOption,
@@ -84,7 +83,6 @@ impl ViewModel {
             status_line: StatusLine::new(),
             http_client: None,
             http_session_headers: HashMap::new(),
-            http_verbose: false,
             event_bus: None,
             pending_view_events: Vec::new(),
             pending_model_events: Vec::new(),

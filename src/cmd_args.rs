@@ -10,24 +10,12 @@ struct ClapArgs {
     /// If the profile is not configured, the request will fail.
     #[clap(short = 'p', long, default_value = "default", help = "profile name")]
     profile: String,
-
-    /// Verbose mode
-    /// Optional. Print verbose messages.
-    #[clap(
-        short = 'v',
-        long,
-        help = "Print verbose message",
-        default_value = "false"
-    )]
-    verbose: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct CommandLineArgs {
     #[allow(dead_code)] // Used by profile() method
     profile: String,
-    #[allow(dead_code)] // Used by verbose() method
-    verbose: bool,
 }
 
 impl CommandLineArgs {
@@ -36,7 +24,6 @@ impl CommandLineArgs {
         let args = ClapArgs::parse();
         Self {
             profile: args.profile,
-            verbose: args.verbose,
         }
     }
 
@@ -49,18 +36,12 @@ impl CommandLineArgs {
         let args = ClapArgs::parse_from(itr);
         Self {
             profile: args.profile,
-            verbose: args.verbose,
         }
     }
 
     #[allow(dead_code)]
     pub fn profile(&self) -> &String {
         &self.profile
-    }
-
-    #[allow(dead_code)]
-    pub fn verbose(&self) -> bool {
-        self.verbose
     }
 }
 
@@ -72,27 +53,17 @@ mod test {
     fn test_parse_args_profile_only() {
         let args = CommandLineArgs::parse_from(["program", "--profile", "test"]);
         assert_eq!(args.profile(), "test");
-        assert!(!args.verbose());
-    }
-
-    #[test]
-    fn test_parse_args_verbose() {
-        let args = CommandLineArgs::parse_from(["program", "--verbose"]);
-        assert_eq!(args.profile(), "default");
-        assert!(args.verbose());
     }
 
     #[test]
     fn test_parse_args_short_flags() {
-        let args = CommandLineArgs::parse_from(["program", "-p", "dev", "-v"]);
+        let args = CommandLineArgs::parse_from(["program", "-p", "dev"]);
         assert_eq!(args.profile(), "dev");
-        assert!(args.verbose());
     }
 
     #[test]
     fn test_default_values() {
         let args = CommandLineArgs::parse_from(["program"]);
         assert_eq!(args.profile(), "default");
-        assert!(!args.verbose());
     }
 }

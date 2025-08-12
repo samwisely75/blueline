@@ -3,6 +3,7 @@
 //! The controller orchestrates the REPL components and manages the event loop.
 //! It's responsible for connecting user input to commands and coordinating view updates.
 
+use crate::config::AppConfig;
 use crate::repl::{
     commands::{
         CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, HttpHeaders, Setting,
@@ -14,7 +15,6 @@ use crate::repl::{
     view_models::ViewModel,
     views::{TerminalRenderer, ViewRenderer},
 };
-use crate::{cmd_args::CommandLineArgs, config};
 use anyhow::Result;
 use bluenote::{get_blank_profile, HttpConnectionProfile, IniProfileStore};
 use crossterm::event::{Event, KeyEvent};
@@ -35,11 +35,7 @@ pub struct AppController<ES: EventStream, RS: RenderStream> {
 
 impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Create new application controller with injected I/O streams (dependency injection)
-    pub fn with_io_streams(
-        cmd_args: CommandLineArgs,
-        event_stream: ES,
-        render_stream: RS,
-    ) -> Result<Self> {
+    pub fn with_io_streams(config: AppConfig, event_stream: ES, render_stream: RS) -> Result<Self> {
         let mut view_model = ViewModel::new();
 
         // Pass RenderStream ownership to the View layer (TerminalRenderer)
@@ -53,20 +49,15 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         view_model.update_terminal_size(width, height);
 
         // Load profile from configuration
-        let profile_name = cmd_args.profile();
-        let profile_path = config::get_profile_path();
-        let profile = Self::load_profile(profile_name, &profile_path)?;
+        let profile_name = config.profile_name();
+        let profile_path = config.profile_path();
+        let profile = Self::load_profile(profile_name, profile_path)?;
 
         // Configure view model with profile and settings
-        Self::configure_view_model(
-            &mut view_model,
-            &profile,
-            profile_name,
-            &profile_path,
-            &cmd_args,
-        );
+        Self::configure_view_model(&mut view_model, &profile, profile_name, profile_path);
 
-        Ok(Self {
+        // Create the controller
+        let mut controller = Self {
             view_model,
             view_renderer,
             command_registry,
@@ -75,7 +66,18 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             event_stream,
             should_quit: false,
             last_render_time: std::time::Instant::now(),
-        })
+        };
+
+        // Apply initial commands from config file
+        if !config.initial_commands().is_empty() {
+            tracing::info!(
+                "Applying {} config commands",
+                config.initial_commands().len()
+            );
+            controller.apply_initial_commands(config.initial_commands())?;
+        }
+
+        Ok(controller)
     }
 }
 
@@ -101,13 +103,12 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         Ok(profile)
     }
 
-    /// Configure view model with profile settings and command line arguments
+    /// Configure view model with profile settings
     fn configure_view_model(
         view_model: &mut ViewModel,
         profile: &impl HttpConnectionProfile,
         profile_name: &str,
         profile_path: &str,
-        cmd_args: &CommandLineArgs,
     ) {
         // Set up HTTP client with the loaded profile
         if let Err(e) = view_model.set_http_client(profile) {
@@ -118,11 +119,44 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         // Store profile information for display
         view_model.set_profile_info(profile_name.to_string(), profile_path.to_string());
 
-        // Set verbose mode from command line args
-        view_model.set_verbose(cmd_args.verbose());
-
         // Set up event bus in view model
         view_model.set_event_bus(Box::new(SimpleEventBus::new()));
+    }
+
+    /// Apply initial ex commands from config file
+    fn apply_initial_commands(&mut self, commands: &[String]) -> Result<()> {
+        for command in commands {
+            tracing::debug!("Applying config command: {}", command);
+
+            // Create command context
+            let context = CommandContext::new(ViewModelSnapshot::from_view_model(&self.view_model));
+
+            // Execute the ex command
+            match self.ex_command_registry.execute_command(command, &context) {
+                Ok(events) => {
+                    // Apply each event
+                    for event in events {
+                        match event {
+                            CommandEvent::SettingChangeRequested { setting, value } => {
+                                if let Err(e) = self.handle_setting_change(setting, value) {
+                                    tracing::warn!("Failed to apply setting from config: {}", e);
+                                }
+                            }
+                            _ => {
+                                tracing::debug!(
+                                    "Ignoring non-setting command event from config: {:?}",
+                                    event
+                                );
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to execute config command '{}': {}", command, e);
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Run the main application loop
@@ -795,14 +829,16 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cmd_args::CommandLineArgs;
     use crate::repl::events::{EditorMode, Pane};
 
     #[test]
     fn app_controller_should_create() {
         if crossterm::terminal::size().is_ok() {
             let cmd_args = CommandLineArgs::parse_from(["test"]);
+            let config = AppConfig::from_args(cmd_args);
             let controller = AppController::with_io_streams(
-                cmd_args,
+                config,
                 crate::repl::io::TerminalEventStream::new(),
                 crate::repl::io::TerminalRenderStream::new(),
             );

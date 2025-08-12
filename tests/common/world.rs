@@ -10,6 +10,7 @@
 use anyhow::Result;
 use blueline::{
     cmd_args::CommandLineArgs,
+    config::AppConfig,
     repl::{
         controllers::app_controller::AppController,
         io::{
@@ -211,7 +212,8 @@ impl BluelineWorld {
         // For testing, just create the AppController without running it
         // The tests simulate behavior without needing the full event loop
         debug!("Creating AppController for testing (no event loop)...");
-        let _app = AppController::with_io_streams(cmd_args, event_stream, render_stream)?;
+        let config = AppConfig::from_args(cmd_args);
+        let _app = AppController::with_io_streams(config, event_stream, render_stream)?;
         debug!("✅ AppController created successfully");
 
         // Mark as running for test simulation purposes (but no actual task)
