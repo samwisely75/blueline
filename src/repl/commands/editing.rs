@@ -145,7 +145,6 @@ mod tests {
                 request_text: String::new(),
                 response_text: String::new(),
                 terminal_dimensions: (80, 24),
-                verbose: false,
             },
         }
     }

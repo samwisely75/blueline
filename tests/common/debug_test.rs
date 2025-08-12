@@ -24,6 +24,7 @@ mod tests {
     #[tokio::test]
     async fn test_app_controller_creation() -> Result<()> {
         use blueline::cmd_args::CommandLineArgs;
+        use blueline::config::AppConfig;
         use blueline::repl::controllers::app_controller::AppController;
         use blueline::repl::io::test_bridge::{BridgedEventStream, BridgedRenderStream};
 
@@ -37,7 +38,8 @@ mod tests {
         tracing::info!("✅ Command args parsed");
 
         tracing::info!("3. Testing AppController creation...");
-        let app_result = AppController::with_io_streams(cmd_args, event_stream, render_stream);
+        let config = AppConfig::from_args(cmd_args);
+        let app_result = AppController::with_io_streams(config, event_stream, render_stream);
         match app_result {
             Ok(_app) => {
                 tracing::info!("✅ AppController created successfully!");
