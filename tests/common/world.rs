@@ -449,11 +449,11 @@ impl BluelineWorld {
 
         // Special check for John issue
         if text.contains("John") {
-            eprintln!(
+            tracing::debug!(
                 "🔍 JOHN DEBUG - About to type 'name: John' in mode: {:?}",
                 self.current_mode
             );
-            eprintln!(
+            tracing::debug!(
                 "🔍 JOHN DEBUG - Text buffer BEFORE typing: {:?}",
                 self.text_buffer
             );
@@ -508,15 +508,15 @@ impl BluelineWorld {
                     // Double-check that John is actually in the text buffer
                     let has_john = self.text_buffer.iter().any(|line| line.contains("John"));
                     if !has_john {
-                        eprintln!(
+                        tracing::debug!(
                             "⚠️ JOHN DEBUG - ERROR: John not found in text buffer after adding!"
                         );
-                        eprintln!("⚠️ JOHN DEBUG - Text buffer state: {:?}", self.text_buffer);
+                        tracing::debug!("⚠️ JOHN DEBUG - Text buffer state: {:?}", self.text_buffer);
                         // Force add it as a failsafe
                         if let Some(last_line) = self.text_buffer.last_mut() {
                             if last_line.is_empty() {
                                 *last_line = text.to_string();
-                                eprintln!("⚠️ JOHN DEBUG - Forcefully added John to last line");
+                                tracing::debug!("⚠️ JOHN DEBUG - Forcefully added John to last line");
                             }
                         }
                     }

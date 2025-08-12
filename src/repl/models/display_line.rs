@@ -338,7 +338,9 @@ impl DisplayLine {
             }
         }
 
-        tracing::debug!("find_next_word_end: no unicode-segmentation word boundaries found, trying fallback");
+        tracing::debug!(
+            "find_next_word_end: no unicode-segmentation word boundaries found, trying fallback"
+        );
 
         // FALLBACK: Implement vim 'e' behavior with character-based detection
         // Vim 'e' behavior:
