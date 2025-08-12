@@ -93,6 +93,9 @@ pub enum CommandEvent {
         value: SettingValue,
     },
 
+    /// Request to yank (copy) selected text to yank buffer
+    YankSelectionRequested,
+
     /// No action needed (for commands that only query state)
     NoAction,
 }
@@ -183,6 +186,11 @@ impl CommandEvent {
             headers,
             body,
         }
+    }
+
+    /// Create a yank selection event
+    pub fn yank_selection() -> Self {
+        Self::YankSelectionRequested
     }
 }
 

@@ -18,6 +18,15 @@ use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 
 impl ViewModel {
+    /// Get selected text from current pane
+    pub fn get_selected_text(&self) -> Option<String> {
+        self.pane_manager.get_selected_text()
+    }
+
+    /// Yank text to yank buffer
+    pub fn yank_to_buffer(&mut self, text: String) -> Result<()> {
+        self.yank_buffer.yank(text)
+    }
     /// Insert a character at current cursor position
     pub fn insert_char(&mut self, ch: char) -> Result<()> {
         // Only allow text insertion in Request pane and insert mode

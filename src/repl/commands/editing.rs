@@ -125,6 +125,29 @@ impl Command for DeleteCharAtCursorCommand {
     }
 }
 
+/// Yank (copy) selected text in visual mode
+pub struct YankCommand;
+
+impl Command for YankCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('y'))
+            && context.state.current_mode == EditorMode::Visual
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Return yank event and exit visual mode
+        Ok(vec![
+            CommandEvent::yank_selection(),
+            CommandEvent::mode_change(EditorMode::Normal),
+        ])
+    }
+
+    fn name(&self) -> &'static str {
+        "Yank"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

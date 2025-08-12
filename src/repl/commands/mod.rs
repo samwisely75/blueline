@@ -52,6 +52,7 @@ pub mod request;
 pub use app::AppTerminateCommand;
 pub use editing::{
     DeleteCharAtCursorCommand, DeleteCharCommand, InsertCharCommand, InsertNewLineCommand,
+    YankCommand,
 };
 pub use ex_commands::{ExCommand, ExCommandRegistry};
 pub use mode::{
@@ -126,6 +127,7 @@ impl CommandRegistry {
             Box::new(InsertNewLineCommand),
             Box::new(DeleteCharCommand),
             Box::new(DeleteCharAtCursorCommand),
+            Box::new(YankCommand),
         ];
 
         Self { commands }

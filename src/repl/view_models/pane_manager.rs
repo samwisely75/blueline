@@ -278,6 +278,11 @@ impl PaneManager {
         }
     }
 
+    /// Get selected text from the current pane
+    pub fn get_selected_text(&self) -> Option<String> {
+        self.panes[self.current_pane].get_selected_text()
+    }
+
     /// Get request pane height
     pub fn request_pane_height(&self) -> u16 {
         self.request_pane_height

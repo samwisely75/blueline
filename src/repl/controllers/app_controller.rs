@@ -497,6 +497,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::SettingChangeRequested { setting, value } => {
                 self.handle_setting_change(setting, value)?;
             }
+            CommandEvent::YankSelectionRequested => {
+                self.handle_yank_selection()?;
+            }
             CommandEvent::NoAction => {
                 // Do nothing
             }
@@ -765,6 +768,37 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Handle setting changes from ex commands
     fn handle_setting_change(&mut self, setting: Setting, value: SettingValue) -> Result<()> {
         self.view_model.apply_setting(setting, value)
+    }
+
+    /// Handle yanking selected text to yank buffer
+    fn handle_yank_selection(&mut self) -> Result<()> {
+        // Get selected text from current pane
+        if let Some(text) = self.view_model.get_selected_text() {
+            // Store in yank buffer
+            self.view_model.yank_to_buffer(text.clone())?;
+
+            // Show feedback in status bar
+            let char_count = text.chars().count();
+            let line_count = text.lines().count();
+            let message = if line_count > 1 {
+                format!("{line_count} lines yanked")
+            } else {
+                format!("{char_count} characters yanked")
+            };
+            self.view_model.set_status_message(message);
+
+            tracing::info!(
+                "Yanked {} characters ({} lines) to buffer",
+                char_count,
+                line_count
+            );
+        } else {
+            tracing::warn!("No text selected for yanking");
+            self.view_model
+                .set_status_message("No text selected".to_string());
+        }
+
+        Ok(())
     }
 
     /// Process a single key event without running the full event loop (for testing)
