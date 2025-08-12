@@ -56,7 +56,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         // Configure view model with profile and settings
         Self::configure_view_model(&mut view_model, &profile, profile_name, profile_path);
 
-        Ok(Self {
+        // Create the controller
+        let mut controller = Self {
             view_model,
             view_renderer,
             command_registry,
@@ -65,7 +66,18 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             event_stream,
             should_quit: false,
             last_render_time: std::time::Instant::now(),
-        })
+        };
+
+        // Apply initial commands from config file
+        if !config.initial_commands().is_empty() {
+            tracing::info!(
+                "Applying {} config commands",
+                config.initial_commands().len()
+            );
+            controller.apply_initial_commands(config.initial_commands())?;
+        }
+
+        Ok(controller)
     }
 }
 
@@ -109,6 +121,42 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Set up event bus in view model
         view_model.set_event_bus(Box::new(SimpleEventBus::new()));
+    }
+
+    /// Apply initial ex commands from config file
+    fn apply_initial_commands(&mut self, commands: &[String]) -> Result<()> {
+        for command in commands {
+            tracing::debug!("Applying config command: {}", command);
+
+            // Create command context
+            let context = CommandContext::new(ViewModelSnapshot::from_view_model(&self.view_model));
+
+            // Execute the ex command
+            match self.ex_command_registry.execute_command(command, &context) {
+                Ok(events) => {
+                    // Apply each event
+                    for event in events {
+                        match event {
+                            CommandEvent::SettingChangeRequested { setting, value } => {
+                                if let Err(e) = self.handle_setting_change(setting, value) {
+                                    tracing::warn!("Failed to apply setting from config: {}", e);
+                                }
+                            }
+                            _ => {
+                                tracing::debug!(
+                                    "Ignoring non-setting command event from config: {:?}",
+                                    event
+                                );
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to execute config command '{}': {}", command, e);
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Run the main application loop

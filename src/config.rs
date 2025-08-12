@@ -26,6 +26,8 @@ pub struct AppConfig {
     profile_name: String,
     /// Path to the profile file
     profile_path: String,
+    /// Initial ex commands to execute on startup (from config file)
+    initial_commands: Vec<String>,
 }
 
 impl AppConfig {
@@ -34,14 +36,16 @@ impl AppConfig {
         Self {
             profile_name: cmd_args.profile().to_string(),
             profile_path: get_profile_path(),
+            initial_commands: load_config_commands(),
         }
     }
 
     /// Create AppConfig with explicit values (useful for testing)
-    pub fn new(profile_name: String, profile_path: String) -> Self {
+    pub fn new(profile_name: String, profile_path: String, initial_commands: Vec<String>) -> Self {
         Self {
             profile_name,
             profile_path,
+            initial_commands,
         }
     }
 
@@ -53,6 +57,11 @@ impl AppConfig {
     /// Get the profile path
     pub fn profile_path(&self) -> &str {
         &self.profile_path
+    }
+
+    /// Get the initial commands
+    pub fn initial_commands(&self) -> &[String] {
+        &self.initial_commands
     }
 }
 
@@ -109,6 +118,7 @@ pub fn load_config_commands() -> Vec<String> {
 mod tests {
     use super::*;
     use serial_test::serial;
+    use std::io::Write;
 
     #[test]
     fn test_default_profile_path() {
@@ -228,5 +238,50 @@ mod tests {
             Some(val) => std::env::set_var(CONFIG_PATH_ENV_VAR, val),
             None => std::env::remove_var(CONFIG_PATH_ENV_VAR),
         }
+    }
+
+    #[test]
+    fn test_load_config_commands_with_file() {
+        // Create a temp file with test config
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("test_config");
+        let mut file = fs::File::create(&config_path).unwrap();
+        writeln!(file, "# Test config").unwrap();
+        writeln!(file, "set wrap on").unwrap();
+        writeln!(file).unwrap();
+        writeln!(file, "set number off").unwrap();
+        writeln!(file, "# Another comment").unwrap();
+
+        // Save current env var state
+        let original = std::env::var_os(CONFIG_PATH_ENV_VAR);
+
+        // Set to our test file
+        std::env::set_var(CONFIG_PATH_ENV_VAR, config_path.to_str().unwrap());
+        let commands = load_config_commands();
+
+        // Verify commands were loaded
+        assert_eq!(commands.len(), 2);
+        assert_eq!(commands[0], "set wrap on");
+        assert_eq!(commands[1], "set number off");
+
+        // Restore original state
+        match original {
+            Some(val) => std::env::set_var(CONFIG_PATH_ENV_VAR, val),
+            None => std::env::remove_var(CONFIG_PATH_ENV_VAR),
+        }
+    }
+
+    #[test]
+    fn test_app_config_from_args_loads_commands() {
+        // If ~/.blueline/config exists, it should be loaded
+        let cmd_args = CommandLineArgs::parse_from(["test"]);
+        let config = AppConfig::from_args(cmd_args);
+
+        // We can't assert specific commands since it depends on user's config
+        // Just verify it doesn't crash and returns something
+        assert!(!config.profile_name().is_empty());
+        assert!(!config.profile_path().is_empty());
+        // initial_commands could be empty if no config file exists
+        let _ = config.initial_commands();
     }
 }
