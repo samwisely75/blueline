@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.0] - 2025-01-12
+
+### Added
+
+- **Line Number Toggle**: Added `:set number on/off` commands to toggle line number visibility
+  - Line numbers are shown by default (current behavior)
+  - Setting persists during the session
+  - Provides more screen space for content when hidden
+
+## [0.31.0] - 2025-01-12
+
+### Changed
+
+- **Logging**: Replaced all `println!` and `eprintln!` statements with `tracing` calls throughout the codebase
+  - Ensures consistent logging approach as per testing guidelines
+  - Improved debugging capabilities with structured logging
+
 ## [0.30.0] - 2025-01-12
 
 ### Fixed
