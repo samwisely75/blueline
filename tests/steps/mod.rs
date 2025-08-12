@@ -25,5 +25,6 @@ pub mod text_advanced;
 pub mod text_manipulation;
 pub mod visual_mode;
 pub mod window;
+pub mod wrap_mode;
 
 // Re-export all step functions
