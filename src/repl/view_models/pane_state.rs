@@ -115,7 +115,7 @@ impl PaneState {
     /// Build display cache for this pane's content using CharacterBuffer with word boundaries
     pub fn build_display_cache(&mut self, content_width: usize, wrap_enabled: bool) {
         tracing::info!(
-            "Building display cache with ICU word segmentation: content_width={}, wrap_enabled={}",
+            "Building display cache with unicode-segmentation word boundaries: content_width={}, wrap_enabled={}",
             content_width,
             wrap_enabled
         );

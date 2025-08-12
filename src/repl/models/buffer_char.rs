@@ -88,9 +88,9 @@ pub struct BufferChar {
     pub display_width: usize,
     /// Whether this character is selected (for visual mode)
     pub selected: bool,
-    /// Whether this character starts a word (from ICU segmentation)
+    /// Whether this character starts a word (from unicode-segmentation)
     pub is_word_start: bool,
-    /// Whether this character ends a word (from ICU segmentation)
+    /// Whether this character ends a word (from unicode-segmentation)
     pub is_word_end: bool,
 }
 

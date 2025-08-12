@@ -148,7 +148,7 @@ impl DisplayLine {
         current_index
     }
 
-    /// Find the next word start from the current display column position using ICU segmentation
+    /// Find the next word start from the current display column position using unicode-segmentation
     ///
     /// HIGH-LEVEL LOGIC:
     /// 1. Build array of (display_position, display_char) pairs for efficient lookup
@@ -187,7 +187,7 @@ impl DisplayLine {
                 .map_or('?', |(_, dc)| dc.ch())
         );
 
-        // Search forward for next word start using ICU segmentation flags
+        // Search forward for next word start using unicode-segmentation flags
         #[allow(clippy::needless_range_loop)] // Index needed for position lookup
         for i in (current_index + 1)..char_positions.len() {
             let display_char = char_positions[i].1;
@@ -195,7 +195,7 @@ impl DisplayLine {
                 "find_next_word_start: checking char at index {} (display_col={}): '{}', is_word_start={}",
                 i, char_positions[i].0, display_char.ch(), display_char.buffer_char.is_word_start
             );
-            // WORD START CHECK: ICU segmentation marked this character as starting a new word
+            // WORD START CHECK: unicode-segmentation marked this character as starting a new word
             if display_char.buffer_char.is_word_start {
                 tracing::debug!(
                     "find_next_word_start: found word start at display_col={}, char='{}'",
@@ -210,7 +210,7 @@ impl DisplayLine {
         None
     }
 
-    /// Find the previous word start from the current display column position using ICU segmentation
+    /// Find the previous word start from the current display column position using unicode-segmentation
     pub fn find_previous_word_start(&self, current_display_col: usize) -> Option<usize> {
         tracing::debug!(
             "find_previous_word_start: current_display_col={}, line_content='{}'",
@@ -239,7 +239,7 @@ impl DisplayLine {
                 .map_or('?', |(_, dc)| dc.ch())
         );
 
-        // Look backwards for previous word start using ICU segmentation boundaries
+        // Look backwards for previous word start using unicode-segmentation boundaries
         // Vim 'b' behavior: move to beginning of current or previous word
         // Fix: Include all positions from current_index-1 down to 0 to reach first character
         if current_index > 0 {
@@ -277,7 +277,7 @@ impl DisplayLine {
         None
     }
 
-    /// Find the next word end from the current display column position using ICU segmentation
+    /// Find the next word end from the current display column position using unicode-segmentation
     pub fn find_next_word_end(&self, current_display_col: usize) -> Option<usize> {
         tracing::debug!(
             "find_next_word_end: current_display_col={}, line_content='{}'",
@@ -303,7 +303,7 @@ impl DisplayLine {
                 .map_or('?', |(_, dc)| dc.ch())
         );
 
-        // Look for next word end using ICU segmentation boundaries
+        // Look for next word end using unicode-segmentation boundaries
         // Vim 'e' behavior: move to end of current or next word
         // If we're already at a word end, skip to the next word end
         let mut start_index = current_index;
@@ -338,7 +338,7 @@ impl DisplayLine {
             }
         }
 
-        tracing::debug!("find_next_word_end: no ICU word boundaries found, trying fallback");
+        tracing::debug!("find_next_word_end: no unicode-segmentation word boundaries found, trying fallback");
 
         // FALLBACK: Implement vim 'e' behavior with character-based detection
         // Vim 'e' behavior:

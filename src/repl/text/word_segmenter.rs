@@ -186,7 +186,7 @@ impl WordSegmenter for UnicodeWordSegmenter {
             prev_type = Some(current_type);
         }
 
-        // Note: ICU segmenter does not include end position as a boundary
+        // Note: unicode-segmentation does not include end position as a boundary
         // End position is not a "word start" - only include actual word boundaries
 
         // Ensure positions are sorted and unique
