@@ -494,7 +494,7 @@ async fn given_wrap_is_off(world: &mut BluelineWorld) {
     info!("Setting wrap mode to off");
 
     // TODO: Implement wrap mode setting
-    // This might require ex command `:set nowrap`
+    // This might require ex command `:set wrap off`
     let _ = world; // Acknowledge parameter
 
     debug!("Wrap mode set to off (placeholder implementation)");

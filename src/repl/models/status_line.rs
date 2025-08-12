@@ -25,7 +25,7 @@ pub struct StatusLine {
     /// Temporary status message to display
     status_message: Option<String>,
 
-    /// Ex command buffer (for :q, :set wrap, etc.)
+    /// Ex command buffer (for :q, :set wrap on, etc.)
     command_buffer: String,
 
     /// HTTP response status information

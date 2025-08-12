@@ -42,7 +42,7 @@ impl ViewModel {
                 // Force quit the application
                 events.push(CommandEvent::QuitRequested);
             }
-            "set wrap" => {
+            "set wrap on" => {
                 // Enable word wrap
                 self.pane_manager.set_wrap_enabled(true);
                 let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
@@ -50,7 +50,7 @@ impl ViewModel {
                 events.extend(visibility_events);
                 let _ = self.emit_view_event(events);
             }
-            "set nowrap" => {
+            "set wrap off" => {
                 // Disable word wrap
                 self.pane_manager.set_wrap_enabled(false);
                 let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
