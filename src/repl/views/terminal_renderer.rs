@@ -175,31 +175,38 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         // Move cursor to the beginning of the line
         self.render_stream.move_cursor(0, row)?;
 
-        #[allow(unused_variables)]
-        if let Some(num) = line_info.line_number {
-            // Render line number with dimmed style and right alignment (minimum width 3)
-            write!(
-                self.render_stream,
-                "{}{num:>line_num_width$} {}",
-                ansi::DIM,
-                ansi::RESET
-            )?;
-        } else if line_info.is_continuation {
-            // Continuation line of wrapped text - show blank space
-            write!(self.render_stream, "{} ", " ".repeat(line_num_width))?;
-        } else {
-            // Show tilda for empty lines beyond content (vim-style) with darker gray color
-            write!(
-                self.render_stream,
-                "{}~{} {}",
-                ansi::DIM,
-                " ".repeat(line_num_width.saturating_sub(1)),
-                ansi::RESET
-            )?;
+        // Only render line numbers if they are visible
+        if view_model.pane_manager().is_line_numbers_visible() {
+            #[allow(unused_variables)]
+            if let Some(num) = line_info.line_number {
+                // Render line number with dimmed style and right alignment (minimum width 3)
+                write!(
+                    self.render_stream,
+                    "{}{num:>line_num_width$} {}",
+                    ansi::DIM,
+                    ansi::RESET
+                )?;
+            } else if line_info.is_continuation {
+                // Continuation line of wrapped text - show blank space
+                write!(self.render_stream, "{} ", " ".repeat(line_num_width))?;
+            } else {
+                // Show tilda for empty lines beyond content (vim-style) with darker gray color
+                write!(
+                    self.render_stream,
+                    "{}~{} {}",
+                    ansi::DIM,
+                    " ".repeat(line_num_width.saturating_sub(1)),
+                    ansi::RESET
+                )?;
+            }
         }
 
         // Calculate how much space is available for text after line number
-        let used_width = line_num_width + 1; // line number + space
+        let used_width = if view_model.pane_manager().is_line_numbers_visible() {
+            line_num_width + 1 // line number + space
+        } else {
+            0 // No space used when line numbers are hidden
+        };
         let available_width = (self.terminal_size.0 as usize).saturating_sub(used_width);
 
         // Truncate text to fit within terminal width, accounting for double-byte characters
@@ -529,9 +536,13 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
         // Calculate screen column: display_cursor.col - horizontal_scroll + line_numbers + padding
         // When horizontally scrolled, we need to subtract the scroll offset to get the visible position
-        let screen_col = display_cursor.col
-            .saturating_sub(scroll_offset.col) // Subtract horizontal scroll offset
-            + line_num_width + 1; // Add line number width and padding
+        let screen_col = if view_model.pane_manager().is_line_numbers_visible() {
+            display_cursor.col
+                .saturating_sub(scroll_offset.col) // Subtract horizontal scroll offset
+                + line_num_width + 1 // Add line number width and padding when visible
+        } else {
+            display_cursor.col.saturating_sub(scroll_offset.col) // Just subtract horizontal scroll offset
+        };
         let screen_row = match current_pane {
             Pane::Request => viewport_relative_row,
             Pane::Response => viewport_relative_row + response_start as usize,

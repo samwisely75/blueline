@@ -41,7 +41,9 @@ mod tests {
         match app_result {
             Ok(_app) => {
                 tracing::info!("✅ AppController created successfully!");
-                tracing::info!("4. Skipping app.run() test to avoid hanging - creation test complete!");
+                tracing::info!(
+                    "4. Skipping app.run() test to avoid hanging - creation test complete!"
+                );
 
                 // For now, just test that we can create the AppController successfully
                 // The app.run() method blocks indefinitely waiting for events, which is expected behavior

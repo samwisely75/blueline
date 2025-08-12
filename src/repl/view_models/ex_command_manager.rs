@@ -58,6 +58,22 @@ impl ViewModel {
                 events.extend(visibility_events);
                 let _ = self.emit_view_event(events);
             }
+            "set number on" => {
+                // Enable line numbers
+                self.pane_manager.set_line_numbers_visible(true);
+                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
+                let mut events = vec![ViewEvent::FullRedrawRequired];
+                events.extend(visibility_events);
+                let _ = self.emit_view_event(events);
+            }
+            "set number off" => {
+                // Disable line numbers
+                self.pane_manager.set_line_numbers_visible(false);
+                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
+                let mut events = vec![ViewEvent::FullRedrawRequired];
+                events.extend(visibility_events);
+                let _ = self.emit_view_event(events);
+            }
             "show profile" => {
                 // Show profile information in status bar
                 events.push(CommandEvent::ShowProfileRequested);
