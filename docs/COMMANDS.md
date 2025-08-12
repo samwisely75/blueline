@@ -89,8 +89,10 @@ Enter command mode with `:` then type one of the following:
 
 ### Display Settings  
 
-- `:set wrap` - Enable word wrap in both request and response panes
-- `:set nowrap` - Disable word wrap in both request and response panes
+- `:set wrap on` - Enable word wrap in both request and response panes
+- `:set wrap off` - Disable word wrap in both request and response panes
+- `:set number on` - Show line numbers
+- `:set number off` - Hide line numbers
 
 ## Application Control
 
@@ -130,14 +132,14 @@ The status bar displays:
 
 ## Word Wrap
 
-When word wrap is enabled (`:set wrap`):
+When word wrap is enabled (`:set wrap on`):
 
 - Long lines are visually wrapped to fit the terminal width
 - Navigation commands work with the wrapped display
 - Line numbers only appear on the first line of wrapped content
 - Continuation lines show blank space in the line number area
 
-When word wrap is disabled (`:set nowrap`):
+When word wrap is disabled (`:set wrap off`):
 
 - Long lines extend beyond the visible area
 - Use horizontal scrolling to view content beyond the terminal width

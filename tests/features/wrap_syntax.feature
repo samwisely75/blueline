@@ -21,20 +21,6 @@ Feature: Improved Wrap Command Syntax
     And I press Enter
     Then wrap mode should be disabled
 
-  Scenario: Backward compatibility - enable wrap with old syntax
-    Given I am in Normal mode
-    When I enter command mode
-    And I type "set wrap"
-    And I press Enter
-    Then wrap mode should be enabled
-
-  Scenario: Backward compatibility - disable wrap with old syntax
-    Given I am in Normal mode
-    And wrap mode is enabled
-    When I enter command mode
-    And I type "set nowrap"
-    And I press Enter
-    Then wrap mode should be disabled
 
   Scenario: Toggle wrap state multiple times
     Given I am in Normal mode
