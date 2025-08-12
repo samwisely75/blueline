@@ -88,9 +88,9 @@ pub struct BufferChar {
     pub display_width: usize,
     /// Whether this character is selected (for visual mode)
     pub selected: bool,
-    /// Whether this character starts a word (from ICU segmentation)
+    /// Whether this character starts a word (from unicode-segmentation)
     pub is_word_start: bool,
-    /// Whether this character ends a word (from ICU segmentation)
+    /// Whether this character ends a word (from unicode-segmentation)
     pub is_word_end: bool,
 }
 
@@ -335,8 +335,8 @@ impl BufferLine {
         }
     }
 
-    /// Find the next word boundary from the current logical position
-    pub fn find_next_word_boundary(&self, current_logical_index: usize) -> Option<usize> {
+    /// Find the next word start from the current logical position
+    pub fn find_next_word_start(&self, current_logical_index: usize) -> Option<usize> {
         if current_logical_index >= self.chars.len() {
             return None;
         }
@@ -373,8 +373,8 @@ impl BufferLine {
         None
     }
 
-    /// Find the previous word boundary from the current logical position
-    pub fn find_previous_word_boundary(&self, current_logical_index: usize) -> Option<usize> {
+    /// Find the previous word start from the current logical position
+    pub fn find_previous_word_start(&self, current_logical_index: usize) -> Option<usize> {
         if current_logical_index == 0 || self.chars.is_empty() {
             return None;
         }
@@ -412,8 +412,8 @@ impl BufferLine {
         None
     }
 
-    /// Find the end of the current or next word from the current logical position
-    pub fn find_end_of_word(&self, current_logical_index: usize) -> Option<usize> {
+    /// Find the next word end from the current logical position
+    pub fn find_next_word_end(&self, current_logical_index: usize) -> Option<usize> {
         if current_logical_index >= self.chars.len() {
             return None;
         }
@@ -777,15 +777,15 @@ mod tests {
         let line = BufferLine::from_string("hello こんにちは world");
 
         // From start, should find "こんにちは" at position 6
-        let next = line.find_next_word_boundary(0);
+        let next = line.find_next_word_start(0);
         assert_eq!(next, Some(6));
 
         // From Japanese word, should find "world" at position 12
-        let next = line.find_next_word_boundary(6);
+        let next = line.find_next_word_start(6);
         assert_eq!(next, Some(12));
 
         // From "world", should find nothing
-        let next = line.find_next_word_boundary(12);
+        let next = line.find_next_word_start(12);
         assert_eq!(next, None);
     }
 
@@ -794,32 +794,32 @@ mod tests {
         let line = BufferLine::from_string("hello こんにちは world");
 
         // From end, should find "world" at position 12
-        let prev = line.find_previous_word_boundary(17);
+        let prev = line.find_previous_word_start(17);
         assert_eq!(prev, Some(12));
 
         // From "world", should find "こんにちは" at position 6
-        let prev = line.find_previous_word_boundary(12);
+        let prev = line.find_previous_word_start(12);
         assert_eq!(prev, Some(6));
 
         // From Japanese word, should find "hello" at position 0
-        let prev = line.find_previous_word_boundary(6);
+        let prev = line.find_previous_word_start(6);
         assert_eq!(prev, Some(0));
     }
 
     #[test]
-    fn buffer_line_should_find_end_of_word() {
+    fn buffer_line_should_find_next_word_end() {
         let line = BufferLine::from_string("hello こんにちは world");
 
         // From start of "hello", should find position 4 (end of "hello")
-        let end = line.find_end_of_word(0);
+        let end = line.find_next_word_end(0);
         assert_eq!(end, Some(4));
 
         // From start of Japanese word, should find position 10 (end of "こんにちは")
-        let end = line.find_end_of_word(6);
+        let end = line.find_next_word_end(6);
         assert_eq!(end, Some(10));
 
         // From start of "world", should find position 16 (end of "world")
-        let end = line.find_end_of_word(12);
+        let end = line.find_next_word_end(12);
         assert_eq!(end, Some(16));
     }
 }
