@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.0] - 2025-01-12
+
+### Added
+
+- **Config File Loading**: Load settings from `~/.blueline/config` file at startup (issue #19)
+  - Config file uses ex command format (e.g., `set wrap on`, `set number on`)
+  - Supports comments (lines starting with #) and empty lines
+  - Environment variable `BLUELINE_CONFIG_PATH` can override default location
+  - Commands are applied automatically at startup before UI is shown
+  - Config errors are logged but don't crash the application
+
+### Changed
+
+- **Configuration Architecture**: Refactored to use unified `AppConfig` pattern
+  - Consolidated all configuration sources into single `AppConfig` struct
+  - Removed verbose flag from command line arguments (preparing for ex command implementation)
+  - Replaced `dirs` crate with `shellexpand` for better path expansion
+  - Cleaner separation of concerns for configuration management
+
 ## [0.33.0] - 2025-01-12
 
 ### Changed
