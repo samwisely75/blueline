@@ -9,6 +9,24 @@ use crate::repl::events::{EditorMode, LogicalPosition, Pane};
 /// Type alias for HTTP headers to reduce complexity
 pub type HttpHeaders = Vec<(String, String)>;
 
+/// Available settings that can be changed
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Setting {
+    /// Line wrapping setting
+    Wrap,
+    /// Line numbers display setting
+    LineNumbers,
+}
+
+/// Values for settings
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingValue {
+    /// Enable the setting
+    On,
+    /// Disable the setting
+    Off,
+}
+
 /// Events that commands can produce to request changes
 #[derive(Debug, Clone, PartialEq)]
 pub enum CommandEvent {
@@ -68,6 +86,12 @@ pub enum CommandEvent {
 
     /// Request to show profile information in status bar
     ShowProfileRequested,
+
+    /// Request to change a setting (wrap, line numbers, etc.)
+    SettingChangeRequested {
+        setting: Setting,
+        value: SettingValue,
+    },
 
     /// No action needed (for commands that only query state)
     NoAction,

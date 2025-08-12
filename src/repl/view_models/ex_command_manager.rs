@@ -27,6 +27,12 @@ impl ViewModel {
         Ok(())
     }
 
+    /// Clear the ex command buffer
+    pub fn clear_ex_command_buffer(&mut self) {
+        self.status_line.clear_command_buffer();
+        let _ = self.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
+    }
+
     /// Execute ex command and return resulting command events
     pub fn execute_ex_command(&mut self) -> Result<Vec<CommandEvent>> {
         let command = self.status_line.command_buffer().trim().to_string();

@@ -4,7 +4,10 @@
 //! It's responsible for connecting user input to commands and coordinating view updates.
 
 use crate::repl::{
-    commands::{CommandContext, CommandEvent, CommandRegistry, HttpHeaders, ViewModelSnapshot},
+    commands::{
+        CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, HttpHeaders, Setting,
+        SettingValue, ViewModelSnapshot,
+    },
     events::{Pane, SimpleEventBus},
     io::{EventStream, RenderStream},
     utils::parse_request_from_text,
@@ -22,6 +25,7 @@ pub struct AppController<ES: EventStream, RS: RenderStream> {
     view_model: ViewModel,
     view_renderer: TerminalRenderer<RS>,
     command_registry: CommandRegistry,
+    ex_command_registry: ExCommandRegistry,
     #[allow(dead_code)]
     event_bus: SimpleEventBus,
     event_stream: ES,
@@ -41,6 +45,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         // Pass RenderStream ownership to the View layer (TerminalRenderer)
         let view_renderer = TerminalRenderer::with_render_stream(render_stream)?;
         let command_registry = CommandRegistry::new();
+        let ex_command_registry = ExCommandRegistry::new();
         let event_bus = SimpleEventBus::new();
 
         // Synchronize view model with actual terminal size
@@ -65,6 +70,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             view_model,
             view_renderer,
             command_registry,
+            ex_command_registry,
             event_bus,
             event_stream,
             should_quit: false,
@@ -395,7 +401,23 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 self.view_model.backspace_ex_command()?;
             }
             CommandEvent::ExCommandExecuteRequested => {
-                let events = self.view_model.execute_ex_command()?;
+                // Get the ex command string from the view model
+                let command_str = self.view_model.get_ex_command_buffer().to_string();
+
+                // Create command context for ex command execution
+                let context =
+                    CommandContext::new(ViewModelSnapshot::from_view_model(&self.view_model));
+
+                // Execute through the ex command registry
+                let events = self
+                    .ex_command_registry
+                    .execute_command(&command_str, &context)?;
+
+                // Clear the command buffer and return to previous mode after successful execution
+                self.view_model.clear_ex_command_buffer();
+                let previous_mode = self.view_model.get_previous_mode();
+                self.view_model.change_mode(previous_mode)?;
+
                 // Handle events directly to avoid recursion
                 for event in events {
                     match event {
@@ -404,6 +426,10 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                         }
                         CommandEvent::ShowProfileRequested => {
                             self.handle_show_profile();
+                        }
+                        CommandEvent::SettingChangeRequested { setting, value } => {
+                            // Handle setting changes from ex commands
+                            self.handle_setting_change(setting, value)?;
                         }
                         CommandEvent::CursorMoveRequested { direction, amount } => {
                             // BUGFIX: Handle line navigation from ex commands like `:58`
@@ -433,6 +459,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
             CommandEvent::ShowProfileRequested => {
                 self.handle_show_profile();
+            }
+            CommandEvent::SettingChangeRequested { setting, value } => {
+                self.handle_setting_change(setting, value)?;
             }
             CommandEvent::NoAction => {
                 // Do nothing
@@ -697,6 +726,11 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         let profile_path = self.view_model.get_profile_path();
         let message = format!("[{profile_name}] in {profile_path}");
         self.view_model.set_status_message(message);
+    }
+
+    /// Handle setting changes from ex commands
+    fn handle_setting_change(&mut self, setting: Setting, value: SettingValue) -> Result<()> {
+        self.view_model.apply_setting(setting, value)
     }
 
     /// Process a single key event without running the full event loop (for testing)
