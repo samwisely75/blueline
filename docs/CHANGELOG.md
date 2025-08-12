@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.1] - 2025-01-12
+
+### Changed
+
+- **Wrap Command Syntax**: Improved wrap command syntax to use `:set wrap on/off` (issue #17)
+  - **Breaking Change**: Removed backward compatibility for old `:set wrap` and `:set nowrap` commands
+  - New syntax provides consistency with other settings like `:set number on/off`
+  - Updated all tests and documentation to use new syntax exclusively
+
 ## [0.32.0] - 2025-01-12
 
 ### Added
