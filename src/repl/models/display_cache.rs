@@ -417,12 +417,18 @@ impl DisplayLine {
             return None;
         }
 
-        // Find current character index
+        // Find current character index - need to find which character contains the display column
         let mut current_index = 0;
-        for (i, &(pos, _)) in char_positions.iter().enumerate() {
-            if pos >= current_display_col {
+        for (i, &(pos, dc)) in char_positions.iter().enumerate() {
+            let char_end = pos + dc.display_width();
+            // Check if this character contains the current display column
+            if pos <= current_display_col && current_display_col < char_end {
                 current_index = i;
                 break;
+            }
+            // If we're past the last character, use the last index
+            if i == char_positions.len() - 1 {
+                current_index = i;
             }
         }
 
@@ -476,11 +482,17 @@ impl DisplayLine {
         // 1. If on whitespace/punctuation: skip to next word and find its end
         // 2. If on word character: find end of current word
         // 3. If already at end of word: skip to next word and find its end
+
+        // Make sure current_index is valid
+        if current_index >= char_positions.len() {
+            // We're past the end of the line
+            return None;
+        }
+
         let mut pos = current_index;
 
         if pos < char_positions.len() {
             let current_char = char_positions[pos].1.ch();
-
             if current_char.is_alphanumeric() || current_char.is_alphabetic() {
                 // We're on a word character - find end of current word first
                 let mut word_end_pos = pos;
@@ -506,63 +518,40 @@ impl DisplayLine {
                     );
                     return Some(char_positions[current_word_end].0);
                 }
+            } else {
+                // We're on whitespace or punctuation - skip to next alphanumeric word
+                pos = current_index + 1;
             }
-            // If we reach here, we're either:
-            // - Starting on whitespace/punctuation, OR
-            // - Already at end of word and need to find next word end
         }
 
-        // Skip whitespace to find next word/punctuation
+        // Skip non-alphanumeric characters (whitespace and punctuation) to find next word
         while pos < char_positions.len() {
             let ch = char_positions[pos].1.ch();
-            if !ch.is_whitespace() {
+            if ch.is_alphanumeric() || ch.is_alphabetic() {
                 break;
             }
             pos += 1;
         }
 
-        // Find end of next word or punctuation sequence
+        // Find end of next alphanumeric word
         if pos < char_positions.len() {
-            let ch = char_positions[pos].1.ch();
-
-            if ch.is_alphanumeric() || ch.is_alphabetic() {
-                // Handle word characters - find end of word
-                while pos < char_positions.len() {
-                    let ch = char_positions[pos].1.ch();
-                    if !ch.is_alphanumeric() && !ch.is_alphabetic() {
-                        break;
-                    }
-                    pos += 1;
+            // We've found the start of an alphanumeric word - find its end
+            while pos < char_positions.len() {
+                let ch = char_positions[pos].1.ch();
+                if !ch.is_alphanumeric() && !ch.is_alphabetic() {
+                    break;
                 }
-                // Return the position of the last character of the word
-                if pos > 0 {
-                    let end_pos = pos.saturating_sub(1);
-                    tracing::debug!(
-                        "find_end_of_word: fallback found next word end at display_col={}, char='{}'",
-                        char_positions[end_pos].0,
-                        char_positions[end_pos].1.ch()
-                    );
-                    return Some(char_positions[end_pos].0);
-                }
-            } else if !ch.is_whitespace() {
-                // Handle punctuation characters - find end of punctuation sequence
-                while pos < char_positions.len() {
-                    let ch = char_positions[pos].1.ch();
-                    if ch.is_alphanumeric() || ch.is_alphabetic() || ch.is_whitespace() {
-                        break;
-                    }
-                    pos += 1;
-                }
-                // Return the position of the last punctuation character
-                if pos > 0 {
-                    let end_pos = pos.saturating_sub(1);
-                    tracing::debug!(
-                        "find_end_of_word: fallback found punctuation end at display_col={}, char='{}'",
-                        char_positions[end_pos].0,
-                        char_positions[end_pos].1.ch()
-                    );
-                    return Some(char_positions[end_pos].0);
-                }
+                pos += 1;
+            }
+            // Return the position of the last character of the word
+            if pos > 0 {
+                let end_pos = pos.saturating_sub(1);
+                tracing::debug!(
+                    "find_end_of_word: fallback found next word end at display_col={}, char='{}'",
+                    char_positions[end_pos].0,
+                    char_positions[end_pos].1.ch()
+                );
+                return Some(char_positions[end_pos].0);
             }
         }
 
