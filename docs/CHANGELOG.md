@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0] - 2025-01-12
+
+### Changed
+
+- **Ex Command Architecture**: Introduced Command Pattern to ex commands (issue #64)
+  - Created `ExCommand` trait and `ExCommandRegistry` for unified command handling
+  - Separated command execution logic from StatusLine for better separation of concerns
+  - Ex commands now use the same event-driven architecture as normal commands
+  - Command buffer is properly cleared after execution with return to previous mode
+  - Improved extensibility - new ex commands can be added by implementing the trait
+
 ## [0.32.1] - 2025-01-12
 
 ### Changed
