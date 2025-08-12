@@ -511,12 +511,17 @@ impl BluelineWorld {
                         tracing::debug!(
                             "⚠️ JOHN DEBUG - ERROR: John not found in text buffer after adding!"
                         );
-                        tracing::debug!("⚠️ JOHN DEBUG - Text buffer state: {:?}", self.text_buffer);
+                        tracing::debug!(
+                            "⚠️ JOHN DEBUG - Text buffer state: {:?}",
+                            self.text_buffer
+                        );
                         // Force add it as a failsafe
                         if let Some(last_line) = self.text_buffer.last_mut() {
                             if last_line.is_empty() {
                                 *last_line = text.to_string();
-                                tracing::debug!("⚠️ JOHN DEBUG - Forcefully added John to last line");
+                                tracing::debug!(
+                                    "⚠️ JOHN DEBUG - Forcefully added John to last line"
+                                );
                             }
                         }
                     }

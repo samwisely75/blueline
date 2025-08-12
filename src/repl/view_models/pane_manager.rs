@@ -39,6 +39,7 @@ pub struct PaneManager {
     panes: [PaneState; 2], // Private - no external access
     current_pane: Pane,
     wrap_enabled: bool,
+    show_line_numbers: bool,
     pub terminal_dimensions: (u16, u16), // Public for ViewModel access
     request_pane_height: u16,
 }
@@ -54,7 +55,12 @@ impl PaneManager {
     /// 4. Initializes both panes with proper display caches
     pub fn new(terminal_dimensions: (u16, u16)) -> Self {
         // Build initial display caches
-        let content_width = (terminal_dimensions.0 as usize).saturating_sub(4); // Account for line numbers
+        let content_width = if true {
+            // Default to showing line numbers
+            (terminal_dimensions.0 as usize).saturating_sub(4) // Account for line numbers
+        } else {
+            terminal_dimensions.0 as usize
+        };
 
         // Calculate pane heights
         let request_pane_height = (terminal_dimensions.1 / 2) as usize;
@@ -72,6 +78,7 @@ impl PaneManager {
             panes: [request_pane, response_pane],
             current_pane: Pane::Request,
             wrap_enabled: false,
+            show_line_numbers: true, // Default to showing line numbers
             terminal_dimensions,
             request_pane_height: terminal_dimensions.1 / 2,
         }
@@ -307,6 +314,25 @@ impl PaneManager {
         );
     }
 
+    /// Get line number visibility state
+    pub fn is_line_numbers_visible(&self) -> bool {
+        self.show_line_numbers
+    }
+
+    /// Set line number visibility state
+    pub fn set_line_numbers_visible(&mut self, visible: bool) {
+        tracing::debug!(
+            "🔧 PaneManager::set_line_numbers_visible: changing from {} to {}",
+            self.show_line_numbers,
+            visible
+        );
+        self.show_line_numbers = visible;
+        tracing::debug!(
+            "✅ PaneManager::set_line_numbers_visible: show_line_numbers is now {}",
+            self.show_line_numbers
+        );
+    }
+
     /// Update terminal size and recalculate pane dimensions
     pub fn update_terminal_size(&mut self, width: u16, height: u16, has_response: bool) {
         self.terminal_dimensions = (width, height);
@@ -319,7 +345,11 @@ impl PaneManager {
         };
 
         // Recalculate pane dimensions
-        let content_width = (width as usize).saturating_sub(4); // Account for line numbers
+        let content_width = if self.show_line_numbers {
+            (width as usize).saturating_sub(4) // Account for line numbers
+        } else {
+            width as usize
+        };
         let request_pane_height = self.request_pane_height as usize;
         let response_pane_height = (height as usize)
             .saturating_sub(self.request_pane_height as usize)
@@ -620,7 +650,11 @@ impl PaneManager {
     /// Helper to rebuild display cache and sync cursor position
     fn rebuild_display_and_sync_cursor(&mut self, new_cursor: LogicalPosition) {
         let request_pane = &mut self.panes[Pane::Request];
-        let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+        let content_width = if self.show_line_numbers {
+            (self.terminal_dimensions.0 as usize).saturating_sub(4)
+        } else {
+            self.terminal_dimensions.0 as usize
+        };
 
         // Rebuild display cache since content changed
         request_pane.build_display_cache(content_width, self.wrap_enabled);
@@ -682,7 +716,11 @@ impl PaneManager {
                     tracing::debug!("🗑️  Deleted character at cursor, cursor position unchanged");
 
                     // Rebuild display cache since content changed
-                    let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+                    let content_width = if self.show_line_numbers {
+                        (self.terminal_dimensions.0 as usize).saturating_sub(4)
+                    } else {
+                        self.terminal_dimensions.0 as usize
+                    };
                     request_pane.build_display_cache(content_width, self.wrap_enabled);
 
                     // Sync display cursor with logical position after cache rebuild
@@ -729,7 +767,11 @@ impl PaneManager {
                     tracing::debug!("🗑️  Joined lines, cursor position unchanged");
 
                     // Rebuild display cache since content structure changed
-                    let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4);
+                    let content_width = if self.show_line_numbers {
+                        (self.terminal_dimensions.0 as usize).saturating_sub(4)
+                    } else {
+                        self.terminal_dimensions.0 as usize
+                    };
                     request_pane.build_display_cache(content_width, self.wrap_enabled);
 
                     // Sync display cursor with logical position after cache rebuild
@@ -852,7 +894,11 @@ impl PaneManager {
         self.panes[Pane::Response].visual_selection_end = None;
 
         // Rebuild display cache to ensure rendering sees the updated content
-        let content_width = (self.terminal_dimensions.0 as usize).saturating_sub(4); // Same as Request pane
+        let content_width = if self.show_line_numbers {
+            (self.terminal_dimensions.0 as usize).saturating_sub(4) // Same as Request pane
+        } else {
+            self.terminal_dimensions.0 as usize
+        };
         self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
 
         vec![ViewEvent::ResponseContentChanged]
@@ -870,12 +916,20 @@ impl PaneManager {
 
     /// Get line number width for current pane
     pub fn get_current_line_number_width(&self) -> usize {
-        self.panes[self.current_pane].get_line_number_width()
+        if self.show_line_numbers {
+            self.panes[self.current_pane].get_line_number_width()
+        } else {
+            0 // Return 0 when line numbers are hidden
+        }
     }
 
     /// Get line number width for specific pane
     pub fn get_line_number_width(&self, pane: Pane) -> usize {
-        self.panes[pane].get_line_number_width()
+        if self.show_line_numbers {
+            self.panes[pane].get_line_number_width()
+        } else {
+            0 // Return 0 when line numbers are hidden
+        }
     }
 
     /// Sync display cursor with logical cursor for current pane
@@ -978,7 +1032,11 @@ impl PaneManager {
     pub fn get_content_width(&self) -> usize {
         // Use current pane's line number width calculation
         // This is a simplified version - should be improved later
-        (self.terminal_dimensions.0 as usize).saturating_sub(4)
+        if self.show_line_numbers {
+            (self.terminal_dimensions.0 as usize).saturating_sub(4) // Account for line numbers
+        } else {
+            self.terminal_dimensions.0 as usize // Full width when line numbers are hidden
+        }
     }
 
     /// Move cursor left in current area

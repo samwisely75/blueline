@@ -93,7 +93,9 @@ async fn then_status_bar_is_cleared(world: &mut BluelineWorld) {
         || world.terminal_contains("error").await;
 
     if !has_default_status {
-        tracing::debug!("❌ Default REQUEST status not found. Terminal content:\n{terminal_content}");
+        tracing::debug!(
+            "❌ Default REQUEST status not found. Terminal content:\n{terminal_content}"
+        );
         // Check if terminal content is empty or has different format
         if terminal_content.trim().is_empty() {
             tracing::debug!("💡 Terminal appears to be empty - possible test framework issue");
@@ -173,7 +175,8 @@ async fn then_cursor_should_be_at_line_n(world: &mut BluelineWorld, line_num: us
         tracing::debug!("=== END TERMINAL CONTENT ===");
         tracing::debug!(
             "Cursor position: ({}, {})",
-            state.cursor_position.0, state.cursor_position.1
+            state.cursor_position.0,
+            state.cursor_position.1
         );
 
         // Also check if any number appears in the terminal

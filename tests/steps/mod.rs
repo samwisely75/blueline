@@ -17,6 +17,7 @@
 pub mod application;
 pub mod command_line;
 pub mod http;
+pub mod line_numbers;
 pub mod modes;
 pub mod navigation;
 pub mod terminal;

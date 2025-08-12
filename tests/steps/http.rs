@@ -191,7 +191,9 @@ async fn then_in_response_pane(world: &mut BluelineWorld) {
         || world.terminal_contains("RESPONSE").await;
 
     if !in_response {
-        tracing::debug!("❌ Response pane indicators not found. Terminal content:\n{terminal_content}");
+        tracing::debug!(
+            "❌ Response pane indicators not found. Terminal content:\n{terminal_content}"
+        );
 
         // Check if this might be because there's no actual response content
         let has_response_content = world.terminal_contains("200").await
