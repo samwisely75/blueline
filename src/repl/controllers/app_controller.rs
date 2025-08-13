@@ -810,11 +810,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Handle pasting yanked text after cursor
     fn handle_paste_after(&mut self) -> Result<()> {
         if let Some(text) = self.view_model.get_yanked_text() {
-            // Move cursor right by one position first (Vim behavior)
-            let _ = self.view_model.move_cursor_right();
-
-            // Paste the text
-            self.view_model.paste_text(&text)?;
+            // Paste the text after the current cursor position
+            self.view_model.paste_text_after(&text)?;
 
             // Show feedback
             let char_count = text.chars().count();

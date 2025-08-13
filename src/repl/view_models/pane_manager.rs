@@ -283,6 +283,18 @@ impl PaneManager {
         self.panes[self.current_pane].get_selected_text()
     }
 
+    /// Get the length of the current line in the current pane
+    pub fn get_current_line_length(&self) -> usize {
+        let current_pane = &self.panes[self.current_pane];
+        let cursor_pos = self.get_current_cursor_position();
+        current_pane
+            .buffer
+            .content()
+            .get_line(cursor_pos.line)
+            .map(|line| line.len())
+            .unwrap_or(0)
+    }
+
     /// Get request pane height
     pub fn request_pane_height(&self) -> u16 {
         self.request_pane_height

@@ -176,7 +176,7 @@ impl Command for PasteBeforeCommand {
         matches!(event.code, KeyCode::Char('P'))
             && context.state.current_mode == EditorMode::Normal
             && context.state.current_pane == Pane::Request
-            && (event.modifiers.is_empty() || event.modifiers == KeyModifiers::SHIFT)
+            && event.modifiers == KeyModifiers::SHIFT
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
