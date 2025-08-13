@@ -341,6 +341,7 @@ impl PaneManager {
         );
 
         vec![
+            ViewEvent::CurrentAreaRedrawRequired,
             ViewEvent::StatusBarUpdateRequired,
             ViewEvent::ActiveCursorUpdateRequired,
         ]

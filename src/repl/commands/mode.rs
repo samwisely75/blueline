@@ -113,8 +113,14 @@ impl Command for EnterVisualLineModeCommand {
             && event.modifiers.contains(KeyModifiers::SHIFT);
         let is_shift_v_key = is_uppercase_v || is_shift_v;
         let is_normal_mode = context.state.current_mode == EditorMode::Normal;
+        let result = is_shift_v_key && is_normal_mode;
 
-        is_shift_v_key && is_normal_mode
+        tracing::debug!(
+            "EnterVisualLineModeCommand.is_relevant(): event={:?}, uppercase_v={}, shift_v={}, normal_mode={}, result={}",
+            event, is_uppercase_v, is_shift_v, is_normal_mode, result
+        );
+
+        result
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -137,8 +143,14 @@ impl Command for EnterVisualBlockModeCommand {
         let is_ctrl_v = matches!(event.code, KeyCode::Char('v'))
             && event.modifiers.contains(KeyModifiers::CONTROL);
         let is_normal_mode = context.state.current_mode == EditorMode::Normal;
+        let result = is_ctrl_v && is_normal_mode;
 
-        is_ctrl_v && is_normal_mode
+        tracing::debug!(
+            "EnterVisualBlockModeCommand.is_relevant(): event={:?}, ctrl_v={}, normal_mode={}, result={}",
+            event, is_ctrl_v, is_normal_mode, result
+        );
+
+        result
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
