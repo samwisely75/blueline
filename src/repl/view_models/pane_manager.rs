@@ -178,6 +178,42 @@ impl PaneManager {
             return false;
         };
 
+        let editor_mode = pane_state.editor_mode;
+
+        tracing::trace!(
+            "is_position_selected: checking position={:?} against selection start={:?} end={:?} in mode {:?}", 
+            position, start, end, editor_mode
+        );
+
+        // Handle different visual modes
+        match editor_mode {
+            EditorMode::Visual => {
+                // Character-wise selection (existing logic)
+                self.is_position_selected_character_wise(position, start, end)
+            }
+            EditorMode::VisualLine => {
+                // Line-wise selection: entire lines are selected
+                self.is_position_selected_line_wise(position, start, end)
+            }
+            EditorMode::VisualBlock => {
+                // Block-wise selection: rectangular regions
+                self.is_position_selected_block_wise(position, start, end)
+            }
+            _ => {
+                // Not in a visual mode, no selection
+                tracing::trace!("is_position_selected: not in visual mode");
+                false
+            }
+        }
+    }
+
+    /// Check character-wise selection (vim's 'v' mode)
+    fn is_position_selected_character_wise(
+        &self,
+        position: LogicalPosition,
+        start: LogicalPosition,
+        end: LogicalPosition,
+    ) -> bool {
         // Normalize selection range (start <= end)
         let (normalized_start, normalized_end) =
             if start.line < end.line || (start.line == end.line && start.column <= end.column) {
@@ -185,11 +221,6 @@ impl PaneManager {
             } else {
                 (end, start)
             };
-
-        tracing::trace!(
-            "is_position_selected: checking position={:?} against selection start={:?} end={:?} (normalized: start={:?} end={:?})", 
-            position, start, end, normalized_start, normalized_end
-        );
 
         // Early return if position is outside line range
         if position.line < normalized_start.line || position.line > normalized_end.line {
@@ -202,7 +233,7 @@ impl PaneManager {
             let is_selected = position.column >= normalized_start.column
                 && position.column <= normalized_end.column;
             tracing::trace!(
-                "is_position_selected: single line selection, result={}",
+                "is_position_selected: single line character selection, result={}",
                 is_selected
             );
             return is_selected;
@@ -212,7 +243,7 @@ impl PaneManager {
         if position.line == normalized_start.line {
             let is_selected = position.column >= normalized_start.column;
             tracing::trace!(
-                "is_position_selected: first line of multi-line selection, result={}",
+                "is_position_selected: first line of multi-line character selection, result={}",
                 is_selected
             );
             return is_selected;
@@ -222,15 +253,78 @@ impl PaneManager {
         if position.line == normalized_end.line {
             let is_selected = position.column <= normalized_end.column;
             tracing::trace!(
-                "is_position_selected: last line of multi-line selection, result={}",
+                "is_position_selected: last line of multi-line character selection, result={}",
                 is_selected
             );
             return is_selected;
         }
 
         // Middle line of multi-line selection
-        tracing::trace!("is_position_selected: middle line of multi-line selection, result=true");
+        tracing::trace!("is_position_selected: middle line of character selection, result=true");
         true
+    }
+
+    /// Check line-wise selection (vim's 'V' mode)
+    fn is_position_selected_line_wise(
+        &self,
+        position: LogicalPosition,
+        start: LogicalPosition,
+        end: LogicalPosition,
+    ) -> bool {
+        // For line-wise selection, we select entire lines
+        let (start_line, end_line) = if start.line <= end.line {
+            (start.line, end.line)
+        } else {
+            (end.line, start.line)
+        };
+
+        let is_selected = position.line >= start_line && position.line <= end_line;
+        tracing::trace!(
+            "is_position_selected: line-wise selection, line {} in range [{}, {}], result={}",
+            position.line,
+            start_line,
+            end_line,
+            is_selected
+        );
+        is_selected
+    }
+
+    /// Check block-wise selection (vim's Ctrl+V mode)
+    fn is_position_selected_block_wise(
+        &self,
+        position: LogicalPosition,
+        start: LogicalPosition,
+        end: LogicalPosition,
+    ) -> bool {
+        // For block selection, we create a rectangular region
+        let (start_line, end_line) = if start.line <= end.line {
+            (start.line, end.line)
+        } else {
+            (end.line, start.line)
+        };
+
+        let (start_col, end_col) = if start.column <= end.column {
+            (start.column, end.column)
+        } else {
+            (end.column, start.column)
+        };
+
+        let is_selected = position.line >= start_line
+            && position.line <= end_line
+            && position.column >= start_col
+            && position.column <= end_col;
+
+        tracing::trace!(
+            "is_position_selected: block-wise selection, position ({}, {}) in rectangle [({}, {}), ({}, {})], result={}",
+            position.line,
+            position.column,
+            start_line,
+            start_col,
+            end_line,
+            end_col,
+            is_selected
+        );
+        is_selected
     }
 
     /// Start visual selection in current area

@@ -582,6 +582,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             EditorMode::Insert => ansi::CURSOR_BAR, // I-beam for insert mode
             EditorMode::Normal => ansi::CURSOR_BLOCK, // Block for normal mode
             EditorMode::Visual => ansi::CURSOR_BLOCK, // Block for visual mode
+            EditorMode::VisualLine => ansi::CURSOR_BLOCK, // Block for visual line mode
+            EditorMode::VisualBlock => ansi::CURSOR_BLOCK, // Block for visual block mode
             EditorMode::Command => ansi::CURSOR_BAR, // I-beam for command mode
             EditorMode::GPrefix => ansi::CURSOR_BLOCK, // Block for g-prefix mode
         };
@@ -644,6 +646,20 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                 EditorMode::Visual => {
                     left_status_text.push_str(&format!(
                         "{}-- VISUAL --{}",
+                        ansi::BOLD,
+                        ansi::RESET
+                    ));
+                }
+                EditorMode::VisualLine => {
+                    left_status_text.push_str(&format!(
+                        "{}-- VISUAL LINE --{}",
+                        ansi::BOLD,
+                        ansi::RESET
+                    ));
+                }
+                EditorMode::VisualBlock => {
+                    left_status_text.push_str(&format!(
+                        "{}-- VISUAL BLOCK --{}",
                         ansi::BOLD,
                         ansi::RESET
                     ));
