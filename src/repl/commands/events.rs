@@ -99,8 +99,8 @@ pub enum CommandEvent {
     /// Request to paste yanked text after cursor
     PasteAfterRequested,
 
-    /// Request to paste yanked text before cursor
-    PasteBeforeRequested,
+    /// Request to paste yanked text at current cursor position
+    PasteAtCursorRequested,
 
     /// No action needed (for commands that only query state)
     NoAction,
@@ -204,9 +204,9 @@ impl CommandEvent {
         Self::PasteAfterRequested
     }
 
-    /// Create a paste before event
-    pub fn paste_before() -> Self {
-        Self::PasteBeforeRequested
+    /// Create a paste at cursor event
+    pub fn paste_at_cursor() -> Self {
+        Self::PasteAtCursorRequested
     }
 }
 

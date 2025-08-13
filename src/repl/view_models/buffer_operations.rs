@@ -33,7 +33,7 @@ impl ViewModel {
         self.yank_buffer.paste().map(|s| s.to_string())
     }
 
-    /// Paste text at current cursor position (for paste before - P)
+    /// Paste text at current cursor position (for P command)
     pub fn paste_text(&mut self, text: &str) -> Result<()> {
         // Only allow pasting in Request pane
         if !self.is_in_request_pane() {

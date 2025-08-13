@@ -47,12 +47,12 @@ pub mod mode;
 pub mod navigation;
 pub mod pane;
 pub mod request;
+pub mod yank;
 
 // Re-export all commands for easy access
 pub use app::AppTerminateCommand;
 pub use editing::{
     DeleteCharAtCursorCommand, DeleteCharCommand, InsertCharCommand, InsertNewLineCommand,
-    PasteAfterCommand, PasteBeforeCommand, YankCommand,
 };
 pub use ex_commands::{ExCommand, ExCommandRegistry};
 pub use mode::{
@@ -69,6 +69,7 @@ pub use navigation::{
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
+pub use yank::{PasteAfterCommand, PasteAtCursorCommand, YankCommand};
 
 /// Type alias for command collection to reduce complexity
 pub type CommandCollection = Vec<Box<dyn Command + Send>>;
@@ -129,7 +130,7 @@ impl CommandRegistry {
             Box::new(DeleteCharAtCursorCommand),
             Box::new(YankCommand),
             Box::new(PasteAfterCommand),
-            Box::new(PasteBeforeCommand),
+            Box::new(PasteAtCursorCommand),
         ];
 
         Self { commands }
