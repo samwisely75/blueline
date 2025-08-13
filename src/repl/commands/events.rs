@@ -16,6 +16,8 @@ pub enum Setting {
     Wrap,
     /// Line numbers display setting
     LineNumbers,
+    /// System clipboard integration
+    Clipboard,
 }
 
 /// Values for settings

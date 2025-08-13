@@ -29,6 +29,19 @@ impl ViewModel {
                 let _ = self.emit_view_event(events);
                 Ok(())
             }
+            Setting::Clipboard => {
+                let enable = value == SettingValue::On;
+                self.set_clipboard_enabled(enable)?;
+                // Show status message to confirm the change
+                let message = if enable {
+                    "System clipboard integration enabled"
+                } else {
+                    "System clipboard integration disabled"
+                };
+                self.set_status_message(message.to_string());
+                let _ = self.emit_view_event(vec![ViewEvent::StatusBarUpdateRequired]);
+                Ok(())
+            }
         }
     }
 }

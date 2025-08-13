@@ -92,6 +92,32 @@ impl ExCommand for SetNumberCommand {
     }
 }
 
+/// Set clipboard integration command handler (for :set clipboard on/off)
+pub struct SetClipboardCommand;
+
+impl ExCommand for SetClipboardCommand {
+    fn can_handle(&self, command: &str) -> bool {
+        command == "set clipboard on" || command == "set clipboard off"
+    }
+
+    fn execute(&self, command: &str, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        let enable = command == "set clipboard on";
+
+        Ok(vec![CommandEvent::SettingChangeRequested {
+            setting: Setting::Clipboard,
+            value: if enable {
+                SettingValue::On
+            } else {
+                SettingValue::Off
+            },
+        }])
+    }
+
+    fn name(&self) -> &'static str {
+        "SetClipboardCommand"
+    }
+}
+
 /// Show profile command handler (for :show profile)
 pub struct ShowProfileCommand;
 
@@ -154,6 +180,7 @@ impl ExCommandRegistry {
             Box::new(QuitCommand),
             Box::new(SetWrapCommand),
             Box::new(SetNumberCommand),
+            Box::new(SetClipboardCommand),
             Box::new(ShowProfileCommand),
             Box::new(GoToLineCommand),
         ];

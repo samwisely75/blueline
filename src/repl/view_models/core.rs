@@ -21,7 +21,7 @@ use crate::repl::events::{EditorMode, EventBus, ModelEvent, Pane, ViewEvent};
 use crate::repl::models::{ResponseModel, StatusLine};
 use crate::repl::view_models::pane_manager::PaneManager;
 use crate::repl::view_models::screen_buffer::ScreenBuffer;
-use crate::repl::view_models::yank_buffer::{MemoryYankBuffer, YankBuffer};
+use crate::repl::view_models::yank_buffer::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer};
 // use anyhow::Result; // Currently unused
 use bluenote::HttpClient;
 use std::collections::HashMap;
@@ -61,6 +61,9 @@ pub struct ViewModel {
     // Yank buffer for copy/paste operations
     pub(super) yank_buffer: Box<dyn YankBuffer>,
 
+    // Whether clipboard integration is enabled
+    pub(super) clipboard_enabled: bool,
+
     // Double buffering state
     pub(super) current_screen_buffer: ScreenBuffer,
     pub(super) previous_screen_buffer: ScreenBuffer,
@@ -91,6 +94,7 @@ impl ViewModel {
             pending_view_events: Vec::new(),
             pending_model_events: Vec::new(),
             yank_buffer: Box::new(MemoryYankBuffer::new()),
+            clipboard_enabled: false,
             current_screen_buffer: ScreenBuffer::new(
                 terminal_dimensions.0 as usize,
                 terminal_dimensions.1 as usize,
@@ -106,6 +110,45 @@ impl ViewModel {
     pub fn set_event_bus(&mut self, event_bus: Box<dyn EventBus>) {
         self.event_bus = Some(event_bus);
         tracing::debug!("Event bus set for ViewModel");
+    }
+
+    /// Enable or disable system clipboard integration
+    pub fn set_clipboard_enabled(&mut self, enabled: bool) -> anyhow::Result<()> {
+        if enabled == self.clipboard_enabled {
+            // No change needed
+            return Ok(());
+        }
+
+        // Save any existing content before switching
+        let existing_content = self.yank_buffer.paste().map(|s| s.to_string());
+
+        // Switch yank buffer implementation
+        if enabled {
+            // Try to create clipboard buffer
+            match ClipboardYankBuffer::new() {
+                Ok(clipboard_buffer) => {
+                    self.yank_buffer = Box::new(clipboard_buffer);
+                    self.clipboard_enabled = true;
+                    tracing::info!("Switched to system clipboard yank buffer");
+                }
+                Err(e) => {
+                    tracing::error!("Failed to enable clipboard: {}", e);
+                    return Err(anyhow::anyhow!("Failed to access system clipboard: {}", e));
+                }
+            }
+        } else {
+            // Switch back to memory buffer
+            self.yank_buffer = Box::new(MemoryYankBuffer::new());
+            self.clipboard_enabled = false;
+            tracing::info!("Switched to memory yank buffer");
+        }
+
+        // Restore existing content if any
+        if let Some(content) = existing_content {
+            let _ = self.yank_buffer.yank(content);
+        }
+
+        Ok(())
     }
 
     /// Update terminal size and resize screen buffers
