@@ -9,17 +9,21 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::{Command, CommandContext, CommandEvent, MovementDirection};
 
+/// Helper function to check if current mode supports navigation
+fn is_navigation_mode(context: &CommandContext) -> bool {
+    matches!(
+        context.state.current_mode,
+        EditorMode::Normal | EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+    )
+}
+
 /// Move cursor left (h key or left arrow)
 pub struct MoveCursorLeftCommand;
 
 impl Command for MoveCursorLeftCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         match event.code {
-            KeyCode::Char('h') => {
-                (context.state.current_mode == EditorMode::Normal
-                    || context.state.current_mode == EditorMode::Visual)
-                    && event.modifiers.is_empty()
-            }
+            KeyCode::Char('h') => is_navigation_mode(context) && event.modifiers.is_empty(),
             KeyCode::Left => {
                 !event.modifiers.contains(KeyModifiers::SHIFT)
                     && !event.modifiers.contains(KeyModifiers::CONTROL)
@@ -43,11 +47,7 @@ pub struct MoveCursorRightCommand;
 impl Command for MoveCursorRightCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         match event.code {
-            KeyCode::Char('l') => {
-                (context.state.current_mode == EditorMode::Normal
-                    || context.state.current_mode == EditorMode::Visual)
-                    && event.modifiers.is_empty()
-            }
+            KeyCode::Char('l') => is_navigation_mode(context) && event.modifiers.is_empty(),
             KeyCode::Right => {
                 !event.modifiers.contains(KeyModifiers::SHIFT)
                     && !event.modifiers.contains(KeyModifiers::CONTROL)
@@ -71,11 +71,7 @@ pub struct MoveCursorUpCommand;
 impl Command for MoveCursorUpCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         match event.code {
-            KeyCode::Char('k') => {
-                (context.state.current_mode == EditorMode::Normal
-                    || context.state.current_mode == EditorMode::Visual)
-                    && event.modifiers.is_empty()
-            }
+            KeyCode::Char('k') => is_navigation_mode(context) && event.modifiers.is_empty(),
             KeyCode::Up => true,
             _ => false,
         }
@@ -96,11 +92,7 @@ pub struct MoveCursorDownCommand;
 impl Command for MoveCursorDownCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         match event.code {
-            KeyCode::Char('j') => {
-                (context.state.current_mode == EditorMode::Normal
-                    || context.state.current_mode == EditorMode::Visual)
-                    && event.modifiers.is_empty()
-            }
+            KeyCode::Char('j') => is_navigation_mode(context) && event.modifiers.is_empty(),
             KeyCode::Down => true,
             _ => false,
         }
@@ -173,8 +165,7 @@ pub struct EnterGPrefixCommand;
 impl Command for EnterGPrefixCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('g'))
-            && (context.state.current_mode == EditorMode::Normal
-                || context.state.current_mode == EditorMode::Visual)
+            && is_navigation_mode(context)
             && event.modifiers.is_empty()
     }
 
@@ -214,8 +205,7 @@ pub struct GoToBottomCommand;
 
 impl Command for GoToBottomCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        (context.state.current_mode == EditorMode::Normal
-            || context.state.current_mode == EditorMode::Visual)
+        is_navigation_mode(context)
             && (
                 // Case 1: Uppercase 'G' without modifiers
                 (matches!(event.code, KeyCode::Char('G')) && event.modifiers.is_empty())
@@ -246,8 +236,7 @@ pub struct NextWordCommand;
 impl Command for NextWordCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('w'))
-            && (context.state.current_mode == EditorMode::Normal
-                || context.state.current_mode == EditorMode::Visual)
+            && is_navigation_mode(context)
             && event.modifiers.is_empty()
     }
 
@@ -268,8 +257,7 @@ pub struct PreviousWordCommand;
 impl Command for PreviousWordCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('b'))
-            && (context.state.current_mode == EditorMode::Normal
-                || context.state.current_mode == EditorMode::Visual)
+            && is_navigation_mode(context)
             && event.modifiers.is_empty()
     }
 
@@ -290,8 +278,7 @@ pub struct EndOfWordCommand;
 impl Command for EndOfWordCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('e'))
-            && (context.state.current_mode == EditorMode::Normal
-                || context.state.current_mode == EditorMode::Visual)
+            && is_navigation_mode(context)
             && event.modifiers.is_empty()
     }
 
@@ -310,8 +297,7 @@ pub struct BeginningOfLineCommand;
 impl Command for BeginningOfLineCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('0'))
-            && (context.state.current_mode == EditorMode::Normal
-                || context.state.current_mode == EditorMode::Visual)
+            && is_navigation_mode(context)
             && event.modifiers.is_empty()
     }
 
@@ -332,8 +318,7 @@ pub struct EndOfLineCommand;
 impl Command for EndOfLineCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('$'))
-            && (context.state.current_mode == EditorMode::Normal
-                || context.state.current_mode == EditorMode::Visual)
+            && is_navigation_mode(context)
             && event.modifiers.is_empty()
     }
 
