@@ -503,8 +503,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::PasteAfterRequested => {
                 self.handle_paste_after()?;
             }
-            CommandEvent::PasteBeforeRequested => {
-                self.handle_paste_before()?;
+            CommandEvent::PasteAtCursorRequested => {
+                self.handle_paste_at_cursor()?;
             }
             CommandEvent::NoAction => {
                 // Do nothing
@@ -837,8 +837,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         Ok(())
     }
 
-    /// Handle pasting yanked text before cursor
-    fn handle_paste_before(&mut self) -> Result<()> {
+    /// Handle pasting yanked text at current cursor position
+    fn handle_paste_at_cursor(&mut self) -> Result<()> {
         if let Some(text) = self.view_model.get_yanked_text() {
             // Paste the text at current position (before cursor)
             self.view_model.paste_text(&text)?;
@@ -854,7 +854,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             self.view_model.set_status_message(message);
 
             tracing::info!(
-                "Pasted {} characters ({} lines) before cursor",
+                "Pasted {} characters ({} lines) at cursor",
                 char_count,
                 line_count
             );
