@@ -7,15 +7,7 @@ use crate::repl::events::EditorMode;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::{Command, CommandContext, CommandEvent, MovementDirection};
-
-/// Helper function to check if current mode supports navigation
-fn is_navigation_mode(context: &CommandContext) -> bool {
-    matches!(
-        context.state.current_mode,
-        EditorMode::Normal | EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
-    )
-}
+use super::{is_navigation_mode, Command, CommandContext, CommandEvent, MovementDirection};
 
 /// Move cursor left (h key or left arrow)
 pub struct MoveCursorLeftCommand;

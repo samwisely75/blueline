@@ -7,6 +7,8 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
+use crate::repl::events::EditorMode;
+
 // Import and re-export command event types
 pub mod context;
 pub mod events;
@@ -37,6 +39,15 @@ pub trait HttpCommand: Send {
 
     /// Get command name for debugging
     fn name(&self) -> &'static str;
+}
+
+/// Helper function to check if current mode supports navigation
+/// This can be used across multiple command modules to avoid duplication
+pub fn is_navigation_mode(context: &CommandContext) -> bool {
+    matches!(
+        context.state.current_mode,
+        EditorMode::Normal | EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+    )
 }
 
 // Import command modules
