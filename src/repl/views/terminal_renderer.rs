@@ -58,12 +58,14 @@ impl<'a> LineInfo<'a> {
             }
         } else {
             // Show tildes for empty lines
+            // Calculate correct logical line for tilde lines to prevent false selection
+            let logical_line = start_line + row_index;
             LineInfo {
                 text: "",
                 line_number: None,
                 is_continuation: false,
                 logical_start_col: 0,
-                logical_line: 0,
+                logical_line,
             }
         }
     }
@@ -258,7 +260,10 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
     ) -> Result<()> {
         // Check if we're in visual mode and have a selection
         let mode = view_model.get_mode();
-        if mode == EditorMode::Visual {
+        if matches!(
+            mode,
+            EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+        ) {
             tracing::trace!("render_text_with_selection: Visual mode detected, pane={:?}, line_number={:?}, logical_line={}, text='{}'", pane, line_number, logical_line, text);
 
             // BUGFIX: Use logical_line directly instead of relying on line_number
@@ -273,35 +278,58 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
                 selection_state
             );
 
-            for (col_index, ch) in chars.iter().enumerate() {
-                // BUGFIX: Calculate correct logical column for wrapped lines
-                // For wrapped lines, logical_start_col indicates where this display line starts
-                // within the original logical line, so we add col_index to get the actual position
-                let logical_col = logical_start_col + col_index;
-                let position = crate::repl::events::LogicalPosition::new(
-                    logical_line, // Use logical_line directly (already 0-based)
-                    logical_col,
-                );
-
+            // Handle empty lines with virtual character for visual selection
+            if chars.is_empty() {
+                let position =
+                    crate::repl::events::LogicalPosition::new(logical_line, logical_start_col);
                 let is_selected = view_model.is_position_selected(position, pane);
 
                 if is_selected {
                     tracing::debug!(
-                        "render_text_with_selection: highlighting character '{}' at {:?}",
-                        ch,
+                        "render_text_with_selection: highlighting empty line with virtual character at {:?}",
                         position
                     );
-                    // Apply visual selection styling: inverse + blue
+                    // Render a highlighted space for empty lines (vim-like behavior)
                     write!(
                         self.render_stream,
-                        "{}{}{ch}{}",
+                        "{}{} {}",
                         ansi::BG_SELECTED,
                         ansi::FG_SELECTED,
                         ansi::RESET
                     )?
-                } else {
-                    // Normal character rendering
-                    write!(self.render_stream, "{ch}")?
+                }
+            } else {
+                // Normal character rendering for non-empty lines
+                for (col_index, ch) in chars.iter().enumerate() {
+                    // BUGFIX: Calculate correct logical column for wrapped lines
+                    // For wrapped lines, logical_start_col indicates where this display line starts
+                    // within the original logical line, so we add col_index to get the actual position
+                    let logical_col = logical_start_col + col_index;
+                    let position = crate::repl::events::LogicalPosition::new(
+                        logical_line, // Use logical_line directly (already 0-based)
+                        logical_col,
+                    );
+
+                    let is_selected = view_model.is_position_selected(position, pane);
+
+                    if is_selected {
+                        tracing::debug!(
+                            "render_text_with_selection: highlighting character '{}' at {:?}",
+                            ch,
+                            position
+                        );
+                        // Apply visual selection styling: inverse + blue
+                        write!(
+                            self.render_stream,
+                            "{}{}{ch}{}",
+                            ansi::BG_SELECTED,
+                            ansi::FG_SELECTED,
+                            ansi::RESET
+                        )?
+                    } else {
+                        // Normal character rendering
+                        write!(self.render_stream, "{ch}")?
+                    }
                 }
             }
             return Ok(());

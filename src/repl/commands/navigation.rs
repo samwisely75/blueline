@@ -378,10 +378,7 @@ impl Command for PageDownCommand {
             && !event.modifiers.contains(KeyModifiers::SHIFT)
             && !event.modifiers.contains(KeyModifiers::ALT);
 
-        let is_normal_or_visual_mode = context.state.current_mode == EditorMode::Normal
-            || context.state.current_mode == EditorMode::Visual;
-
-        let is_relevant = is_ctrl_f && is_normal_or_visual_mode;
+        let is_relevant = is_ctrl_f && is_navigation_mode(context);
 
         if is_ctrl_f {
             tracing::debug!(
@@ -411,10 +408,7 @@ impl Command for PageUpCommand {
             && !event.modifiers.contains(KeyModifiers::SHIFT)
             && !event.modifiers.contains(KeyModifiers::ALT);
 
-        let is_normal_or_visual_mode = context.state.current_mode == EditorMode::Normal
-            || context.state.current_mode == EditorMode::Visual;
-
-        let is_relevant = is_ctrl_b && is_normal_or_visual_mode;
+        let is_relevant = is_ctrl_b && is_navigation_mode(context);
 
         if is_ctrl_b {
             tracing::debug!(
@@ -444,10 +438,7 @@ impl Command for HalfPageDownCommand {
             && !event.modifiers.contains(KeyModifiers::SHIFT)
             && !event.modifiers.contains(KeyModifiers::ALT);
 
-        let is_normal_or_visual_mode = context.state.current_mode == EditorMode::Normal
-            || context.state.current_mode == EditorMode::Visual;
-
-        let is_relevant = is_ctrl_d && is_normal_or_visual_mode;
+        let is_relevant = is_ctrl_d && is_navigation_mode(context);
 
         if is_ctrl_d {
             tracing::debug!(
@@ -479,10 +470,7 @@ impl Command for HalfPageUpCommand {
             && !event.modifiers.contains(KeyModifiers::SHIFT)
             && !event.modifiers.contains(KeyModifiers::ALT);
 
-        let is_normal_or_visual_mode = context.state.current_mode == EditorMode::Normal
-            || context.state.current_mode == EditorMode::Visual;
-
-        let is_relevant = is_ctrl_u && is_normal_or_visual_mode;
+        let is_relevant = is_ctrl_u && is_navigation_mode(context);
 
         if is_ctrl_u {
             tracing::debug!(
