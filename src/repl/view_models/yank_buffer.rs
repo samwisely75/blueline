@@ -120,7 +120,7 @@ impl YankBuffer for ClipboardYankBuffer {
     fn paste(&mut self) -> Option<&str> {
         // First sync from system clipboard to get any external changes
         self.sync_from_clipboard();
-        
+
         // Return cached content (now updated from clipboard)
         self.cached_content.as_deref()
     }
@@ -138,14 +138,14 @@ impl YankBuffer for ClipboardYankBuffer {
         if self.cached_content.is_some() {
             return true;
         }
-        
+
         // Fall back to checking actual clipboard
         if let Ok(mut clipboard) = self.clipboard.lock() {
             if let Ok(text) = clipboard.get_text() {
                 return !text.is_empty();
             }
         }
-        
+
         false
     }
 }
