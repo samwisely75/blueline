@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.0] - 2025-01-13
+
+### Added
+
+- **Yank and Paste Commands**: Implement vim-style yank and paste functionality (issues #2, #7, #8)
+  - `y` command in Visual mode to yank (copy) selected text to buffer
+  - `p` command in Normal mode to paste after cursor position  
+  - `P` command in Normal mode to paste at current cursor position
+  - Visual mode automatically exits after yanking text
+  - Status bar shows feedback for yank/paste operations
+  - Commands are properly separated into a new `yank.rs` module
+
 ## [0.34.0] - 2025-01-12
 
 ### Added
