@@ -29,7 +29,7 @@ impl ViewModel {
     }
 
     /// Get text from yank buffer
-    pub fn get_yanked_text(&self) -> Option<String> {
+    pub fn get_yanked_text(&mut self) -> Option<String> {
         self.yank_buffer.paste().map(|s| s.to_string())
     }
 

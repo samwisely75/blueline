@@ -13,7 +13,8 @@ pub trait YankBuffer: Send {
     fn yank(&mut self, text: String) -> Result<()>;
 
     /// Retrieve text from the yank buffer
-    fn paste(&self) -> Option<&str>;
+    /// Takes &mut self to allow syncing with system clipboard
+    fn paste(&mut self) -> Option<&str>;
 
     /// Clear the yank buffer
     fn clear(&mut self);
@@ -42,7 +43,7 @@ impl YankBuffer for MemoryYankBuffer {
         Ok(())
     }
 
-    fn paste(&self) -> Option<&str> {
+    fn paste(&mut self) -> Option<&str> {
         self.content.as_deref()
     }
 
@@ -86,14 +87,11 @@ impl ClipboardYankBuffer {
 
     /// Sync cached content with actual clipboard content
     /// This is needed because another application might have changed the clipboard
-    #[allow(dead_code)]
     fn sync_from_clipboard(&mut self) {
         if let Ok(mut clipboard) = self.clipboard.lock() {
             if let Ok(text) = clipboard.get_text() {
-                // Only update cache if clipboard has content
-                if !text.is_empty() {
-                    self.cached_content = Some(text);
-                }
+                // Update cache with clipboard content
+                self.cached_content = Some(text);
             }
         }
     }
@@ -119,10 +117,11 @@ impl YankBuffer for ClipboardYankBuffer {
         Ok(())
     }
 
-    fn paste(&self) -> Option<&str> {
-        // Return cached content
-        // Note: This doesn't sync with system clipboard changes from other apps
-        // because we need to return a reference, not an owned String
+    fn paste(&mut self) -> Option<&str> {
+        // First sync from system clipboard to get any external changes
+        self.sync_from_clipboard();
+        
+        // Return cached content (now updated from clipboard)
         self.cached_content.as_deref()
     }
 
@@ -139,14 +138,14 @@ impl YankBuffer for ClipboardYankBuffer {
         if self.cached_content.is_some() {
             return true;
         }
-
+        
         // Fall back to checking actual clipboard
         if let Ok(mut clipboard) = self.clipboard.lock() {
             if let Ok(text) = clipboard.get_text() {
                 return !text.is_empty();
             }
         }
-
+        
         false
     }
 }
