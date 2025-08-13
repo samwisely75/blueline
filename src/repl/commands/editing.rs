@@ -148,6 +148,46 @@ impl Command for YankCommand {
     }
 }
 
+/// Paste yanked text after cursor position
+pub struct PasteAfterCommand;
+
+impl Command for PasteAfterCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('p'))
+            && context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::paste_after()])
+    }
+
+    fn name(&self) -> &'static str {
+        "PasteAfter"
+    }
+}
+
+/// Paste yanked text before cursor position
+pub struct PasteBeforeCommand;
+
+impl Command for PasteBeforeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('P'))
+            && context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::paste_before()])
+    }
+
+    fn name(&self) -> &'static str {
+        "PasteBefore"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

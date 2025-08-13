@@ -500,6 +500,12 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::YankSelectionRequested => {
                 self.handle_yank_selection()?;
             }
+            CommandEvent::PasteAfterRequested => {
+                self.handle_paste_after()?;
+            }
+            CommandEvent::PasteBeforeRequested => {
+                self.handle_paste_before()?;
+            }
             CommandEvent::NoAction => {
                 // Do nothing
             }
@@ -796,6 +802,69 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             tracing::warn!("No text selected for yanking");
             self.view_model
                 .set_status_message("No text selected".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Handle pasting yanked text after cursor
+    fn handle_paste_after(&mut self) -> Result<()> {
+        if let Some(text) = self.view_model.get_yanked_text() {
+            // Move cursor right by one position first (Vim behavior)
+            let _ = self.view_model.move_cursor_right();
+
+            // Paste the text
+            self.view_model.paste_text(&text)?;
+
+            // Show feedback
+            let char_count = text.chars().count();
+            let line_count = text.lines().count();
+            let message = if line_count > 1 {
+                format!("{line_count} lines pasted")
+            } else {
+                format!("{char_count} characters pasted")
+            };
+            self.view_model.set_status_message(message);
+
+            tracing::info!(
+                "Pasted {} characters ({} lines) after cursor",
+                char_count,
+                line_count
+            );
+        } else {
+            self.view_model
+                .set_status_message("Nothing to paste".to_string());
+            tracing::warn!("No text in yank buffer to paste");
+        }
+
+        Ok(())
+    }
+
+    /// Handle pasting yanked text before cursor
+    fn handle_paste_before(&mut self) -> Result<()> {
+        if let Some(text) = self.view_model.get_yanked_text() {
+            // Paste the text at current position (before cursor)
+            self.view_model.paste_text(&text)?;
+
+            // Show feedback
+            let char_count = text.chars().count();
+            let line_count = text.lines().count();
+            let message = if line_count > 1 {
+                format!("{line_count} lines pasted")
+            } else {
+                format!("{char_count} characters pasted")
+            };
+            self.view_model.set_status_message(message);
+
+            tracing::info!(
+                "Pasted {} characters ({} lines) before cursor",
+                char_count,
+                line_count
+            );
+        } else {
+            self.view_model
+                .set_status_message("Nothing to paste".to_string());
+            tracing::warn!("No text in yank buffer to paste");
         }
 
         Ok(())

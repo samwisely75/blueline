@@ -96,6 +96,12 @@ pub enum CommandEvent {
     /// Request to yank (copy) selected text to yank buffer
     YankSelectionRequested,
 
+    /// Request to paste yanked text after cursor
+    PasteAfterRequested,
+
+    /// Request to paste yanked text before cursor
+    PasteBeforeRequested,
+
     /// No action needed (for commands that only query state)
     NoAction,
 }
@@ -191,6 +197,16 @@ impl CommandEvent {
     /// Create a yank selection event
     pub fn yank_selection() -> Self {
         Self::YankSelectionRequested
+    }
+
+    /// Create a paste after event
+    pub fn paste_after() -> Self {
+        Self::PasteAfterRequested
+    }
+
+    /// Create a paste before event
+    pub fn paste_before() -> Self {
+        Self::PasteBeforeRequested
     }
 }
 

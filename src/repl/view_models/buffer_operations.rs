@@ -27,6 +27,35 @@ impl ViewModel {
     pub fn yank_to_buffer(&mut self, text: String) -> Result<()> {
         self.yank_buffer.yank(text)
     }
+
+    /// Get text from yank buffer
+    pub fn get_yanked_text(&self) -> Option<String> {
+        self.yank_buffer.paste().map(|s| s.to_string())
+    }
+
+    /// Paste text at current cursor position (works in Normal mode)
+    pub fn paste_text(&mut self, text: &str) -> Result<()> {
+        // Only allow pasting in Request pane
+        if !self.is_in_request_pane() {
+            return Ok(());
+        }
+
+        // Temporarily switch to Insert mode for the paste operation
+        let original_mode = self.mode();
+        self.change_mode(EditorMode::Insert)?;
+
+        // Insert each character
+        for ch in text.chars() {
+            let events = self.pane_manager.insert_char_in_request(ch);
+            self.emit_view_event(events)?;
+        }
+
+        // Switch back to original mode
+        self.change_mode(original_mode)?;
+
+        Ok(())
+    }
+
     /// Insert a character at current cursor position
     pub fn insert_char(&mut self, ch: char) -> Result<()> {
         // Only allow text insertion in Request pane and insert mode
