@@ -125,6 +125,69 @@ impl Command for DeleteCharAtCursorCommand {
     }
 }
 
+/// Yank (copy) selected text in visual mode
+pub struct YankCommand;
+
+impl Command for YankCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('y'))
+            && context.state.current_mode == EditorMode::Visual
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Return yank event and exit visual mode
+        Ok(vec![
+            CommandEvent::yank_selection(),
+            CommandEvent::mode_change(EditorMode::Normal),
+        ])
+    }
+
+    fn name(&self) -> &'static str {
+        "Yank"
+    }
+}
+
+/// Paste yanked text after cursor position
+pub struct PasteAfterCommand;
+
+impl Command for PasteAfterCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('p'))
+            && context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::paste_after()])
+    }
+
+    fn name(&self) -> &'static str {
+        "PasteAfter"
+    }
+}
+
+/// Paste yanked text before cursor position
+pub struct PasteBeforeCommand;
+
+impl Command for PasteBeforeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('P'))
+            && context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && event.modifiers == KeyModifiers::SHIFT
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::paste_before()])
+    }
+
+    fn name(&self) -> &'static str {
+        "PasteBefore"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

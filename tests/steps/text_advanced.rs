@@ -56,6 +56,13 @@ async fn when_paste_with_p(world: &mut BluelineWorld) {
     world.tick().await.expect("Failed to tick");
 }
 
+#[when("I press \"P\"")]
+async fn when_press_uppercase_p_for_paste(world: &mut BluelineWorld) {
+    info!("Pressing 'P' to paste before cursor");
+    world.press_key('P').await;
+    world.tick().await.expect("Failed to tick");
+}
+
 // === TEXT RESTORATION ===
 
 #[then("the deleted text should be restored")]

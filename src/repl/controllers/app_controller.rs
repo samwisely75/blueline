@@ -497,6 +497,15 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::SettingChangeRequested { setting, value } => {
                 self.handle_setting_change(setting, value)?;
             }
+            CommandEvent::YankSelectionRequested => {
+                self.handle_yank_selection()?;
+            }
+            CommandEvent::PasteAfterRequested => {
+                self.handle_paste_after()?;
+            }
+            CommandEvent::PasteBeforeRequested => {
+                self.handle_paste_before()?;
+            }
             CommandEvent::NoAction => {
                 // Do nothing
             }
@@ -765,6 +774,97 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Handle setting changes from ex commands
     fn handle_setting_change(&mut self, setting: Setting, value: SettingValue) -> Result<()> {
         self.view_model.apply_setting(setting, value)
+    }
+
+    /// Handle yanking selected text to yank buffer
+    fn handle_yank_selection(&mut self) -> Result<()> {
+        // Get selected text from current pane
+        if let Some(text) = self.view_model.get_selected_text() {
+            // Store in yank buffer
+            self.view_model.yank_to_buffer(text.clone())?;
+
+            // Show feedback in status bar
+            let char_count = text.chars().count();
+            let line_count = text.lines().count();
+            let message = if line_count > 1 {
+                format!("{line_count} lines yanked")
+            } else {
+                format!("{char_count} characters yanked")
+            };
+            self.view_model.set_status_message(message);
+
+            tracing::info!(
+                "Yanked {} characters ({} lines) to buffer",
+                char_count,
+                line_count
+            );
+        } else {
+            tracing::warn!("No text selected for yanking");
+            self.view_model
+                .set_status_message("No text selected".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Handle pasting yanked text after cursor
+    fn handle_paste_after(&mut self) -> Result<()> {
+        if let Some(text) = self.view_model.get_yanked_text() {
+            // Paste the text after the current cursor position
+            self.view_model.paste_text_after(&text)?;
+
+            // Show feedback
+            let char_count = text.chars().count();
+            let line_count = text.lines().count();
+            let message = if line_count > 1 {
+                format!("{line_count} lines pasted")
+            } else {
+                format!("{char_count} characters pasted")
+            };
+            self.view_model.set_status_message(message);
+
+            tracing::info!(
+                "Pasted {} characters ({} lines) after cursor",
+                char_count,
+                line_count
+            );
+        } else {
+            self.view_model
+                .set_status_message("Nothing to paste".to_string());
+            tracing::warn!("No text in yank buffer to paste");
+        }
+
+        Ok(())
+    }
+
+    /// Handle pasting yanked text before cursor
+    fn handle_paste_before(&mut self) -> Result<()> {
+        if let Some(text) = self.view_model.get_yanked_text() {
+            // Paste the text at current position (before cursor)
+            self.view_model.paste_text(&text)?;
+
+            // Show feedback
+            let char_count = text.chars().count();
+            let line_count = text.lines().count();
+            let message = if line_count > 1 {
+                format!("{line_count} lines pasted")
+            } else {
+                format!("{char_count} characters pasted")
+            };
+            self.view_model.set_status_message(message);
+
+            tracing::info!(
+                "Pasted {} characters ({} lines) before cursor",
+                char_count,
+                line_count
+            );
+        } else {
+            self.view_model
+                .set_status_message("Nothing to paste".to_string());
+            tracing::warn!("No text in yank buffer to paste");
+        }
+
+        Ok(())
     }
 
     /// Process a single key event without running the full event loop (for testing)

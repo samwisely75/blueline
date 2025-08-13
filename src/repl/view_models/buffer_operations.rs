@@ -18,6 +18,84 @@ use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 
 impl ViewModel {
+    /// Get selected text from current pane
+    pub fn get_selected_text(&self) -> Option<String> {
+        self.pane_manager.get_selected_text()
+    }
+
+    /// Yank text to yank buffer
+    pub fn yank_to_buffer(&mut self, text: String) -> Result<()> {
+        self.yank_buffer.yank(text)
+    }
+
+    /// Get text from yank buffer
+    pub fn get_yanked_text(&self) -> Option<String> {
+        self.yank_buffer.paste().map(|s| s.to_string())
+    }
+
+    /// Paste text at current cursor position (for paste before - P)
+    pub fn paste_text(&mut self, text: &str) -> Result<()> {
+        // Only allow pasting in Request pane
+        if !self.is_in_request_pane() {
+            return Ok(());
+        }
+
+        // Temporarily switch to Insert mode for the paste operation
+        let original_mode = self.mode();
+        self.change_mode(EditorMode::Insert)?;
+
+        // Insert each character
+        for ch in text.chars() {
+            let events = self.pane_manager.insert_char_in_request(ch);
+            self.emit_view_event(events)?;
+        }
+
+        // Switch back to original mode
+        self.change_mode(original_mode)?;
+
+        Ok(())
+    }
+
+    /// Paste text after current cursor position (for paste after - p)
+    pub fn paste_text_after(&mut self, text: &str) -> Result<()> {
+        // Only allow pasting in Request pane
+        if !self.is_in_request_pane() {
+            return Ok(());
+        }
+
+        // Get current cursor position
+        let current_pos = self.get_cursor_position();
+
+        // In Normal mode, cursor sits ON a character. We want to insert AFTER that character.
+        // So we need to insert at position current_column + 1
+        // This is different from moving the cursor - we're just inserting at a different position
+
+        // Temporarily switch to Insert mode for the paste operation
+        let original_mode = self.mode();
+        self.change_mode(EditorMode::Insert)?;
+
+        // Move cursor to the position after the current character
+        // We need to be careful here - if we're at the end of the line,
+        // we should append at the end
+        let line_length = self.pane_manager.get_current_line_length();
+        if current_pos.column < line_length {
+            // We're not at the end, move one position right for insertion
+            let _ = self.move_cursor_right();
+        }
+        // If we're at or beyond the line length, cursor is already at the right position for append
+
+        // Insert each character
+        for ch in text.chars() {
+            let events = self.pane_manager.insert_char_in_request(ch);
+            self.emit_view_event(events)?;
+        }
+
+        // Switch back to original mode
+        self.change_mode(original_mode)?;
+
+        Ok(())
+    }
+
     /// Insert a character at current cursor position
     pub fn insert_char(&mut self, ch: char) -> Result<()> {
         // Only allow text insertion in Request pane and insert mode

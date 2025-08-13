@@ -822,6 +822,64 @@ impl PaneState {
         self.virtual_column = column;
     }
 
+    /// Extract text from the current visual selection
+    pub fn get_selected_text(&self) -> Option<String> {
+        // Check if we have a selection
+        let (Some(start), Some(end)) = (self.visual_selection_start, self.visual_selection_end)
+        else {
+            return None;
+        };
+
+        // Normalize selection (ensure start <= end)
+        let (selection_start, selection_end) =
+            if start.line < end.line || (start.line == end.line && start.column <= end.column) {
+                (start, end)
+            } else {
+                (end, start)
+            };
+
+        let content = self.buffer.content();
+        let mut selected_text = String::new();
+
+        // Single line selection
+        if selection_start.line == selection_end.line {
+            if let Some(line) = content.get_line(selection_start.line) {
+                let start_col = selection_start.column.min(line.len());
+                let end_col = (selection_end.column + 1).min(line.len()); // +1 to include character at end position
+                selected_text.push_str(&line[start_col..end_col]);
+            }
+        } else {
+            // Multi-line selection
+            for line_num in selection_start.line..=selection_end.line {
+                if let Some(line) = content.get_line(line_num) {
+                    if line_num == selection_start.line {
+                        // First line: from start column to end
+                        let start_col = selection_start.column.min(line.len());
+                        selected_text.push_str(&line[start_col..]);
+                    } else if line_num == selection_end.line {
+                        // Last line: from beginning to end column
+                        let end_col = (selection_end.column + 1).min(line.len());
+                        selected_text.push_str(&line[..end_col]);
+                    } else {
+                        // Middle lines: entire line
+                        selected_text.push_str(&line);
+                    }
+
+                    // Add newline between lines (but not after the last line)
+                    if line_num < selection_end.line {
+                        selected_text.push('\n');
+                    }
+                }
+            }
+        }
+
+        if selected_text.is_empty() {
+            None
+        } else {
+            Some(selected_text)
+        }
+    }
+
     // Helper methods to reduce arrow code complexity
 
     /// Check if character at cursor position extends beyond visible area

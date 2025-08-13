@@ -21,6 +21,7 @@ use crate::repl::events::{EditorMode, EventBus, ModelEvent, Pane, ViewEvent};
 use crate::repl::models::{ResponseModel, StatusLine};
 use crate::repl::view_models::pane_manager::PaneManager;
 use crate::repl::view_models::screen_buffer::ScreenBuffer;
+use crate::repl::view_models::yank_buffer::{MemoryYankBuffer, YankBuffer};
 // use anyhow::Result; // Currently unused
 use bluenote::HttpClient;
 use std::collections::HashMap;
@@ -57,6 +58,9 @@ pub struct ViewModel {
     pub(super) pending_view_events: Vec<ViewEvent>,
     pub(super) pending_model_events: Vec<ModelEvent>,
 
+    // Yank buffer for copy/paste operations
+    pub(super) yank_buffer: Box<dyn YankBuffer>,
+
     // Double buffering state
     pub(super) current_screen_buffer: ScreenBuffer,
     pub(super) previous_screen_buffer: ScreenBuffer,
@@ -86,6 +90,7 @@ impl ViewModel {
             event_bus: None,
             pending_view_events: Vec::new(),
             pending_model_events: Vec::new(),
+            yank_buffer: Box::new(MemoryYankBuffer::new()),
             current_screen_buffer: ScreenBuffer::new(
                 terminal_dimensions.0 as usize,
                 terminal_dimensions.1 as usize,
