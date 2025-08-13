@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.36.0] - 2025-01-13
+
+### Added
+
+- **System Clipboard Integration**: Connect yank buffer to system clipboard (issue #135)
+  - `:set clipboard on` - Enable system clipboard integration
+  - `:set clipboard off` - Use memory-only yank buffer
+  - Bidirectional sync: yanking copies to clipboard, pasting reads from clipboard
+  - Cross-platform support for macOS, Linux, and Windows via `arboard` library
+  - Preserves yank buffer content when switching between modes
+
 ## [0.35.0] - 2025-01-13
 
 ### Added
