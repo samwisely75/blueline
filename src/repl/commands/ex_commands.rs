@@ -135,6 +135,42 @@ impl ExCommand for ShowProfileCommand {
     }
 }
 
+/// Set tabstop command handler (for :set tabstop <number>)
+pub struct SetTabstopCommand;
+
+impl ExCommand for SetTabstopCommand {
+    fn can_handle(&self, command: &str) -> bool {
+        // Check if command starts with "set tabstop " followed by a number
+        if let Some(value_str) = command.strip_prefix("set tabstop ") {
+            value_str.parse::<usize>().is_ok()
+        } else {
+            false
+        }
+    }
+
+    fn execute(&self, command: &str, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        if let Some(value_str) = command.strip_prefix("set tabstop ") {
+            if let Ok(tab_width) = value_str.parse::<usize>() {
+                // Validate tab width (must be between 1 and 8)
+                let tab_width = tab_width.clamp(1, 8);
+                Ok(vec![CommandEvent::SettingChangeRequested {
+                    setting: Setting::TabStop,
+                    value: SettingValue::Number(tab_width),
+                }])
+            } else {
+                tracing::warn!("Invalid tabstop value: {}", value_str);
+                Ok(vec![])
+            }
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "SetTabstopCommand"
+    }
+}
+
 /// Type alias to reduce complexity for ex command collection
 type ExCommandCollection = Vec<Box<dyn ExCommand + Send>>;
 
@@ -181,6 +217,7 @@ impl ExCommandRegistry {
             Box::new(SetWrapCommand),
             Box::new(SetNumberCommand),
             Box::new(SetClipboardCommand),
+            Box::new(SetTabstopCommand),
             Box::new(ShowProfileCommand),
             Box::new(GoToLineCommand),
         ];
@@ -263,6 +300,43 @@ mod tests {
         assert!(cmd.can_handle("set wrap on"));
         assert!(cmd.can_handle("set wrap off"));
         assert!(!cmd.can_handle("set wrap"));
+    }
+
+    #[test]
+    fn set_tabstop_command_should_handle_tabstop_settings() {
+        let cmd = SetTabstopCommand;
+        assert!(cmd.can_handle("set tabstop 4"));
+        assert!(cmd.can_handle("set tabstop 8"));
+        assert!(cmd.can_handle("set tabstop 2"));
+        assert!(!cmd.can_handle("set tabstop"));
+        assert!(!cmd.can_handle("set tabstop abc"));
+    }
+
+    #[test]
+    fn set_tabstop_command_should_produce_setting_change_event() {
+        let cmd = SetTabstopCommand;
+        let context = create_test_context();
+
+        // Test valid tab width
+        let result = cmd.execute("set tabstop 4", &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0],
+            CommandEvent::SettingChangeRequested {
+                setting: Setting::TabStop,
+                value: SettingValue::Number(4),
+            }
+        );
+
+        // Test clamping to max value
+        let result = cmd.execute("set tabstop 20", &context).unwrap();
+        assert_eq!(
+            result[0],
+            CommandEvent::SettingChangeRequested {
+                setting: Setting::TabStop,
+                value: SettingValue::Number(8), // Should be clamped to 8
+            }
+        );
     }
 
     #[test]

@@ -18,6 +18,8 @@ pub enum Setting {
     LineNumbers,
     /// System clipboard integration
     Clipboard,
+    /// Tab stop width
+    TabStop,
 }
 
 /// Values for settings
@@ -27,6 +29,8 @@ pub enum SettingValue {
     On,
     /// Disable the setting
     Off,
+    /// Numeric value for the setting
+    Number(usize),
 }
 
 /// Events that commands can produce to request changes
