@@ -44,6 +44,20 @@ impl ViewModel {
                 }
                 Ok(())
             }
+            Setting::ExpandTab => {
+                let enable = value == SettingValue::On;
+                self.pane_manager.set_expand_tab(enable);
+
+                // If enabling expandtab, convert existing tabs to spaces
+                if enable {
+                    self.convert_tabs_to_spaces()?;
+                    let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
+                    let mut events = vec![ViewEvent::FullRedrawRequired];
+                    events.extend(visibility_events);
+                    let _ = self.emit_view_event(events);
+                }
+                Ok(())
+            }
         }
     }
 }

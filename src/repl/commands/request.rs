@@ -167,6 +167,8 @@ mod tests {
                 request_text: String::new(),
                 response_text: String::new(),
                 terminal_dimensions: (80, 24),
+                expand_tab: false,
+                tab_width: 4,
             },
         }
     }

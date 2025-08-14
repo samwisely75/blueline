@@ -174,4 +174,27 @@ impl ViewModel {
 
         Ok(())
     }
+
+    /// Convert all tab characters to spaces in the request buffer
+    /// Called when expandtab is enabled
+    pub fn convert_tabs_to_spaces(&mut self) -> Result<()> {
+        // Get the current request text
+        let request_text = self.get_request_text();
+
+        // Get the current tab width
+        let tab_width = self.pane_manager.get_tab_width();
+
+        // Replace all tabs with spaces
+        let spaces = " ".repeat(tab_width);
+        let converted_text = request_text.replace('\t', &spaces);
+
+        // Only update if there were actual changes
+        if converted_text != request_text {
+            // Update the request buffer with the converted text
+            let events = self.pane_manager.set_request_content(&converted_text);
+            self.emit_view_event(events)?;
+        }
+
+        Ok(())
+    }
 }

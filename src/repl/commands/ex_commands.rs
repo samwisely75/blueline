@@ -171,6 +171,32 @@ impl ExCommand for SetTabstopCommand {
     }
 }
 
+/// Set expandtab command handler (for :set expandtab on/off)
+pub struct SetExpandTabCommand;
+
+impl ExCommand for SetExpandTabCommand {
+    fn can_handle(&self, command: &str) -> bool {
+        command == "set expandtab on" || command == "set expandtab off"
+    }
+
+    fn execute(&self, command: &str, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        let enable = command == "set expandtab on";
+
+        Ok(vec![CommandEvent::SettingChangeRequested {
+            setting: Setting::ExpandTab,
+            value: if enable {
+                SettingValue::On
+            } else {
+                SettingValue::Off
+            },
+        }])
+    }
+
+    fn name(&self) -> &'static str {
+        "SetExpandTabCommand"
+    }
+}
+
 /// Type alias to reduce complexity for ex command collection
 type ExCommandCollection = Vec<Box<dyn ExCommand + Send>>;
 
@@ -218,6 +244,7 @@ impl ExCommandRegistry {
             Box::new(SetNumberCommand),
             Box::new(SetClipboardCommand),
             Box::new(SetTabstopCommand),
+            Box::new(SetExpandTabCommand),
             Box::new(ShowProfileCommand),
             Box::new(GoToLineCommand),
         ];
@@ -273,6 +300,8 @@ mod tests {
                 request_text: String::new(),
                 response_text: String::new(),
                 terminal_dimensions: (80, 24),
+                expand_tab: false,
+                tab_width: 4,
             },
         }
     }
@@ -335,6 +364,43 @@ mod tests {
             CommandEvent::SettingChangeRequested {
                 setting: Setting::TabStop,
                 value: SettingValue::Number(8), // Should be clamped to 8
+            }
+        );
+    }
+
+    #[test]
+    fn set_expandtab_command_should_handle_expandtab_settings() {
+        let cmd = SetExpandTabCommand;
+        assert!(cmd.can_handle("set expandtab on"));
+        assert!(cmd.can_handle("set expandtab off"));
+        assert!(!cmd.can_handle("set expandtab"));
+        assert!(!cmd.can_handle("set expandtab yes"));
+    }
+
+    #[test]
+    fn set_expandtab_command_should_produce_setting_change_event() {
+        let cmd = SetExpandTabCommand;
+        let context = create_test_context();
+
+        // Test enabling expandtab
+        let result = cmd.execute("set expandtab on", &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0],
+            CommandEvent::SettingChangeRequested {
+                setting: Setting::ExpandTab,
+                value: SettingValue::On,
+            }
+        );
+
+        // Test disabling expandtab
+        let result = cmd.execute("set expandtab off", &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0],
+            CommandEvent::SettingChangeRequested {
+                setting: Setting::ExpandTab,
+                value: SettingValue::Off,
             }
         );
     }
