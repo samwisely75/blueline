@@ -40,6 +40,8 @@ pub struct PaneManager {
     current_pane: Pane,
     wrap_enabled: bool,
     show_line_numbers: bool,
+    tab_width: usize,                    // Number of spaces per tab stop (default 4)
+    expand_tab: bool,                    // If true, insert spaces instead of tab character
     pub terminal_dimensions: (u16, u16), // Public for ViewModel access
     request_pane_height: u16,
 }
@@ -79,6 +81,8 @@ impl PaneManager {
             current_pane: Pane::Request,
             wrap_enabled: false,
             show_line_numbers: true, // Default to showing line numbers
+            tab_width: 4,            // Default tab width of 4 spaces
+            expand_tab: false,       // Default to inserting real tabs, not spaces
             terminal_dimensions,
             request_pane_height: terminal_dimensions.1 / 2,
         }
@@ -445,6 +449,47 @@ impl PaneManager {
         );
     }
 
+    /// Get tab width (number of spaces per tab stop)
+    pub fn get_tab_width(&self) -> usize {
+        self.tab_width
+    }
+
+    /// Set tab width (number of spaces per tab stop)
+    pub fn set_tab_width(&mut self, width: usize) {
+        // Ensure tab width is at least 1 to prevent division by zero or infinite loops
+        let tab_width = width.max(1);
+        tracing::debug!(
+            "🔧 PaneManager::set_tab_width: changing from {} to {}",
+            self.tab_width,
+            tab_width
+        );
+        self.tab_width = tab_width;
+        tracing::debug!(
+            "✅ PaneManager::set_tab_width: tab_width is now {}",
+            self.tab_width
+        );
+        // TODO: Invalidate display caches since tab width affects text layout
+    }
+
+    /// Get expand tab setting (whether to insert spaces instead of tab character)
+    pub fn get_expand_tab(&self) -> bool {
+        self.expand_tab
+    }
+
+    /// Set expand tab setting (whether to insert spaces instead of tab character)
+    pub fn set_expand_tab(&mut self, expand: bool) {
+        tracing::debug!(
+            "🔧 PaneManager::set_expand_tab: changing from {} to {}",
+            self.expand_tab,
+            expand
+        );
+        self.expand_tab = expand;
+        tracing::debug!(
+            "✅ PaneManager::set_expand_tab: expand_tab is now {}",
+            self.expand_tab
+        );
+    }
+
     /// Update terminal size and recalculate pane dimensions
     pub fn update_terminal_size(&mut self, width: u16, height: u16, has_response: bool) {
         self.terminal_dimensions = (width, height);
@@ -479,8 +524,16 @@ impl PaneManager {
         self.panes[Pane::Response].display_cache.invalidate();
 
         // Rebuild both caches with the new dimensions
-        self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
-        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
+        self.panes[Pane::Request].build_display_cache(
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
+        );
+        self.panes[Pane::Response].build_display_cache(
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
+        );
 
         tracing::debug!(
             "Terminal size updated: {}x{}, pane dimensions: Request={}x{}, Response={}x{}",
@@ -495,8 +548,16 @@ impl PaneManager {
 
     /// Rebuild display caches for both panes with provided content width
     pub fn rebuild_display_caches(&mut self, content_width: usize) {
-        self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
-        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
+        self.panes[Pane::Request].build_display_cache(
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
+        );
+        self.panes[Pane::Response].build_display_cache(
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
+        );
     }
 
     /// Rebuild display caches for both panes and sync cursors (complete rebuild process)
@@ -605,7 +666,11 @@ impl PaneManager {
 
             // Rebuild display cache to ensure rendering sees the updated content
             let content_width = self.get_content_width();
-            self.panes[Pane::Request].build_display_cache(content_width, self.wrap_enabled);
+            self.panes[Pane::Request].build_display_cache(
+                content_width,
+                self.wrap_enabled,
+                self.tab_width,
+            );
 
             // Sync display cursor after cache rebuild
             let logical = self.panes[Pane::Request].buffer.cursor();
@@ -769,7 +834,7 @@ impl PaneManager {
         };
 
         // Rebuild display cache since content changed
-        request_pane.build_display_cache(content_width, self.wrap_enabled);
+        request_pane.build_display_cache(content_width, self.wrap_enabled, self.tab_width);
 
         // Sync display cursor with new logical position after cache rebuild
         match request_pane
@@ -833,7 +898,11 @@ impl PaneManager {
                     } else {
                         self.terminal_dimensions.0 as usize
                     };
-                    request_pane.build_display_cache(content_width, self.wrap_enabled);
+                    request_pane.build_display_cache(
+                        content_width,
+                        self.wrap_enabled,
+                        self.tab_width,
+                    );
 
                     // Sync display cursor with logical position after cache rebuild
                     let current_logical = request_pane.buffer.cursor();
@@ -884,7 +953,11 @@ impl PaneManager {
                     } else {
                         self.terminal_dimensions.0 as usize
                     };
-                    request_pane.build_display_cache(content_width, self.wrap_enabled);
+                    request_pane.build_display_cache(
+                        content_width,
+                        self.wrap_enabled,
+                        self.tab_width,
+                    );
 
                     // Sync display cursor with logical position after cache rebuild
                     let current_logical = request_pane.buffer.cursor();
@@ -1011,7 +1084,11 @@ impl PaneManager {
         } else {
             self.terminal_dimensions.0 as usize
         };
-        self.panes[Pane::Response].build_display_cache(content_width, self.wrap_enabled);
+        self.panes[Pane::Response].build_display_cache(
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
+        );
 
         vec![ViewEvent::ResponseContentChanged]
     }

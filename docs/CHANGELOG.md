@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.38.0] - 2025-01-14
+
+### Added
+
+- **Expandtab Configuration**: Add `:set expandtab on/off` command (issue #153)
+  - Configure whether Tab key inserts spaces or tab characters
+  - When enabled, Tab key inserts spaces based on current tabstop width
+  - Automatically converts existing tabs to spaces when expandtab is turned on
+  - When disabled, Tab key inserts actual tab characters (`\t`)
+  - Works seamlessly with existing `:set tabstop` command
+
+## [0.37.1] - 2025-01-14
+
+### Added
+
+- **Tab Stop Configuration**: Add `:set tabstop <number>` command (issue #152)
+  - Dynamically configure tab width through ex command interface
+  - Values can be set between 1 and 8 spaces (clamped to valid range)
+  - Display immediately refreshes when tab width changes
+  - Supports commands like `:set tabstop 2`, `:set tabstop 4`, `:set tabstop 8`
+
+## [0.37.0] - 2025-01-14
+
+### Added
+
+- **Tab Character Support**: Implement simple tab character support (issue #151)
+  - Tab key inserts tab character in Insert mode
+  - Configurable tab width via `tab_width` field (default 4)
+  - Tabs always advance cursor by fixed width regardless of column position
+  - Proper text rendering with tab expansion to spaces in all modes
+  - Visual selection correctly highlights expanded tab spaces
+  - Fixed cursor positioning to handle tab display width correctly
+
 ## [0.36.0] - 2025-01-13
 
 ### Added

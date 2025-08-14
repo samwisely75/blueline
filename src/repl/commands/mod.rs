@@ -64,6 +64,7 @@ pub mod yank;
 pub use app::AppTerminateCommand;
 pub use editing::{
     DeleteCharAtCursorCommand, DeleteCharCommand, InsertCharCommand, InsertNewLineCommand,
+    InsertTabCommand,
 };
 pub use ex_commands::{ExCommand, ExCommandRegistry};
 pub use mode::{
@@ -140,6 +141,7 @@ impl CommandRegistry {
             // Editing commands
             Box::new(InsertCharCommand),
             Box::new(InsertNewLineCommand),
+            Box::new(InsertTabCommand),
             Box::new(DeleteCharCommand),
             Box::new(DeleteCharAtCursorCommand),
             Box::new(YankCommand),
@@ -255,6 +257,8 @@ mod tests {
                 request_text: String::new(),
                 response_text: String::new(),
                 terminal_dimensions: (80, 24),
+                expand_tab: false,
+                tab_width: 4,
             },
         }
     }
