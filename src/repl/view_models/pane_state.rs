@@ -871,10 +871,19 @@ impl PaneState {
             }
             EditorMode::VisualBlock => {
                 // Visual Block mode: select rectangular region
+                // VISUAL BLOCK FIX: Use selection_start as the anchor column and selection_end as current cursor
+                // This ensures selection always goes from the starting column to the current cursor column
                 let top_line = selection_start.line;
                 let bottom_line = selection_end.line;
-                let left_col = selection_start.column.min(selection_end.column);
-                let right_col = selection_start.column.max(selection_end.column);
+                let start_col = selection_start.column; // Column where Visual Block mode started
+                let end_col = selection_end.column; // Current cursor column
+
+                // Determine selection direction and boundaries
+                let (left_col, right_col) = if start_col <= end_col {
+                    (start_col, end_col)
+                } else {
+                    (end_col, start_col)
+                };
 
                 for line_num in top_line..=bottom_line {
                     if let Some(line) = content.get_line(line_num) {
@@ -1008,10 +1017,18 @@ impl PaneState {
         let selected_text = self.get_selected_text()?;
 
         // Calculate the rectangular region
+        // VISUAL BLOCK FIX: Use selection_start as anchor and selection_end as current cursor
         let top_line = start.line.min(end.line);
         let bottom_line = start.line.max(end.line);
-        let left_col = start.column.min(end.column);
-        let right_col = start.column.max(end.column);
+        let start_col = start.column; // Column where Visual Block mode started
+        let end_col = end.column; // Current cursor column
+
+        // Determine selection direction and boundaries
+        let (left_col, right_col) = if start_col <= end_col {
+            (start_col, end_col)
+        } else {
+            (end_col, start_col)
+        };
 
         // Delete from bottom to top to avoid line index shifting
         let pane = self.buffer.pane();

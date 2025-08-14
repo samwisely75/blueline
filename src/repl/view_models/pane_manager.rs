@@ -1200,10 +1200,16 @@ impl PaneManager {
     /// Move cursor to next word in current pane
     pub fn move_cursor_to_next_word(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.get_current_pane_mode();
 
         if let Some(new_pos) =
             self.panes[self.current_pane].find_next_word_start_position(current_display_pos)
         {
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
+            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
+                return vec![]; // Don't move if it would cross lines
+            }
+
             let events = self.set_current_display_cursor(new_pos);
             let mut all_events = events;
             all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
@@ -1216,10 +1222,16 @@ impl PaneManager {
     /// Move cursor to previous word in current pane
     pub fn move_cursor_to_previous_word(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.get_current_pane_mode();
 
         if let Some(new_pos) =
             self.panes[self.current_pane].find_previous_word_start_position(current_display_pos)
         {
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
+            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
+                return vec![]; // Don't move if it would cross lines
+            }
+
             let events = self.set_current_display_cursor(new_pos);
             let mut all_events = events;
             all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
@@ -1232,10 +1244,16 @@ impl PaneManager {
     /// Move cursor to end of word in current pane
     pub fn move_cursor_to_end_of_word(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.get_current_pane_mode();
 
         if let Some(new_pos) =
             self.panes[self.current_pane].find_next_word_end_position(current_display_pos)
         {
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
+            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
+                return vec![]; // Don't move if it would cross lines
+            }
+
             let events = self.set_current_display_cursor(new_pos);
             let mut all_events = events;
             all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
@@ -1275,16 +1293,22 @@ impl PaneManager {
                 moved = true;
             }
         } else if current_display_pos.row > 0 {
-            // Move to end of previous display line
-            let prev_display_line = current_display_pos.row - 1;
-            if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
-                // FIXED: Use display width instead of character count for proper multibyte character support
-                let new_col = prev_line.display_width().saturating_sub(1);
-                let new_display_pos = Position::new(prev_display_line, new_col);
-                self.panes[self.current_pane].display_cursor = new_display_pos;
-                // Update virtual column for horizontal movement
-                self.panes[self.current_pane].update_virtual_column();
-                moved = true;
+            let current_mode = self.get_current_pane_mode();
+
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to previous line
+            // Cursor should be constrained to horizontal movement within the selected line range
+            if current_mode != EditorMode::VisualBlock {
+                // Move to end of previous display line
+                let prev_display_line = current_display_pos.row - 1;
+                if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
+                    // FIXED: Use display width instead of character count for proper multibyte character support
+                    let new_col = prev_line.display_width().saturating_sub(1);
+                    let new_display_pos = Position::new(prev_display_line, new_col);
+                    self.panes[self.current_pane].display_cursor = new_display_pos;
+                    // Update virtual column for horizontal movement
+                    self.panes[self.current_pane].update_virtual_column();
+                    moved = true;
+                }
             }
         }
 
@@ -1375,11 +1399,19 @@ impl PaneManager {
 
         // PHASE 2: Check if cursor can move to next line (when right movement in current line fails)
         let can_move_to_next_line = if !can_move_right_in_line {
-            let next_display_line = current_display_pos.row + 1;
-            self.panes[self.current_pane]
-                .display_cache
-                .get_display_line(next_display_line)
-                .is_some()
+            let current_mode = self.get_current_pane_mode();
+
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to next line
+            // Cursor should be constrained to horizontal movement within the selected line range
+            if current_mode == EditorMode::VisualBlock {
+                false
+            } else {
+                let next_display_line = current_display_pos.row + 1;
+                self.panes[self.current_pane]
+                    .display_cache
+                    .get_display_line(next_display_line)
+                    .is_some()
+            }
         } else {
             false
         };
@@ -1396,7 +1428,13 @@ impl PaneManager {
                 // When wrap is enabled, check if we've moved past the visible width
                 // If so, wrap to the next line instead of staying on the current line
                 let content_width = self.get_content_width();
-                if self.wrap_enabled && new_col >= content_width {
+                let current_mode = self.get_current_pane_mode();
+
+                // VISUAL BLOCK FIX: Prevent line wrapping in Visual Block mode
+                if self.wrap_enabled
+                    && new_col >= content_width
+                    && current_mode != EditorMode::VisualBlock
+                {
                     // Check if there's a next line to wrap to
                     let next_display_line = current_display_pos.row + 1;
                     if self.panes[self.current_pane]
