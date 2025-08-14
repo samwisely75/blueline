@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.38.0] - 2025-01-14
+
+### Added
+
+- **Expandtab Configuration**: Add `:set expandtab on/off` command (issue #153)
+  - Configure whether Tab key inserts spaces or tab characters
+  - When enabled, Tab key inserts spaces based on current tabstop width
+  - Automatically converts existing tabs to spaces when expandtab is turned on
+  - When disabled, Tab key inserts actual tab characters (`\t`)
+  - Works seamlessly with existing `:set tabstop` command
+
 ## [0.37.1] - 2025-01-14
 
 ### Added
