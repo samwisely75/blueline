@@ -833,7 +833,7 @@ impl PaneState {
         self.virtual_column = column;
     }
 
-    /// Extract text from the current visual selection
+    /// Extract text from the current visual selection based on visual mode
     pub fn get_selected_text(&self) -> Option<String> {
         // Check if we have a selection
         let (Some(start), Some(end)) = (self.visual_selection_start, self.visual_selection_end)
@@ -852,33 +852,79 @@ impl PaneState {
         let content = self.buffer.content();
         let mut selected_text = String::new();
 
-        // Single line selection
-        if selection_start.line == selection_end.line {
-            if let Some(line) = content.get_line(selection_start.line) {
-                let start_col = selection_start.column.min(line.len());
-                let end_col = (selection_end.column + 1).min(line.len()); // +1 to include character at end position
-                selected_text.push_str(&line[start_col..end_col]);
-            }
-        } else {
-            // Multi-line selection
-            for line_num in selection_start.line..=selection_end.line {
-                if let Some(line) = content.get_line(line_num) {
-                    if line_num == selection_start.line {
-                        // First line: from start column to end
-                        let start_col = selection_start.column.min(line.len());
-                        selected_text.push_str(&line[start_col..]);
-                    } else if line_num == selection_end.line {
-                        // Last line: from beginning to end column
-                        let end_col = (selection_end.column + 1).min(line.len());
-                        selected_text.push_str(&line[..end_col]);
-                    } else {
-                        // Middle lines: entire line
-                        selected_text.push_str(&line);
-                    }
+        match self.editor_mode {
+            EditorMode::VisualLine => {
+                // Visual Line mode: always select entire lines from beginning to end
+                let first_line = selection_start.line;
+                let last_line = selection_end.line;
 
-                    // Add newline between lines (but not after the last line)
-                    if line_num < selection_end.line {
-                        selected_text.push('\n');
+                for line_num in first_line..=last_line {
+                    if let Some(line) = content.get_line(line_num) {
+                        selected_text.push_str(&line);
+
+                        // Add newline after each line except the last one
+                        if line_num < last_line {
+                            selected_text.push('\n');
+                        }
+                    }
+                }
+            }
+            EditorMode::VisualBlock => {
+                // Visual Block mode: select rectangular region
+                let top_line = selection_start.line;
+                let bottom_line = selection_end.line;
+                let left_col = selection_start.column.min(selection_end.column);
+                let right_col = selection_start.column.max(selection_end.column);
+
+                for line_num in top_line..=bottom_line {
+                    if let Some(line) = content.get_line(line_num) {
+                        let line_length = line.len();
+
+                        // Skip lines that are too short to have content in the block region
+                        if left_col < line_length {
+                            let actual_right_col = (right_col + 1).min(line_length); // +1 to include character at end position
+                            let block_text = &line[left_col..actual_right_col];
+                            selected_text.push_str(block_text);
+                        }
+
+                        // Add newline after each line except the last one
+                        if line_num < bottom_line {
+                            selected_text.push('\n');
+                        }
+                    }
+                }
+            }
+            _ => {
+                // Visual mode (character-wise): original behavior
+                if selection_start.line == selection_end.line {
+                    // Single line selection
+                    if let Some(line) = content.get_line(selection_start.line) {
+                        let start_col = selection_start.column.min(line.len());
+                        let end_col = (selection_end.column + 1).min(line.len()); // +1 to include character at end position
+                        selected_text.push_str(&line[start_col..end_col]);
+                    }
+                } else {
+                    // Multi-line selection
+                    for line_num in selection_start.line..=selection_end.line {
+                        if let Some(line) = content.get_line(line_num) {
+                            if line_num == selection_start.line {
+                                // First line: from start column to end
+                                let start_col = selection_start.column.min(line.len());
+                                selected_text.push_str(&line[start_col..]);
+                            } else if line_num == selection_end.line {
+                                // Last line: from beginning to end column
+                                let end_col = (selection_end.column + 1).min(line.len());
+                                selected_text.push_str(&line[..end_col]);
+                            } else {
+                                // Middle lines: entire line
+                                selected_text.push_str(&line);
+                            }
+
+                            // Add newline between lines (but not after the last line)
+                            if line_num < selection_end.line {
+                                selected_text.push('\n');
+                            }
+                        }
                     }
                 }
             }
