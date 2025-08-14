@@ -1302,8 +1302,14 @@ impl PaneManager {
 
         // Allow movement up to the longest line's length, but only if we can move from current position
         if attempted_col > current_pos.col {
-            // We're trying to move right - allow up to max length
-            attempted_col.min(max_line_length)
+            // We're trying to move right - allow up to max length minus 1 (cursor ON last char, not after)
+            // In Vim, cursor positions are 0-indexed and should be ON characters, not after them
+            let max_cursor_position = if max_line_length > 0 {
+                max_line_length - 1
+            } else {
+                0
+            };
+            attempted_col.min(max_cursor_position)
         } else {
             // No movement or moving left - use attempted column
             attempted_col
