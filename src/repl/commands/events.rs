@@ -20,6 +20,8 @@ pub enum Setting {
     Clipboard,
     /// Tab stop width
     TabStop,
+    /// Expand tab setting (insert spaces instead of tab)
+    ExpandTab,
 }
 
 /// Values for settings

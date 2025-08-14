@@ -72,7 +72,16 @@ impl Command for InsertTabCommand {
     }
 
     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        let text_event = CommandEvent::text_insert('\t'.to_string(), context.state.cursor_position);
+        // Check if expandtab is enabled
+        let text = if context.state.expand_tab {
+            // Insert spaces instead of tab
+            " ".repeat(context.state.tab_width)
+        } else {
+            // Insert actual tab character
+            '\t'.to_string()
+        };
+
+        let text_event = CommandEvent::text_insert(text, context.state.cursor_position);
         Ok(vec![text_event])
     }
 
@@ -166,6 +175,8 @@ mod tests {
                 request_text: String::new(),
                 response_text: String::new(),
                 terminal_dimensions: (80, 24),
+                expand_tab: false,
+                tab_width: 4,
             },
         }
     }
@@ -283,6 +294,57 @@ mod tests {
         let event = create_test_key_event(KeyCode::Delete);
 
         assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_tab_should_insert_tab_character_when_expandtab_off() {
+        let mut context = create_test_context();
+        context.state.expand_tab = false;
+        context.state.tab_width = 4;
+        let cmd = InsertTabCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        if let CommandEvent::TextInsertRequested { text, .. } = &result[0] {
+            assert_eq!(text, "\t");
+        } else {
+            panic!("Expected TextInsertRequested event");
+        }
+    }
+
+    #[test]
+    fn insert_tab_should_insert_spaces_when_expandtab_on() {
+        let mut context = create_test_context();
+        context.state.expand_tab = true;
+        context.state.tab_width = 4;
+        let cmd = InsertTabCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        if let CommandEvent::TextInsertRequested { text, .. } = &result[0] {
+            assert_eq!(text, "    "); // 4 spaces
+        } else {
+            panic!("Expected TextInsertRequested event");
+        }
+    }
+
+    #[test]
+    fn insert_tab_should_use_correct_tab_width() {
+        let mut context = create_test_context();
+        context.state.expand_tab = true;
+        context.state.tab_width = 2;
+        let cmd = InsertTabCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        if let CommandEvent::TextInsertRequested { text, .. } = &result[0] {
+            assert_eq!(text, "  "); // 2 spaces
+        } else {
+            panic!("Expected TextInsertRequested event");
+        }
     }
 
     #[test]

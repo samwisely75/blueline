@@ -41,6 +41,7 @@ pub struct PaneManager {
     wrap_enabled: bool,
     show_line_numbers: bool,
     tab_width: usize,                    // Number of spaces per tab stop (default 4)
+    expand_tab: bool,                    // If true, insert spaces instead of tab character
     pub terminal_dimensions: (u16, u16), // Public for ViewModel access
     request_pane_height: u16,
 }
@@ -81,6 +82,7 @@ impl PaneManager {
             wrap_enabled: false,
             show_line_numbers: true, // Default to showing line numbers
             tab_width: 4,            // Default tab width of 4 spaces
+            expand_tab: false,       // Default to inserting real tabs, not spaces
             terminal_dimensions,
             request_pane_height: terminal_dimensions.1 / 2,
         }
@@ -372,6 +374,25 @@ impl PaneManager {
             self.tab_width
         );
         // TODO: Invalidate display caches since tab width affects text layout
+    }
+
+    /// Get expand tab setting (whether to insert spaces instead of tab character)
+    pub fn get_expand_tab(&self) -> bool {
+        self.expand_tab
+    }
+
+    /// Set expand tab setting (whether to insert spaces instead of tab character)
+    pub fn set_expand_tab(&mut self, expand: bool) {
+        tracing::debug!(
+            "🔧 PaneManager::set_expand_tab: changing from {} to {}",
+            self.expand_tab,
+            expand
+        );
+        self.expand_tab = expand;
+        tracing::debug!(
+            "✅ PaneManager::set_expand_tab: expand_tab is now {}",
+            self.expand_tab
+        );
     }
 
     /// Update terminal size and recalculate pane dimensions

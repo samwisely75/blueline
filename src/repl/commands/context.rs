@@ -16,6 +16,8 @@ pub struct ViewModelSnapshot {
     pub request_text: String,
     pub response_text: String,
     pub terminal_dimensions: (u16, u16),
+    pub expand_tab: bool,
+    pub tab_width: usize,
 }
 
 impl ViewModelSnapshot {
@@ -28,6 +30,8 @@ impl ViewModelSnapshot {
             request_text: view_model.get_request_text(),
             response_text: view_model.get_response_text(),
             terminal_dimensions: view_model.terminal_size(),
+            expand_tab: view_model.pane_manager().get_expand_tab(),
+            tab_width: view_model.pane_manager().get_tab_width(),
         }
     }
 }
