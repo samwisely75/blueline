@@ -11,16 +11,16 @@ pub struct YankCommand;
 impl Command for YankCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char('y'))
-            && context.state.current_mode == EditorMode::Visual
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+            )
             && event.modifiers.is_empty()
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        // Return yank event and exit visual mode
-        Ok(vec![
-            CommandEvent::yank_selection(),
-            CommandEvent::mode_change(EditorMode::Normal),
-        ])
+        // Return yank event - mode change handled by yank handler
+        Ok(vec![CommandEvent::yank_selection()])
     }
 
     fn name(&self) -> &'static str {
@@ -45,6 +45,54 @@ impl Command for PasteAfterCommand {
 
     fn name(&self) -> &'static str {
         "PasteAfter"
+    }
+}
+
+/// Delete selected text in visual mode
+pub struct DeleteSelectionCommand;
+
+impl Command for DeleteSelectionCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('d'))
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+            )
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Delete selection - mode change handled by delete handler
+        Ok(vec![CommandEvent::delete_selection()])
+    }
+
+    fn name(&self) -> &'static str {
+        "DeleteSelection"
+    }
+}
+
+/// Cut (delete + yank) selected text in visual mode
+pub struct CutSelectionCommand;
+
+impl Command for CutSelectionCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('x'))
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+            )
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Cut selection (yank + delete) - mode change handled by cut handler
+        Ok(vec![CommandEvent::cut_selection()])
+    }
+
+    fn name(&self) -> &'static str {
+        "CutSelection"
     }
 }
 
@@ -118,6 +166,125 @@ mod tests {
         let context = create_test_context(EditorMode::Normal, Pane::Request);
         let event = KeyEvent::new(KeyCode::Char('P'), KeyModifiers::SHIFT);
         let command = PasteAtCursorCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    // Tests for DeleteSelectionCommand
+    #[test]
+    fn delete_selection_should_be_relevant_for_d_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
+        let command = DeleteSelectionCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn delete_selection_should_be_relevant_for_d_in_visual_line_mode() {
+        let context = create_test_context(EditorMode::VisualLine, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
+        let command = DeleteSelectionCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn delete_selection_should_be_relevant_for_d_in_visual_block_mode() {
+        let context = create_test_context(EditorMode::VisualBlock, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
+        let command = DeleteSelectionCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn delete_selection_should_not_be_relevant_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
+        let command = DeleteSelectionCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn delete_selection_should_not_be_relevant_in_response_pane() {
+        let context = create_test_context(EditorMode::Visual, Pane::Response);
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
+        let command = DeleteSelectionCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn delete_selection_should_execute_delete_and_mode_change() {
+        let context = create_test_context(EditorMode::Visual, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
+        let command = DeleteSelectionCommand;
+        let result = command.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::delete_selection());
+    }
+
+    // Tests for CutSelectionCommand
+    #[test]
+    fn cut_selection_should_be_relevant_for_x_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
+        let command = CutSelectionCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_selection_should_be_relevant_for_x_in_visual_line_mode() {
+        let context = create_test_context(EditorMode::VisualLine, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
+        let command = CutSelectionCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_selection_should_be_relevant_for_x_in_visual_block_mode() {
+        let context = create_test_context(EditorMode::VisualBlock, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
+        let command = CutSelectionCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_selection_should_not_be_relevant_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
+        let command = CutSelectionCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_selection_should_not_be_relevant_in_response_pane() {
+        let context = create_test_context(EditorMode::Visual, Pane::Response);
+        let event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
+        let command = CutSelectionCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_selection_should_execute_cut_and_mode_change() {
+        let context = create_test_context(EditorMode::Visual, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
+        let command = CutSelectionCommand;
+        let result = command.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::cut_selection());
+    }
+
+    // Tests for enhanced YankCommand
+    #[test]
+    fn yank_command_should_be_relevant_in_visual_line_mode() {
+        let context = create_test_context(EditorMode::VisualLine, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = YankCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn yank_command_should_be_relevant_in_visual_block_mode() {
+        let context = create_test_context(EditorMode::VisualBlock, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = YankCommand;
         assert!(command.is_relevant(&context, &event));
     }
 }

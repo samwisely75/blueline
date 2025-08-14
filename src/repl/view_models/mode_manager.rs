@@ -151,4 +151,11 @@ impl ViewModel {
     pub fn is_position_selected(&self, position: LogicalPosition, pane: Pane) -> bool {
         self.pane_manager.is_position_selected(position, pane)
     }
+
+    /// Clear visual selection (used by yank/delete operations)
+    pub fn clear_visual_selection(&mut self) -> Result<()> {
+        let events = self.pane_manager.end_visual_selection();
+        self.emit_view_event(events)?;
+        Ok(())
+    }
 }

@@ -104,6 +104,12 @@ pub enum CommandEvent {
     /// Request to yank (copy) selected text to yank buffer
     YankSelectionRequested,
 
+    /// Request to delete selected text
+    DeleteSelectionRequested,
+
+    /// Request to cut (delete + yank) selected text
+    CutSelectionRequested,
+
     /// Request to paste yanked text after cursor
     PasteAfterRequested,
 
@@ -205,6 +211,16 @@ impl CommandEvent {
     /// Create a yank selection event
     pub fn yank_selection() -> Self {
         Self::YankSelectionRequested
+    }
+
+    /// Create a delete selection event
+    pub fn delete_selection() -> Self {
+        Self::DeleteSelectionRequested
+    }
+
+    /// Create a cut selection event
+    pub fn cut_selection() -> Self {
+        Self::CutSelectionRequested
     }
 
     /// Create a paste after event

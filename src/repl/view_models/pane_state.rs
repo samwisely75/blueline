@@ -21,13 +21,16 @@
 //! Previously scattered across multiple classes, this consolidation improves maintainability
 //! and follows the Single Responsibility Principle.
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+use crate::repl::events::{EditorMode, LogicalPosition, LogicalRange, ModelEvent, Pane};
 use crate::repl::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache, DisplayLine};
 use std::ops::{Index, IndexMut};
 
 /// Minimum width for line number column as specified in requirements
 const MIN_LINE_NUMBER_WIDTH: usize = 3;
+
+/// Type alias for deletion result: (deleted_text, model_event)
+type DeletionResult = Option<(String, ModelEvent)>;
 
 /// Information about a wrapped line segment
 #[derive(Debug, Clone)]
@@ -886,6 +889,121 @@ impl PaneState {
         } else {
             Some(selected_text)
         }
+    }
+
+    /// Delete the currently selected text based on visual mode
+    /// Returns the deleted text and the ModelEvent if successful
+    pub fn delete_selected_text(&mut self) -> DeletionResult {
+        // Extract selection boundaries
+        let (start, end) = (self.visual_selection_start?, self.visual_selection_end?);
+
+        // Extract the text before deleting it (for feedback/undo)
+        let selected_text = self.get_selected_text()?;
+
+        // Determine the actual deletion range based on visual mode
+        let deletion_range = match self.editor_mode {
+            EditorMode::VisualLine => {
+                // Line-wise deletion: delete entire lines including their newlines
+                let first_line = start.line.min(end.line);
+                let last_line = start.line.max(end.line);
+                let total_lines = self.buffer.content().line_count();
+
+                // If we're deleting the last line(s), we need special handling
+                if last_line >= total_lines.saturating_sub(1) {
+                    // Deleting lines that include the last line - delete from start of first line
+                    // to end of last line without including a non-existent newline
+                    let last_line_length = self.buffer.content().line_length(last_line);
+                    LogicalRange::new(
+                        LogicalPosition::new(first_line, 0),
+                        LogicalPosition::new(last_line, last_line_length),
+                    )
+                } else {
+                    // Normal case - delete from start of first line to start of line after last line
+                    // This includes the newline of the last deleted line
+                    LogicalRange::new(
+                        LogicalPosition::new(first_line, 0),
+                        LogicalPosition::new(last_line + 1, 0),
+                    )
+                }
+            }
+            EditorMode::VisualBlock => {
+                // Block-wise deletion: delete rectangular region across multiple lines
+                // This is more complex than other modes as we need to delete from each line individually
+                return self.delete_visual_block_selection();
+            }
+            _ => {
+                // Character-wise deletion (Visual mode)
+                LogicalRange::new(
+                    LogicalPosition::new(start.line.min(end.line), start.column.min(end.column)),
+                    LogicalPosition::new(start.line.max(end.line), start.column.max(end.column)),
+                )
+            }
+        };
+
+        // Perform the actual deletion using the buffer's delete_range method
+        let pane = self.buffer.pane();
+        let model_event = self
+            .buffer
+            .content_mut()
+            .delete_range(pane, deletion_range)?;
+
+        // Clear the visual selection after successful deletion
+        self.visual_selection_start = None;
+        self.visual_selection_end = None;
+
+        Some((selected_text, model_event))
+    }
+
+    /// Handle Visual Block deletion - delete rectangular region across multiple lines
+    fn delete_visual_block_selection(&mut self) -> DeletionResult {
+        let (start, end) = (self.visual_selection_start?, self.visual_selection_end?);
+
+        // Extract the text before deleting it
+        let selected_text = self.get_selected_text()?;
+
+        // Calculate the rectangular region
+        let top_line = start.line.min(end.line);
+        let bottom_line = start.line.max(end.line);
+        let left_col = start.column.min(end.column);
+        let right_col = start.column.max(end.column);
+
+        // Delete from bottom to top to avoid line index shifting
+        let pane = self.buffer.pane();
+        let mut events = Vec::new();
+
+        for line_num in (top_line..=bottom_line).rev() {
+            // Only delete within the column range for this line
+            let line_length = self.buffer.content().line_length(line_num);
+
+            // Skip lines that are too short to have content in the block region
+            if left_col >= line_length {
+                continue;
+            }
+
+            // Calculate actual deletion range for this line
+            let actual_right_col = right_col.min(line_length.saturating_sub(1));
+
+            if left_col <= actual_right_col {
+                let delete_range = LogicalRange::new(
+                    LogicalPosition::new(line_num, left_col),
+                    LogicalPosition::new(line_num, actual_right_col + 1),
+                );
+
+                if let Some(event) = self.buffer.content_mut().delete_range(pane, delete_range) {
+                    events.push(event);
+                }
+            }
+        }
+
+        // Clear the visual selection after successful deletion
+        self.visual_selection_start = None;
+        self.visual_selection_end = None;
+
+        // Return the first deletion event (they should all be similar)
+        events
+            .into_iter()
+            .next()
+            .map(|first_event| (selected_text, first_event))
     }
 
     // Helper methods to reduce arrow code complexity

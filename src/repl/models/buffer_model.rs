@@ -240,6 +240,11 @@ impl BufferModel {
         &mut self.content
     }
 
+    /// Get the pane this buffer belongs to
+    pub fn pane(&self) -> Pane {
+        self.pane
+    }
+
     /// Get current cursor position
     pub fn cursor(&self) -> LogicalPosition {
         self.cursor

@@ -27,6 +27,9 @@ type VisualSelectionState = (
     Option<Pane>,
 );
 
+/// Type alias for delete operation result to reduce complexity
+type DeleteResult = Option<(String, Vec<ViewEvent>)>;
+
 /// PaneManager encapsulates all pane-related state and operations
 /// This eliminates the need for array indexing operations throughout the codebase
 ///
@@ -380,6 +383,31 @@ impl PaneManager {
     /// Get selected text from the current pane
     pub fn get_selected_text(&self) -> Option<String> {
         self.panes[self.current_pane].get_selected_text()
+    }
+
+    /// Delete selected text from the current pane
+    /// Returns (deleted_text, view_events) if successful
+    pub fn delete_selected_text(&mut self) -> DeleteResult {
+        if let Some((deleted_text, model_event)) =
+            self.panes[self.current_pane].delete_selected_text()
+        {
+            // Process the model event and return appropriate view events
+            let view_events = match model_event {
+                crate::repl::events::ModelEvent::TextDeleted { .. } => {
+                    // Rebuild display cache for the affected pane
+                    let visibility_events = self.rebuild_display_caches_and_sync();
+                    let mut events = vec![ViewEvent::CurrentAreaRedrawRequired];
+                    events.extend(visibility_events);
+                    events
+                }
+                _ => vec![ViewEvent::CurrentAreaRedrawRequired],
+            };
+
+            Some((deleted_text, view_events))
+        } else {
+            // No selection to delete
+            None
+        }
     }
 
     /// Get the length of the current line in the current pane

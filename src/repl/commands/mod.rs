@@ -82,7 +82,10 @@ pub use navigation::{
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
-pub use yank::{PasteAfterCommand, PasteAtCursorCommand, YankCommand};
+pub use yank::{
+    CutSelectionCommand, DeleteSelectionCommand, PasteAfterCommand, PasteAtCursorCommand,
+    YankCommand,
+};
 
 /// Type alias for command collection to reduce complexity
 pub type CommandCollection = Vec<Box<dyn Command + Send>>;
@@ -145,6 +148,8 @@ impl CommandRegistry {
             Box::new(DeleteCharCommand),
             Box::new(DeleteCharAtCursorCommand),
             Box::new(YankCommand),
+            Box::new(DeleteSelectionCommand),
+            Box::new(CutSelectionCommand),
             Box::new(PasteAfterCommand),
             Box::new(PasteAtCursorCommand),
         ];
