@@ -1380,6 +1380,11 @@ impl PaneManager {
                     // Insert mode: Allow cursor to go one position past end of line (for typing new chars)
                     current_display_pos.col < line_display_width
                 }
+                EditorMode::VisualBlock => {
+                    // Visual Block mode: Allow cursor to move beyond line content to create rectangular selections
+                    // This enables selecting "virtual" columns that may not exist on shorter lines
+                    true // Always allow right movement in Visual Block mode
+                }
                 _ => {
                     // Normal/Visual mode: Stop at last character position (Vim behavior)
                     if line_display_width == 0 {
@@ -1423,12 +1428,19 @@ impl PaneManager {
                 .display_cache
                 .get_display_line(current_display_pos.row)
             {
-                let new_col = current_line.move_right_by_character(current_display_pos.col);
+                let mut new_col = current_line.move_right_by_character(current_display_pos.col);
+                let current_mode = self.get_current_pane_mode();
+
+                // VISUAL BLOCK VIRTUAL COLUMNS FIX: Allow extending selection beyond line content
+                // In Visual Block mode, if move_right_by_character returns the same position (cursor at line end),
+                // we should still allow movement into virtual space to create proper rectangular selections
+                if current_mode == EditorMode::VisualBlock && new_col == current_display_pos.col {
+                    new_col = current_display_pos.col + 1;
+                }
 
                 // When wrap is enabled, check if we've moved past the visible width
                 // If so, wrap to the next line instead of staying on the current line
                 let content_width = self.get_content_width();
-                let current_mode = self.get_current_pane_mode();
 
                 // VISUAL BLOCK FIX: Prevent line wrapping in Visual Block mode
                 if self.wrap_enabled
