@@ -1263,6 +1263,53 @@ impl PaneManager {
         }
     }
 
+    /// Calculate maximum allowed column for Visual Block mode based on all selected lines
+    fn get_visual_block_max_column(&self, current_pos: Position, attempted_col: usize) -> usize {
+        // If not in visual selection, use attempted column
+        let (Some(start), Some(end)) = (
+            self.panes[self.current_pane].visual_selection_start,
+            self.panes[self.current_pane].visual_selection_end,
+        ) else {
+            return attempted_col;
+        };
+
+        // Get the line range for the Visual Block selection
+        let top_line = start.line.min(end.line);
+        let bottom_line = start.line.max(end.line);
+
+        // Convert logical positions to display positions for range calculation
+        let top_display_line = self.panes[self.current_pane]
+            .display_cache
+            .logical_to_display_position(top_line, 0)
+            .map(|pos| pos.row)
+            .unwrap_or(0);
+        let bottom_display_line = self.panes[self.current_pane]
+            .display_cache
+            .logical_to_display_position(bottom_line, 0)
+            .map(|pos| pos.row)
+            .unwrap_or(0);
+
+        // Find the maximum line length among all selected lines
+        let mut max_line_length = 0;
+        for display_line_idx in top_display_line..=bottom_display_line {
+            if let Some(line) = self.panes[self.current_pane]
+                .display_cache
+                .get_display_line(display_line_idx)
+            {
+                max_line_length = max_line_length.max(line.display_width());
+            }
+        }
+
+        // Allow movement up to the longest line's length, but only if we can move from current position
+        if attempted_col > current_pos.col {
+            // We're trying to move right - allow up to max length
+            attempted_col.min(max_line_length)
+        } else {
+            // No movement or moving left - use attempted column
+            attempted_col
+        }
+    }
+
     /// Get content width for current pane (temporary - will be moved to internal calculation)
     pub fn get_content_width(&self) -> usize {
         // Use current pane's line number width calculation
@@ -1428,15 +1475,16 @@ impl PaneManager {
                 .display_cache
                 .get_display_line(current_display_pos.row)
             {
-                let mut new_col = current_line.move_right_by_character(current_display_pos.col);
+                let new_col = current_line.move_right_by_character(current_display_pos.col);
                 let current_mode = self.get_current_pane_mode();
 
-                // VISUAL BLOCK VIRTUAL COLUMNS FIX: Allow extending selection beyond line content
-                // In Visual Block mode, if move_right_by_character returns the same position (cursor at line end),
-                // we should still allow movement into virtual space to create proper rectangular selections
-                if current_mode == EditorMode::VisualBlock && new_col == current_display_pos.col {
-                    new_col = current_display_pos.col + 1;
-                }
+                // VISUAL BLOCK FIX: In Visual Block mode, allow cursor movement based on longest line
+                // in the selection, not just the current line
+                let new_col = if current_mode == EditorMode::VisualBlock {
+                    self.get_visual_block_max_column(current_display_pos, new_col)
+                } else {
+                    new_col
+                };
 
                 // When wrap is enabled, check if we've moved past the visible width
                 // If so, wrap to the next line instead of staying on the current line
