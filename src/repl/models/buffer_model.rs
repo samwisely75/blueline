@@ -763,4 +763,32 @@ mod tests {
         assert!(event.is_some());
         assert_eq!(buffer.cursor(), LogicalPosition::new(0, 10)); // End of "こんにちは"
     }
+
+    #[test]
+    fn buffer_model_cursor_position_after_tab_insertion() {
+        let mut buffer = BufferModel::new(Pane::Request);
+
+        // Insert "TEST"
+        buffer.insert_text("TEST");
+        let cursor_after_test = buffer.cursor();
+        println!("Cursor after 'TEST': {cursor_after_test:?}");
+        assert_eq!(cursor_after_test, LogicalPosition::new(0, 4));
+
+        // Insert tab
+        buffer.insert_text("\t");
+        let cursor_after_tab = buffer.cursor();
+        println!("Cursor after tab: {cursor_after_tab:?}");
+        assert_eq!(cursor_after_tab, LogicalPosition::new(0, 5));
+
+        // Insert "TEST"
+        buffer.insert_text("TEST");
+        let cursor_after_second_test = buffer.cursor();
+        println!("Cursor after second 'TEST': {cursor_after_second_test:?}");
+        assert_eq!(cursor_after_second_test, LogicalPosition::new(0, 9));
+
+        // Check buffer content
+        let content = buffer.content().get_text();
+        println!("Buffer content: '{content}'");
+        assert_eq!(content, "TEST\tTEST");
+    }
 }
