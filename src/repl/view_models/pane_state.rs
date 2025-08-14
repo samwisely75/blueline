@@ -106,23 +106,29 @@ impl PaneState {
             line_number_width: MIN_LINE_NUMBER_WIDTH, // Start with minimum width
             virtual_column: 0,               // Start at column 0
         };
-        pane_state.build_display_cache(pane_width, wrap_enabled);
-        // Calculate initial line number width based on content
+        pane_state.build_display_cache(pane_width, wrap_enabled, 4); // Default tab width, will be updated later
+                                                                     // Calculate initial line number width based on content
         pane_state.update_line_number_width();
         pane_state
     }
 
     /// Build display cache for this pane's content using CharacterBuffer with word boundaries
-    pub fn build_display_cache(&mut self, content_width: usize, wrap_enabled: bool) {
+    pub fn build_display_cache(
+        &mut self,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) {
         tracing::info!(
-            "Building display cache with unicode-segmentation word boundaries: content_width={}, wrap_enabled={}",
+            "Building display cache with unicode-segmentation word boundaries: content_width={}, wrap_enabled={}, tab_width={}",
             content_width,
-            wrap_enabled
+            wrap_enabled,
+            tab_width
         );
 
         // Use CharacterBuffer directly to preserve word boundary information
         self.display_cache = self
-            .build_display_cache_from_character_buffer(content_width, wrap_enabled)
+            .build_display_cache_from_character_buffer(content_width, wrap_enabled, tab_width)
             .unwrap_or_else(|e| {
                 tracing::error!("Failed to build display cache with word boundaries: {}", e);
                 DisplayCache::new()
@@ -140,6 +146,7 @@ impl PaneState {
         &mut self,
         content_width: usize,
         wrap_enabled: bool,
+        tab_width: usize,
     ) -> anyhow::Result<DisplayCache> {
         use crate::repl::models::display_cache::*;
         use crate::repl::models::display_char::DisplayChar;
@@ -212,9 +219,10 @@ impl PaneState {
                     // Extract the relevant BufferChars from the line
                     for logical_col in segment_info.logical_start..segment_info.logical_end {
                         if let Some(buffer_char) = buffer_line.get_char(logical_col) {
-                            let display_char = DisplayChar::from_buffer_char(
+                            let display_char = DisplayChar::from_buffer_char_with_tab_width(
                                 buffer_char.clone(),
                                 (display_idx, current_screen_col),
+                                tab_width,
                             );
                             current_screen_col += display_char.display_width();
                             display_chars.push(display_char);
