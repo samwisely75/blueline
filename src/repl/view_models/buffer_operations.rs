@@ -180,7 +180,7 @@ impl ViewModel {
         }
 
         // Use semantic deletion from PaneManager
-        let events = self.pane_manager.delete_char_after_cursor_in_request();
+        let events = self.pane_manager.delete_char_after_cursor();
         self.emit_view_event(events)?;
 
         Ok(())
