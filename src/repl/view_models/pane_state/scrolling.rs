@@ -6,7 +6,7 @@
 //! - Cursor position synchronization
 //! - Mode-aware scrolling behavior
 
-use crate::repl::events::{LogicalPosition, ViewEvent};
+use crate::repl::events::{EditorMode, LogicalPosition, PaneCapabilities, ViewEvent};
 use crate::repl::geometry::Position;
 
 use super::{CursorMoveResult, PaneState, ScrollAdjustResult, ScrollResult};
@@ -340,5 +340,399 @@ impl PaneState {
         }
 
         old_horizontal_offset + accumulated_width
+    }
+
+    // ========================================
+    // Page Navigation Methods
+    // ========================================
+
+    /// Move cursor down one page with capability checking
+    pub fn move_cursor_page_down(&mut self) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        let max_line_count = self.display_cache.display_line_count();
+        if max_line_count == 0 {
+            return vec![]; // No lines to navigate
+        }
+
+        // Calculate page size based on current pane height
+        let page_size = self.pane_dimensions.height;
+        if page_size == 0 {
+            return vec![];
+        }
+
+        let current_line = self.display_cursor.row;
+        let target_line = (current_line + page_size).min(max_line_count.saturating_sub(1));
+
+        // Only move if there's a significant change
+        if target_line == current_line {
+            return vec![]; // No movement needed
+        }
+
+        // Get the display line at the target position to handle virtual column properly
+        if let Some(target_display_line) = self.display_cache.get_display_line(target_line) {
+            // Vim-style virtual column: try to restore the desired column position
+            let virtual_col = self.virtual_column;
+            let line_char_count = target_display_line.char_count();
+
+            // Clamp virtual column to the length of the target line to prevent cursor going beyond line end
+            // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
+            let max_col = if self.editor_mode == EditorMode::Insert {
+                line_char_count // Insert mode: can be positioned after last character
+            } else {
+                line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+            };
+            let clamped_col = virtual_col.min(max_col);
+
+            // Snap to character boundary to handle DBCS characters
+            let boundary_snapped_col = target_display_line.snap_to_character_boundary(clamped_col);
+
+            // Create new display position with proper column handling
+            let new_display_pos = Position::new(target_line, boundary_snapped_col);
+
+            // Update display cursor
+            self.display_cursor = new_display_pos;
+
+            // Sync logical cursor with new display position
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+        } else {
+            // Fallback: if we can't get the display line, just use column 0
+            let new_display_pos = Position::new(target_line, 0);
+            self.display_cursor = new_display_pos;
+
+            // Sync logical cursor
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+        }
+
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Add redraw event for visual selection if active
+        if self.visual_selection_start.is_some() {
+            events.push(ViewEvent::CurrentAreaRedrawRequired);
+        }
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+        events.extend(visibility_events);
+
+        events
+    }
+
+    /// Move cursor up one page with capability checking
+    pub fn move_cursor_page_up(&mut self) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        let max_line_count = self.display_cache.display_line_count();
+        if max_line_count == 0 {
+            return vec![]; // No lines to navigate
+        }
+
+        // Calculate page size based on current pane height
+        let page_size = self.pane_dimensions.height;
+        if page_size == 0 {
+            return vec![];
+        }
+
+        let current_line = self.display_cursor.row;
+        let target_line = current_line.saturating_sub(page_size);
+
+        // Only move if there's a significant change
+        if target_line == current_line {
+            return vec![]; // No movement needed
+        }
+
+        // Get the display line at the target position to handle virtual column properly
+        if let Some(target_display_line) = self.display_cache.get_display_line(target_line) {
+            // Vim-style virtual column: try to restore the desired column position
+            let virtual_col = self.virtual_column;
+            let line_char_count = target_display_line.char_count();
+
+            // Clamp virtual column to the length of the target line to prevent cursor going beyond line end
+            // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
+            let max_col = if self.editor_mode == EditorMode::Insert {
+                line_char_count // Insert mode: can be positioned after last character
+            } else {
+                line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+            };
+            let clamped_col = virtual_col.min(max_col);
+
+            // Snap to character boundary to handle DBCS characters
+            let boundary_snapped_col = target_display_line.snap_to_character_boundary(clamped_col);
+
+            // Create new display position with proper column handling
+            let new_display_pos = Position::new(target_line, boundary_snapped_col);
+
+            // Update display cursor
+            self.display_cursor = new_display_pos;
+
+            // Sync logical cursor with new display position
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+        } else {
+            // Fallback: if we can't get the display line, just use column 0
+            let new_display_pos = Position::new(target_line, 0);
+            self.display_cursor = new_display_pos;
+
+            // Sync logical cursor
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+        }
+
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Add redraw event for visual selection if active
+        if self.visual_selection_start.is_some() {
+            events.push(ViewEvent::CurrentAreaRedrawRequired);
+        }
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+        events.extend(visibility_events);
+
+        events
+    }
+
+    /// Move cursor down half a page with capability checking
+    pub fn move_cursor_half_page_down(&mut self) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        let max_line_count = self.display_cache.display_line_count();
+        if max_line_count == 0 {
+            return vec![]; // No lines to navigate
+        }
+
+        // Calculate half page size based on current pane height
+        let page_size = self.pane_dimensions.height;
+        if page_size == 0 {
+            return vec![];
+        }
+        let half_page_size = page_size.div_ceil(2); // Round up for odd numbers
+
+        let current_line = self.display_cursor.row;
+        let target_line = (current_line + half_page_size).min(max_line_count.saturating_sub(1));
+
+        // Only move if there's a significant change
+        if target_line == current_line {
+            return vec![]; // No movement needed
+        }
+
+        // Get the display line at the target position to handle virtual column properly
+        if let Some(target_display_line) = self.display_cache.get_display_line(target_line) {
+            // Vim-style virtual column: try to restore the desired column position
+            let virtual_col = self.virtual_column;
+            let line_char_count = target_display_line.char_count();
+
+            // Clamp virtual column to the length of the target line to prevent cursor going beyond line end
+            // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
+            let max_col = if self.editor_mode == EditorMode::Insert {
+                line_char_count // Insert mode: can be positioned after last character
+            } else {
+                line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+            };
+            let clamped_col = virtual_col.min(max_col);
+
+            // Snap to character boundary to handle DBCS characters
+            let boundary_snapped_col = target_display_line.snap_to_character_boundary(clamped_col);
+
+            // Create new display position with proper column handling
+            let new_display_pos = Position::new(target_line, boundary_snapped_col);
+
+            // Update display cursor
+            self.display_cursor = new_display_pos;
+
+            // Sync logical cursor with new display position
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+        } else {
+            // Fallback: if we can't get the display line, just use column 0
+            let new_display_pos = Position::new(target_line, 0);
+            self.display_cursor = new_display_pos;
+
+            // Sync logical cursor
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+        }
+
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Add redraw event for visual selection if active
+        if self.visual_selection_start.is_some() {
+            events.push(ViewEvent::CurrentAreaRedrawRequired);
+        }
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+        events.extend(visibility_events);
+
+        events
+    }
+
+    /// Move cursor up half a page with capability checking
+    pub fn move_cursor_half_page_up(&mut self) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        let max_line_count = self.display_cache.display_line_count();
+        if max_line_count == 0 {
+            return vec![]; // No lines to navigate
+        }
+
+        // Calculate half page size based on current pane height
+        let page_size = self.pane_dimensions.height;
+        if page_size == 0 {
+            return vec![];
+        }
+        let half_page_size = page_size.div_ceil(2); // Round up for odd numbers
+
+        let current_line = self.display_cursor.row;
+        let target_line = current_line.saturating_sub(half_page_size);
+
+        // Only move if there's a significant change
+        if target_line == current_line {
+            return vec![]; // No movement needed
+        }
+
+        // Get the display line at the target position to handle virtual column properly
+        if let Some(target_display_line) = self.display_cache.get_display_line(target_line) {
+            // Vim-style virtual column: try to restore the desired column position
+            let virtual_col = self.virtual_column;
+            let line_char_count = target_display_line.char_count();
+
+            // Clamp virtual column to the length of the target line to prevent cursor going beyond line end
+            // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
+            let max_col = if self.editor_mode == EditorMode::Insert {
+                line_char_count // Insert mode: can be positioned after last character
+            } else {
+                line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+            };
+            let clamped_col = virtual_col.min(max_col);
+
+            // Snap to character boundary to handle DBCS characters
+            let boundary_snapped_col = target_display_line.snap_to_character_boundary(clamped_col);
+
+            // Create new display position with proper column handling
+            let new_display_pos = Position::new(target_line, boundary_snapped_col);
+
+            // Update display cursor
+            self.display_cursor = new_display_pos;
+
+            // Sync logical cursor with new display position
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+        } else {
+            // Fallback: if we can't get the display line, just use column 0
+            let new_display_pos = Position::new(target_line, 0);
+            self.display_cursor = new_display_pos;
+
+            // Sync logical cursor
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+        }
+
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Add redraw event for visual selection if active
+        if self.visual_selection_start.is_some() {
+            events.push(ViewEvent::CurrentAreaRedrawRequired);
+        }
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+        events.extend(visibility_events);
+
+        events
     }
 }
