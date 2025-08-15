@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.0] - 2025-08-15
+
+### Fixed
+
+- **Visual Line Mode Deletion**: Fixed critical bug where 'd' command was deleting partial content instead of complete lines
+  - Added dedicated `delete_visual_line_selection()` method for proper line-wise deletion
+  - Visual Line deletion now works from beginning of first selected line to end of last selected line (including newlines)
+  - Properly handles edge cases when deleting the last lines in buffer
+  - Cursor positioned correctly at beginning of first deleted line after operation
+  - Fix also applies to cut ('x') and yank ('y') operations in Visual Line mode
+
+### Enhanced
+
+- **Test Framework**: Extended test framework with comprehensive Visual Line and Visual Block mode support
+  - Added `VisualLine` and `VisualBlock` modes to test AppMode enum
+  - Enhanced mode detection to recognize "-- VISUAL LINE --" and "-- VISUAL BLOCK --" status indicators
+  - Added step definitions for "V", "Ctrl-v", "x", "y" keys in navigation tests
+  - Added Visual Line and Visual Block mode assertion steps
+
+## [0.41.0] - 2025-08-15
+
+### Added
+
+- **Visual Block Commands**: Complete implementation of Visual Block mode editing commands
+  - 'I' command: Insert text at the beginning of each selected line simultaneously
+  - 'A' command: Append text after the selection on each line simultaneously
+  - 'c' command: Change (delete and enter insert mode) for rectangular selections
+  - Multi-cursor support with synchronized text input across all cursors
+  - Fixed cursor positioning bug in 'A' command to match vim behavior (cursor positioned after selection, not at selection boundary)
+
+### Enhanced
+
+- **Visual Block Mode**: Improved Visual Block mode functionality and vim compatibility
+  - Enhanced selection highlighting and status display
+  - Proper cursor visibility transitions between modes
+  - Comprehensive test coverage for all Visual Block operations
+
 ## [0.40.0] - 2025-08-15
 
 ### Added
