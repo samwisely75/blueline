@@ -1024,6 +1024,172 @@ impl PaneState {
         ]
     }
 
+    /// Delete character before cursor with capability checking
+    ///
+    /// This method checks EDITABLE capability before allowing character deletion.
+    /// It handles two scenarios:
+    /// 1. Delete character within current line (move cursor left)
+    /// 2. Join with previous line when at beginning of line (backspace line join)
+    ///
+    /// # Parameters
+    /// - `content_width`: Available width for content display  
+    /// - `wrap_enabled`: Whether text wrapping is enabled
+    /// - `tab_width`: Tab stop width for formatting
+    ///
+    /// # Returns
+    /// Vector of ViewEvents to update the display, or empty if operation not allowed
+    pub fn delete_char_before_cursor(
+        &mut self,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        // Check if editing is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
+            return vec![]; // Editing not allowed on this pane
+        }
+
+        let current_cursor = self.buffer.cursor();
+
+        tracing::debug!(
+            "🗑️  PaneState::delete_char_before_cursor at position {:?}",
+            current_cursor
+        );
+
+        // Dispatch to appropriate deletion method
+        if current_cursor.column > 0 {
+            self.delete_char_in_line(current_cursor, content_width, wrap_enabled, tab_width)
+        } else if current_cursor.line > 0 {
+            self.join_with_previous_line(current_cursor, content_width, wrap_enabled, tab_width)
+        } else {
+            tracing::debug!("🗑️  No deletion performed - at start of buffer");
+            vec![]
+        }
+    }
+
+    /// Delete a character within the current line
+    fn delete_char_in_line(
+        &mut self,
+        current_cursor: LogicalPosition,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        tracing::debug!("🗑️  Deleting character before cursor in same line");
+
+        let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
+        let delete_end = LogicalPosition::new(current_cursor.line, current_cursor.column);
+        let delete_range = LogicalRange::new(delete_start, delete_end);
+
+        // Attempt deletion
+        let pane_type = self.buffer.pane();
+        let Some(_event) = self
+            .buffer
+            .content_mut()
+            .delete_range(pane_type, delete_range)
+        else {
+            return vec![];
+        };
+
+        // Move cursor left after successful deletion
+        let new_cursor = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
+        self.buffer.set_cursor(new_cursor);
+
+        tracing::debug!(
+            "🗑️  Deleted character in line, new cursor: {:?}",
+            new_cursor
+        );
+
+        // Rebuild display cache and sync cursor
+        self.rebuild_display_and_sync_cursor(new_cursor, content_width, wrap_enabled, tab_width);
+
+        vec![
+            ViewEvent::RequestContentChanged,
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::CurrentAreaRedrawRequired,
+        ]
+    }
+
+    /// Join current line with previous line (backspace at beginning of line)
+    fn join_with_previous_line(
+        &mut self,
+        current_cursor: LogicalPosition,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        tracing::debug!("🗑️  At line start, joining with previous line");
+
+        // Get length of previous line to position cursor correctly
+        let prev_line_length = self
+            .buffer
+            .content()
+            .get_line(current_cursor.line - 1)
+            .map(|line| line.len())
+            .unwrap_or(0);
+
+        // Create range to delete the newline character (join lines)
+        let delete_start = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
+        let delete_end = LogicalPosition::new(current_cursor.line, 0);
+        let delete_range = LogicalRange::new(delete_start, delete_end);
+
+        // Attempt deletion
+        let pane_type = self.buffer.pane();
+        let Some(_event) = self
+            .buffer
+            .content_mut()
+            .delete_range(pane_type, delete_range)
+        else {
+            return vec![];
+        };
+
+        // Move cursor to end of previous line (where the join happened)
+        let new_cursor = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
+        self.buffer.set_cursor(new_cursor);
+
+        tracing::debug!("🗑️  Joined lines, new cursor: {:?}", new_cursor);
+
+        // Rebuild display cache and sync cursor
+        self.rebuild_display_and_sync_cursor(new_cursor, content_width, wrap_enabled, tab_width);
+
+        vec![
+            ViewEvent::RequestContentChanged,
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::CurrentAreaRedrawRequired,
+        ]
+    }
+
+    /// Helper to rebuild display cache and sync cursor position
+    fn rebuild_display_and_sync_cursor(
+        &mut self,
+        new_cursor: LogicalPosition,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) {
+        // Rebuild display cache since content changed
+        self.build_display_cache(content_width, wrap_enabled, tab_width);
+
+        // Sync display cursor with new logical position after cache rebuild
+        match self
+            .display_cache
+            .logical_to_display_position(new_cursor.line, new_cursor.column)
+        {
+            Some(display_pos) => {
+                self.display_cursor = display_pos;
+            }
+            None => {
+                // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                tracing::warn!(
+                    "delete_char_before_cursor: logical_to_display_position failed at {:?} - using fallback", 
+                    new_cursor
+                );
+                // Fallback: Use logical position as display position (works for non-wrapped content)
+                self.display_cursor = Position::new(new_cursor.line, new_cursor.column);
+            }
+        }
+    }
+
     /// Delete the currently selected text based on visual mode
     /// Returns the deleted text and the ModelEvent if successful
     pub fn delete_selected_text(&mut self) -> DeletionResult {

@@ -160,7 +160,7 @@ impl ViewModel {
         tracing::debug!("✅ Delete operation allowed, proceeding with deletion");
 
         // Use semantic deletion from PaneManager
-        let events = self.pane_manager.delete_char_before_cursor_in_request();
+        let events = self.pane_manager.delete_char_before_cursor();
         tracing::debug!(
             "🗑️  PaneManager returned {} events from delete operation",
             events.len()

@@ -740,152 +740,37 @@ impl PaneManager {
         }
     }
 
-    /// Delete character before cursor in Request pane
-    pub fn delete_char_before_cursor_in_request(&mut self) -> Vec<ViewEvent> {
-        tracing::debug!("🗑️  PaneManager::delete_char_before_cursor_in_request called");
+    /// Delete character before cursor using generic delegation
+    ///
+    /// This method delegates to the current pane's delete_char_before_cursor() method,
+    /// which handles capability checking and deletion logic.
+    pub fn delete_char_before_cursor(&mut self) -> Vec<ViewEvent> {
+        let content_width = self.get_content_width();
 
-        // Early return if not in request pane
-        if !self.is_in_request_pane() {
-            tracing::debug!("🗑️  Not in request pane, skipping deletion");
-            return vec![];
-        }
-
-        tracing::debug!("🗑️  In request pane, performing actual deletion");
-
-        let request_pane = &mut self.panes[Pane::Request];
-        let current_cursor = request_pane.buffer.cursor();
-
-        tracing::debug!("🗑️  Current cursor position: {:?}", current_cursor);
-
-        // Dispatch to appropriate deletion method
-        if current_cursor.column > 0 {
-            self.delete_char_in_line(current_cursor)
-        } else if current_cursor.line > 0 {
-            self.join_with_previous_line(current_cursor)
-        } else {
-            tracing::debug!("🗑️  No deletion performed - at start of buffer");
-            vec![]
-        }
+        // Delegate to current pane with capability checking
+        self.panes[self.current_pane].delete_char_before_cursor(
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
+        )
     }
 
-    /// Delete a character within the current line
-    fn delete_char_in_line(&mut self, current_cursor: LogicalPosition) -> Vec<ViewEvent> {
-        tracing::debug!("🗑️  Deleting character before cursor in same line");
-
-        let request_pane = &mut self.panes[Pane::Request];
-        let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
-        let delete_end = LogicalPosition::new(current_cursor.line, current_cursor.column);
-        let delete_range = LogicalRange::new(delete_start, delete_end);
-
-        // Attempt deletion
-        let Some(_event) = request_pane
-            .buffer
-            .content_mut()
-            .delete_range(self.current_pane, delete_range)
-        else {
-            return vec![];
-        };
-
-        // Move cursor left after successful deletion
-        let new_cursor = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
-        request_pane.buffer.set_cursor(new_cursor);
-
+    /// Delete character before cursor in Request pane (DEPRECATED - use delete_char_before_cursor instead)
+    ///
+    /// This method is kept for backward compatibility but delegates to the generic
+    /// delete_char_before_cursor() method. New code should use delete_char_before_cursor() directly.
+    #[deprecated(since = "0.39.0", note = "Use delete_char_before_cursor() instead")]
+    pub fn delete_char_before_cursor_in_request(&mut self) -> Vec<ViewEvent> {
         tracing::debug!(
-            "🗑️  Deleted character in line, new cursor: {:?}",
-            new_cursor
+            "🗑️  PaneManager::delete_char_before_cursor_in_request called (deprecated)"
         );
 
-        // Rebuild display cache and sync cursor
-        self.rebuild_display_and_sync_cursor(new_cursor);
-
-        // Build result events
-        let mut events = vec![
-            ViewEvent::RequestContentChanged,
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::CurrentAreaRedrawRequired,
-        ];
-
-        // Ensure cursor is visible after deletion
-        let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
-    }
-
-    /// Join current line with previous line
-    fn join_with_previous_line(&mut self, current_cursor: LogicalPosition) -> Vec<ViewEvent> {
-        tracing::debug!("🗑️  At line start, joining with previous line");
-
-        let request_pane = &mut self.panes[Pane::Request];
-
-        // Get length of previous line to position cursor correctly
-        let prev_line_length = request_pane
-            .buffer
-            .content()
-            .get_line(current_cursor.line - 1)
-            .map(|line| line.len())
-            .unwrap_or(0);
-
-        // Create range to delete the newline character (join lines)
-        let delete_start = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
-        let delete_end = LogicalPosition::new(current_cursor.line, 0);
-        let delete_range = LogicalRange::new(delete_start, delete_end);
-
-        // Attempt deletion
-        let Some(_event) = request_pane
-            .buffer
-            .content_mut()
-            .delete_range(self.current_pane, delete_range)
-        else {
-            return vec![];
-        };
-
-        // Move cursor to end of previous line (where the join happened)
-        let new_cursor = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
-        request_pane.buffer.set_cursor(new_cursor);
-
-        tracing::debug!("🗑️  Joined lines, new cursor: {:?}", new_cursor);
-
-        // Rebuild display cache and sync cursor
-        self.rebuild_display_and_sync_cursor(new_cursor);
-
-        vec![
-            ViewEvent::RequestContentChanged,
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::CurrentAreaRedrawRequired,
-        ]
-    }
-
-    /// Helper to rebuild display cache and sync cursor position
-    fn rebuild_display_and_sync_cursor(&mut self, new_cursor: LogicalPosition) {
-        let request_pane = &mut self.panes[Pane::Request];
-        let content_width = if self.show_line_numbers {
-            (self.terminal_dimensions.0 as usize).saturating_sub(4)
+        // Only allow deletion if we're in the request pane for backward compatibility
+        if self.is_in_request_pane() {
+            self.delete_char_before_cursor()
         } else {
-            self.terminal_dimensions.0 as usize
-        };
-
-        // Rebuild display cache since content changed
-        request_pane.build_display_cache(content_width, self.wrap_enabled, self.tab_width);
-
-        // Sync display cursor with new logical position after cache rebuild
-        match request_pane
-            .display_cache
-            .logical_to_display_position(new_cursor.line, new_cursor.column)
-        {
-            Some(display_pos) => {
-                request_pane.display_cursor = display_pos;
-            }
-            None => {
-                // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
-                tracing::warn!(
-                    "delete_char_before_cursor: logical_to_display_position failed at {:?} - using fallback", 
-                    new_cursor
-                );
-                // Fallback: Use logical position as display position (works for non-wrapped content)
-                request_pane.display_cursor = Position::new(new_cursor.line, new_cursor.column);
-            }
+            tracing::debug!("🗑️  Not in request pane, skipping deletion");
+            vec![]
         }
     }
 
