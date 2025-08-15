@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.40.0] - 2025-08-15
+
+### Added
+
+- **Complete PaneManager to PaneState Refactoring**: Major architectural transformation
+  - Migrated 2300+ lines of business logic from PaneManager to PaneState
+  - Decomposed monolithic pane_state.rs into 8 focused modules
+  - Implemented capability-based access control (EDITABLE, NAVIGABLE, SELECTABLE)
+  - Established pure delegation pattern for clean separation of concerns
+  
+- **Modular Architecture**: New focused modules for better organization
+  - `capabilities.rs` - Capability checking and management
+  - `content.rs` - Content management operations
+  - `cursor_basic.rs` - Basic directional cursor movement
+  - `cursor_line.rs` - Line-based cursor navigation
+  - `display.rs` - Display cache and visual management
+  - `scrolling.rs` - Page navigation and scroll operations
+  - `text_operations.rs` - Text insertion and deletion
+  - `visual_selection.rs` - Visual mode selection handling
+  - `word_navigation.rs` - Word-boundary navigation
+
+### Enhanced
+
+- **Vim Compatibility**: Improved vim-style navigation behavior
+  - Virtual column restoration for page navigation (Ctrl+F, Ctrl+B, Ctrl+D, Ctrl+U)
+  - Character boundary snapping for proper DBCS support
+  - Visual Block mode restrictions (no cross-line movement)
+  - Mode-aware cursor positioning and scrolling
+
+### Fixed
+
+- **gg and G Commands**: Reset cursor to column 0 for proper vim behavior
+  - `gg` now goes to (line 1, column 1) - beginning of document
+  - `G` now goes to (last line, column 1) - beginning of last line
+  - Both commands properly reset virtual column
+
+### Changed
+
+- **Code Organization**: Removed 240+ lines of redundant code
+- **Performance**: Reduced coupling and method call overhead
+- **Maintainability**: Logic grouped by responsibility for easier testing and extension
+
 ## [0.39.0] - 2025-08-15
 
 ### Added

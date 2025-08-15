@@ -1,6 +1,6 @@
 [package]
 name = "blueline"
-version = "0.39.0"
+version = "0.40.0"
 authors = ["Sam Wisely <samwisely75@gmail.com>"]
 description = "A lightweight, profile-based HTTP client with REPL interface"
 edition = "2021"
