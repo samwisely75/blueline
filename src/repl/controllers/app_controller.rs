@@ -1091,23 +1091,25 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// 2. That text is replicated to all lines that were in the original block selection  
     /// 3. Cursor is positioned at the end of the inserted text on the first line
     fn handle_exit_visual_block_insert(&mut self) -> Result<()> {
-        // For now, implement basic behavior - just exit to Normal mode
-        // TODO: Implement full text replication logic
-
         tracing::info!("Exiting Visual Block Insert mode");
+
+        // Preserve cursor position at the first multi-cursor position
+        let cursor_to_preserve = self.view_model.get_visual_block_insert_cursors()
+            .first()
+            .copied(); // Get first cursor position before clearing
 
         // Clear multi-cursor state
         self.view_model.clear_visual_block_insert_cursors();
 
+        // Restore cursor position to where typing was happening (first cursor)
+        if let Some(preserved_cursor) = cursor_to_preserve {
+            self.view_model.set_cursor_position(preserved_cursor)?;
+            tracing::debug!("Preserved cursor position at {:?}", preserved_cursor);
+        }
+
         self.view_model.change_mode(EditorMode::Normal)?;
         self.view_model
             .set_status_message("Visual Block Insert completed".to_string());
-
-        // TODO: Implement text replication:
-        // 1. Get original block selection coordinates (need to store these when entering)
-        // 2. Get text typed since entering Visual Block Insert mode
-        // 3. Replicate that text to all affected lines
-        // 4. Position cursor correctly
 
         Ok(())
     }

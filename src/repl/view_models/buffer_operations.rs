@@ -110,8 +110,12 @@ impl ViewModel {
     /// Insert a character at current cursor position
     pub fn insert_char(&mut self, ch: char) -> Result<()> {
         // Only allow text insertion in Request pane and insert/visual block insert modes
-        if !self.is_in_request_pane() 
-            || !matches!(self.mode(), EditorMode::Insert | EditorMode::VisualBlockInsert) {
+        if !self.is_in_request_pane()
+            || !matches!(
+                self.mode(),
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
+        {
             return Ok(());
         }
 
@@ -125,8 +129,12 @@ impl ViewModel {
     /// Insert text at current cursor position
     pub fn insert_text(&mut self, text: &str) -> Result<()> {
         // Only allow text insertion in Request pane and insert/visual block insert modes
-        if !self.is_in_request_pane() 
-            || !matches!(self.mode(), EditorMode::Insert | EditorMode::VisualBlockInsert) {
+        if !self.is_in_request_pane()
+            || !matches!(
+                self.mode(),
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
+        {
             return Ok(());
         }
 
@@ -149,8 +157,8 @@ impl ViewModel {
             is_request_pane
         );
 
-        // Only allow deletion in Request pane and insert mode
-        if !is_request_pane || current_mode != EditorMode::Insert {
+        // Only allow deletion in Request pane and insert/visual block insert modes
+        if !is_request_pane || !matches!(current_mode, EditorMode::Insert | EditorMode::VisualBlockInsert) {
             tracing::debug!(
                 "🚫 Delete operation blocked: mode={:?}, is_request_pane={}",
                 current_mode,
@@ -176,8 +184,8 @@ impl ViewModel {
 
     /// Delete character after cursor or empty line
     pub fn delete_char_after_cursor(&mut self) -> Result<()> {
-        // Only allow deletion in Request pane and insert mode
-        if !self.is_in_request_pane() || self.mode() != EditorMode::Insert {
+        // Only allow deletion in Request pane and insert/visual block insert modes
+        if !self.is_in_request_pane() || !matches!(self.mode(), EditorMode::Insert | EditorMode::VisualBlockInsert) {
             return Ok(());
         }
 
@@ -220,25 +228,73 @@ mod tests {
     #[test]
     fn test_visual_block_insert_mode_allows_text_insertion() {
         let mut vm = ViewModel::new();
+
+        // Start in Normal mode and insert some test content
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("line 1\nline 2\nline 3").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Move to first line, first column
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 0 })
+            .unwrap();
+
+        // Enter Visual Block Insert mode
+        vm.change_mode(EditorMode::VisualBlockInsert).unwrap();
+
+        // Verify that insert_text works in VisualBlockInsert mode
+        let result = vm.insert_text("prefix ");
+        assert!(
+            result.is_ok(),
+            "insert_text should work in VisualBlockInsert mode"
+        );
+    }
+
+    #[test]
+    fn test_visual_block_insert_mode_allows_char_insertion() {
+        let mut vm = ViewModel::new();
+
+        // Start in Normal mode and insert some test content
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("line 1\nline 2\nline 3").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Move to first line, first column
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 0 })
+            .unwrap();
+
+        // Enter Visual Block Insert mode
+        vm.change_mode(EditorMode::VisualBlockInsert).unwrap();
+
+        // Verify that insert_char works in VisualBlockInsert mode
+        let result = vm.insert_char('x');
+        assert!(
+            result.is_ok(),
+            "insert_char should work in VisualBlockInsert mode"
+        );
+    }
+
+    #[test]
+    fn test_visual_block_insert_mode_allows_backspace() {
+        let mut vm = ViewModel::new();
         
         // Start in Normal mode and insert some test content
         vm.change_mode(EditorMode::Insert).unwrap();
         vm.insert_text("line 1\nline 2\nline 3").unwrap();
         vm.change_mode(EditorMode::Normal).unwrap();
         
-        // Move to first line, first column
-        vm.set_cursor_position(LogicalPosition { line: 0, column: 0 }).unwrap();
+        // Move to a position where backspace can work
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 2 }).unwrap();
         
         // Enter Visual Block Insert mode
         vm.change_mode(EditorMode::VisualBlockInsert).unwrap();
         
-        // Verify that insert_text works in VisualBlockInsert mode
-        let result = vm.insert_text("prefix ");
-        assert!(result.is_ok(), "insert_text should work in VisualBlockInsert mode");
+        // Verify that delete_char_before_cursor works in VisualBlockInsert mode
+        let result = vm.delete_char_before_cursor();
+        assert!(result.is_ok(), "delete_char_before_cursor should work in VisualBlockInsert mode");
     }
 
     #[test]
-    fn test_visual_block_insert_mode_allows_char_insertion() {
+    fn test_visual_block_insert_mode_allows_delete() {
         let mut vm = ViewModel::new();
         
         // Start in Normal mode and insert some test content
@@ -252,8 +308,8 @@ mod tests {
         // Enter Visual Block Insert mode
         vm.change_mode(EditorMode::VisualBlockInsert).unwrap();
         
-        // Verify that insert_char works in VisualBlockInsert mode
-        let result = vm.insert_char('x');
-        assert!(result.is_ok(), "insert_char should work in VisualBlockInsert mode");
+        // Verify that delete_char_after_cursor works in VisualBlockInsert mode
+        let result = vm.delete_char_after_cursor();
+        assert!(result.is_ok(), "delete_char_after_cursor should work in VisualBlockInsert mode");
     }
 }

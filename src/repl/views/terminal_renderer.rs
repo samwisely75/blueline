@@ -1084,9 +1084,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
             // Calculate screen position for the primary cursor
             let viewport_relative_row = first_pos.line.saturating_sub(scroll_offset.row);
             let screen_col = if view_model.pane_manager().is_line_numbers_visible() {
-                first_pos.column
-                    .saturating_sub(scroll_offset.col)
-                    + line_num_width + 1
+                first_pos.column.saturating_sub(scroll_offset.col) + line_num_width + 1
             } else {
                 first_pos.column.saturating_sub(scroll_offset.col)
             };
