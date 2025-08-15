@@ -23,13 +23,14 @@
 //! - Manages Request and Response panes as an array with semantic operations
 //! - Provides high-level pane switching without exposing internal array indices
 //! - Handles terminal dimension updates and pane layout calculations
-//! - Coordinates cursor management, scrolling, and text operations across panes
+//! - Delegates cursor management, scrolling, and text operations to PaneState instances
 //!
-//! CORE RESPONSIBILITIES:
-//! 1. Pane State Management: Maintains mode, cursor position, scroll state for each pane
-//! 2. Layout Calculation: Computes pane dimensions based on terminal size
-//! 3. Semantic Operations: Provides request/response-specific operations without array access
-//! 4. Event Coordination: Emits ViewEvents for selective rendering optimizations
+//! CORE RESPONSIBILITIES (Post-Refactoring):
+//! 1. Layout Management: Computes pane dimensions and content width based on terminal size
+//! 2. Pane Switching: Manages current pane state and provides semantic pane operations
+//! 3. Pure Delegation: Forwards business logic operations to appropriate PaneState instances
+//! 4. Event Coordination: Aggregates ViewEvents from PaneState operations for rendering
+//! 5. Settings Management: Handles display settings (wrap, line numbers, tab width) that affect all panes
 
 use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities, ViewEvent};
 use crate::repl::geometry::Position;
@@ -563,20 +564,6 @@ impl PaneManager {
         events
     }
 
-    /// Insert character in Request pane content (DEPRECATED - use insert_char instead)
-    ///
-    /// This method is kept for backward compatibility but delegates to the generic
-    /// insert_char() method. New code should use insert_char() directly.
-    #[deprecated(since = "0.39.0", note = "Use insert_char() instead")]
-    pub fn insert_char_in_request(&mut self, ch: char) -> Vec<ViewEvent> {
-        // Only allow insertion if we're in the request pane for backward compatibility
-        if self.is_in_request_pane() {
-            self.insert_char(ch)
-        } else {
-            vec![] // Can't edit in display area
-        }
-    }
-
     /// Delete character before cursor using generic delegation
     ///
     /// This method delegates to the current pane's delete_char_before_cursor() method,
@@ -592,25 +579,6 @@ impl PaneManager {
         )
     }
 
-    /// Delete character before cursor in Request pane (DEPRECATED - use delete_char_before_cursor instead)
-    ///
-    /// This method is kept for backward compatibility but delegates to the generic
-    /// delete_char_before_cursor() method. New code should use delete_char_before_cursor() directly.
-    #[deprecated(since = "0.39.0", note = "Use delete_char_before_cursor() instead")]
-    pub fn delete_char_before_cursor_in_request(&mut self) -> Vec<ViewEvent> {
-        tracing::debug!(
-            "🗑️  PaneManager::delete_char_before_cursor_in_request called (deprecated)"
-        );
-
-        // Only allow deletion if we're in the request pane for backward compatibility
-        if self.is_in_request_pane() {
-            self.delete_char_before_cursor()
-        } else {
-            tracing::debug!("🗑️  Not in request pane, skipping deletion");
-            vec![]
-        }
-    }
-
     /// Delete character after cursor (generic method for any pane)
     pub fn delete_char_after_cursor(&mut self) -> Vec<ViewEvent> {
         let content_width = self.get_content_width();
@@ -621,22 +589,6 @@ impl PaneManager {
             self.wrap_enabled,
             self.tab_width,
         )
-    }
-
-    /// Delete character after cursor in Request pane (DEPRECATED - use delete_char_after_cursor instead)
-    ///
-    /// This method is kept for backward compatibility but delegates to the generic
-    /// delete_char_after_cursor() method. New code should use delete_char_after_cursor() directly.
-    #[deprecated(since = "0.39.0", note = "Use delete_char_after_cursor() instead")]
-    pub fn delete_char_after_cursor_in_request(&mut self) -> Vec<ViewEvent> {
-        tracing::debug!("🗑️  PaneManager::delete_char_after_cursor_in_request called (deprecated)");
-
-        // Only allow deletion if we're in the request pane for backward compatibility
-        if self.is_in_request_pane() {
-            self.delete_char_after_cursor()
-        } else {
-            vec![] // Can't edit in display area
-        }
     }
 
     /// Set cursor position in current area
@@ -839,62 +791,6 @@ impl PaneManager {
         self.panes[self.current_pane].move_cursor_to_end_of_word(content_width)
     }
 
-    /// Calculate maximum allowed column for Visual Block mode based on all selected lines
-    ///
-    /// **DEPRECATED**: This method is no longer used after refactoring cursor movement to PaneState.
-    #[allow(dead_code)]
-    fn get_visual_block_max_column(&self, current_pos: Position, attempted_col: usize) -> usize {
-        // If not in visual selection, use attempted column
-        let (Some(start), Some(end)) = (
-            self.panes[self.current_pane].visual_selection_start,
-            self.panes[self.current_pane].visual_selection_end,
-        ) else {
-            return attempted_col;
-        };
-
-        // Get the line range for the Visual Block selection
-        let top_line = start.line.min(end.line);
-        let bottom_line = start.line.max(end.line);
-
-        // Convert logical positions to display positions for range calculation
-        let top_display_line = self.panes[self.current_pane]
-            .display_cache
-            .logical_to_display_position(top_line, 0)
-            .map(|pos| pos.row)
-            .unwrap_or(0);
-        let bottom_display_line = self.panes[self.current_pane]
-            .display_cache
-            .logical_to_display_position(bottom_line, 0)
-            .map(|pos| pos.row)
-            .unwrap_or(0);
-
-        // Find the maximum line length among all selected lines
-        let mut max_line_length = 0;
-        for display_line_idx in top_display_line..=bottom_display_line {
-            if let Some(line) = self.panes[self.current_pane]
-                .display_cache
-                .get_display_line(display_line_idx)
-            {
-                max_line_length = max_line_length.max(line.display_width());
-            }
-        }
-
-        // Allow movement up to the longest line's length, but only if we can move from current position
-        if attempted_col > current_pos.col {
-            // We're trying to move right - allow up to max length minus 1 (cursor ON last char, not after)
-            // In Vim, cursor positions are 0-indexed and should be ON characters, not after them
-            let max_cursor_position = if max_line_length > 0 {
-                max_line_length - 1
-            } else {
-                0
-            };
-            attempted_col.min(max_cursor_position)
-        } else {
-            // No movement or moving left - use attempted column
-            attempted_col
-        }
-    }
-
     /// Get content width for current pane (temporary - will be moved to internal calculation)
     pub fn get_content_width(&self) -> usize {
         // Use current pane's line number width calculation
@@ -908,8 +804,7 @@ impl PaneManager {
 
     /// Move cursor left in current area
     ///
-    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
-    /// Use PaneState::move_cursor_left() directly for new code.
+    /// Delegates to PaneState for business logic with capability checking.
     pub fn move_cursor_left(&mut self) -> Vec<ViewEvent> {
         let content_width = self.get_content_width();
         self.panes[self.current_pane].move_cursor_left(content_width)
@@ -927,176 +822,9 @@ impl PaneManager {
         self.panes[self.current_pane].move_cursor_right(content_width)
     }
 
-    /// Move cursor right in current area (DEPRECATED implementation)
-    fn _deprecated_move_cursor_right(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-
-        let mut moved = false;
-        let mut new_display_pos = current_display_pos;
-
-        // PHASE 1: Check if cursor can move right within current line
-        // Uses mode-aware boundary checking for proper Insert vs Normal behavior
-        let can_move_right_in_line = if let Some(current_line) = self.panes[self.current_pane]
-            .display_cache
-            .get_display_line(current_display_pos.row)
-        {
-            // MULTIBYTE FIX: Use display width instead of character count for proper CJK support
-            // MODE-AWARE: Different boundary behavior for Insert vs Normal mode
-            let line_display_width = current_line.display_width();
-            let current_mode = self.get_current_pane_mode();
-
-            match current_mode {
-                EditorMode::Insert => {
-                    // Insert mode: Allow cursor to go one position past end of line (for typing new chars)
-                    current_display_pos.col < line_display_width
-                }
-                EditorMode::VisualBlock => {
-                    // Visual Block mode: Allow cursor to move beyond line content to create rectangular selections
-                    // This enables selecting "virtual" columns that may not exist on shorter lines
-                    true // Always allow right movement in Visual Block mode
-                }
-                _ => {
-                    // Normal/Visual mode: Stop at last character position (Vim behavior)
-                    if line_display_width == 0 {
-                        false // Empty line - no movement allowed
-                    } else {
-                        // Check if moving right would keep us within the line
-                        // We simulate the movement to see if it would go past the end
-                        let next_pos =
-                            current_line.move_right_by_character(current_display_pos.col);
-                        next_pos < line_display_width
-                    }
-                }
-            }
-        } else {
-            false
-        };
-
-        // PHASE 2: Check if cursor can move to next line (when right movement in current line fails)
-        let can_move_to_next_line = if !can_move_right_in_line {
-            let current_mode = self.get_current_pane_mode();
-
-            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to next line
-            // Cursor should be constrained to horizontal movement within the selected line range
-            if current_mode == EditorMode::VisualBlock {
-                false
-            } else {
-                let next_display_line = current_display_pos.row + 1;
-                self.panes[self.current_pane]
-                    .display_cache
-                    .get_display_line(next_display_line)
-                    .is_some()
-            }
-        } else {
-            false
-        };
-
-        // PHASE 3: Perform the actual cursor movement
-        if can_move_right_in_line {
-            // CASE 1: Move right within current line using character-aware positioning
-            if let Some(current_line) = self.panes[self.current_pane]
-                .display_cache
-                .get_display_line(current_display_pos.row)
-            {
-                let new_col = current_line.move_right_by_character(current_display_pos.col);
-                let current_mode = self.get_current_pane_mode();
-
-                // VISUAL BLOCK FIX: In Visual Block mode, allow cursor movement based on longest line
-                // in the selection, not just the current line
-                let new_col = if current_mode == EditorMode::VisualBlock {
-                    self.get_visual_block_max_column(current_display_pos, new_col)
-                } else {
-                    new_col
-                };
-
-                // When wrap is enabled, check if we've moved past the visible width
-                // If so, wrap to the next line instead of staying on the current line
-                let content_width = self.get_content_width();
-
-                // VISUAL BLOCK FIX: Prevent line wrapping in Visual Block mode
-                if self.wrap_enabled
-                    && new_col >= content_width
-                    && current_mode != EditorMode::VisualBlock
-                {
-                    // Check if there's a next line to wrap to
-                    let next_display_line = current_display_pos.row + 1;
-                    if self.panes[self.current_pane]
-                        .display_cache
-                        .get_display_line(next_display_line)
-                        .is_some()
-                    {
-                        new_display_pos = Position::new(next_display_line, 0);
-                    } else {
-                        // No next line, stay at current position
-                        new_display_pos =
-                            Position::new(current_display_pos.row, current_display_pos.col);
-                        moved = false;
-                    }
-                } else {
-                    new_display_pos = Position::new(current_display_pos.row, new_col);
-                }
-
-                if moved || new_display_pos != current_display_pos {
-                    self.panes[self.current_pane].display_cursor = new_display_pos;
-                    // Update virtual column for horizontal movement
-                    self.panes[self.current_pane].update_virtual_column();
-                    moved = true;
-                }
-            }
-        } else if can_move_to_next_line {
-            // CASE 2: Move to beginning of next line (line wrap navigation)
-            new_display_pos = Position::new(current_display_pos.row + 1, 0);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-            // Update virtual column for horizontal movement
-            self.panes[self.current_pane].update_virtual_column();
-            moved = true;
-        }
-
-        // PHASE 4: Synchronize cursor position and update related state
-        if moved {
-            // Sync logical cursor with new display position for buffer operations
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                // VISUAL MODE: Update visual selection end point if in visual mode
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
-                }
-            }
-
-            // EVENTS: Generate view events for UI updates
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ];
-
-            // VISIBILITY: Ensure cursor remains visible after movement (scrolling if needed)
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            // NO MOVEMENT: Return empty events if cursor couldn't move
-            vec![]
-        }
-    }
-
     /// Move cursor up in current area
     ///
-    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
-    /// Use PaneState::move_cursor_up() directly for new code.
+    /// Delegates to PaneState for business logic with capability checking.
     pub fn move_cursor_up(&mut self) -> Vec<ViewEvent> {
         let content_width = self.get_content_width();
         self.panes[self.current_pane].move_cursor_up(content_width)
@@ -1104,7 +832,7 @@ impl PaneManager {
 
     /// Move cursor down in current area
     ///
-    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_down() directly for new code.
     pub fn move_cursor_down(&mut self) -> Vec<ViewEvent> {
         let content_width = self.get_content_width();
@@ -1113,7 +841,7 @@ impl PaneManager {
 
     /// Move cursor to start of current line
     ///
-    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_start_of_line() directly for new code.
     pub fn move_cursor_to_start_of_line(&mut self) -> Vec<ViewEvent> {
         let content_width = self.get_content_width();
@@ -1123,7 +851,7 @@ impl PaneManager {
     /// Move cursor to end of current line for append (A command)
     /// This positions the cursor AFTER the last character for insert mode
     ///
-    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_line_end_for_append() directly for new code.
     pub fn move_cursor_to_line_end_for_append(&mut self) -> Vec<ViewEvent> {
         let content_width = self.get_content_width();
@@ -1132,7 +860,7 @@ impl PaneManager {
 
     /// Move cursor to end of current line
     ///
-    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_end_of_line() directly for new code.
     pub fn move_cursor_to_end_of_line(&mut self) -> Vec<ViewEvent> {
         let content_width = self.get_content_width();
@@ -1141,7 +869,7 @@ impl PaneManager {
 
     /// Move cursor to start of document
     ///
-    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_document_start() directly for new code.
     pub fn move_cursor_to_document_start(&mut self) -> Vec<ViewEvent> {
         let content_width = self.get_content_width();
@@ -1150,7 +878,7 @@ impl PaneManager {
 
     /// Move cursor to end of document
     ///
-    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_document_end() directly for new code.
     pub fn move_cursor_to_document_end(&mut self) -> Vec<ViewEvent> {
         let content_width = self.get_content_width();
@@ -1160,7 +888,7 @@ impl PaneManager {
     /// Move cursor to specific line number (1-based)
     /// If line_number is out of bounds, clamps to the last available line (vim behavior)
     ///
-    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_line() directly for new code.
     pub fn move_cursor_to_line(&mut self, line_number: usize) -> Vec<ViewEvent> {
         let content_width = self.get_content_width();
