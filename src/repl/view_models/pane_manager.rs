@@ -591,6 +591,18 @@ impl PaneManager {
         )
     }
 
+    /// Delete character after cursor without line joining (safe for Visual Block Insert mode)
+    pub fn delete_char_after_cursor_visual_block_safe(&mut self) -> Vec<ViewEvent> {
+        let content_width = self.get_content_width();
+
+        // Delegate to current pane with line joining disabled
+        self.panes[self.current_pane].delete_char_after_cursor_no_join(
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
+        )
+    }
+
     /// Set cursor position in current area
     pub fn set_current_cursor_position(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
         self.panes[self.current_pane].set_current_cursor_position(position)

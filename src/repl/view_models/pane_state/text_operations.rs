@@ -273,6 +273,48 @@ impl PaneState {
         }
     }
 
+    /// Delete character after cursor without joining lines (safe for Visual Block Insert)
+    pub fn delete_char_after_cursor_no_join(
+        &mut self,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        // Check if editing is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
+            return vec![]; // Editing not allowed on this pane
+        }
+
+        let current_cursor = self.buffer.cursor();
+
+        tracing::debug!(
+            "🗑️  PaneState::delete_char_after_cursor_no_join at position {:?}",
+            current_cursor
+        );
+
+        // Get current line to check if we can delete within the line
+        if let Some(current_line) = self.buffer.content().get_line(current_cursor.line) {
+            if current_cursor.column < current_line.len() {
+                // Delete character at cursor position (same line only)
+                self.delete_char_after_cursor_in_line(
+                    current_cursor,
+                    content_width,
+                    wrap_enabled,
+                    tab_width,
+                )
+            } else {
+                // At end of line - do NOT join with next line in Visual Block Insert mode
+                tracing::debug!(
+                    "🗑️  No deletion performed - at end of line (Visual Block Insert mode)"
+                );
+                vec![] // No line joining allowed
+            }
+        } else {
+            tracing::debug!("🗑️  No deletion performed - invalid line");
+            vec![]
+        }
+    }
+
     /// Delete the currently selected text and return the deleted content
     pub fn delete_selected_text(&mut self) -> DeletionResult {
         // Extract selection boundaries

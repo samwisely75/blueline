@@ -199,8 +199,13 @@ impl ViewModel {
             return Ok(());
         }
 
-        // Use semantic deletion from PaneManager
-        let events = self.pane_manager.delete_char_after_cursor();
+        // In Visual Block Insert mode, use restricted deletion (no line joining)
+        let events = if self.mode() == EditorMode::VisualBlockInsert {
+            self.pane_manager
+                .delete_char_after_cursor_visual_block_safe()
+        } else {
+            self.pane_manager.delete_char_after_cursor()
+        };
         self.emit_view_event(events)?;
 
         Ok(())

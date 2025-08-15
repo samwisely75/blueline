@@ -1124,8 +1124,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         }
 
         self.view_model.change_mode(EditorMode::Normal)?;
-        self.view_model
-            .set_status_message("Visual Block Insert completed".to_string());
+
+        // Clear any previous status messages when exiting Visual Block Insert
+        self.view_model.clear_status_message();
 
         Ok(())
     }
@@ -1169,7 +1170,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         }
 
         self.view_model
-            .set_visual_block_insert_cursors(updated_positions);
+            .update_visual_block_insert_cursors(updated_positions);
 
         tracing::debug!("Multi-cursor text insert completed, updated cursor positions");
         Ok(())
@@ -1182,6 +1183,10 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         direction: MovementDirection,
     ) -> Result<()> {
         let cursor_positions = self.view_model.get_visual_block_insert_cursors().to_vec();
+        let start_columns = self
+            .view_model
+            .get_visual_block_insert_start_columns()
+            .to_vec();
 
         if cursor_positions.is_empty() {
             // Fallback to regular delete if no cursors are set
@@ -1202,18 +1207,37 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         }
 
         tracing::debug!(
-            "Multi-cursor text delete: {} chars in direction {:?} at {} positions",
+            "Multi-cursor text delete: {} chars in direction {:?} at {} positions, start columns: {:?}",
             amount,
             direction,
-            cursor_positions.len()
+            cursor_positions.len(),
+            start_columns
         );
 
-        // Perform deletion at each cursor position
+        // Perform deletion at each cursor position, respecting boundaries
         // We need to process in reverse order to maintain position validity
-        for position in cursor_positions.iter().rev() {
-            // Temporarily set cursor to this position and perform deletion
+        for (i, position) in cursor_positions.iter().enumerate().rev() {
+            let start_column = start_columns.get(i).copied().unwrap_or(0);
+
+            // Temporarily set cursor to this position
             self.view_model.set_cursor_position(*position)?;
-            for _ in 0..amount {
+
+            // For left deletion (backspace), respect the Visual Block start boundary
+            let effective_amount = if direction == MovementDirection::Left {
+                // Calculate how many characters we can actually delete without going beyond start
+                let current_col = position.column;
+                let max_deletable = current_col.saturating_sub(start_column);
+                let effective = amount.min(max_deletable);
+                tracing::debug!(
+                    "Backspace calculation: line={}, current_col={}, start_col={}, max_deletable={}, requested={}, effective={}",
+                    position.line, current_col, start_column, max_deletable, amount, effective
+                );
+                effective
+            } else {
+                amount
+            };
+
+            for _ in 0..effective_amount {
                 match direction {
                     MovementDirection::Left => {
                         self.view_model.delete_char_before_cursor()?;
@@ -1227,15 +1251,31 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                     }
                 }
             }
+
+            tracing::debug!(
+                "Line {}: deleted {} chars (requested: {}, start_column: {}, current: {})",
+                position.line,
+                effective_amount,
+                amount,
+                start_column,
+                position.column
+            );
         }
 
         // Update all cursor positions to reflect the deleted text
         let updated_positions: Vec<LogicalPosition> = match direction {
             MovementDirection::Left => {
-                // For backspace, cursor positions move left by amount deleted
+                // For backspace, cursor positions move left by amount actually deleted (respecting boundaries)
                 cursor_positions
                     .iter()
-                    .map(|pos| LogicalPosition::new(pos.line, pos.column.saturating_sub(amount)))
+                    .enumerate()
+                    .map(|(i, pos)| {
+                        let start_column = start_columns.get(i).copied().unwrap_or(0);
+                        let current_col = pos.column;
+                        let max_deletable = current_col.saturating_sub(start_column);
+                        let effective_amount = amount.min(max_deletable);
+                        LogicalPosition::new(pos.line, pos.column.saturating_sub(effective_amount))
+                    })
                     .collect()
             }
             MovementDirection::Right => {
@@ -1251,7 +1291,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         }
 
         self.view_model
-            .set_visual_block_insert_cursors(updated_positions);
+            .update_visual_block_insert_cursors(updated_positions);
 
         tracing::debug!("Multi-cursor text delete completed, updated cursor positions");
         Ok(())
