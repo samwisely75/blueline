@@ -308,7 +308,7 @@ impl PaneState {
 
         // Clamp position to valid bounds (same as original implementation)
         let clamped_position = self.buffer.content().clamp_position(position);
-        
+
         // Update logical cursor
         self.buffer.set_cursor(clamped_position);
 
