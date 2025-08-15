@@ -1157,279 +1157,59 @@ impl PaneManager {
     }
 
     /// Move cursor to start of current line
+    ///
+    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Use PaneState::move_cursor_to_start_of_line() directly for new code.
     pub fn move_cursor_to_start_of_line(&mut self) -> Vec<ViewEvent> {
-        // Get current logical position
-        let current_logical = self.panes[self.current_pane].buffer.cursor();
-
-        // Create new logical position at start of current line (column 0)
-        let new_logical = LogicalPosition::new(current_logical.line, 0);
-
-        // Update logical cursor first
-        self.panes[self.current_pane].buffer.set_cursor(new_logical);
-
-        // Sync display cursor with logical cursor
-        self.panes[self.current_pane].sync_display_cursor_with_logical();
-
-        // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        if self.panes[self.current_pane]
-            .visual_selection_start
-            .is_some()
-        {
-            self.panes[self.current_pane].visual_selection_end = Some(new_logical);
-            events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-            tracing::debug!(
-                "Line start movement updated visual selection end to {:?}",
-                new_logical
-            );
-        }
-
-        // Ensure cursor is visible and add visibility events
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_start_of_line(content_width)
     }
 
     /// Move cursor to end of current line for append (A command)
     /// This positions the cursor AFTER the last character for insert mode
+    ///
+    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Use PaneState::move_cursor_to_line_end_for_append() directly for new code.
     pub fn move_cursor_to_line_end_for_append(&mut self) -> Vec<ViewEvent> {
-        // Get current logical position
-        let current_logical = self.panes[self.current_pane].buffer.cursor();
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Get the current line content to find its length
-        if let Some(line) = self.panes[self.current_pane]
-            .buffer
-            .content()
-            .get_line(current_logical.line)
-        {
-            let line_length = line.chars().count();
-
-            // For the 'A' command, position cursor AFTER the last character
-            // This allows inserting at the end of the line
-            let end_position = line_length; // Position after last character
-            let new_logical = LogicalPosition::new(current_logical.line, end_position);
-
-            // Update logical cursor first
-            self.panes[self.current_pane].buffer.set_cursor(new_logical);
-
-            // Sync display cursor with logical cursor
-            self.panes[self.current_pane].sync_display_cursor_with_logical();
-
-            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                self.panes[self.current_pane].visual_selection_end = Some(new_logical);
-                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-                tracing::debug!(
-                    "Line end append movement updated visual selection end to {:?}",
-                    new_logical
-                );
-            }
-        }
-
-        // Ensure cursor is visible with Insert-mode scrolling logic
-        // The A command will immediately switch to Insert mode, so we need to use
-        // Insert mode scrolling behavior here to ensure proper horizontal scrolling
         let content_width = self.get_content_width();
-        let original_mode = self.panes[self.current_pane].editor_mode;
-
-        // Temporarily set to Insert mode for proper scrolling calculation
-        self.panes[self.current_pane].editor_mode = EditorMode::Insert;
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-
-        // Restore original mode
-        self.panes[self.current_pane].editor_mode = original_mode;
-
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_line_end_for_append(content_width)
     }
 
     /// Move cursor to end of current line
+    ///
+    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Use PaneState::move_cursor_to_end_of_line() directly for new code.
     pub fn move_cursor_to_end_of_line(&mut self) -> Vec<ViewEvent> {
-        // Get current logical position
-        let current_logical = self.panes[self.current_pane].buffer.cursor();
-        let current_mode = self.panes[self.current_pane].editor_mode;
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Get the current line content to find its length
-        if let Some(line) = self.panes[self.current_pane]
-            .buffer
-            .content()
-            .get_line(current_logical.line)
-        {
-            let line_length = line.chars().count();
-
-            // Create new logical position at end of current line
-            // Mode-dependent positioning:
-            // - Normal/Visual mode: cursor stops at the last character (index n-1)
-            // - Insert mode: cursor can be positioned after last character (index n)
-            // This is used for the 'A' command which should position after last char
-            let end_position = if current_mode == EditorMode::Insert && line_length > 0 {
-                line_length // Position after last character for insert mode
-            } else if line_length > 0 {
-                line_length - 1 // Stop at last character for normal/visual mode
-            } else {
-                0 // Empty line, stay at position 0
-            };
-            let new_logical = LogicalPosition::new(current_logical.line, end_position);
-
-            // Update logical cursor first
-            self.panes[self.current_pane].buffer.set_cursor(new_logical);
-
-            // Sync display cursor with logical cursor
-            self.panes[self.current_pane].sync_display_cursor_with_logical();
-
-            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                self.panes[self.current_pane].visual_selection_end = Some(new_logical);
-                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-                tracing::debug!(
-                    "Line end movement updated visual selection end to {:?}",
-                    new_logical
-                );
-            }
-        }
-
-        // Ensure cursor is visible and add visibility events
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_end_of_line(content_width)
     }
 
     /// Move cursor to start of document
+    ///
+    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Use PaneState::move_cursor_to_document_start() directly for new code.
     pub fn move_cursor_to_document_start(&mut self) -> Vec<ViewEvent> {
-        // Use proper cursor positioning method to ensure logical/display sync
-        let start_position = Position::origin();
-        let _result = self.panes[self.current_pane].set_display_cursor(start_position);
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-        if self.panes[self.current_pane]
-            .visual_selection_start
-            .is_some()
-        {
-            let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
-            self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
-            events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-            tracing::debug!(
-                "Document start movement updated visual selection end to {:?}",
-                new_cursor_pos
-            );
-        }
-
-        // Ensure cursor is visible and add visibility events
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_document_start(content_width)
     }
 
     /// Move cursor to end of document
+    ///
+    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Use PaneState::move_cursor_to_document_end() directly for new code.
     pub fn move_cursor_to_document_end(&mut self) -> Vec<ViewEvent> {
-        let display_cache = &self.panes[self.current_pane].display_cache;
-        // Find the last valid display line by iterating
-        let mut last_line_idx = 0;
-        let mut idx = 0;
-        while display_cache.get_display_line(idx).is_some() {
-            last_line_idx = idx;
-            idx += 1;
-        }
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        if let Some(last_line) = display_cache.get_display_line(last_line_idx) {
-            // FIXED: Use display width instead of character count for proper multibyte character support
-            let line_display_width = last_line.display_width();
-            let end_position = Position::new(last_line_idx, line_display_width);
-
-            // Use proper cursor positioning method to ensure logical/display sync
-            let _result = self.panes[self.current_pane].set_display_cursor(end_position);
-
-            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
-                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
-                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-                tracing::debug!(
-                    "Document end movement updated visual selection end to {:?}",
-                    new_cursor_pos
-                );
-            }
-        }
-
-        // Ensure cursor is visible and add visibility events
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_document_end(content_width)
     }
 
     /// Move cursor to specific line number (1-based)
     /// If line_number is out of bounds, clamps to the last available line (vim behavior)
+    ///
+    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Use PaneState::move_cursor_to_line() directly for new code.
     pub fn move_cursor_to_line(&mut self, line_number: usize) -> Vec<ViewEvent> {
-        if line_number == 0 {
-            return vec![];
-        }
-
-        let display_cache = &self.panes[self.current_pane].display_cache;
-        let max_line_count = display_cache.display_line_count();
-
-        if max_line_count == 0 {
-            return vec![]; // No lines to navigate to
-        }
-
-        // Clamp to valid range (1 to max_line_count)
-        let clamped_line_number = line_number.min(max_line_count);
-        let target_line_idx = clamped_line_number - 1; // Convert to 0-based
-
-        // Set cursor position
-        self.panes[self.current_pane].display_cursor = Position::new(target_line_idx, 0);
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Ensure cursor is visible and add visibility events
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_line(line_number, content_width)
     }
 
     /// Move cursor down one page (Ctrl+f)
