@@ -109,8 +109,9 @@ impl ViewModel {
 
     /// Insert a character at current cursor position
     pub fn insert_char(&mut self, ch: char) -> Result<()> {
-        // Only allow text insertion in Request pane and insert mode
-        if !self.is_in_request_pane() || self.mode() != EditorMode::Insert {
+        // Only allow text insertion in Request pane and insert/visual block insert modes
+        if !self.is_in_request_pane() 
+            || !matches!(self.mode(), EditorMode::Insert | EditorMode::VisualBlockInsert) {
             return Ok(());
         }
 
@@ -123,8 +124,9 @@ impl ViewModel {
 
     /// Insert text at current cursor position
     pub fn insert_text(&mut self, text: &str) -> Result<()> {
-        // Only allow text insertion in Request pane and insert mode
-        if !self.is_in_request_pane() || self.mode() != EditorMode::Insert {
+        // Only allow text insertion in Request pane and insert/visual block insert modes
+        if !self.is_in_request_pane() 
+            || !matches!(self.mode(), EditorMode::Insert | EditorMode::VisualBlockInsert) {
             return Ok(());
         }
 
@@ -207,5 +209,51 @@ impl ViewModel {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repl::events::LogicalPosition;
+
+    #[test]
+    fn test_visual_block_insert_mode_allows_text_insertion() {
+        let mut vm = ViewModel::new();
+        
+        // Start in Normal mode and insert some test content
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("line 1\nline 2\nline 3").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+        
+        // Move to first line, first column
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 0 }).unwrap();
+        
+        // Enter Visual Block Insert mode
+        vm.change_mode(EditorMode::VisualBlockInsert).unwrap();
+        
+        // Verify that insert_text works in VisualBlockInsert mode
+        let result = vm.insert_text("prefix ");
+        assert!(result.is_ok(), "insert_text should work in VisualBlockInsert mode");
+    }
+
+    #[test]
+    fn test_visual_block_insert_mode_allows_char_insertion() {
+        let mut vm = ViewModel::new();
+        
+        // Start in Normal mode and insert some test content
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("line 1\nline 2\nline 3").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+        
+        // Move to first line, first column
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 0 }).unwrap();
+        
+        // Enter Visual Block Insert mode
+        vm.change_mode(EditorMode::VisualBlockInsert).unwrap();
+        
+        // Verify that insert_char works in VisualBlockInsert mode
+        let result = vm.insert_char('x');
+        assert!(result.is_ok(), "insert_char should work in VisualBlockInsert mode");
     }
 }
