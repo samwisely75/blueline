@@ -334,23 +334,29 @@ mod tests {
     #[test]
     fn test_visual_selection_cleared_after_visual_block_insert() {
         let mut vm = ViewModel::new();
-        
+
         // Start in Normal mode and insert some test content
         vm.change_mode(EditorMode::Insert).unwrap();
         vm.insert_text("line 1\nline 2\nline 3").unwrap();
         vm.change_mode(EditorMode::Normal).unwrap();
-        
+
         // Enter Visual Block mode and start a selection
         vm.change_mode(EditorMode::VisualBlock).unwrap();
         let selection = vm.get_visual_selection();
-        assert!(selection.0.is_some(), "Should have visual selection in VisualBlock mode");
-        
+        assert!(
+            selection.0.is_some(),
+            "Should have visual selection in VisualBlock mode"
+        );
+
         // Clear visual selection (simulating exit from Visual Block Insert)
         let result = vm.clear_visual_selection();
         assert!(result.is_ok(), "clear_visual_selection should work");
-        
+
         // Verify selection is cleared
         let selection_after = vm.get_visual_selection();
-        assert!(selection_after.0.is_none(), "Visual selection should be cleared");
+        assert!(
+            selection_after.0.is_none(),
+            "Visual selection should be cleared"
+        );
     }
 }

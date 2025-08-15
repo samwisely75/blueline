@@ -6,8 +6,8 @@
 use crate::config::AppConfig;
 use crate::repl::{
     commands::{
-        CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, HttpHeaders, MovementDirection, Setting,
-        SettingValue, ViewModelSnapshot,
+        CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, HttpHeaders,
+        MovementDirection, Setting, SettingValue, ViewModelSnapshot,
     },
     events::{EditorMode, LogicalPosition, Pane, SimpleEventBus},
     io::{EventStream, RenderStream},
@@ -350,7 +350,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                     amount,
                     direction
                 );
-                
+
                 // Check if we're in Visual Block Insert mode with multiple cursors
                 if self.view_model.is_in_visual_block_insert_mode() {
                     self.handle_multi_cursor_text_delete(amount, direction)?;
@@ -363,9 +363,14 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                                     i + 1
                                 );
                                 match self.view_model.delete_char_before_cursor() {
-                                    Ok(_) => tracing::debug!("✅ delete_char_before_cursor succeeded"),
+                                    Ok(_) => {
+                                        tracing::debug!("✅ delete_char_before_cursor succeeded")
+                                    }
                                     Err(e) => {
-                                        tracing::error!("❌ delete_char_before_cursor failed: {}", e)
+                                        tracing::error!(
+                                            "❌ delete_char_before_cursor failed: {}",
+                                            e
+                                        )
                                     }
                                 }
                             }
@@ -375,7 +380,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                                     i + 1
                                 );
                                 match self.view_model.delete_char_after_cursor() {
-                                    Ok(_) => tracing::debug!("✅ delete_char_after_cursor succeeded"),
+                                    Ok(_) => {
+                                        tracing::debug!("✅ delete_char_after_cursor succeeded")
+                                    }
                                     Err(e) => {
                                         tracing::error!("❌ delete_char_after_cursor failed: {}", e)
                                     }
