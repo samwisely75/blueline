@@ -1090,19 +1090,20 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             let end_line = start.line.max(end.line);
             let end_col = start.column.max(end.column);
 
-            // Create cursor positions for all lines in the block (at end position for append)
+            // Create cursor positions for all lines in the block (AFTER the end position for append)
+            // Visual Block 'A' should position cursor after the rightmost selected character
             let mut cursor_positions = Vec::new();
             for line in start_line..=end_line {
-                cursor_positions.push(LogicalPosition::new(line, end_col));
+                cursor_positions.push(LogicalPosition::new(line, end_col + 1));
             }
 
             // Set multi-cursor state for Visual Block Insert
             self.view_model
                 .set_visual_block_insert_cursors(cursor_positions);
 
-            // Move primary cursor to end of block (end of rightmost column on first line)
+            // Move primary cursor to after the end of block (one position after rightmost column)
             self.view_model
-                .set_cursor_position(LogicalPosition::new(start_line, end_col))?;
+                .set_cursor_position(LogicalPosition::new(start_line, end_col + 1))?;
 
             // Enter Visual Block Insert mode
             self.view_model.change_mode(EditorMode::VisualBlockInsert)?;
