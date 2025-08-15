@@ -571,27 +571,9 @@ impl CharacterBuffer {
             return None;
         }
 
-        if logical_col == 0 && line > 0 {
-            // Join with previous line
-            let current_line = self.lines.remove(line);
-            let prev_line = &mut self.lines[line - 1];
-
-            // Append characters from current line to previous line
-            let start_logical = prev_line.char_count();
-
-            for (i, mut buffer_char) in current_line.chars.into_iter().enumerate() {
-                buffer_char.logical_index = start_logical + i;
-                prev_line.chars.push(buffer_char);
-            }
-
-            // Invalidate word boundaries cache for the joined line
-            prev_line.invalidate_word_boundaries_cache();
-
-            Some('\n') // Conceptually deleted a newline
-        } else {
-            // Delete character within line
-            self.lines[line].delete_char(logical_col).map(|bc| bc.ch)
-        }
+        // Always delete character within the specified line at the specified column
+        // Line joining should be handled explicitly at a higher level when needed
+        self.lines[line].delete_char(logical_col).map(|bc| bc.ch)
     }
 
     /// Convert the buffer back to a Vec<String> for compatibility
@@ -617,6 +599,46 @@ impl CharacterBuffer {
         {
             line.refresh_word_boundaries(segmenter.as_ref());
         }
+    }
+
+    /// Join two lines by appending the second line to the first and removing the second
+    /// Returns true if the join was successful
+    pub fn join_lines(&mut self, first_line: usize, second_line: usize) -> bool {
+        // Validate indices
+        if first_line >= self.lines.len() || second_line >= self.lines.len() {
+            return false;
+        }
+
+        // Can't join a line with itself
+        if first_line == second_line {
+            return false;
+        }
+
+        // For simplicity, ensure first_line comes before second_line
+        let (line1, line2) = if first_line < second_line {
+            (first_line, second_line)
+        } else {
+            (second_line, first_line)
+        };
+
+        // Get the content of the second line
+        let second_line_content = self.lines[line2].to_string();
+
+        // Append each character from the second line to the first
+        for ch in second_line_content.chars() {
+            let insert_pos = self.lines[line1].char_count();
+            self.lines[line1].insert_char(insert_pos, ch);
+        }
+
+        // Remove the second line
+        self.lines.remove(line2);
+
+        // Invalidate word boundaries for the modified line
+        if let Some(segmenter) = &self.word_segmenter {
+            self.lines[line1].refresh_word_boundaries(segmenter.as_ref());
+        }
+
+        true
     }
 }
 
@@ -730,16 +752,16 @@ mod tests {
     }
 
     #[test]
-    fn character_buffer_should_handle_backspace_line_joining() {
+    fn character_buffer_should_delete_char_at_position() {
         let mut buffer = CharacterBuffer::from_lines(&["hello".to_string(), "world".to_string()]);
 
-        // Delete at beginning of second line (should join lines)
+        // Delete first character of second line (should delete 'w')
         let deleted = buffer.delete_char(1, 0);
-        assert_eq!(deleted, Some('\n'));
+        assert_eq!(deleted, Some('w'));
 
         let string_lines = buffer.to_string_lines();
-        assert_eq!(string_lines, vec!["helloworld"]);
-        assert_eq!(buffer.line_count(), 1);
+        assert_eq!(string_lines, vec!["hello", "orld"]);
+        assert_eq!(buffer.line_count(), 2);
     }
 
     #[test]
@@ -821,5 +843,56 @@ mod tests {
         // From start of "world", should find position 16 (end of "world")
         let end = line.find_next_word_end(12);
         assert_eq!(end, Some(16));
+    }
+
+    #[test]
+    fn character_buffer_should_join_lines() {
+        let mut buffer = CharacterBuffer::from_lines(&["1234".to_string(), "5678".to_string()]);
+
+        // Initially we have 2 lines
+        assert_eq!(buffer.line_count(), 2);
+        assert_eq!(buffer.to_string_lines(), vec!["1234", "5678"]);
+
+        // Join line 0 with line 1
+        let result = buffer.join_lines(0, 1);
+        assert!(result);
+
+        // Now we should have 1 line with combined content
+        assert_eq!(buffer.line_count(), 1);
+        assert_eq!(buffer.to_string_lines(), vec!["12345678"]);
+    }
+
+    #[test]
+    fn character_buffer_join_lines_with_empty_second_line() {
+        let mut buffer = CharacterBuffer::from_lines(&["1234".to_string(), "".to_string()]);
+
+        // Join line 0 with empty line 1
+        let result = buffer.join_lines(0, 1);
+        assert!(result);
+
+        // Should have just the first line
+        assert_eq!(buffer.line_count(), 1);
+        assert_eq!(buffer.to_string_lines(), vec!["1234"]);
+    }
+
+    #[test]
+    fn character_buffer_join_lines_handles_invalid_indices() {
+        let mut buffer = CharacterBuffer::from_lines(&["1234".to_string(), "5678".to_string()]);
+
+        // Try to join with non-existent line
+        let result = buffer.join_lines(0, 2);
+        assert!(!result);
+
+        // Buffer should be unchanged
+        assert_eq!(buffer.line_count(), 2);
+        assert_eq!(buffer.to_string_lines(), vec!["1234", "5678"]);
+
+        // Try to join a line with itself
+        let result = buffer.join_lines(0, 0);
+        assert!(!result);
+
+        // Buffer should be unchanged
+        assert_eq!(buffer.line_count(), 2);
+        assert_eq!(buffer.to_string_lines(), vec!["1234", "5678"]);
     }
 }
