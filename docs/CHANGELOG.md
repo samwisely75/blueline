@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.39.0] - 2025-08-15
+
+### Added
+
+- **Visual Line/Block Operations**: Complete Phase 4 visual mode implementation
+  - Delete ('d'), cut ('x'), and yank ('y') commands for all visual modes
+  - Visual Line mode: Select and operate on entire lines 
+  - Visual Block mode: Select and operate on rectangular text regions
+  - Mode-aware text selection with proper boundary handling
+
+### Fixed
+
+- **Backspace Line-Joining Bug** (issues #148, #143): Fix critical text editing bug
+  - Backspace at line boundaries now properly joins lines instead of deleting wrong characters
+  - Added proper `join_lines` method with Unicode support
+  - Comprehensive unit tests for line joining functionality
+- **Visual Block Cursor Behavior**: Prevent cursor from crossing lines in Visual Block mode
+- **Visual Block Selection**: Fix selection expansion and column boundary handling
+
+### Changed
+
+- Improved Visual Block mode cursor constraints and navigation
+- Enhanced text deletion architecture with proper separation of concerns
+
 ## [0.38.0] - 2025-01-14
 
 ### Added
