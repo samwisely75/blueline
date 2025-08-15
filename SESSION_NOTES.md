@@ -1,5 +1,70 @@
 # Session Notes
 
+## 2025-08-15 Session - Issue #161 Phase 1: PaneCapabilities Infrastructure ✅ COMPLETE
+
+### User Request Summary
+- User requested to pick up the top-most item from GitHub Kanban and complete it
+- Identified Issue #161: "Move all business logics in PaneManager to PaneState"
+- Implemented phased approach with 10 sub-issues for systematic refactoring
+
+### What We Accomplished
+
+✅ **Successfully completed Phase 1 (#164) infrastructure setup**
+
+#### 1. Created Comprehensive Project Structure
+- Created 10 GitHub sub-issues (#164-#173) for phased implementation
+- Each phase focuses on specific functionality migration
+- Added all sub-issues to project Kanban board
+- Moved parent issue #161 to "In Progress" status
+
+#### 2. Implemented PaneCapabilities Bitflag System
+- Created `PaneCapabilities` bitflag enum in `src/repl/events/types.rs`
+- **Capability flags**: FOCUSABLE, EDITABLE, SELECTABLE, SCROLLABLE, NAVIGABLE
+- **Predefined combinations**: READ_ONLY, FULL_ACCESS, NONE
+- Added `bitflags = "2.6"` dependency to Cargo.toml
+
+#### 3. Enhanced PaneState with Capabilities
+- Added `capabilities: PaneCapabilities` field to PaneState struct
+- **Request pane**: Initialized with `FULL_ACCESS` capabilities
+- **Response pane**: Initialized with `READ_ONLY` capabilities
+- Added helper methods: `get_capabilities()` and `has_capability()`
+
+#### 4. Established Architectural Guidelines
+- Added prominent warning header to `pane_manager.rs`
+- Clear guidance against implementing business logic in PaneManager
+- Instructions to use PaneCapabilities system for operation control
+
+#### 5. Quality Assurance
+- **All 365 tests passing** - no regressions introduced
+- **Pre-commit checks passed** - formatting, linting, tests all successful
+- **Clean commit** with detailed documentation
+
+### Technical Implementation Details
+- **Minimal, surgical changes** preserving all existing functionality
+- **Backward compatible** - no breaking changes to API
+- **Future-proof design** - easy to add new capabilities without struct changes
+- **Type-safe operations** - bitflag enum prevents invalid capability combinations
+
+### Phase Progress Status
+✅ **Phase 1 Complete** - PaneCapabilities Infrastructure (Issue #164)
+🔄 **Phase 2 Ready** - Migrate Character Insertion (Issue #165)
+⏳ **Phases 3-10** - Pending systematic implementation
+
+### Current State After Phase 1
+- **Branch**: `feature/refactor-pane-logic`
+- **Foundation ready** for business logic migration
+- **No functional changes** - all editor functionality preserved
+- **Infrastructure established** for capability-based operation control
+
+### Next Steps: Phase 2 Implementation
+**GitHub Issue #165**: Migrate character insertion from PaneManager to PaneState
+- Move `insert_char_in_request()` → `insert_char()` in PaneState
+- Add capability checking with `EDITABLE` flag
+- Update PaneManager to delegate to current pane
+- Update BufferOperations to use generic method
+
+---
+
 ## 2025-08-14 Session - Phase 4 Preparation: Merge Tab Support ✅ COMPLETE
 
 ### User Request Summary
