@@ -55,8 +55,12 @@ pub enum EditorMode {
     Command,
     /// G prefix mode - waiting for second character after 'g' press
     GPrefix,
-    /// Visual mode - text selection mode similar to Vim's visual mode
+    /// Visual mode - character-wise text selection mode (vim's 'v')
     Visual,
+    /// Visual Line mode - line-wise text selection mode (vim's 'V')
+    VisualLine,
+    /// Visual Block mode - block-wise text selection mode (vim's Ctrl+V)
+    VisualBlock,
 }
 
 #[cfg(test)]

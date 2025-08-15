@@ -9,7 +9,7 @@ use crate::repl::{
         CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, HttpHeaders, Setting,
         SettingValue, ViewModelSnapshot,
     },
-    events::{Pane, SimpleEventBus},
+    events::{EditorMode, Pane, SimpleEventBus},
     io::{EventStream, RenderStream},
     utils::parse_request_from_text,
     view_models::ViewModel,
@@ -500,6 +500,12 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::YankSelectionRequested => {
                 self.handle_yank_selection()?;
             }
+            CommandEvent::DeleteSelectionRequested => {
+                self.handle_delete_selection()?;
+            }
+            CommandEvent::CutSelectionRequested => {
+                self.handle_cut_selection()?;
+            }
             CommandEvent::PasteAfterRequested => {
                 self.handle_paste_after()?;
             }
@@ -783,6 +789,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             // Store in yank buffer
             self.view_model.yank_to_buffer(text.clone())?;
 
+            // Switch to Normal mode (automatically clears visual selection)
+            self.view_model.change_mode(EditorMode::Normal)?;
+
             // Show feedback in status bar
             let char_count = text.chars().count();
             let line_count = text.lines().count();
@@ -800,6 +809,74 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             );
         } else {
             tracing::warn!("No text selected for yanking");
+            self.view_model
+                .set_status_message("No text selected".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Handle deleting selected text
+    fn handle_delete_selection(&mut self) -> Result<()> {
+        // Delete the selected text - the method now returns the deleted text directly
+        if let Some(deleted_text) = self.view_model.delete_selected_text()? {
+            // Switch to Normal mode (automatically clears visual selection)
+            self.view_model.change_mode(EditorMode::Normal)?;
+
+            // Show feedback in status bar
+            let char_count = deleted_text.chars().count();
+            let line_count = deleted_text.lines().count();
+            let message = if line_count > 1 {
+                format!("{line_count} lines deleted")
+            } else {
+                format!("{char_count} characters deleted")
+            };
+            self.view_model.set_status_message(message);
+
+            tracing::info!("Deleted {} characters ({} lines)", char_count, line_count);
+        } else {
+            tracing::warn!("No text selected for deletion");
+            self.view_model
+                .set_status_message("No text selected".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Handle cutting (delete + yank) selected text
+    fn handle_cut_selection(&mut self) -> Result<()> {
+        // Cut combines yank + delete, but we need to yank first before deleting
+        if let Some(text) = self.view_model.get_selected_text() {
+            // First yank to buffer
+            self.view_model.yank_to_buffer(text.clone())?;
+
+            // Then delete the selected text (this also returns the deleted text for verification)
+            if let Some(deleted_text) = self.view_model.delete_selected_text()? {
+                // Switch to Normal mode (automatically clears visual selection)
+                self.view_model.change_mode(EditorMode::Normal)?;
+
+                // Show feedback in status bar
+                let char_count = deleted_text.chars().count();
+                let line_count = deleted_text.lines().count();
+                let message = if line_count > 1 {
+                    format!("{line_count} lines cut")
+                } else {
+                    format!("{char_count} characters cut")
+                };
+                self.view_model.set_status_message(message);
+
+                tracing::info!(
+                    "Cut {} characters ({} lines) to buffer",
+                    char_count,
+                    line_count
+                );
+            } else {
+                tracing::warn!("Failed to delete selected text during cut operation");
+                self.view_model
+                    .set_status_message("Cut operation failed".to_string());
+            }
+        } else {
+            tracing::warn!("No text selected for cutting");
             self.view_model
                 .set_status_message("No text selected".to_string());
         }

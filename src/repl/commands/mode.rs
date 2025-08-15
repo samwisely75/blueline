@@ -87,7 +87,11 @@ pub struct ExitVisualModeCommand;
 
 impl Command for ExitVisualModeCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Esc) && context.state.current_mode == EditorMode::Visual
+        matches!(event.code, KeyCode::Esc)
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+            )
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -99,14 +103,81 @@ impl Command for ExitVisualModeCommand {
     }
 }
 
+/// Enter visual line mode (Shift+V)
+pub struct EnterVisualLineModeCommand;
+
+impl Command for EnterVisualLineModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        let is_uppercase_v = matches!(event.code, KeyCode::Char('V'));
+        let is_shift_v = matches!(event.code, KeyCode::Char('v'))
+            && event.modifiers.contains(KeyModifiers::SHIFT);
+        let is_shift_v_key = is_uppercase_v || is_shift_v;
+        let is_normal_mode = context.state.current_mode == EditorMode::Normal;
+        let result = is_shift_v_key && is_normal_mode;
+
+        tracing::debug!(
+            "EnterVisualLineModeCommand.is_relevant(): event={:?}, uppercase_v={}, shift_v={}, normal_mode={}, result={}",
+            event, is_uppercase_v, is_shift_v, is_normal_mode, result
+        );
+
+        result
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        tracing::debug!(
+            "EnterVisualLineModeCommand executing - creating mode change event to VisualLine"
+        );
+        Ok(vec![CommandEvent::mode_change(EditorMode::VisualLine)])
+    }
+
+    fn name(&self) -> &'static str {
+        "EnterVisualLineMode"
+    }
+}
+
+/// Enter visual block mode (Ctrl+V)
+pub struct EnterVisualBlockModeCommand;
+
+impl Command for EnterVisualBlockModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        let is_ctrl_v = matches!(event.code, KeyCode::Char('v'))
+            && event.modifiers.contains(KeyModifiers::CONTROL);
+        let is_normal_mode = context.state.current_mode == EditorMode::Normal;
+        let result = is_ctrl_v && is_normal_mode;
+
+        tracing::debug!(
+            "EnterVisualBlockModeCommand.is_relevant(): event={:?}, ctrl_v={}, normal_mode={}, result={}",
+            event, is_ctrl_v, is_normal_mode, result
+        );
+
+        result
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        tracing::debug!(
+            "EnterVisualBlockModeCommand executing - creating mode change event to VisualBlock"
+        );
+        Ok(vec![CommandEvent::mode_change(EditorMode::VisualBlock)])
+    }
+
+    fn name(&self) -> &'static str {
+        "EnterVisualBlockMode"
+    }
+}
+
 /// Enter command mode (: key)
 pub struct EnterCommandModeCommand;
 
 impl Command for EnterCommandModeCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char(':'))
-            && (context.state.current_mode == EditorMode::Normal
-                || context.state.current_mode == EditorMode::Visual)
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Normal
+                    | EditorMode::Visual
+                    | EditorMode::VisualLine
+                    | EditorMode::VisualBlock
+            )
             && event.modifiers.is_empty()
     }
 

@@ -23,6 +23,17 @@ impl ViewModel {
         self.pane_manager.get_selected_text()
     }
 
+    /// Delete selected text from current pane
+    /// Returns the deleted text if successful
+    pub fn delete_selected_text(&mut self) -> Result<Option<String>> {
+        if let Some((deleted_text, events)) = self.pane_manager.delete_selected_text() {
+            self.emit_view_event(events)?;
+            Ok(Some(deleted_text))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Yank text to yank buffer
     pub fn yank_to_buffer(&mut self, text: String) -> Result<()> {
         self.yank_buffer.yank(text)

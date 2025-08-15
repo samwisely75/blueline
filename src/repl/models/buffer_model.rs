@@ -142,8 +142,9 @@ impl BufferContent {
                     if let Some(line) = self.buffer.get_line(current_pos.line) {
                         current_pos.column = line.char_count();
                         if current_pos.line + 1 < self.buffer.line_count() {
-                            // Delete the newline (join lines)
-                            self.buffer.delete_char(current_pos.line + 1, 0);
+                            // Join the current line with the next line (removes the newline)
+                            self.buffer
+                                .join_lines(current_pos.line, current_pos.line + 1);
                         }
                     }
                 } else {
@@ -238,6 +239,11 @@ impl BufferModel {
     /// Get mutable buffer content
     pub fn content_mut(&mut self) -> &mut BufferContent {
         &mut self.content
+    }
+
+    /// Get the pane this buffer belongs to
+    pub fn pane(&self) -> Pane {
+        self.pane
     }
 
     /// Get current cursor position

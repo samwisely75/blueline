@@ -7,6 +7,8 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
+use crate::repl::events::EditorMode;
+
 // Import and re-export command event types
 pub mod context;
 pub mod events;
@@ -39,6 +41,15 @@ pub trait HttpCommand: Send {
     fn name(&self) -> &'static str;
 }
 
+/// Helper function to check if current mode supports navigation
+/// This can be used across multiple command modules to avoid duplication
+pub fn is_navigation_mode(context: &CommandContext) -> bool {
+    matches!(
+        context.state.current_mode,
+        EditorMode::Normal | EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+    )
+}
+
 // Import command modules
 pub mod app;
 pub mod editing;
@@ -58,8 +69,9 @@ pub use editing::{
 pub use ex_commands::{ExCommand, ExCommandRegistry};
 pub use mode::{
     AppendAfterCursorCommand, AppendAtEndOfLineCommand, EnterCommandModeCommand,
-    EnterInsertModeCommand, EnterVisualModeCommand, ExCommandModeCommand, ExitInsertModeCommand,
-    ExitVisualModeCommand, InsertAtBeginningOfLineCommand,
+    EnterInsertModeCommand, EnterVisualBlockModeCommand, EnterVisualLineModeCommand,
+    EnterVisualModeCommand, ExCommandModeCommand, ExitInsertModeCommand, ExitVisualModeCommand,
+    InsertAtBeginningOfLineCommand,
 };
 pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
@@ -70,7 +82,10 @@ pub use navigation::{
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
-pub use yank::{PasteAfterCommand, PasteAtCursorCommand, YankCommand};
+pub use yank::{
+    CutSelectionCommand, DeleteSelectionCommand, PasteAfterCommand, PasteAtCursorCommand,
+    YankCommand,
+};
 
 /// Type alias for command collection to reduce complexity
 pub type CommandCollection = Vec<Box<dyn Command + Send>>;
@@ -115,6 +130,8 @@ impl CommandRegistry {
             // Mode commands
             Box::new(EnterInsertModeCommand),
             Box::new(EnterVisualModeCommand),
+            Box::new(EnterVisualLineModeCommand),
+            Box::new(EnterVisualBlockModeCommand),
             Box::new(AppendAfterCursorCommand),
             Box::new(AppendAtEndOfLineCommand),
             Box::new(InsertAtBeginningOfLineCommand),
@@ -131,6 +148,8 @@ impl CommandRegistry {
             Box::new(DeleteCharCommand),
             Box::new(DeleteCharAtCursorCommand),
             Box::new(YankCommand),
+            Box::new(DeleteSelectionCommand),
+            Box::new(CutSelectionCommand),
             Box::new(PasteAfterCommand),
             Box::new(PasteAtCursorCommand),
         ];

@@ -21,13 +21,16 @@
 //! Previously scattered across multiple classes, this consolidation improves maintainability
 //! and follows the Single Responsibility Principle.
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+use crate::repl::events::{EditorMode, LogicalPosition, LogicalRange, ModelEvent, Pane};
 use crate::repl::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache, DisplayLine};
 use std::ops::{Index, IndexMut};
 
 /// Minimum width for line number column as specified in requirements
 const MIN_LINE_NUMBER_WIDTH: usize = 3;
+
+/// Type alias for deletion result: (deleted_text, model_event)
+type DeletionResult = Option<(String, ModelEvent)>;
 
 /// Information about a wrapped line segment
 #[derive(Debug, Clone)]
@@ -830,7 +833,7 @@ impl PaneState {
         self.virtual_column = column;
     }
 
-    /// Extract text from the current visual selection
+    /// Extract text from the current visual selection based on visual mode
     pub fn get_selected_text(&self) -> Option<String> {
         // Check if we have a selection
         let (Some(start), Some(end)) = (self.visual_selection_start, self.visual_selection_end)
@@ -849,33 +852,88 @@ impl PaneState {
         let content = self.buffer.content();
         let mut selected_text = String::new();
 
-        // Single line selection
-        if selection_start.line == selection_end.line {
-            if let Some(line) = content.get_line(selection_start.line) {
-                let start_col = selection_start.column.min(line.len());
-                let end_col = (selection_end.column + 1).min(line.len()); // +1 to include character at end position
-                selected_text.push_str(&line[start_col..end_col]);
-            }
-        } else {
-            // Multi-line selection
-            for line_num in selection_start.line..=selection_end.line {
-                if let Some(line) = content.get_line(line_num) {
-                    if line_num == selection_start.line {
-                        // First line: from start column to end
-                        let start_col = selection_start.column.min(line.len());
-                        selected_text.push_str(&line[start_col..]);
-                    } else if line_num == selection_end.line {
-                        // Last line: from beginning to end column
-                        let end_col = (selection_end.column + 1).min(line.len());
-                        selected_text.push_str(&line[..end_col]);
-                    } else {
-                        // Middle lines: entire line
-                        selected_text.push_str(&line);
-                    }
+        match self.editor_mode {
+            EditorMode::VisualLine => {
+                // Visual Line mode: always select entire lines from beginning to end
+                let first_line = selection_start.line;
+                let last_line = selection_end.line;
 
-                    // Add newline between lines (but not after the last line)
-                    if line_num < selection_end.line {
-                        selected_text.push('\n');
+                for line_num in first_line..=last_line {
+                    if let Some(line) = content.get_line(line_num) {
+                        selected_text.push_str(&line);
+
+                        // Add newline after each line except the last one
+                        if line_num < last_line {
+                            selected_text.push('\n');
+                        }
+                    }
+                }
+            }
+            EditorMode::VisualBlock => {
+                // Visual Block mode: select rectangular region
+                // VISUAL BLOCK FIX: Use selection_start as the anchor column and selection_end as current cursor
+                // This ensures selection always goes from the starting column to the current cursor column
+                let top_line = selection_start.line;
+                let bottom_line = selection_end.line;
+                let start_col = selection_start.column; // Column where Visual Block mode started
+                let end_col = selection_end.column; // Current cursor column
+
+                // Determine selection direction and boundaries
+                let (left_col, right_col) = if start_col <= end_col {
+                    (start_col, end_col)
+                } else {
+                    (end_col, start_col)
+                };
+
+                for line_num in top_line..=bottom_line {
+                    if let Some(line) = content.get_line(line_num) {
+                        let line_length = line.len();
+
+                        // Skip lines that are too short to have content in the block region
+                        if left_col < line_length {
+                            let actual_right_col = (right_col + 1).min(line_length); // +1 to include character at end position
+                            let block_text = &line[left_col..actual_right_col];
+                            selected_text.push_str(block_text);
+                        }
+
+                        // Add newline after each line except the last one
+                        if line_num < bottom_line {
+                            selected_text.push('\n');
+                        }
+                    }
+                }
+            }
+            _ => {
+                // Visual mode (character-wise): original behavior
+                if selection_start.line == selection_end.line {
+                    // Single line selection
+                    if let Some(line) = content.get_line(selection_start.line) {
+                        let start_col = selection_start.column.min(line.len());
+                        let end_col = (selection_end.column + 1).min(line.len()); // +1 to include character at end position
+                        selected_text.push_str(&line[start_col..end_col]);
+                    }
+                } else {
+                    // Multi-line selection
+                    for line_num in selection_start.line..=selection_end.line {
+                        if let Some(line) = content.get_line(line_num) {
+                            if line_num == selection_start.line {
+                                // First line: from start column to end
+                                let start_col = selection_start.column.min(line.len());
+                                selected_text.push_str(&line[start_col..]);
+                            } else if line_num == selection_end.line {
+                                // Last line: from beginning to end column
+                                let end_col = (selection_end.column + 1).min(line.len());
+                                selected_text.push_str(&line[..end_col]);
+                            } else {
+                                // Middle lines: entire line
+                                selected_text.push_str(&line);
+                            }
+
+                            // Add newline between lines (but not after the last line)
+                            if line_num < selection_end.line {
+                                selected_text.push('\n');
+                            }
+                        }
                     }
                 }
             }
@@ -886,6 +944,129 @@ impl PaneState {
         } else {
             Some(selected_text)
         }
+    }
+
+    /// Delete the currently selected text based on visual mode
+    /// Returns the deleted text and the ModelEvent if successful
+    pub fn delete_selected_text(&mut self) -> DeletionResult {
+        // Extract selection boundaries
+        let (start, end) = (self.visual_selection_start?, self.visual_selection_end?);
+
+        // Extract the text before deleting it (for feedback/undo)
+        let selected_text = self.get_selected_text()?;
+
+        // Determine the actual deletion range based on visual mode
+        let deletion_range = match self.editor_mode {
+            EditorMode::VisualLine => {
+                // Line-wise deletion: delete entire lines including their newlines
+                let first_line = start.line.min(end.line);
+                let last_line = start.line.max(end.line);
+                let total_lines = self.buffer.content().line_count();
+
+                // If we're deleting the last line(s), we need special handling
+                if last_line >= total_lines.saturating_sub(1) {
+                    // Deleting lines that include the last line - delete from start of first line
+                    // to end of last line without including a non-existent newline
+                    let last_line_length = self.buffer.content().line_length(last_line);
+                    LogicalRange::new(
+                        LogicalPosition::new(first_line, 0),
+                        LogicalPosition::new(last_line, last_line_length),
+                    )
+                } else {
+                    // Normal case - delete from start of first line to start of line after last line
+                    // This includes the newline of the last deleted line
+                    LogicalRange::new(
+                        LogicalPosition::new(first_line, 0),
+                        LogicalPosition::new(last_line + 1, 0),
+                    )
+                }
+            }
+            EditorMode::VisualBlock => {
+                // Block-wise deletion: delete rectangular region across multiple lines
+                // This is more complex than other modes as we need to delete from each line individually
+                return self.delete_visual_block_selection();
+            }
+            _ => {
+                // Character-wise deletion (Visual mode)
+                LogicalRange::new(
+                    LogicalPosition::new(start.line.min(end.line), start.column.min(end.column)),
+                    LogicalPosition::new(start.line.max(end.line), start.column.max(end.column)),
+                )
+            }
+        };
+
+        // Perform the actual deletion using the buffer's delete_range method
+        let pane = self.buffer.pane();
+        let model_event = self
+            .buffer
+            .content_mut()
+            .delete_range(pane, deletion_range)?;
+
+        // Clear the visual selection after successful deletion
+        self.visual_selection_start = None;
+        self.visual_selection_end = None;
+
+        Some((selected_text, model_event))
+    }
+
+    /// Handle Visual Block deletion - delete rectangular region across multiple lines
+    fn delete_visual_block_selection(&mut self) -> DeletionResult {
+        let (start, end) = (self.visual_selection_start?, self.visual_selection_end?);
+
+        // Extract the text before deleting it
+        let selected_text = self.get_selected_text()?;
+
+        // Calculate the rectangular region
+        // VISUAL BLOCK FIX: Use selection_start as anchor and selection_end as current cursor
+        let top_line = start.line.min(end.line);
+        let bottom_line = start.line.max(end.line);
+        let start_col = start.column; // Column where Visual Block mode started
+        let end_col = end.column; // Current cursor column
+
+        // Determine selection direction and boundaries
+        let (left_col, right_col) = if start_col <= end_col {
+            (start_col, end_col)
+        } else {
+            (end_col, start_col)
+        };
+
+        // Delete from bottom to top to avoid line index shifting
+        let pane = self.buffer.pane();
+        let mut events = Vec::new();
+
+        for line_num in (top_line..=bottom_line).rev() {
+            // Only delete within the column range for this line
+            let line_length = self.buffer.content().line_length(line_num);
+
+            // Skip lines that are too short to have content in the block region
+            if left_col >= line_length {
+                continue;
+            }
+
+            // Calculate actual deletion range for this line
+            let actual_right_col = right_col.min(line_length.saturating_sub(1));
+
+            if left_col <= actual_right_col {
+                let delete_range = LogicalRange::new(
+                    LogicalPosition::new(line_num, left_col),
+                    LogicalPosition::new(line_num, actual_right_col + 1),
+                );
+
+                if let Some(event) = self.buffer.content_mut().delete_range(pane, delete_range) {
+                    events.push(event);
+                }
+            }
+        }
+
+        // Clear the visual selection after successful deletion
+        self.visual_selection_start = None;
+        self.visual_selection_end = None;
+
+        // Return the first deletion event (they should all be similar)
+        events
+            .into_iter()
+            .next()
+            .map(|first_event| (selected_text, first_event))
     }
 
     // Helper methods to reduce arrow code complexity

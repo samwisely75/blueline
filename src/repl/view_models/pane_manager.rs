@@ -27,6 +27,9 @@ type VisualSelectionState = (
     Option<Pane>,
 );
 
+/// Type alias for delete operation result to reduce complexity
+type DeleteResult = Option<(String, Vec<ViewEvent>)>;
+
 /// PaneManager encapsulates all pane-related state and operations
 /// This eliminates the need for array indexing operations throughout the codebase
 ///
@@ -182,6 +185,42 @@ impl PaneManager {
             return false;
         };
 
+        let editor_mode = pane_state.editor_mode;
+
+        tracing::trace!(
+            "is_position_selected: checking position={:?} against selection start={:?} end={:?} in mode {:?}", 
+            position, start, end, editor_mode
+        );
+
+        // Handle different visual modes
+        match editor_mode {
+            EditorMode::Visual => {
+                // Character-wise selection (existing logic)
+                self.is_position_selected_character_wise(position, start, end)
+            }
+            EditorMode::VisualLine => {
+                // Line-wise selection: entire lines are selected
+                self.is_position_selected_line_wise(position, start, end)
+            }
+            EditorMode::VisualBlock => {
+                // Block-wise selection: rectangular regions
+                self.is_position_selected_block_wise(position, start, end)
+            }
+            _ => {
+                // Not in a visual mode, no selection
+                tracing::trace!("is_position_selected: not in visual mode");
+                false
+            }
+        }
+    }
+
+    /// Check character-wise selection (vim's 'v' mode)
+    fn is_position_selected_character_wise(
+        &self,
+        position: LogicalPosition,
+        start: LogicalPosition,
+        end: LogicalPosition,
+    ) -> bool {
         // Normalize selection range (start <= end)
         let (normalized_start, normalized_end) =
             if start.line < end.line || (start.line == end.line && start.column <= end.column) {
@@ -189,11 +228,6 @@ impl PaneManager {
             } else {
                 (end, start)
             };
-
-        tracing::trace!(
-            "is_position_selected: checking position={:?} against selection start={:?} end={:?} (normalized: start={:?} end={:?})", 
-            position, start, end, normalized_start, normalized_end
-        );
 
         // Early return if position is outside line range
         if position.line < normalized_start.line || position.line > normalized_end.line {
@@ -206,7 +240,7 @@ impl PaneManager {
             let is_selected = position.column >= normalized_start.column
                 && position.column <= normalized_end.column;
             tracing::trace!(
-                "is_position_selected: single line selection, result={}",
+                "is_position_selected: single line character selection, result={}",
                 is_selected
             );
             return is_selected;
@@ -216,7 +250,7 @@ impl PaneManager {
         if position.line == normalized_start.line {
             let is_selected = position.column >= normalized_start.column;
             tracing::trace!(
-                "is_position_selected: first line of multi-line selection, result={}",
+                "is_position_selected: first line of multi-line character selection, result={}",
                 is_selected
             );
             return is_selected;
@@ -226,15 +260,78 @@ impl PaneManager {
         if position.line == normalized_end.line {
             let is_selected = position.column <= normalized_end.column;
             tracing::trace!(
-                "is_position_selected: last line of multi-line selection, result={}",
+                "is_position_selected: last line of multi-line character selection, result={}",
                 is_selected
             );
             return is_selected;
         }
 
         // Middle line of multi-line selection
-        tracing::trace!("is_position_selected: middle line of multi-line selection, result=true");
+        tracing::trace!("is_position_selected: middle line of character selection, result=true");
         true
+    }
+
+    /// Check line-wise selection (vim's 'V' mode)
+    fn is_position_selected_line_wise(
+        &self,
+        position: LogicalPosition,
+        start: LogicalPosition,
+        end: LogicalPosition,
+    ) -> bool {
+        // For line-wise selection, we select entire lines
+        let (start_line, end_line) = if start.line <= end.line {
+            (start.line, end.line)
+        } else {
+            (end.line, start.line)
+        };
+
+        let is_selected = position.line >= start_line && position.line <= end_line;
+        tracing::trace!(
+            "is_position_selected: line-wise selection, line {} in range [{}, {}], result={}",
+            position.line,
+            start_line,
+            end_line,
+            is_selected
+        );
+        is_selected
+    }
+
+    /// Check block-wise selection (vim's Ctrl+V mode)
+    fn is_position_selected_block_wise(
+        &self,
+        position: LogicalPosition,
+        start: LogicalPosition,
+        end: LogicalPosition,
+    ) -> bool {
+        // For block selection, we create a rectangular region
+        let (start_line, end_line) = if start.line <= end.line {
+            (start.line, end.line)
+        } else {
+            (end.line, start.line)
+        };
+
+        let (start_col, end_col) = if start.column <= end.column {
+            (start.column, end.column)
+        } else {
+            (end.column, start.column)
+        };
+
+        let is_selected = position.line >= start_line
+            && position.line <= end_line
+            && position.column >= start_col
+            && position.column <= end_col;
+
+        tracing::trace!(
+            "is_position_selected: block-wise selection, position ({}, {}) in rectangle [({}, {}), ({}, {})], result={}",
+            position.line,
+            position.column,
+            start_line,
+            start_col,
+            end_line,
+            end_col,
+            is_selected
+        );
+        is_selected
     }
 
     /// Start visual selection in current area
@@ -251,6 +348,7 @@ impl PaneManager {
         );
 
         vec![
+            ViewEvent::CurrentAreaRedrawRequired,
             ViewEvent::StatusBarUpdateRequired,
             ViewEvent::ActiveCursorUpdateRequired,
         ]
@@ -285,6 +383,31 @@ impl PaneManager {
     /// Get selected text from the current pane
     pub fn get_selected_text(&self) -> Option<String> {
         self.panes[self.current_pane].get_selected_text()
+    }
+
+    /// Delete selected text from the current pane
+    /// Returns (deleted_text, view_events) if successful
+    pub fn delete_selected_text(&mut self) -> DeleteResult {
+        if let Some((deleted_text, model_event)) =
+            self.panes[self.current_pane].delete_selected_text()
+        {
+            // Process the model event and return appropriate view events
+            let view_events = match model_event {
+                crate::repl::events::ModelEvent::TextDeleted { .. } => {
+                    // Rebuild display cache for the affected pane
+                    let visibility_events = self.rebuild_display_caches_and_sync();
+                    let mut events = vec![ViewEvent::CurrentAreaRedrawRequired];
+                    events.extend(visibility_events);
+                    events
+                }
+                _ => vec![ViewEvent::CurrentAreaRedrawRequired],
+            };
+
+            Some((deleted_text, view_events))
+        } else {
+            // No selection to delete
+            None
+        }
     }
 
     /// Get the length of the current line in the current pane
@@ -1077,10 +1200,16 @@ impl PaneManager {
     /// Move cursor to next word in current pane
     pub fn move_cursor_to_next_word(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.get_current_pane_mode();
 
         if let Some(new_pos) =
             self.panes[self.current_pane].find_next_word_start_position(current_display_pos)
         {
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
+            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
+                return vec![]; // Don't move if it would cross lines
+            }
+
             let events = self.set_current_display_cursor(new_pos);
             let mut all_events = events;
             all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
@@ -1093,10 +1222,16 @@ impl PaneManager {
     /// Move cursor to previous word in current pane
     pub fn move_cursor_to_previous_word(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.get_current_pane_mode();
 
         if let Some(new_pos) =
             self.panes[self.current_pane].find_previous_word_start_position(current_display_pos)
         {
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
+            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
+                return vec![]; // Don't move if it would cross lines
+            }
+
             let events = self.set_current_display_cursor(new_pos);
             let mut all_events = events;
             all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
@@ -1109,16 +1244,75 @@ impl PaneManager {
     /// Move cursor to end of word in current pane
     pub fn move_cursor_to_end_of_word(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
+        let current_mode = self.get_current_pane_mode();
 
         if let Some(new_pos) =
             self.panes[self.current_pane].find_next_word_end_position(current_display_pos)
         {
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
+            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
+                return vec![]; // Don't move if it would cross lines
+            }
+
             let events = self.set_current_display_cursor(new_pos);
             let mut all_events = events;
             all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
             all_events
         } else {
             vec![]
+        }
+    }
+
+    /// Calculate maximum allowed column for Visual Block mode based on all selected lines
+    fn get_visual_block_max_column(&self, current_pos: Position, attempted_col: usize) -> usize {
+        // If not in visual selection, use attempted column
+        let (Some(start), Some(end)) = (
+            self.panes[self.current_pane].visual_selection_start,
+            self.panes[self.current_pane].visual_selection_end,
+        ) else {
+            return attempted_col;
+        };
+
+        // Get the line range for the Visual Block selection
+        let top_line = start.line.min(end.line);
+        let bottom_line = start.line.max(end.line);
+
+        // Convert logical positions to display positions for range calculation
+        let top_display_line = self.panes[self.current_pane]
+            .display_cache
+            .logical_to_display_position(top_line, 0)
+            .map(|pos| pos.row)
+            .unwrap_or(0);
+        let bottom_display_line = self.panes[self.current_pane]
+            .display_cache
+            .logical_to_display_position(bottom_line, 0)
+            .map(|pos| pos.row)
+            .unwrap_or(0);
+
+        // Find the maximum line length among all selected lines
+        let mut max_line_length = 0;
+        for display_line_idx in top_display_line..=bottom_display_line {
+            if let Some(line) = self.panes[self.current_pane]
+                .display_cache
+                .get_display_line(display_line_idx)
+            {
+                max_line_length = max_line_length.max(line.display_width());
+            }
+        }
+
+        // Allow movement up to the longest line's length, but only if we can move from current position
+        if attempted_col > current_pos.col {
+            // We're trying to move right - allow up to max length minus 1 (cursor ON last char, not after)
+            // In Vim, cursor positions are 0-indexed and should be ON characters, not after them
+            let max_cursor_position = if max_line_length > 0 {
+                max_line_length - 1
+            } else {
+                0
+            };
+            attempted_col.min(max_cursor_position)
+        } else {
+            // No movement or moving left - use attempted column
+            attempted_col
         }
     }
 
@@ -1152,16 +1346,22 @@ impl PaneManager {
                 moved = true;
             }
         } else if current_display_pos.row > 0 {
-            // Move to end of previous display line
-            let prev_display_line = current_display_pos.row - 1;
-            if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
-                // FIXED: Use display width instead of character count for proper multibyte character support
-                let new_col = prev_line.display_width().saturating_sub(1);
-                let new_display_pos = Position::new(prev_display_line, new_col);
-                self.panes[self.current_pane].display_cursor = new_display_pos;
-                // Update virtual column for horizontal movement
-                self.panes[self.current_pane].update_virtual_column();
-                moved = true;
+            let current_mode = self.get_current_pane_mode();
+
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to previous line
+            // Cursor should be constrained to horizontal movement within the selected line range
+            if current_mode != EditorMode::VisualBlock {
+                // Move to end of previous display line
+                let prev_display_line = current_display_pos.row - 1;
+                if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
+                    // FIXED: Use display width instead of character count for proper multibyte character support
+                    let new_col = prev_line.display_width().saturating_sub(1);
+                    let new_display_pos = Position::new(prev_display_line, new_col);
+                    self.panes[self.current_pane].display_cursor = new_display_pos;
+                    // Update virtual column for horizontal movement
+                    self.panes[self.current_pane].update_virtual_column();
+                    moved = true;
+                }
             }
         }
 
@@ -1233,6 +1433,11 @@ impl PaneManager {
                     // Insert mode: Allow cursor to go one position past end of line (for typing new chars)
                     current_display_pos.col < line_display_width
                 }
+                EditorMode::VisualBlock => {
+                    // Visual Block mode: Allow cursor to move beyond line content to create rectangular selections
+                    // This enables selecting "virtual" columns that may not exist on shorter lines
+                    true // Always allow right movement in Visual Block mode
+                }
                 _ => {
                     // Normal/Visual mode: Stop at last character position (Vim behavior)
                     if line_display_width == 0 {
@@ -1252,11 +1457,19 @@ impl PaneManager {
 
         // PHASE 2: Check if cursor can move to next line (when right movement in current line fails)
         let can_move_to_next_line = if !can_move_right_in_line {
-            let next_display_line = current_display_pos.row + 1;
-            self.panes[self.current_pane]
-                .display_cache
-                .get_display_line(next_display_line)
-                .is_some()
+            let current_mode = self.get_current_pane_mode();
+
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to next line
+            // Cursor should be constrained to horizontal movement within the selected line range
+            if current_mode == EditorMode::VisualBlock {
+                false
+            } else {
+                let next_display_line = current_display_pos.row + 1;
+                self.panes[self.current_pane]
+                    .display_cache
+                    .get_display_line(next_display_line)
+                    .is_some()
+            }
         } else {
             false
         };
@@ -1269,11 +1482,25 @@ impl PaneManager {
                 .get_display_line(current_display_pos.row)
             {
                 let new_col = current_line.move_right_by_character(current_display_pos.col);
+                let current_mode = self.get_current_pane_mode();
+
+                // VISUAL BLOCK FIX: In Visual Block mode, allow cursor movement based on longest line
+                // in the selection, not just the current line
+                let new_col = if current_mode == EditorMode::VisualBlock {
+                    self.get_visual_block_max_column(current_display_pos, new_col)
+                } else {
+                    new_col
+                };
 
                 // When wrap is enabled, check if we've moved past the visible width
                 // If so, wrap to the next line instead of staying on the current line
                 let content_width = self.get_content_width();
-                if self.wrap_enabled && new_col >= content_width {
+
+                // VISUAL BLOCK FIX: Prevent line wrapping in Visual Block mode
+                if self.wrap_enabled
+                    && new_col >= content_width
+                    && current_mode != EditorMode::VisualBlock
+                {
                     // Check if there's a next line to wrap to
                     let next_display_line = current_display_pos.row + 1;
                     if self.panes[self.current_pane]

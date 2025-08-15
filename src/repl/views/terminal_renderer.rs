@@ -58,12 +58,14 @@ impl<'a> LineInfo<'a> {
             }
         } else {
             // Show tildes for empty lines
+            // Calculate correct logical line for tilde lines to prevent false selection
+            let logical_line = start_line + row_index;
             LineInfo {
                 text: "",
                 line_number: None,
                 is_continuation: false,
                 logical_start_col: 0,
-                logical_line: 0,
+                logical_line,
             }
         }
     }
@@ -287,7 +289,10 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
     ) -> Result<()> {
         // Check if we're in visual mode and have a selection
         let mode = view_model.get_mode();
-        if matches!(mode, EditorMode::Visual) {
+        if matches!(
+            mode,
+            EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+        ) {
             tracing::trace!("render_text_with_selection: Visual mode detected, pane={:?}, line_number={:?}, logical_line={}, text='{}'", pane, line_number, logical_line, text);
 
             // BUGFIX: Use logical_line directly instead of relying on line_number
@@ -296,6 +301,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
             // logical line number regardless of whether this is a continuation or not.
             let chars: Vec<char> = text.chars().collect();
             let selection_state = view_model.get_visual_selection();
+
             let tab_width = view_model.pane_manager().get_tab_width();
 
             tracing::trace!(
@@ -304,69 +310,92 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
                 tab_width
             );
 
-            for (col_index, ch) in chars.iter().enumerate() {
-                // BUGFIX: Calculate correct logical column for wrapped lines
-                // For wrapped lines, logical_start_col indicates where this display line starts
-                // within the original logical line, so we add col_index to get the actual position
-                let logical_col = logical_start_col + col_index;
-                let position = crate::repl::events::LogicalPosition::new(
-                    logical_line, // Use logical_line directly (already 0-based)
-                    logical_col,
-                );
-
+            // Handle empty lines with virtual character for visual selection
+            if chars.is_empty() {
+                let position =
+                    crate::repl::events::LogicalPosition::new(logical_line, logical_start_col);
                 let is_selected = view_model.is_position_selected(position, pane);
 
-                match *ch {
-                    '\t' => {
-                        // Simple tab: always render tab_width spaces
-                        let spaces_to_next_tab = if tab_width > 0 {
-                            tab_width
-                        } else {
-                            0 // No expansion if tab width is 0
-                        };
+                if is_selected {
+                    tracing::debug!(
+                        "render_text_with_selection: highlighting empty line with virtual character at {:?}",
+                        position
+                    );
+                    // Render a highlighted space for empty lines (vim-like behavior)
+                    write!(
+                        self.render_stream,
+                        "{}{} {}",
+                        ansi::BG_SELECTED,
+                        ansi::FG_SELECTED,
+                        ansi::RESET
+                    )?
+                }
+            } else {
+                // Normal character rendering for non-empty lines
+                for (col_index, ch) in chars.iter().enumerate() {
+                    // BUGFIX: Calculate correct logical column for wrapped lines
+                    // For wrapped lines, logical_start_col indicates where this display line starts
+                    // within the original logical line, so we add col_index to get the actual position
+                    let logical_col = logical_start_col + col_index;
+                    let position = crate::repl::events::LogicalPosition::new(
+                        logical_line, // Use logical_line directly (already 0-based)
+                        logical_col,
+                    );
 
-                        if is_selected {
-                            tracing::debug!(
-                                "render_text_with_selection: highlighting tab ({} spaces) at {:?}",
-                                spaces_to_next_tab,
-                                position
-                            );
-                            // Render highlighted spaces for the full tab expansion
-                            for _ in 0..spaces_to_next_tab {
+                    let is_selected = view_model.is_position_selected(position, pane);
+
+                    match *ch {
+                        '\t' => {
+                            // Simple tab: always render tab_width spaces
+                            let spaces_to_next_tab = if tab_width > 0 {
+                                tab_width
+                            } else {
+                                0 // No expansion if tab width is 0
+                            };
+
+                            if is_selected {
+                                tracing::debug!(
+                                    "render_text_with_selection: highlighting tab ({} spaces) at {:?}",
+                                    spaces_to_next_tab,
+                                    position
+                                );
+                                // Render highlighted spaces for the full tab expansion
+                                for _ in 0..spaces_to_next_tab {
+                                    write!(
+                                        self.render_stream,
+                                        "{}{} {}",
+                                        ansi::BG_SELECTED,
+                                        ansi::FG_SELECTED,
+                                        ansi::RESET
+                                    )?;
+                                }
+                            } else {
+                                // Render regular spaces for the full tab expansion
+                                for _ in 0..spaces_to_next_tab {
+                                    write!(self.render_stream, " ")?;
+                                }
+                            }
+                        }
+                        _ => {
+                            // Regular character handling
+                            if is_selected {
+                                tracing::debug!(
+                                    "render_text_with_selection: highlighting character '{}' at {:?}",
+                                    ch,
+                                    position
+                                );
+                                // Apply visual selection styling: inverse + blue
                                 write!(
                                     self.render_stream,
-                                    "{}{} {}",
+                                    "{}{}{ch}{}",
                                     ansi::BG_SELECTED,
                                     ansi::FG_SELECTED,
                                     ansi::RESET
-                                )?;
+                                )?
+                            } else {
+                                // Normal character rendering
+                                write!(self.render_stream, "{ch}")?
                             }
-                        } else {
-                            // Render regular spaces for the full tab expansion
-                            for _ in 0..spaces_to_next_tab {
-                                write!(self.render_stream, " ")?;
-                            }
-                        }
-                    }
-                    _ => {
-                        // Regular character handling
-                        if is_selected {
-                            tracing::debug!(
-                                "render_text_with_selection: highlighting character '{}' at {:?}",
-                                ch,
-                                position
-                            );
-                            // Apply visual selection styling: inverse + blue
-                            write!(
-                                self.render_stream,
-                                "{}{}{ch}{}",
-                                ansi::BG_SELECTED,
-                                ansi::FG_SELECTED,
-                                ansi::RESET
-                            )?
-                        } else {
-                            // Normal character rendering
-                            write!(self.render_stream, "{ch}")?
                         }
                     }
                 }
@@ -662,6 +691,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             EditorMode::Insert => ansi::CURSOR_BAR, // I-beam for insert mode
             EditorMode::Normal => ansi::CURSOR_BLOCK, // Block for normal mode
             EditorMode::Visual => ansi::CURSOR_BLOCK, // Block for visual mode
+            EditorMode::VisualLine => ansi::CURSOR_BLOCK, // Block for visual line mode
+            EditorMode::VisualBlock => ansi::CURSOR_BLOCK, // Block for visual block mode
             EditorMode::Command => ansi::CURSOR_BAR, // I-beam for command mode
             EditorMode::GPrefix => ansi::CURSOR_BLOCK, // Block for g-prefix mode
         };
@@ -724,6 +755,20 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                 EditorMode::Visual => {
                     left_status_text.push_str(&format!(
                         "{}-- VISUAL --{}",
+                        ansi::BOLD,
+                        ansi::RESET
+                    ));
+                }
+                EditorMode::VisualLine => {
+                    left_status_text.push_str(&format!(
+                        "{}-- VISUAL LINE --{}",
+                        ansi::BOLD,
+                        ansi::RESET
+                    ));
+                }
+                EditorMode::VisualBlock => {
+                    left_status_text.push_str(&format!(
+                        "{}-- VISUAL BLOCK --{}",
                         ansi::BOLD,
                         ansi::RESET
                     ));
