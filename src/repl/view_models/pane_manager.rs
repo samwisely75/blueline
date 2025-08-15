@@ -3,6 +3,21 @@
 //! Handles pane switching, mode changes, and pane-related state management.
 //! Contains the PaneManager struct that encapsulates all pane-related operations.
 //!
+//! ⚠️ **CRITICAL ARCHITECTURAL GUIDELINE** ⚠️
+//!
+//! **DO NOT IMPLEMENT BUSINESS LOGIC IN PANE_MANAGER**
+//!
+//! PaneManager is a pure layout manager. All business logic (text editing, cursor movement,
+//! visual selection, etc.) should be implemented in PaneState. PaneManager should only:
+//! - Switch between panes
+//! - Calculate layout dimensions  
+//! - Delegate operations to the appropriate PaneState
+//! - Emit view events for rendering
+//!
+//! If you find yourself implementing text operations, cursor logic, or edit functionality
+//! in PaneManager, move it to PaneState instead. Use the PaneCapabilities system to
+//! control what operations are allowed on each pane.
+//!
 //! HIGH-LEVEL ARCHITECTURE:
 //! PaneManager implements the Manager pattern to encapsulate all pane-related operations:
 //! - Manages Request and Response panes as an array with semantic operations

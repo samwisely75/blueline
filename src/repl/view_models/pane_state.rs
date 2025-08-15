@@ -21,7 +21,9 @@
 //! Previously scattered across multiple classes, this consolidation improves maintainability
 //! and follows the Single Responsibility Principle.
 
-use crate::repl::events::{EditorMode, LogicalPosition, LogicalRange, ModelEvent, Pane};
+use crate::repl::events::{
+    EditorMode, LogicalPosition, LogicalRange, ModelEvent, Pane, PaneCapabilities,
+};
 use crate::repl::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache, DisplayLine};
 use std::ops::{Index, IndexMut};
@@ -89,14 +91,21 @@ pub struct PaneState {
     pub scroll_offset: Position,  // (vertical, horizontal)
     pub visual_selection_start: Option<LogicalPosition>,
     pub visual_selection_end: Option<LogicalPosition>,
-    pub pane_dimensions: Dimensions, // (width, height)
-    pub editor_mode: EditorMode,     // Current editor mode for this pane
-    pub line_number_width: usize,    // Width needed for line numbers display
-    pub virtual_column: usize,       // Vim-style virtual column - desired cursor position
+    pub pane_dimensions: Dimensions,    // (width, height)
+    pub editor_mode: EditorMode,        // Current editor mode for this pane
+    pub line_number_width: usize,       // Width needed for line numbers display
+    pub virtual_column: usize,          // Vim-style virtual column - desired cursor position
+    pub capabilities: PaneCapabilities, // What operations are allowed on this pane
 }
 
 impl PaneState {
     pub fn new(pane: Pane, pane_width: usize, pane_height: usize, wrap_enabled: bool) -> Self {
+        // Initialize capabilities based on pane type
+        let capabilities = match pane {
+            Pane::Request => PaneCapabilities::FULL_ACCESS, // Request pane allows all operations
+            Pane::Response => PaneCapabilities::READ_ONLY,  // Response pane is read-only
+        };
+
         let mut pane_state = Self {
             buffer: BufferModel::new(pane),
             display_cache: DisplayCache::new(),
@@ -108,6 +117,7 @@ impl PaneState {
             editor_mode: EditorMode::Normal, // Start in Normal mode
             line_number_width: MIN_LINE_NUMBER_WIDTH, // Start with minimum width
             virtual_column: 0,               // Start at column 0
+            capabilities,                    // Set capabilities based on pane type
         };
         pane_state.build_display_cache(pane_width, wrap_enabled, 4); // Default tab width, will be updated later
                                                                      // Calculate initial line number width based on content
@@ -831,6 +841,16 @@ impl PaneState {
     /// Set virtual column explicitly (used for restoring desired position)
     pub fn set_virtual_column(&mut self, column: usize) {
         self.virtual_column = column;
+    }
+
+    /// Get the capabilities of this pane
+    pub fn get_capabilities(&self) -> PaneCapabilities {
+        self.capabilities
+    }
+
+    /// Check if this pane has a specific capability
+    pub fn has_capability(&self, capability: PaneCapabilities) -> bool {
+        self.capabilities.contains(capability)
     }
 
     /// Extract text from the current visual selection based on visual mode
