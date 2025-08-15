@@ -116,6 +116,27 @@ impl Command for PasteAtCursorCommand {
     }
 }
 
+/// Change (delete and enter insert mode) selected text in visual block mode
+pub struct ChangeSelectionCommand;
+
+impl Command for ChangeSelectionCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('c'))
+            && matches!(context.state.current_mode, EditorMode::VisualBlock)
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Change selection (delete + enter insert mode) - mode change handled by change handler
+        Ok(vec![CommandEvent::change_selection()])
+    }
+
+    fn name(&self) -> &'static str {
+        "ChangeSelection"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -286,5 +307,56 @@ mod tests {
         let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
         let command = YankCommand;
         assert!(command.is_relevant(&context, &event));
+    }
+
+    // Tests for ChangeSelectionCommand
+    #[test]
+    fn change_selection_should_be_relevant_for_c_in_visual_block_mode() {
+        let context = create_test_context(EditorMode::VisualBlock, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::empty());
+        let command = ChangeSelectionCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn change_selection_should_not_be_relevant_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::empty());
+        let command = ChangeSelectionCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn change_selection_should_not_be_relevant_in_visual_line_mode() {
+        let context = create_test_context(EditorMode::VisualLine, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::empty());
+        let command = ChangeSelectionCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn change_selection_should_not_be_relevant_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::empty());
+        let command = ChangeSelectionCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn change_selection_should_not_be_relevant_in_response_pane() {
+        let context = create_test_context(EditorMode::VisualBlock, Pane::Response);
+        let event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::empty());
+        let command = ChangeSelectionCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn change_selection_should_execute_change_selection_event() {
+        let context = create_test_context(EditorMode::VisualBlock, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::empty());
+        let command = ChangeSelectionCommand;
+        let result = command.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::change_selection());
     }
 }

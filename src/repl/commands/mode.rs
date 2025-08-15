@@ -45,6 +45,25 @@ impl Command for ExitInsertModeCommand {
     }
 }
 
+/// Exit Visual Block Insert mode (Escape key)
+pub struct ExitVisualBlockInsertModeCommand;
+
+impl Command for ExitVisualBlockInsertModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Esc)
+            && context.state.current_mode == EditorMode::VisualBlockInsert
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Request special Visual Block Insert exit with text replication
+        Ok(vec![CommandEvent::exit_visual_block_insert()])
+    }
+
+    fn name(&self) -> &'static str {
+        "ExitVisualBlockInsertMode"
+    }
+}
+
 /// Enter visual mode (v key)
 pub struct EnterVisualModeCommand;
 
@@ -293,6 +312,58 @@ impl Command for ExCommandModeCommand {
 
     fn name(&self) -> &'static str {
         "ExCommandMode"
+    }
+}
+
+/// Insert at beginning of Visual Block selection (Shift+I in Visual Block mode)
+pub struct VisualBlockInsertCommand;
+
+impl Command for VisualBlockInsertCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        context.state.current_mode == EditorMode::VisualBlock
+            && context.state.current_pane == Pane::Request
+            && (
+                // Case 1: Uppercase 'I' without modifiers
+                (matches!(event.code, KeyCode::Char('I')) && event.modifiers.is_empty())
+                // Case 2: Lowercase 'i' with SHIFT modifier
+                || (matches!(event.code, KeyCode::Char('i')) && event.modifiers.contains(KeyModifiers::SHIFT))
+                // Case 3: Uppercase 'I' with SHIFT modifier (some terminals send this)
+                || (matches!(event.code, KeyCode::Char('I')) && event.modifiers.contains(KeyModifiers::SHIFT))
+            )
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::visual_block_insert()])
+    }
+
+    fn name(&self) -> &'static str {
+        "VisualBlockInsert"
+    }
+}
+
+/// Append at end of Visual Block selection (Shift+A in Visual Block mode)
+pub struct VisualBlockAppendCommand;
+
+impl Command for VisualBlockAppendCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        context.state.current_mode == EditorMode::VisualBlock
+            && context.state.current_pane == Pane::Request
+            && (
+                // Case 1: Uppercase 'A' without modifiers
+                (matches!(event.code, KeyCode::Char('A')) && event.modifiers.is_empty())
+                // Case 2: Lowercase 'a' with SHIFT modifier
+                || (matches!(event.code, KeyCode::Char('a')) && event.modifiers.contains(KeyModifiers::SHIFT))
+                // Case 3: Uppercase 'A' with SHIFT modifier (some terminals send this)
+                || (matches!(event.code, KeyCode::Char('A')) && event.modifiers.contains(KeyModifiers::SHIFT))
+            )
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::visual_block_append()])
+    }
+
+    fn name(&self) -> &'static str {
+        "VisualBlockAppend"
     }
 }
 

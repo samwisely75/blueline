@@ -328,6 +328,10 @@ impl PaneState {
             self.display_cursor = Position::new(clamped_position.line, clamped_position.column);
         }
 
+        // BUGFIX: Update virtual column to match new cursor position
+        // This ensures that subsequent vertical movements (j/k) preserve the correct column
+        self.update_virtual_column();
+
         // Update visual selection if active
         if self.visual_selection_start.is_some() {
             self.visual_selection_end = Some(clamped_position);
@@ -344,5 +348,74 @@ impl PaneState {
         events.extend(visibility_events);
 
         events
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repl::events::{Pane, PaneCapabilities};
+
+    #[test]
+    fn set_current_cursor_position_should_update_virtual_column() {
+        // Create a minimal PaneState for testing
+        let mut pane_state = PaneState::new(
+            Pane::Request,
+            80,
+            24,
+            false,
+            PaneCapabilities::EDITABLE | PaneCapabilities::NAVIGABLE,
+        );
+
+        // Insert some test content
+        pane_state.buffer.insert_text("line 1\nline 2\nline 3");
+        pane_state.build_display_cache(80, false, 4);
+
+        // Set cursor to specific position (line 1, column 4)
+        let target_position = LogicalPosition::new(1, 4);
+        let _ = pane_state.set_current_cursor_position(target_position);
+
+        // Verify that virtual column matches the cursor position
+        assert_eq!(pane_state.virtual_column, 4,
+            "Virtual column should be updated to match cursor position after set_current_cursor_position");
+    }
+
+    #[test]
+    fn set_current_cursor_position_should_preserve_virtual_column_for_vertical_movement() {
+        // Create a minimal PaneState for testing
+        let mut pane_state = PaneState::new(
+            Pane::Request,
+            80,
+            24,
+            false,
+            PaneCapabilities::EDITABLE | PaneCapabilities::NAVIGABLE,
+        );
+
+        // Insert test content with different line lengths
+        pane_state.buffer.insert_text("short\nlonger line\nshort");
+        pane_state.build_display_cache(80, false, 4);
+
+        // Set cursor to position on longer line
+        let target_position = LogicalPosition::new(1, 7); // "longer |line"
+        let _ = pane_state.set_current_cursor_position(target_position);
+
+        // Verify virtual column is set
+        assert_eq!(pane_state.virtual_column, 7);
+
+        // Move down to shorter line - should clamp but preserve virtual column intent
+        let _ = pane_state.move_cursor_down(80);
+
+        // Virtual column should still be 7 (preserved for future movements)
+        assert_eq!(
+            pane_state.virtual_column, 7,
+            "Virtual column should be preserved during vertical movement"
+        );
+
+        // Current cursor should be clamped to shorter line length
+        let current_cursor = pane_state.buffer.cursor();
+        assert!(
+            current_cursor.column <= 5, // "short" = 5 chars
+            "Cursor should be clamped to line length but virtual column preserved"
+        );
     }
 }

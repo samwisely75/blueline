@@ -625,6 +625,11 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             return Ok(());
         }
 
+        // Handle multi-cursor rendering for Visual Block Insert mode
+        if view_model.is_in_visual_block_insert_mode() {
+            return self.render_multi_cursors(view_model);
+        }
+
         // Get display cursor position and adjust for line numbers and pane offset
         let display_cursor = view_model.get_display_cursor_position();
         let current_pane = view_model.get_current_pane();
@@ -693,8 +698,9 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             EditorMode::Visual => ansi::CURSOR_BLOCK, // Block for visual mode
             EditorMode::VisualLine => ansi::CURSOR_BLOCK, // Block for visual line mode
             EditorMode::VisualBlock => ansi::CURSOR_BLOCK, // Block for visual block mode
-            EditorMode::Command => ansi::CURSOR_BAR, // I-beam for command mode
-            EditorMode::GPrefix => ansi::CURSOR_BLOCK, // Block for g-prefix mode
+            EditorMode::VisualBlockInsert => ansi::CURSOR_BAR, // I-beam for visual block insert mode
+            EditorMode::Command => ansi::CURSOR_BAR,           // I-beam for command mode
+            EditorMode::GPrefix => ansi::CURSOR_BLOCK,         // Block for g-prefix mode
         };
 
         // Position cursor, set style, and show
@@ -1045,6 +1051,71 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         self.render_stream.show_cursor()?;
         self.render_stream.leave_alternate_screen()?;
         self.render_stream.disable_raw_mode()?;
+        Ok(())
+    }
+}
+
+// Private implementation methods for TerminalRenderer
+impl<RS: RenderStream> TerminalRenderer<RS> {
+    /// Render multiple cursors for Visual Block Insert mode
+    fn render_multi_cursors(&mut self, view_model: &ViewModel) -> Result<()> {
+        let cursor_positions = view_model.get_visual_block_insert_cursors();
+        if cursor_positions.is_empty() {
+            return Ok(());
+        }
+
+        tracing::debug!(
+            "render_multi_cursors: rendering primary cursor for {} total positions",
+            cursor_positions.len()
+        );
+
+        // For now, just render the primary cursor at the first position
+        // This ensures the user sees the cursor where text insertion is happening
+        if let Some(first_pos) = cursor_positions.first() {
+            let current_pane = view_model.get_current_pane();
+            let line_num_width = view_model
+                .pane_manager()
+                .get_line_number_width(current_pane);
+            let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
+            let (_request_height, response_start, _response_height) = view_model
+                .pane_manager()
+                .get_pane_boundaries(view_model.get_response_status_code().is_some());
+
+            // Calculate screen position for the primary cursor
+            let viewport_relative_row = first_pos.line.saturating_sub(scroll_offset.row);
+            let screen_col = if view_model.pane_manager().is_line_numbers_visible() {
+                first_pos.column.saturating_sub(scroll_offset.col) + line_num_width + 1
+            } else {
+                first_pos.column.saturating_sub(scroll_offset.col)
+            };
+            let screen_row = match current_pane {
+                Pane::Request => viewport_relative_row,
+                Pane::Response => viewport_relative_row + response_start as usize,
+            };
+
+            let terminal_size = self.terminal_size;
+            let max_row = (terminal_size.1 as usize).saturating_sub(2);
+            let clamped_col = (screen_col).min(terminal_size.0 as usize - 1);
+            let clamped_row = screen_row.min(max_row);
+
+            tracing::debug!(
+                "render_multi_cursors: positioning primary cursor at logical ({}, {}) -> screen ({}, {})",
+                first_pos.line,
+                first_pos.column,
+                clamped_col,
+                clamped_row
+            );
+
+            // Position and show the primary cursor
+            self.render_stream
+                .move_cursor(clamped_col as u16, clamped_row as u16)?;
+            self.render_stream.write_all(ansi::CURSOR_BAR.as_bytes())?;
+            self.render_stream.show_cursor()?;
+            safe_flush!(self.render_stream)?;
+
+            tracing::debug!("render_multi_cursors: primary cursor rendered successfully");
+        }
+
         Ok(())
     }
 }

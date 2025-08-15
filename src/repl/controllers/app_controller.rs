@@ -6,10 +6,10 @@
 use crate::config::AppConfig;
 use crate::repl::{
     commands::{
-        CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, HttpHeaders, Setting,
-        SettingValue, ViewModelSnapshot,
+        CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, HttpHeaders,
+        MovementDirection, Setting, SettingValue, ViewModelSnapshot,
     },
-    events::{EditorMode, Pane, SimpleEventBus},
+    events::{EditorMode, LogicalPosition, Pane, SimpleEventBus},
     io::{EventStream, RenderStream},
     utils::parse_request_from_text,
     view_models::ViewModel,
@@ -277,8 +277,6 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// - Complex commands (like ex commands) can generate nested events
     /// - HTTP requests are handled asynchronously with status updates
     async fn apply_command_event(&mut self, event: CommandEvent) -> Result<()> {
-        use crate::repl::commands::MovementDirection;
-
         match event {
             CommandEvent::CursorMoveRequested { direction, amount } => {
                 for _ in 0..amount {
@@ -335,7 +333,12 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 self.view_model.set_cursor_position(position)?;
             }
             CommandEvent::TextInsertRequested { text, position: _ } => {
-                self.view_model.insert_text(&text)?;
+                // Check if we're in Visual Block Insert mode with multiple cursors
+                if self.view_model.is_in_visual_block_insert_mode() {
+                    self.handle_multi_cursor_text_insert(&text)?;
+                } else {
+                    self.view_model.insert_text(&text)?;
+                }
             }
             CommandEvent::TextDeleteRequested {
                 position: _,
@@ -347,34 +350,47 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                     amount,
                     direction
                 );
-                for i in 0..amount {
-                    match direction {
-                        MovementDirection::Left => {
-                            tracing::debug!(
-                                "🗑️  Attempting delete_char_before_cursor (iteration {})",
-                                i + 1
-                            );
-                            match self.view_model.delete_char_before_cursor() {
-                                Ok(_) => tracing::debug!("✅ delete_char_before_cursor succeeded"),
-                                Err(e) => {
-                                    tracing::error!("❌ delete_char_before_cursor failed: {}", e)
+
+                // Check if we're in Visual Block Insert mode with multiple cursors
+                if self.view_model.is_in_visual_block_insert_mode() {
+                    self.handle_multi_cursor_text_delete(amount, direction)?;
+                } else {
+                    for i in 0..amount {
+                        match direction {
+                            MovementDirection::Left => {
+                                tracing::debug!(
+                                    "🗑️  Attempting delete_char_before_cursor (iteration {})",
+                                    i + 1
+                                );
+                                match self.view_model.delete_char_before_cursor() {
+                                    Ok(_) => {
+                                        tracing::debug!("✅ delete_char_before_cursor succeeded")
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(
+                                            "❌ delete_char_before_cursor failed: {}",
+                                            e
+                                        )
+                                    }
                                 }
                             }
-                        }
-                        MovementDirection::Right => {
-                            tracing::debug!(
-                                "🗑️  Attempting delete_char_after_cursor (iteration {})",
-                                i + 1
-                            );
-                            match self.view_model.delete_char_after_cursor() {
-                                Ok(_) => tracing::debug!("✅ delete_char_after_cursor succeeded"),
-                                Err(e) => {
-                                    tracing::error!("❌ delete_char_after_cursor failed: {}", e)
+                            MovementDirection::Right => {
+                                tracing::debug!(
+                                    "🗑️  Attempting delete_char_after_cursor (iteration {})",
+                                    i + 1
+                                );
+                                match self.view_model.delete_char_after_cursor() {
+                                    Ok(_) => {
+                                        tracing::debug!("✅ delete_char_after_cursor succeeded")
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("❌ delete_char_after_cursor failed: {}", e)
+                                    }
                                 }
                             }
-                        }
-                        _ => {
-                            tracing::warn!("Unsupported delete direction: {:?}", direction);
+                            _ => {
+                                tracing::warn!("Unsupported delete direction: {:?}", direction);
+                            }
                         }
                     }
                 }
@@ -505,6 +521,18 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
             CommandEvent::CutSelectionRequested => {
                 self.handle_cut_selection()?;
+            }
+            CommandEvent::ChangeSelectionRequested => {
+                self.handle_change_selection()?;
+            }
+            CommandEvent::VisualBlockInsertRequested => {
+                self.handle_visual_block_insert()?;
+            }
+            CommandEvent::VisualBlockAppendRequested => {
+                self.handle_visual_block_append()?;
+            }
+            CommandEvent::ExitVisualBlockInsertRequested => {
+                self.handle_exit_visual_block_insert()?;
             }
             CommandEvent::PasteAfterRequested => {
                 self.handle_paste_after()?;
@@ -881,6 +909,424 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 .set_status_message("No text selected".to_string());
         }
 
+        Ok(())
+    }
+
+    /// Handle change selection operation (Visual Block mode 'c' command)
+    ///
+    /// This implements vim's Visual Block change command:
+    /// 1. Delete the selected rectangular block
+    /// 2. Enter Visual Block Insert mode for multi-cursor text replacement
+    /// 3. Shows multi-cursor feedback on all affected lines in real-time
+    /// 4. When Esc is pressed, exits Visual Block Insert mode
+    fn handle_change_selection(&mut self) -> Result<()> {
+        // Change operation is currently only supported in Visual Block mode
+        let current_mode = self.view_model.get_mode();
+        if current_mode != EditorMode::VisualBlock {
+            tracing::warn!("Change selection only supported in Visual Block mode, current mode: {current_mode:?}");
+            self.view_model.set_status_message(
+                "Change command only supported in Visual Block mode".to_string(),
+            );
+            return Ok(());
+        }
+
+        // Get the visual selection before deleting it
+        let (selection_start, selection_end, _pane) = self.view_model.get_visual_selection();
+        if selection_start.is_none() || selection_end.is_none() {
+            tracing::warn!("No visual selection for change operation");
+            self.view_model
+                .set_status_message("No text selected".to_string());
+            return Ok(());
+        }
+
+        let start = selection_start.unwrap();
+        let end = selection_end.unwrap();
+
+        // Calculate the cursor positions for Visual Block Insert mode
+        // This is similar to Visual Block Insert, but we start from the deleted block
+        let top_line = start.line.min(end.line);
+        let bottom_line = start.line.max(end.line);
+        let left_col = start.column.min(end.column);
+
+        // Delete the selected block text first
+        if let Some(deleted_text) = self.view_model.delete_selected_text()? {
+            // Create cursor positions for all lines in the deleted block range
+            let mut cursor_positions = Vec::new();
+            for line_num in top_line..=bottom_line {
+                cursor_positions.push(LogicalPosition::new(line_num, left_col));
+            }
+
+            // Set up Visual Block Insert mode with multi-cursor state
+            self.view_model
+                .set_visual_block_insert_cursors(cursor_positions.clone());
+
+            // Switch to VisualBlockInsert mode (not regular Insert)
+            self.view_model.change_mode(EditorMode::VisualBlockInsert)?;
+
+            // Position the main cursor at the first line of the block
+            self.view_model.set_cursor_position(cursor_positions[0])?;
+
+            // Show feedback in status bar
+            let char_count = deleted_text.chars().count();
+            let line_count = deleted_text.lines().count();
+            let message = if line_count > 1 {
+                format!("Changed {line_count} lines, Visual Block Insert mode")
+            } else {
+                format!("Changed {char_count} characters, Visual Block Insert mode")
+            };
+            self.view_model.set_status_message(message);
+
+            tracing::info!(
+                "Changed {} characters ({} lines), entered Visual Block Insert mode with {} cursors",
+                char_count,
+                line_count,
+                cursor_positions.len()
+            );
+        } else {
+            tracing::warn!("No text selected for changing");
+            self.view_model
+                .set_status_message("No text selected".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Handle Visual Block Insert operation ('I' in Visual Block mode)
+    ///
+    /// This implements vim's Visual Block Insert command:
+    /// 1. Remember the selected block coordinates
+    /// 2. Move cursor to the start of the first selected line in the block  
+    /// 3. Enter special VisualBlockInsert mode
+    /// 4. Text typed appears on first line, replicated to all lines on Esc
+    fn handle_visual_block_insert(&mut self) -> Result<()> {
+        // Only supported in Visual Block mode
+        let current_mode = self.view_model.get_mode();
+        if current_mode != EditorMode::VisualBlock {
+            tracing::warn!("Visual Block Insert only supported in Visual Block mode, current mode: {current_mode:?}");
+            self.view_model.set_status_message(
+                "Visual Block Insert only supported in Visual Block mode".to_string(),
+            );
+            return Ok(());
+        }
+
+        // Get the visual selection coordinates
+        let (start_pos, end_pos, pane) = self.view_model.get_visual_selection();
+        if let (Some(start), Some(end), Some(selected_pane)) = (start_pos, end_pos, pane) {
+            if selected_pane != self.view_model.get_current_pane() {
+                tracing::warn!("Visual selection is not in current pane");
+                return Ok(());
+            }
+
+            // Calculate the block boundaries
+            let start_line = start.line.min(end.line);
+            let end_line = start.line.max(end.line);
+            let start_col = start.column.min(end.column);
+
+            // Create cursor positions for all lines in the block
+            let mut cursor_positions = Vec::new();
+            for line in start_line..=end_line {
+                cursor_positions.push(LogicalPosition::new(line, start_col));
+            }
+
+            // Set multi-cursor state for Visual Block Insert
+            self.view_model
+                .set_visual_block_insert_cursors(cursor_positions);
+
+            // Move primary cursor to start of block (beginning of leftmost column on first line)
+            self.view_model
+                .set_cursor_position(LogicalPosition::new(start_line, start_col))?;
+
+            // Enter Visual Block Insert mode
+            self.view_model.change_mode(EditorMode::VisualBlockInsert)?;
+
+            // Show feedback
+            let line_count = (start.line.max(end.line) - start_line) + 1;
+            self.view_model
+                .set_status_message(format!("Visual Block Insert: {line_count} lines"));
+
+            tracing::info!(
+                "Entered Visual Block Insert mode at position ({}, {}), affecting {} lines",
+                start_line,
+                start_col,
+                line_count
+            );
+        } else {
+            tracing::warn!("No visual block selection found");
+            self.view_model
+                .set_status_message("No visual block selection".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Handle Visual Block Append operation ('A' in Visual Block mode)
+    ///
+    /// This implements vim's Visual Block Append command:
+    /// 1. Remember the selected block coordinates
+    /// 2. Move cursor to the end of the first selected line in the block
+    /// 3. Enter special VisualBlockInsert mode
+    /// 4. Text typed appears on first line, replicated to all lines on Esc
+    fn handle_visual_block_append(&mut self) -> Result<()> {
+        // Only supported in Visual Block mode
+        let current_mode = self.view_model.get_mode();
+        if current_mode != EditorMode::VisualBlock {
+            tracing::warn!("Visual Block Append only supported in Visual Block mode, current mode: {current_mode:?}");
+            self.view_model.set_status_message(
+                "Visual Block Append only supported in Visual Block mode".to_string(),
+            );
+            return Ok(());
+        }
+
+        // Get the visual selection coordinates
+        let (start_pos, end_pos, pane) = self.view_model.get_visual_selection();
+        if let (Some(start), Some(end), Some(selected_pane)) = (start_pos, end_pos, pane) {
+            if selected_pane != self.view_model.get_current_pane() {
+                tracing::warn!("Visual selection is not in current pane");
+                return Ok(());
+            }
+
+            // Calculate the block boundaries
+            let start_line = start.line.min(end.line);
+            let end_line = start.line.max(end.line);
+            let end_col = start.column.max(end.column);
+
+            // Create cursor positions for all lines in the block (AFTER the end position for append)
+            // Visual Block 'A' should position cursor after the rightmost selected character
+            let mut cursor_positions = Vec::new();
+            for line in start_line..=end_line {
+                cursor_positions.push(LogicalPosition::new(line, end_col + 1));
+            }
+
+            // Set multi-cursor state for Visual Block Insert
+            self.view_model
+                .set_visual_block_insert_cursors(cursor_positions);
+
+            // Move primary cursor to after the end of block (one position after rightmost column)
+            self.view_model
+                .set_cursor_position(LogicalPosition::new(start_line, end_col + 1))?;
+
+            // Enter Visual Block Insert mode
+            self.view_model.change_mode(EditorMode::VisualBlockInsert)?;
+
+            // Show feedback
+            let line_count = (start.line.max(end.line) - start_line) + 1;
+            self.view_model
+                .set_status_message(format!("Visual Block Append: {line_count} lines"));
+
+            tracing::info!(
+                "Entered Visual Block Append mode at position ({}, {}), affecting {} lines",
+                start_line,
+                end_col,
+                line_count
+            );
+        } else {
+            tracing::warn!("No visual block selection found");
+            self.view_model
+                .set_status_message("No visual block selection".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Handle exit from Visual Block Insert mode with text replication
+    ///
+    /// This implements the complex vim behavior where:
+    /// 1. Text typed on the first line during Visual Block Insert is captured
+    /// 2. That text is replicated to all lines that were in the original block selection  
+    /// 3. Cursor is positioned at the end of the inserted text on the first line
+    fn handle_exit_visual_block_insert(&mut self) -> Result<()> {
+        tracing::info!("Exiting Visual Block Insert mode");
+
+        // Preserve cursor position at the first multi-cursor position
+        let cursor_to_preserve = self
+            .view_model
+            .get_visual_block_insert_cursors()
+            .first()
+            .copied(); // Get first cursor position before clearing
+
+        // Clear multi-cursor state
+        self.view_model.clear_visual_block_insert_cursors();
+
+        // Clear visual selection that was active when we entered Visual Block Insert
+        self.view_model.clear_visual_selection()?;
+
+        // Restore cursor position to where typing was happening (first cursor)
+        if let Some(preserved_cursor) = cursor_to_preserve {
+            self.view_model.set_cursor_position(preserved_cursor)?;
+            tracing::debug!("Preserved cursor position at {:?}", preserved_cursor);
+        }
+
+        self.view_model.change_mode(EditorMode::Normal)?;
+
+        // Clear any previous status messages when exiting Visual Block Insert
+        self.view_model.clear_status_message();
+
+        Ok(())
+    }
+
+    /// Handle text insertion for multi-cursor Visual Block Insert mode
+    ///
+    /// Inserts the same text at all cursor positions simultaneously,
+    /// providing live feedback across all selected lines.
+    fn handle_multi_cursor_text_insert(&mut self, text: &str) -> Result<()> {
+        let cursor_positions = self.view_model.get_visual_block_insert_cursors().to_vec();
+
+        if cursor_positions.is_empty() {
+            // Fallback to regular insert if no cursors are set
+            return self.view_model.insert_text(text);
+        }
+
+        tracing::debug!(
+            "Multi-cursor text insert: '{}' at {} positions",
+            text,
+            cursor_positions.len()
+        );
+
+        // Insert text at each cursor position
+        // We need to process in reverse order to maintain position validity
+        for position in cursor_positions.iter().rev() {
+            // Temporarily set cursor to this position and insert text
+            self.view_model.set_cursor_position(*position)?;
+            self.view_model.insert_text(text)?;
+        }
+
+        // Update all cursor positions to reflect the inserted text
+        let text_len = text.chars().count(); // Handle multi-byte characters correctly
+        let updated_positions: Vec<LogicalPosition> = cursor_positions
+            .iter()
+            .map(|pos| LogicalPosition::new(pos.line, pos.column + text_len))
+            .collect();
+
+        // Set the primary cursor to the first position before updating positions
+        if let Some(first_pos) = updated_positions.first() {
+            self.view_model.set_cursor_position(*first_pos)?;
+        }
+
+        self.view_model
+            .update_visual_block_insert_cursors(updated_positions);
+
+        tracing::debug!("Multi-cursor text insert completed, updated cursor positions");
+        Ok(())
+    }
+
+    /// Handle text deletion for multi-cursor Visual Block Insert mode
+    fn handle_multi_cursor_text_delete(
+        &mut self,
+        amount: usize,
+        direction: MovementDirection,
+    ) -> Result<()> {
+        let cursor_positions = self.view_model.get_visual_block_insert_cursors().to_vec();
+        let start_columns = self
+            .view_model
+            .get_visual_block_insert_start_columns()
+            .to_vec();
+
+        if cursor_positions.is_empty() {
+            // Fallback to regular delete if no cursors are set
+            for _ in 0..amount {
+                match direction {
+                    MovementDirection::Left => {
+                        self.view_model.delete_char_before_cursor()?;
+                    }
+                    MovementDirection::Right => {
+                        self.view_model.delete_char_after_cursor()?;
+                    }
+                    _ => {
+                        tracing::warn!("Unsupported delete direction: {:?}", direction);
+                    }
+                }
+            }
+            return Ok(());
+        }
+
+        tracing::debug!(
+            "Multi-cursor text delete: {} chars in direction {:?} at {} positions, start columns: {:?}",
+            amount,
+            direction,
+            cursor_positions.len(),
+            start_columns
+        );
+
+        // Perform deletion at each cursor position, respecting boundaries
+        // We need to process in reverse order to maintain position validity
+        for (i, position) in cursor_positions.iter().enumerate().rev() {
+            let start_column = start_columns.get(i).copied().unwrap_or(0);
+
+            // Temporarily set cursor to this position
+            self.view_model.set_cursor_position(*position)?;
+
+            // For left deletion (backspace), respect the Visual Block start boundary
+            let effective_amount = if direction == MovementDirection::Left {
+                // Calculate how many characters we can actually delete without going beyond start
+                let current_col = position.column;
+                let max_deletable = current_col.saturating_sub(start_column);
+                let effective = amount.min(max_deletable);
+                tracing::debug!(
+                    "Backspace calculation: line={}, current_col={}, start_col={}, max_deletable={}, requested={}, effective={}",
+                    position.line, current_col, start_column, max_deletable, amount, effective
+                );
+                effective
+            } else {
+                amount
+            };
+
+            for _ in 0..effective_amount {
+                match direction {
+                    MovementDirection::Left => {
+                        self.view_model.delete_char_before_cursor()?;
+                    }
+                    MovementDirection::Right => {
+                        self.view_model.delete_char_after_cursor()?;
+                    }
+                    _ => {
+                        tracing::warn!("Unsupported delete direction: {:?}", direction);
+                        break;
+                    }
+                }
+            }
+
+            tracing::debug!(
+                "Line {}: deleted {} chars (requested: {}, start_column: {}, current: {})",
+                position.line,
+                effective_amount,
+                amount,
+                start_column,
+                position.column
+            );
+        }
+
+        // Update all cursor positions to reflect the deleted text
+        let updated_positions: Vec<LogicalPosition> = match direction {
+            MovementDirection::Left => {
+                // For backspace, cursor positions move left by amount actually deleted (respecting boundaries)
+                cursor_positions
+                    .iter()
+                    .enumerate()
+                    .map(|(i, pos)| {
+                        let start_column = start_columns.get(i).copied().unwrap_or(0);
+                        let current_col = pos.column;
+                        let max_deletable = current_col.saturating_sub(start_column);
+                        let effective_amount = amount.min(max_deletable);
+                        LogicalPosition::new(pos.line, pos.column.saturating_sub(effective_amount))
+                    })
+                    .collect()
+            }
+            MovementDirection::Right => {
+                // For forward delete, cursor positions stay the same
+                cursor_positions
+            }
+            _ => cursor_positions,
+        };
+
+        // Set the primary cursor to the first position before updating positions
+        if let Some(first_pos) = updated_positions.first() {
+            self.view_model.set_cursor_position(*first_pos)?;
+        }
+
+        self.view_model
+            .update_visual_block_insert_cursors(updated_positions);
+
+        tracing::debug!("Multi-cursor text delete completed, updated cursor positions");
         Ok(())
     }
 

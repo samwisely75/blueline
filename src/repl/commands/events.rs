@@ -116,6 +116,18 @@ pub enum CommandEvent {
     /// Request to paste yanked text at current cursor position
     PasteAtCursorRequested,
 
+    /// Request to change (delete and enter insert mode) selected text in visual block mode
+    ChangeSelectionRequested,
+
+    /// Request to enter Visual Block Insert mode at beginning of block
+    VisualBlockInsertRequested,
+
+    /// Request to enter Visual Block Insert mode at end of block  
+    VisualBlockAppendRequested,
+
+    /// Request to exit Visual Block Insert mode with text replication
+    ExitVisualBlockInsertRequested,
+
     /// No action needed (for commands that only query state)
     NoAction,
 }
@@ -231,6 +243,26 @@ impl CommandEvent {
     /// Create a paste at cursor event
     pub fn paste_at_cursor() -> Self {
         Self::PasteAtCursorRequested
+    }
+
+    /// Create a change selection event
+    pub fn change_selection() -> Self {
+        Self::ChangeSelectionRequested
+    }
+
+    /// Create a visual block insert event
+    pub fn visual_block_insert() -> Self {
+        Self::VisualBlockInsertRequested
+    }
+
+    /// Create a visual block append event
+    pub fn visual_block_append() -> Self {
+        Self::VisualBlockAppendRequested
+    }
+
+    /// Create an exit visual block insert event
+    pub fn exit_visual_block_insert() -> Self {
+        Self::ExitVisualBlockInsertRequested
     }
 }
 
