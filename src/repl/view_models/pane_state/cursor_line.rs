@@ -173,6 +173,9 @@ impl PaneState {
         let start_position = Position::origin();
         let _result = self.set_display_cursor(start_position);
 
+        // Reset virtual column to 0 (vim gg behavior)
+        self.virtual_column = 0;
+
         let mut events = vec![
             ViewEvent::ActiveCursorUpdateRequired,
             ViewEvent::PositionIndicatorUpdateRequired,
@@ -214,31 +217,20 @@ impl PaneState {
             ViewEvent::PositionIndicatorUpdateRequired,
         ];
 
-        // If there are display lines, move to the end of the last line
-        if let Some(last_line) = self.display_cache.get_display_line(last_line_idx) {
-            let line_display_width = last_line.display_width();
+        // Move to beginning of the last line (vim G behavior)
+        let end_position = Position::new(last_line_idx, 0);
+        let _result = self.set_display_cursor(end_position);
 
-            // Position at the last character (not after it) for Normal/Visual mode
-            let end_col = if line_display_width > 0 {
-                match self.editor_mode {
-                    EditorMode::Insert => line_display_width, // Insert mode: can be after last character
-                    _ => line_display_width.saturating_sub(1), // Normal/Visual: ON the last character
-                }
-            } else {
-                0 // Empty line, stay at column 0
-            };
+        // Reset virtual column to 0 (vim G behavior)
+        self.virtual_column = 0;
 
-            let end_position = Position::new(last_line_idx, end_col);
-            let _result = self.set_display_cursor(end_position);
+        // Update visual selection if active
+        let new_cursor_pos = self.buffer.cursor();
+        self.update_visual_selection_on_cursor_move(new_cursor_pos);
 
-            // Update visual selection if active
-            let new_cursor_pos = self.buffer.cursor();
-            self.update_visual_selection_on_cursor_move(new_cursor_pos);
-
-            // Add redraw event for visual selection if active
-            if self.visual_selection_start.is_some() {
-                events.push(ViewEvent::CurrentAreaRedrawRequired);
-            }
+        // Add redraw event for visual selection if active
+        if self.visual_selection_start.is_some() {
+            events.push(ViewEvent::CurrentAreaRedrawRequired);
         }
 
         // Ensure cursor is visible and add visibility events
