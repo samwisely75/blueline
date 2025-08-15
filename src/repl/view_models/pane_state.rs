@@ -1667,6 +1667,319 @@ impl PaneState {
 
         old_horizontal_offset + accumulated_width
     }
+
+    /// Ensure cursor is visible and return view events (wrapper around ensure_cursor_visible)
+    pub fn ensure_cursor_visible_with_events(&mut self, content_width: usize) -> Vec<ViewEvent> {
+        let result = self.ensure_cursor_visible(content_width);
+
+        if result.vertical_changed || result.horizontal_changed {
+            // For horizontal scrolling, use horizontal offsets; for vertical scrolling, use vertical offsets
+            // If both changed, prioritize horizontal since it's more common in response navigation
+            let (old_offset, new_offset) = if result.horizontal_changed {
+                (result.old_horizontal_offset, result.new_horizontal_offset)
+            } else {
+                (result.old_vertical_offset, result.new_vertical_offset)
+            };
+
+            vec![ViewEvent::CurrentAreaScrollChanged {
+                old_offset,
+                new_offset,
+            }]
+        } else {
+            vec![]
+        }
+    }
+
+    // ========================================
+    // Basic Cursor Movement Methods
+    // ========================================
+
+    /// Move cursor left with capability checking and visual selection support
+    pub fn move_cursor_left(&mut self, content_width: usize) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        let current_display_pos = self.display_cursor;
+        let mut moved = false;
+
+        // Check if we can move left within current display line
+        if current_display_pos.col > 0 {
+            // Use character-aware left movement
+            if let Some(current_line) = self.display_cache.get_display_line(current_display_pos.row)
+            {
+                let new_col = current_line.move_left_by_character(current_display_pos.col);
+                let new_display_pos = Position::new(current_display_pos.row, new_col);
+                self.display_cursor = new_display_pos;
+                // Update virtual column for horizontal movement
+                self.update_virtual_column();
+                moved = true;
+            }
+        } else if current_display_pos.row > 0 {
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to previous line
+            if self.editor_mode != EditorMode::VisualBlock {
+                // Move to end of previous display line
+                let prev_display_line = current_display_pos.row - 1;
+                if let Some(prev_line) = self.display_cache.get_display_line(prev_display_line) {
+                    // Use display width instead of character count for proper multibyte character support
+                    let new_col = prev_line.display_width().saturating_sub(1);
+                    let new_display_pos = Position::new(prev_display_line, new_col);
+                    self.display_cursor = new_display_pos;
+                    // Update virtual column for horizontal movement
+                    self.update_virtual_column();
+                    moved = true;
+                }
+            }
+        }
+
+        if moved {
+            // Sync logical cursor with new display position
+            let new_display_pos = self.display_cursor;
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+
+            let mut events = vec![
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired,
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+            events.extend(visibility_events);
+
+            events
+        } else {
+            vec![]
+        }
+    }
+
+    /// Move cursor right with capability checking and visual selection support
+    pub fn move_cursor_right(&mut self, content_width: usize) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        let current_display_pos = self.display_cursor;
+        let mut moved = false;
+
+        // Check if cursor can move right within current line
+        let can_move_right_in_line = if let Some(current_line) =
+            self.display_cache.get_display_line(current_display_pos.row)
+        {
+            let line_display_width = current_line.display_width();
+
+            match self.editor_mode {
+                EditorMode::Insert => {
+                    // Insert mode: Allow cursor to go one position past end of line
+                    current_display_pos.col < line_display_width
+                }
+                EditorMode::VisualBlock => {
+                    // Visual Block mode: Allow cursor to move beyond line content
+                    true // Always allow right movement in Visual Block mode
+                }
+                _ => {
+                    // Normal/Visual mode: Stop at last character position
+                    if line_display_width == 0 {
+                        false // Empty line - no movement allowed
+                    } else {
+                        let next_pos =
+                            current_line.move_right_by_character(current_display_pos.col);
+                        next_pos < line_display_width
+                    }
+                }
+            }
+        } else {
+            false
+        };
+
+        // Check if cursor can move to next line
+        let can_move_to_next_line = if !can_move_right_in_line {
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to next line
+            if self.editor_mode == EditorMode::VisualBlock {
+                false
+            } else {
+                let next_display_line = current_display_pos.row + 1;
+                self.display_cache
+                    .get_display_line(next_display_line)
+                    .is_some()
+            }
+        } else {
+            false
+        };
+
+        // Perform the actual cursor movement
+        if can_move_right_in_line {
+            // Move right within current line
+            if let Some(current_line) = self.display_cache.get_display_line(current_display_pos.row)
+            {
+                let new_col = current_line.move_right_by_character(current_display_pos.col);
+                self.display_cursor = Position::new(current_display_pos.row, new_col);
+                self.update_virtual_column();
+                moved = true;
+            }
+        } else if can_move_to_next_line {
+            // Move to beginning of next line
+            let next_display_line = current_display_pos.row + 1;
+            self.display_cursor = Position::new(next_display_line, 0);
+            self.update_virtual_column();
+            moved = true;
+        }
+
+        if moved {
+            // Sync logical cursor with new display position
+            let new_display_pos = self.display_cursor;
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+
+            let mut events = vec![
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired,
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+            events.extend(visibility_events);
+
+            events
+        } else {
+            vec![]
+        }
+    }
+
+    /// Move cursor up with capability checking and virtual column support
+    pub fn move_cursor_up(&mut self, content_width: usize) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        let current_display_pos = self.display_cursor;
+
+        if current_display_pos.row > 0 {
+            let new_line = current_display_pos.row - 1;
+
+            // Vim-style virtual column: try to restore the desired column position
+            let virtual_col = self.virtual_column;
+            let new_col = if let Some(display_line) = self.display_cache.get_display_line(new_line)
+            {
+                let line_char_count = display_line.char_count();
+                let max_col = if self.editor_mode == EditorMode::Insert {
+                    line_char_count // Insert mode: can be positioned after last character
+                } else {
+                    line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+                };
+                let clamped_col = virtual_col.min(max_col);
+                // Snap to character boundary to handle DBCS characters
+                display_line.snap_to_character_boundary(clamped_col)
+            } else {
+                virtual_col
+            };
+
+            let new_display_pos = Position::new(new_line, new_col);
+            self.display_cursor = new_display_pos;
+
+            // Sync logical cursor with new display position
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+
+            let mut events = vec![
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired,
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+            events.extend(visibility_events);
+
+            events
+        } else {
+            vec![]
+        }
+    }
+
+    /// Move cursor down with capability checking and virtual column support
+    pub fn move_cursor_down(&mut self, content_width: usize) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        let current_display_pos = self.display_cursor;
+        let next_display_line = current_display_pos.row + 1;
+
+        // Check if the next display line actually exists
+        if let Some(display_line) = self.display_cache.get_display_line(next_display_line) {
+            // Vim-style virtual column: try to restore the desired column position
+            let virtual_col = self.virtual_column;
+            let line_char_count = display_line.char_count();
+            let max_col = if self.editor_mode == EditorMode::Insert {
+                line_char_count // Insert mode: can be positioned after last character
+            } else {
+                line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
+            };
+            let clamped_col = virtual_col.min(max_col);
+            // Snap to character boundary to handle DBCS characters
+            let new_col = display_line.snap_to_character_boundary(clamped_col);
+            let new_display_pos = Position::new(next_display_line, new_col);
+
+            self.display_cursor = new_display_pos;
+
+            // Sync logical cursor with new display position
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+
+            let mut events = vec![
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired,
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+            events.extend(visibility_events);
+
+            events
+        } else {
+            vec![]
+        }
+    }
 }
 
 /// Array indexing for panes to enable clean access patterns

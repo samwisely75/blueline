@@ -885,6 +885,9 @@ impl PaneManager {
     }
 
     /// Calculate maximum allowed column for Visual Block mode based on all selected lines
+    ///
+    /// **DEPRECATED**: This method is no longer used after refactoring cursor movement to PaneState.
+    #[allow(dead_code)]
     fn get_visual_block_max_column(&self, current_pos: Position, attempted_col: usize) -> usize {
         // If not in visual selection, use attempted column
         let (Some(start), Some(end)) = (
@@ -949,80 +952,12 @@ impl PaneManager {
     }
 
     /// Move cursor left in current area
+    ///
+    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Use PaneState::move_cursor_left() directly for new code.
     pub fn move_cursor_left(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let display_cache = &self.panes[self.current_pane].display_cache;
-
-        let mut moved = false;
-
-        // Check if we can move left within current display line
-        if current_display_pos.col > 0 {
-            // Use character-aware left movement
-            if let Some(current_line) = display_cache.get_display_line(current_display_pos.row) {
-                let new_col = current_line.move_left_by_character(current_display_pos.col);
-                let new_display_pos = Position::new(current_display_pos.row, new_col);
-                self.panes[self.current_pane].display_cursor = new_display_pos;
-                // Update virtual column for horizontal movement
-                self.panes[self.current_pane].update_virtual_column();
-                moved = true;
-            }
-        } else if current_display_pos.row > 0 {
-            let current_mode = self.get_current_pane_mode();
-
-            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to previous line
-            // Cursor should be constrained to horizontal movement within the selected line range
-            if current_mode != EditorMode::VisualBlock {
-                // Move to end of previous display line
-                let prev_display_line = current_display_pos.row - 1;
-                if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
-                    // FIXED: Use display width instead of character count for proper multibyte character support
-                    let new_col = prev_line.display_width().saturating_sub(1);
-                    let new_display_pos = Position::new(prev_display_line, new_col);
-                    self.panes[self.current_pane].display_cursor = new_display_pos;
-                    // Update virtual column for horizontal movement
-                    self.panes[self.current_pane].update_virtual_column();
-                    moved = true;
-                }
-            }
-        }
-
-        if moved {
-            // Sync logical cursor with new display position
-            let new_display_pos = self.get_current_display_cursor();
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
-                }
-            }
-
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ];
-
-            // Ensure cursor is visible and add visibility events
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
-        }
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_left(content_width)
     }
 
     /// Move cursor right in current area
@@ -1033,6 +968,12 @@ impl PaneManager {
     /// 3. Perform the actual cursor movement using character-aware positioning
     /// 4. Sync display cursor with logical cursor and update visual selections
     pub fn move_cursor_right(&mut self) -> Vec<ViewEvent> {
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_right(content_width)
+    }
+
+    /// Move cursor right in current area (DEPRECATED implementation)
+    fn _deprecated_move_cursor_right(&mut self) -> Vec<ViewEvent> {
         let current_display_pos = self.get_current_display_cursor();
 
         let mut moved = false;
@@ -1198,137 +1139,21 @@ impl PaneManager {
     }
 
     /// Move cursor up in current area
+    ///
+    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Use PaneState::move_cursor_up() directly for new code.
     pub fn move_cursor_up(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let current_mode = self.panes[self.current_pane].editor_mode;
-
-        if current_display_pos.row > 0 {
-            let new_line = current_display_pos.row - 1;
-
-            // Vim-style virtual column: try to restore the desired column position
-            // Use virtual column instead of current column for vertical navigation
-            let virtual_col = self.panes[self.current_pane].virtual_column;
-            let new_col = if let Some(display_line) = self.panes[self.current_pane]
-                .display_cache
-                .get_display_line(new_line)
-            {
-                let line_char_count = display_line.char_count();
-                let max_col = if current_mode == EditorMode::Insert {
-                    line_char_count // Insert mode: can be positioned after last character
-                } else {
-                    line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
-                };
-                let clamped_col = virtual_col.min(max_col);
-                // CRITICAL FIX: Snap to character boundary to handle DBCS characters
-                display_line.snap_to_character_boundary(clamped_col)
-            } else {
-                virtual_col
-            };
-
-            let new_display_pos = Position::new(new_line, new_col);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-
-            // Sync logical cursor with new display position
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
-                }
-            }
-
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ];
-
-            // Ensure cursor is visible and add visibility events
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
-        }
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_up(content_width)
     }
 
     /// Move cursor down in current area
+    ///
+    /// **DEPRECATED**: This method now delegates to PaneState for business logic.
+    /// Use PaneState::move_cursor_down() directly for new code.
     pub fn move_cursor_down(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let current_mode = self.panes[self.current_pane].editor_mode;
-
-        let next_display_line = current_display_pos.row + 1;
-
-        // Check if the next display line actually exists in the display cache
-        // This prevents cursor from moving beyond actual content
-        if let Some(display_line) = self.panes[self.current_pane]
-            .display_cache
-            .get_display_line(next_display_line)
-        {
-            // Only move if there's actual content at the next line
-            // Vim-style virtual column: try to restore the desired column position
-            let virtual_col = self.panes[self.current_pane].virtual_column;
-            let line_char_count = display_line.char_count();
-            let max_col = if current_mode == EditorMode::Insert {
-                line_char_count // Insert mode: can be positioned after last character
-            } else {
-                line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
-            };
-            let clamped_col = virtual_col.min(max_col);
-            // CRITICAL FIX: Snap to character boundary to handle DBCS characters
-            let new_col = display_line.snap_to_character_boundary(clamped_col);
-            let new_display_pos = Position::new(next_display_line, new_col);
-
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-
-            // Sync logical cursor with new display position
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
-                }
-            }
-
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ];
-
-            // Ensure cursor is visible and add visibility events
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
-        }
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_down(content_width)
     }
 
     /// Move cursor to start of current line
