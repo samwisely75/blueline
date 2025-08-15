@@ -28,6 +28,7 @@ use std::ops::{Index, IndexMut};
 
 // Re-export all modules
 pub mod capabilities;
+pub mod content;
 pub mod cursor_basic;
 pub mod cursor_line;
 pub mod display;

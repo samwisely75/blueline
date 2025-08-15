@@ -593,91 +593,22 @@ impl PaneManager {
 
     /// Set cursor position in current area
     pub fn set_current_cursor_position(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
-        let clamped_position = self.panes[self.current_pane]
-            .buffer
-            .content()
-            .clamp_position(position);
-        self.panes[self.current_pane]
-            .buffer
-            .set_cursor(clamped_position);
-
-        // Sync display cursor with new logical position
-        if let Some(display_pos) = self.panes[self.current_pane]
-            .display_cache
-            .logical_to_display_position(clamped_position.line, clamped_position.column)
-        {
-            self.panes[self.current_pane].display_cursor = display_pos;
-        } else {
-            // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
-            tracing::warn!(
-                "set_current_cursor_position: logical_to_display_position failed at {:?} - using fallback", 
-                clamped_position
-            );
-            // Fallback: Use logical position as display position (works for non-wrapped content)
-            self.panes[self.current_pane].display_cursor =
-                Position::new(clamped_position.line, clamped_position.column);
-        }
-
-        // Update visual selection if active
-        if self.panes[self.current_pane]
-            .visual_selection_start
-            .is_some()
-        {
-            self.panes[self.current_pane].visual_selection_end = Some(clamped_position);
-        }
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Ensure cursor is visible and add visibility events
-        let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].set_current_cursor_position(position)
     }
 
     /// Clear editable content (semantic operation)
     pub fn clear_editable_content(&mut self) -> Vec<ViewEvent> {
-        self.panes[Pane::Request].buffer = crate::repl::models::BufferModel::new(Pane::Request);
-        vec![ViewEvent::RequestContentChanged]
+        self.panes[Pane::Request].clear_editable_content()
     }
 
     /// Set Request pane content
     pub fn set_request_content(&mut self, text: &str) -> Vec<ViewEvent> {
-        self.panes[Pane::Request].buffer = crate::repl::models::BufferModel::new(Pane::Request);
-        self.panes[Pane::Request]
-            .buffer
-            .content_mut()
-            .set_text(text);
-
-        // Update line number width after content changes
-        self.panes[Pane::Request].update_line_number_width();
-
-        vec![ViewEvent::RequestContentChanged]
+        self.panes[Pane::Request].set_request_content(text)
     }
 
     /// Set Response pane content
     pub fn set_response_content(&mut self, text: &str) -> Vec<ViewEvent> {
-        self.panes[Pane::Response].buffer = crate::repl::models::BufferModel::new(Pane::Response);
-
-        self.panes[Pane::Response]
-            .buffer
-            .content_mut()
-            .set_text(text);
-
-        // Update line number width after content changes
-        self.panes[Pane::Response].update_line_number_width();
-
-        // Reset cursor and scroll positions to avoid out-of-bounds issues
-        self.panes[Pane::Response].display_cursor = Position::origin();
-        self.panes[Pane::Response].scroll_offset = Position::origin();
-
-        // Clear any visual selection in the response pane
-        self.panes[Pane::Response].visual_selection_start = None;
-        self.panes[Pane::Response].visual_selection_end = None;
+        let events = self.panes[Pane::Response].set_response_content(text);
 
         // Rebuild display cache to ensure rendering sees the updated content
         let content_width = if self.show_line_numbers {
@@ -691,7 +622,7 @@ impl PaneManager {
             self.tab_width,
         );
 
-        vec![ViewEvent::ResponseContentChanged]
+        events
     }
 
     /// Get display cache for current pane

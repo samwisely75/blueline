@@ -298,4 +298,51 @@ impl PaneState {
             vec![]
         }
     }
+
+    /// Set cursor to specific position with capability checking
+    pub fn set_current_cursor_position(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        // Clamp position to valid bounds (same as original implementation)
+        let clamped_position = self.buffer.content().clamp_position(position);
+        
+        // Update logical cursor
+        self.buffer.set_cursor(clamped_position);
+
+        // Sync display cursor with new logical position
+        if let Some(display_pos) = self
+            .display_cache
+            .logical_to_display_position(clamped_position.line, clamped_position.column)
+        {
+            self.display_cursor = display_pos;
+        } else {
+            // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+            tracing::warn!(
+                "set_current_cursor_position: logical_to_display_position failed at {:?} - using fallback", 
+                clamped_position
+            );
+            // Fallback: Use logical position as display position (works for non-wrapped content)
+            self.display_cursor = Position::new(clamped_position.line, clamped_position.column);
+        }
+
+        // Update visual selection if active
+        if self.visual_selection_start.is_some() {
+            self.visual_selection_end = Some(clamped_position);
+        }
+
+        let mut events = vec![
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ];
+
+        // Ensure cursor is visible and add visibility events
+        let content_width = self.get_content_width();
+        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+        events.extend(visibility_events);
+
+        events
+    }
 }
