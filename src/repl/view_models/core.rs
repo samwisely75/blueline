@@ -17,7 +17,7 @@
 //! 3. View Coordination: Emits events for efficient selective rendering
 //! 4. HTTP Operations: Manages request/response lifecycle with status updates
 
-use crate::repl::events::{EditorMode, EventBus, ModelEvent, Pane, ViewEvent};
+use crate::repl::events::{EditorMode, EventBus, LogicalPosition, ModelEvent, Pane, ViewEvent};
 use crate::repl::models::{ResponseModel, StatusLine};
 use crate::repl::view_models::pane_manager::PaneManager;
 use crate::repl::view_models::screen_buffer::ScreenBuffer;
@@ -64,6 +64,9 @@ pub struct ViewModel {
     // Whether clipboard integration is enabled
     pub(super) clipboard_enabled: bool,
 
+    // Visual Block Insert state - tracks cursor positions for multi-cursor editing
+    pub(super) visual_block_insert_cursors: Vec<LogicalPosition>,
+
     // Double buffering state
     pub(super) current_screen_buffer: ScreenBuffer,
     pub(super) previous_screen_buffer: ScreenBuffer,
@@ -95,6 +98,7 @@ impl ViewModel {
             pending_model_events: Vec::new(),
             yank_buffer: Box::new(MemoryYankBuffer::new()),
             clipboard_enabled: false,
+            visual_block_insert_cursors: Vec::new(),
             current_screen_buffer: ScreenBuffer::new(
                 terminal_dimensions.0 as usize,
                 terminal_dimensions.1 as usize,
@@ -110,6 +114,28 @@ impl ViewModel {
     pub fn set_event_bus(&mut self, event_bus: Box<dyn EventBus>) {
         self.event_bus = Some(event_bus);
         tracing::debug!("Event bus set for ViewModel");
+    }
+
+    /// Set Visual Block Insert cursor positions for multi-cursor editing
+    pub fn set_visual_block_insert_cursors(&mut self, positions: Vec<LogicalPosition>) {
+        self.visual_block_insert_cursors = positions;
+        tracing::debug!("Set {} Visual Block Insert cursor positions", self.visual_block_insert_cursors.len());
+    }
+
+    /// Get Visual Block Insert cursor positions  
+    pub fn get_visual_block_insert_cursors(&self) -> &[LogicalPosition] {
+        &self.visual_block_insert_cursors
+    }
+
+    /// Clear Visual Block Insert cursor positions
+    pub fn clear_visual_block_insert_cursors(&mut self) {
+        self.visual_block_insert_cursors.clear();
+        tracing::debug!("Cleared Visual Block Insert cursor positions");
+    }
+
+    /// Check if we're in multi-cursor Visual Block Insert mode
+    pub fn is_in_visual_block_insert_mode(&self) -> bool {
+        !self.visual_block_insert_cursors.is_empty()
     }
 
     /// Enable or disable system clipboard integration

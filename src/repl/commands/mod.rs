@@ -70,8 +70,9 @@ pub use ex_commands::{ExCommand, ExCommandRegistry};
 pub use mode::{
     AppendAfterCursorCommand, AppendAtEndOfLineCommand, EnterCommandModeCommand,
     EnterInsertModeCommand, EnterVisualBlockModeCommand, EnterVisualLineModeCommand,
-    EnterVisualModeCommand, ExCommandModeCommand, ExitInsertModeCommand, ExitVisualModeCommand,
-    InsertAtBeginningOfLineCommand,
+    EnterVisualModeCommand, ExCommandModeCommand, ExitInsertModeCommand, 
+    ExitVisualBlockInsertModeCommand, ExitVisualModeCommand,
+    InsertAtBeginningOfLineCommand, VisualBlockAppendCommand, VisualBlockInsertCommand,
 };
 pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
@@ -132,10 +133,13 @@ impl CommandRegistry {
             Box::new(EnterVisualModeCommand),
             Box::new(EnterVisualLineModeCommand),
             Box::new(EnterVisualBlockModeCommand),
+            Box::new(VisualBlockInsertCommand),
+            Box::new(VisualBlockAppendCommand),
             Box::new(AppendAfterCursorCommand),
             Box::new(AppendAtEndOfLineCommand),
             Box::new(InsertAtBeginningOfLineCommand),
             Box::new(ExitInsertModeCommand),
+            Box::new(ExitVisualBlockInsertModeCommand),
             Box::new(ExitVisualModeCommand),
             Box::new(EnterCommandModeCommand),
             Box::new(ExCommandModeCommand),

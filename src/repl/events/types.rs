@@ -63,6 +63,8 @@ pub enum EditorMode {
     VisualLine,
     /// Visual Block mode - block-wise text selection mode (vim's Ctrl+V)
     VisualBlock,
+    /// Visual Block Insert mode - special insert mode for Visual Block 'I' and 'A' commands
+    VisualBlockInsert,
 }
 
 bitflags! {

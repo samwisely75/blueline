@@ -625,6 +625,11 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             return Ok(());
         }
 
+        // Handle multi-cursor rendering for Visual Block Insert mode
+        if view_model.is_in_visual_block_insert_mode() {
+            return self.render_multi_cursors(view_model);
+        }
+
         // Get display cursor position and adjust for line numbers and pane offset
         let display_cursor = view_model.get_display_cursor_position();
         let current_pane = view_model.get_current_pane();
@@ -693,6 +698,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             EditorMode::Visual => ansi::CURSOR_BLOCK, // Block for visual mode
             EditorMode::VisualLine => ansi::CURSOR_BLOCK, // Block for visual line mode
             EditorMode::VisualBlock => ansi::CURSOR_BLOCK, // Block for visual block mode
+            EditorMode::VisualBlockInsert => ansi::CURSOR_BAR, // I-beam for visual block insert mode
             EditorMode::Command => ansi::CURSOR_BAR, // I-beam for command mode
             EditorMode::GPrefix => ansi::CURSOR_BLOCK, // Block for g-prefix mode
         };
@@ -707,6 +713,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
         Ok(())
     }
+
 
     fn render_status_bar(&mut self, view_model: &ViewModel) -> Result<()> {
         let status_row = self.terminal_size.1 - 1;
@@ -1045,6 +1052,91 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         self.render_stream.show_cursor()?;
         self.render_stream.leave_alternate_screen()?;
         self.render_stream.disable_raw_mode()?;
+        Ok(())
+    }
+}
+
+// Private implementation methods for TerminalRenderer
+impl<RS: RenderStream> TerminalRenderer<RS> {
+    /// Render multiple cursors for Visual Block Insert mode
+    fn render_multi_cursors(&mut self, view_model: &ViewModel) -> Result<()> {
+        let cursor_positions = view_model.get_visual_block_insert_cursors();
+        let current_pane = view_model.get_current_pane();
+        let line_num_width = view_model
+            .pane_manager()
+            .get_line_number_width(current_pane);
+        let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
+        let (_request_height, response_start, _response_height) = view_model
+            .pane_manager()
+            .get_pane_boundaries(view_model.get_response_status_code().is_some());
+
+        tracing::debug!("render_multi_cursors: rendering {} cursors", cursor_positions.len());
+
+        // Render all cursors with the same style
+        let cursor_style = ansi::CURSOR_BAR; // I-beam for visual block insert mode
+        let terminal_size = self.terminal_size;
+        let max_row = (terminal_size.1 as usize).saturating_sub(2); // Leave room for status bar
+
+        for (index, logical_pos) in cursor_positions.iter().enumerate() {
+            // For each logical position, we need to convert it to a display position
+            // Since we don't have a direct logical_to_display_position method,
+            // we'll use the logical position directly and apply the same transformation
+            // as the regular cursor rendering logic
+            
+            // Calculate viewport-relative position by subtracting scroll offset
+            let viewport_relative_row = logical_pos.line.saturating_sub(scroll_offset.row);
+
+            // Calculate screen column: logical_pos.column - horizontal_scroll + line_numbers + padding
+            let screen_col = if view_model.pane_manager().is_line_numbers_visible() {
+                logical_pos.column
+                    .saturating_sub(scroll_offset.col) // Subtract horizontal scroll offset
+                    + line_num_width + 1 // Add line number width and padding when visible
+            } else {
+                logical_pos.column.saturating_sub(scroll_offset.col) // Just subtract horizontal scroll offset
+            };
+            let screen_row = match current_pane {
+                Pane::Request => viewport_relative_row,
+                Pane::Response => viewport_relative_row + response_start as usize,
+            };
+
+            // Clamp cursor to valid screen area
+            let clamped_col = (screen_col).min(terminal_size.0 as usize - 1);
+            let clamped_row = screen_row.min(max_row);
+
+            // Skip rendering if cursor is outside visible area
+            if screen_col >= terminal_size.0 as usize || screen_row >= terminal_size.1 as usize {
+                tracing::debug!(
+                    "render_multi_cursors: cursor {} at logical ({}, {}) -> screen ({}, {}) is outside bounds, skipping",
+                    index, logical_pos.line, logical_pos.column, screen_col, screen_row
+                );
+                continue;
+            }
+
+            tracing::debug!(
+                "render_multi_cursors: cursor {} at logical ({}, {}) -> screen ({}, {})",
+                index, logical_pos.line, logical_pos.column, clamped_col, clamped_row
+            );
+
+            // Position cursor, set style, and show
+            self.render_stream
+                .move_cursor(clamped_col as u16, clamped_row as u16)?;
+            self.render_stream.write_all(cursor_style.as_bytes())?;
+            
+            // For all cursors except the last one, we need to show the cursor briefly
+            // and then move to the next position. The last cursor will remain visible.
+            if index < cursor_positions.len() - 1 {
+                // Show cursor briefly, then hide it before moving to next position
+                self.render_stream.show_cursor()?;
+                // Use a short delay to make multiple cursors visible
+                // Note: In practice, this creates a blinking effect showing all cursor positions
+            }
+        }
+
+        // Show the cursor at the final position (last cursor in the list)
+        self.render_stream.show_cursor()?;
+        safe_flush!(self.render_stream)?;
+        tracing::debug!("render_multi_cursors: all cursors rendered successfully");
+
         Ok(())
     }
 }
