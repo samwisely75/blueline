@@ -50,7 +50,8 @@ pub struct ExitVisualBlockInsertModeCommand;
 
 impl Command for ExitVisualBlockInsertModeCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Esc) && context.state.current_mode == EditorMode::VisualBlockInsert
+        matches!(event.code, KeyCode::Esc)
+            && context.state.current_mode == EditorMode::VisualBlockInsert
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {

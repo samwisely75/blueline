@@ -70,9 +70,9 @@ pub use ex_commands::{ExCommand, ExCommandRegistry};
 pub use mode::{
     AppendAfterCursorCommand, AppendAtEndOfLineCommand, EnterCommandModeCommand,
     EnterInsertModeCommand, EnterVisualBlockModeCommand, EnterVisualLineModeCommand,
-    EnterVisualModeCommand, ExCommandModeCommand, ExitInsertModeCommand, 
-    ExitVisualBlockInsertModeCommand, ExitVisualModeCommand,
-    InsertAtBeginningOfLineCommand, VisualBlockAppendCommand, VisualBlockInsertCommand,
+    EnterVisualModeCommand, ExCommandModeCommand, ExitInsertModeCommand,
+    ExitVisualBlockInsertModeCommand, ExitVisualModeCommand, InsertAtBeginningOfLineCommand,
+    VisualBlockAppendCommand, VisualBlockInsertCommand,
 };
 pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,

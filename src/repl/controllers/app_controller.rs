@@ -960,8 +960,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         let current_mode = self.view_model.get_mode();
         if current_mode != EditorMode::VisualBlock {
             tracing::warn!("Visual Block Insert only supported in Visual Block mode, current mode: {current_mode:?}");
-            self.view_model
-                .set_status_message("Visual Block Insert only supported in Visual Block mode".to_string());
+            self.view_model.set_status_message(
+                "Visual Block Insert only supported in Visual Block mode".to_string(),
+            );
             return Ok(());
         }
 
@@ -985,20 +986,27 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
 
             // Set multi-cursor state for Visual Block Insert
-            self.view_model.set_visual_block_insert_cursors(cursor_positions);
+            self.view_model
+                .set_visual_block_insert_cursors(cursor_positions);
 
             // Move primary cursor to start of block (beginning of leftmost column on first line)
-            self.view_model.set_cursor_position(LogicalPosition::new(start_line, start_col))?;
+            self.view_model
+                .set_cursor_position(LogicalPosition::new(start_line, start_col))?;
 
             // Enter Visual Block Insert mode
             self.view_model.change_mode(EditorMode::VisualBlockInsert)?;
 
             // Show feedback
             let line_count = (start.line.max(end.line) - start_line) + 1;
-            self.view_model.set_status_message(format!("Visual Block Insert: {line_count} lines"));
-            
-            tracing::info!("Entered Visual Block Insert mode at position ({}, {}), affecting {} lines", 
-                start_line, start_col, line_count);
+            self.view_model
+                .set_status_message(format!("Visual Block Insert: {line_count} lines"));
+
+            tracing::info!(
+                "Entered Visual Block Insert mode at position ({}, {}), affecting {} lines",
+                start_line,
+                start_col,
+                line_count
+            );
         } else {
             tracing::warn!("No visual block selection found");
             self.view_model
@@ -1008,7 +1016,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         Ok(())
     }
 
-    /// Handle Visual Block Append operation ('A' in Visual Block mode) 
+    /// Handle Visual Block Append operation ('A' in Visual Block mode)
     ///
     /// This implements vim's Visual Block Append command:
     /// 1. Remember the selected block coordinates
@@ -1020,8 +1028,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         let current_mode = self.view_model.get_mode();
         if current_mode != EditorMode::VisualBlock {
             tracing::warn!("Visual Block Append only supported in Visual Block mode, current mode: {current_mode:?}");
-            self.view_model
-                .set_status_message("Visual Block Append only supported in Visual Block mode".to_string());
+            self.view_model.set_status_message(
+                "Visual Block Append only supported in Visual Block mode".to_string(),
+            );
             return Ok(());
         }
 
@@ -1045,20 +1054,27 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
 
             // Set multi-cursor state for Visual Block Insert
-            self.view_model.set_visual_block_insert_cursors(cursor_positions);
+            self.view_model
+                .set_visual_block_insert_cursors(cursor_positions);
 
             // Move primary cursor to end of block (end of rightmost column on first line)
-            self.view_model.set_cursor_position(LogicalPosition::new(start_line, end_col))?;
+            self.view_model
+                .set_cursor_position(LogicalPosition::new(start_line, end_col))?;
 
-            // Enter Visual Block Insert mode  
+            // Enter Visual Block Insert mode
             self.view_model.change_mode(EditorMode::VisualBlockInsert)?;
 
             // Show feedback
             let line_count = (start.line.max(end.line) - start_line) + 1;
-            self.view_model.set_status_message(format!("Visual Block Append: {line_count} lines"));
-            
-            tracing::info!("Entered Visual Block Append mode at position ({}, {}), affecting {} lines", 
-                start_line, end_col, line_count);
+            self.view_model
+                .set_status_message(format!("Visual Block Append: {line_count} lines"));
+
+            tracing::info!(
+                "Entered Visual Block Append mode at position ({}, {}), affecting {} lines",
+                start_line,
+                end_col,
+                line_count
+            );
         } else {
             tracing::warn!("No visual block selection found");
             self.view_model
@@ -1077,21 +1093,22 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     fn handle_exit_visual_block_insert(&mut self) -> Result<()> {
         // For now, implement basic behavior - just exit to Normal mode
         // TODO: Implement full text replication logic
-        
+
         tracing::info!("Exiting Visual Block Insert mode");
-        
+
         // Clear multi-cursor state
         self.view_model.clear_visual_block_insert_cursors();
-        
+
         self.view_model.change_mode(EditorMode::Normal)?;
-        self.view_model.set_status_message("Visual Block Insert completed".to_string());
-        
+        self.view_model
+            .set_status_message("Visual Block Insert completed".to_string());
+
         // TODO: Implement text replication:
         // 1. Get original block selection coordinates (need to store these when entering)
         // 2. Get text typed since entering Visual Block Insert mode
         // 3. Replicate that text to all affected lines
         // 4. Position cursor correctly
-        
+
         Ok(())
     }
 
@@ -1101,13 +1118,17 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// providing live feedback across all selected lines.
     fn handle_multi_cursor_text_insert(&mut self, text: &str) -> Result<()> {
         let cursor_positions = self.view_model.get_visual_block_insert_cursors().to_vec();
-        
+
         if cursor_positions.is_empty() {
             // Fallback to regular insert if no cursors are set
             return self.view_model.insert_text(text);
         }
 
-        tracing::debug!("Multi-cursor text insert: '{}' at {} positions", text, cursor_positions.len());
+        tracing::debug!(
+            "Multi-cursor text insert: '{}' at {} positions",
+            text,
+            cursor_positions.len()
+        );
 
         // Insert text at each cursor position
         // We need to process in reverse order to maintain position validity
@@ -1129,7 +1150,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             self.view_model.set_cursor_position(*first_pos)?;
         }
 
-        self.view_model.set_visual_block_insert_cursors(updated_positions);
+        self.view_model
+            .set_visual_block_insert_cursors(updated_positions);
 
         tracing::debug!("Multi-cursor text insert completed, updated cursor positions");
         Ok(())

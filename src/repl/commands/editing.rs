@@ -18,7 +18,10 @@ impl Command for InsertCharCommand {
             KeyCode::Char(ch) => {
                 !event.modifiers.contains(KeyModifiers::CONTROL)
                     && !ch.is_control()
-                    && matches!(context.state.current_mode, EditorMode::Insert | EditorMode::VisualBlockInsert)
+                    && matches!(
+                        context.state.current_mode,
+                        EditorMode::Insert | EditorMode::VisualBlockInsert
+                    )
                     && context.state.current_pane == Pane::Request
             }
             _ => false,
@@ -46,7 +49,10 @@ pub struct InsertNewLineCommand;
 impl Command for InsertNewLineCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Enter)
-            && matches!(context.state.current_mode, EditorMode::Insert | EditorMode::VisualBlockInsert)
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
             && context.state.current_pane == Pane::Request
     }
 
@@ -66,7 +72,10 @@ pub struct InsertTabCommand;
 impl Command for InsertTabCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Tab)
-            && matches!(context.state.current_mode, EditorMode::Insert | EditorMode::VisualBlockInsert)
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
             && context.state.current_pane == Pane::Request
             && event.modifiers.is_empty()
     }
@@ -96,7 +105,10 @@ pub struct DeleteCharCommand;
 impl Command for DeleteCharCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Backspace)
-            && matches!(context.state.current_mode, EditorMode::Insert | EditorMode::VisualBlockInsert)
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
             && context.state.current_pane == Pane::Request
     }
 
@@ -136,7 +148,10 @@ pub struct DeleteCharAtCursorCommand;
 impl Command for DeleteCharAtCursorCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Delete)
-            && matches!(context.state.current_mode, EditorMode::Insert | EditorMode::VisualBlockInsert)
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
             && context.state.current_pane == Pane::Request
     }
 

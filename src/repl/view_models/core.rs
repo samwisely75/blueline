@@ -119,7 +119,10 @@ impl ViewModel {
     /// Set Visual Block Insert cursor positions for multi-cursor editing
     pub fn set_visual_block_insert_cursors(&mut self, positions: Vec<LogicalPosition>) {
         self.visual_block_insert_cursors = positions;
-        tracing::debug!("Set {} Visual Block Insert cursor positions", self.visual_block_insert_cursors.len());
+        tracing::debug!(
+            "Set {} Visual Block Insert cursor positions",
+            self.visual_block_insert_cursors.len()
+        );
     }
 
     /// Get Visual Block Insert cursor positions  
