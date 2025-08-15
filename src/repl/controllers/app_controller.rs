@@ -6,7 +6,7 @@
 use crate::config::AppConfig;
 use crate::repl::{
     commands::{
-        CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, HttpHeaders, Setting,
+        CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, HttpHeaders, MovementDirection, Setting,
         SettingValue, ViewModelSnapshot,
     },
     events::{EditorMode, LogicalPosition, Pane, SimpleEventBus},
@@ -277,8 +277,6 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// - Complex commands (like ex commands) can generate nested events
     /// - HTTP requests are handled asynchronously with status updates
     async fn apply_command_event(&mut self, event: CommandEvent) -> Result<()> {
-        use crate::repl::commands::MovementDirection;
-
         match event {
             CommandEvent::CursorMoveRequested { direction, amount } => {
                 for _ in 0..amount {
@@ -352,34 +350,40 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                     amount,
                     direction
                 );
-                for i in 0..amount {
-                    match direction {
-                        MovementDirection::Left => {
-                            tracing::debug!(
-                                "🗑️  Attempting delete_char_before_cursor (iteration {})",
-                                i + 1
-                            );
-                            match self.view_model.delete_char_before_cursor() {
-                                Ok(_) => tracing::debug!("✅ delete_char_before_cursor succeeded"),
-                                Err(e) => {
-                                    tracing::error!("❌ delete_char_before_cursor failed: {}", e)
+                
+                // Check if we're in Visual Block Insert mode with multiple cursors
+                if self.view_model.is_in_visual_block_insert_mode() {
+                    self.handle_multi_cursor_text_delete(amount, direction)?;
+                } else {
+                    for i in 0..amount {
+                        match direction {
+                            MovementDirection::Left => {
+                                tracing::debug!(
+                                    "🗑️  Attempting delete_char_before_cursor (iteration {})",
+                                    i + 1
+                                );
+                                match self.view_model.delete_char_before_cursor() {
+                                    Ok(_) => tracing::debug!("✅ delete_char_before_cursor succeeded"),
+                                    Err(e) => {
+                                        tracing::error!("❌ delete_char_before_cursor failed: {}", e)
+                                    }
                                 }
                             }
-                        }
-                        MovementDirection::Right => {
-                            tracing::debug!(
-                                "🗑️  Attempting delete_char_after_cursor (iteration {})",
-                                i + 1
-                            );
-                            match self.view_model.delete_char_after_cursor() {
-                                Ok(_) => tracing::debug!("✅ delete_char_after_cursor succeeded"),
-                                Err(e) => {
-                                    tracing::error!("❌ delete_char_after_cursor failed: {}", e)
+                            MovementDirection::Right => {
+                                tracing::debug!(
+                                    "🗑️  Attempting delete_char_after_cursor (iteration {})",
+                                    i + 1
+                                );
+                                match self.view_model.delete_char_after_cursor() {
+                                    Ok(_) => tracing::debug!("✅ delete_char_after_cursor succeeded"),
+                                    Err(e) => {
+                                        tracing::error!("❌ delete_char_after_cursor failed: {}", e)
+                                    }
                                 }
                             }
-                        }
-                        _ => {
-                            tracing::warn!("Unsupported delete direction: {:?}", direction);
+                            _ => {
+                                tracing::warn!("Unsupported delete direction: {:?}", direction);
+                            }
                         }
                     }
                 }
@@ -1094,12 +1098,17 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         tracing::info!("Exiting Visual Block Insert mode");
 
         // Preserve cursor position at the first multi-cursor position
-        let cursor_to_preserve = self.view_model.get_visual_block_insert_cursors()
+        let cursor_to_preserve = self
+            .view_model
+            .get_visual_block_insert_cursors()
             .first()
             .copied(); // Get first cursor position before clearing
 
         // Clear multi-cursor state
         self.view_model.clear_visual_block_insert_cursors();
+
+        // Clear visual selection that was active when we entered Visual Block Insert
+        self.view_model.clear_visual_selection()?;
 
         // Restore cursor position to where typing was happening (first cursor)
         if let Some(preserved_cursor) = cursor_to_preserve {
@@ -1156,6 +1165,88 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             .set_visual_block_insert_cursors(updated_positions);
 
         tracing::debug!("Multi-cursor text insert completed, updated cursor positions");
+        Ok(())
+    }
+
+    /// Handle text deletion for multi-cursor Visual Block Insert mode
+    fn handle_multi_cursor_text_delete(
+        &mut self,
+        amount: usize,
+        direction: MovementDirection,
+    ) -> Result<()> {
+        let cursor_positions = self.view_model.get_visual_block_insert_cursors().to_vec();
+
+        if cursor_positions.is_empty() {
+            // Fallback to regular delete if no cursors are set
+            for _ in 0..amount {
+                match direction {
+                    MovementDirection::Left => {
+                        self.view_model.delete_char_before_cursor()?;
+                    }
+                    MovementDirection::Right => {
+                        self.view_model.delete_char_after_cursor()?;
+                    }
+                    _ => {
+                        tracing::warn!("Unsupported delete direction: {:?}", direction);
+                    }
+                }
+            }
+            return Ok(());
+        }
+
+        tracing::debug!(
+            "Multi-cursor text delete: {} chars in direction {:?} at {} positions",
+            amount,
+            direction,
+            cursor_positions.len()
+        );
+
+        // Perform deletion at each cursor position
+        // We need to process in reverse order to maintain position validity
+        for position in cursor_positions.iter().rev() {
+            // Temporarily set cursor to this position and perform deletion
+            self.view_model.set_cursor_position(*position)?;
+            for _ in 0..amount {
+                match direction {
+                    MovementDirection::Left => {
+                        self.view_model.delete_char_before_cursor()?;
+                    }
+                    MovementDirection::Right => {
+                        self.view_model.delete_char_after_cursor()?;
+                    }
+                    _ => {
+                        tracing::warn!("Unsupported delete direction: {:?}", direction);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Update all cursor positions to reflect the deleted text
+        let updated_positions: Vec<LogicalPosition> = match direction {
+            MovementDirection::Left => {
+                // For backspace, cursor positions move left by amount deleted
+                cursor_positions
+                    .iter()
+                    .map(|pos| LogicalPosition::new(pos.line, pos.column.saturating_sub(amount)))
+                    .collect()
+            }
+            MovementDirection::Right => {
+                // For forward delete, cursor positions stay the same
+                cursor_positions
+            }
+            _ => cursor_positions,
+        };
+
+        // Set the primary cursor to the first position before updating positions
+        if let Some(first_pos) = updated_positions.first() {
+            self.view_model.set_cursor_position(*first_pos)?;
+        }
+
+        self.view_model
+            .set_visual_block_insert_cursors(updated_positions);
+
+        tracing::debug!("Multi-cursor text delete completed, updated cursor positions");
         Ok(())
     }
 

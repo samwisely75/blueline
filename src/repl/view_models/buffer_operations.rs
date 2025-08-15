@@ -158,7 +158,12 @@ impl ViewModel {
         );
 
         // Only allow deletion in Request pane and insert/visual block insert modes
-        if !is_request_pane || !matches!(current_mode, EditorMode::Insert | EditorMode::VisualBlockInsert) {
+        if !is_request_pane
+            || !matches!(
+                current_mode,
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
+        {
             tracing::debug!(
                 "🚫 Delete operation blocked: mode={:?}, is_request_pane={}",
                 current_mode,
@@ -185,7 +190,12 @@ impl ViewModel {
     /// Delete character after cursor or empty line
     pub fn delete_char_after_cursor(&mut self) -> Result<()> {
         // Only allow deletion in Request pane and insert/visual block insert modes
-        if !self.is_in_request_pane() || !matches!(self.mode(), EditorMode::Insert | EditorMode::VisualBlockInsert) {
+        if !self.is_in_request_pane()
+            || !matches!(
+                self.mode(),
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
+        {
             return Ok(());
         }
 
@@ -276,25 +286,53 @@ mod tests {
     #[test]
     fn test_visual_block_insert_mode_allows_backspace() {
         let mut vm = ViewModel::new();
-        
+
         // Start in Normal mode and insert some test content
         vm.change_mode(EditorMode::Insert).unwrap();
         vm.insert_text("line 1\nline 2\nline 3").unwrap();
         vm.change_mode(EditorMode::Normal).unwrap();
-        
+
         // Move to a position where backspace can work
-        vm.set_cursor_position(LogicalPosition { line: 0, column: 2 }).unwrap();
-        
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 2 })
+            .unwrap();
+
         // Enter Visual Block Insert mode
         vm.change_mode(EditorMode::VisualBlockInsert).unwrap();
-        
+
         // Verify that delete_char_before_cursor works in VisualBlockInsert mode
         let result = vm.delete_char_before_cursor();
-        assert!(result.is_ok(), "delete_char_before_cursor should work in VisualBlockInsert mode");
+        assert!(
+            result.is_ok(),
+            "delete_char_before_cursor should work in VisualBlockInsert mode"
+        );
     }
 
     #[test]
     fn test_visual_block_insert_mode_allows_delete() {
+        let mut vm = ViewModel::new();
+
+        // Start in Normal mode and insert some test content
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("line 1\nline 2\nline 3").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Move to first line, first column
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 0 })
+            .unwrap();
+
+        // Enter Visual Block Insert mode
+        vm.change_mode(EditorMode::VisualBlockInsert).unwrap();
+
+        // Verify that delete_char_after_cursor works in VisualBlockInsert mode
+        let result = vm.delete_char_after_cursor();
+        assert!(
+            result.is_ok(),
+            "delete_char_after_cursor should work in VisualBlockInsert mode"
+        );
+    }
+
+    #[test]
+    fn test_visual_selection_cleared_after_visual_block_insert() {
         let mut vm = ViewModel::new();
         
         // Start in Normal mode and insert some test content
@@ -302,14 +340,17 @@ mod tests {
         vm.insert_text("line 1\nline 2\nline 3").unwrap();
         vm.change_mode(EditorMode::Normal).unwrap();
         
-        // Move to first line, first column
-        vm.set_cursor_position(LogicalPosition { line: 0, column: 0 }).unwrap();
+        // Enter Visual Block mode and start a selection
+        vm.change_mode(EditorMode::VisualBlock).unwrap();
+        let selection = vm.get_visual_selection();
+        assert!(selection.0.is_some(), "Should have visual selection in VisualBlock mode");
         
-        // Enter Visual Block Insert mode
-        vm.change_mode(EditorMode::VisualBlockInsert).unwrap();
+        // Clear visual selection (simulating exit from Visual Block Insert)
+        let result = vm.clear_visual_selection();
+        assert!(result.is_ok(), "clear_visual_selection should work");
         
-        // Verify that delete_char_after_cursor works in VisualBlockInsert mode
-        let result = vm.delete_char_after_cursor();
-        assert!(result.is_ok(), "delete_char_after_cursor should work in VisualBlockInsert mode");
+        // Verify selection is cleared
+        let selection_after = vm.get_visual_selection();
+        assert!(selection_after.0.is_none(), "Visual selection should be cleared");
     }
 }
