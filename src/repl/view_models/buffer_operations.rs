@@ -57,7 +57,7 @@ impl ViewModel {
 
         // Insert each character
         for ch in text.chars() {
-            let events = self.pane_manager.insert_char_in_request(ch);
+            let events = self.pane_manager.insert_char(ch);
             self.emit_view_event(events)?;
         }
 
@@ -97,7 +97,7 @@ impl ViewModel {
 
         // Insert each character
         for ch in text.chars() {
-            let events = self.pane_manager.insert_char_in_request(ch);
+            let events = self.pane_manager.insert_char(ch);
             self.emit_view_event(events)?;
         }
 
@@ -115,7 +115,7 @@ impl ViewModel {
         }
 
         // Use semantic insertion from PaneManager (handles visibility and all events)
-        let events = self.pane_manager.insert_char_in_request(ch);
+        let events = self.pane_manager.insert_char(ch);
         self.emit_view_event(events)?;
 
         Ok(())
@@ -160,7 +160,7 @@ impl ViewModel {
         tracing::debug!("✅ Delete operation allowed, proceeding with deletion");
 
         // Use semantic deletion from PaneManager
-        let events = self.pane_manager.delete_char_before_cursor_in_request();
+        let events = self.pane_manager.delete_char_before_cursor();
         tracing::debug!(
             "🗑️  PaneManager returned {} events from delete operation",
             events.len()
@@ -180,7 +180,7 @@ impl ViewModel {
         }
 
         // Use semantic deletion from PaneManager
-        let events = self.pane_manager.delete_char_after_cursor_in_request();
+        let events = self.pane_manager.delete_char_after_cursor();
         self.emit_view_event(events)?;
 
         Ok(())

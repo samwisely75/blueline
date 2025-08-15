@@ -1,5 +1,76 @@
 # Session Notes
 
+## 2025-08-15 Session - Issue #161 Phases 1-4: PaneState Business Logic Migration ✅ COMPLETE
+
+### User Request Summary
+- User requested to pick up the top-most item from GitHub Kanban and complete it
+- Identified Issue #161: "Move all business logics in PaneManager to PaneState"
+- Implemented phased approach with 10 sub-issues for systematic refactoring
+
+### What We Accomplished
+
+✅ **Successfully completed Phases 1-4 (#164-#167) of business logic migration**
+
+#### Phase 1: PaneCapabilities Infrastructure (#164) ✅ COMPLETE
+- Created 10 GitHub sub-issues (#164-#173) for phased implementation
+- Implemented `PaneCapabilities` bitflag enum with FOCUSABLE, EDITABLE, SELECTABLE, SCROLLABLE, NAVIGABLE flags
+- Added capabilities field to PaneState with FULL_ACCESS for Request, READ_ONLY for Response
+- Established architectural guidelines with warning header in pane_manager.rs
+
+#### Phase 2: Character Insertion Migration (#165) ✅ COMPLETE
+- Migrated `insert_char_in_request()` → `insert_char()` from PaneManager to PaneState
+- Added EDITABLE capability checking in PaneState methods
+- Refactored PaneManager to use pure delegation pattern
+- Updated BufferOperations to use generic methods
+
+#### Phase 3: Backspace Deletion Migration (#166) ✅ COMPLETE
+- Migrated `delete_char_before_cursor()` and helper methods to PaneState
+- Moved helper methods: `delete_char_in_line`, `join_with_previous_line`, `rebuild_display_and_sync_cursor`
+- Maintained complex line joining logic and cursor positioning
+- Updated BufferOperations to use generic `delete_char_before_cursor()` method
+
+#### Phase 4: Forward Deletion Migration (#167) ✅ COMPLETE
+- Migrated `delete_char_after_cursor()` and helper methods to PaneState
+- Added helper methods: `delete_char_after_cursor_in_line`, `join_with_next_line`
+- Maintained forward deletion logic including line joining at end of line
+- Updated BufferOperations to use generic `delete_char_after_cursor()` method
+
+### Technical Implementation Pattern Established
+- **Capability-based access control** replacing hard-coded pane type checks
+- **Pure delegation pattern** for PaneManager (layout manager only)
+- **Business logic concentration** in PaneState with proper encapsulation
+- **Backward compatibility** maintained with zero test regressions
+
+### Quality Assurance Across All Phases
+- **All 365 tests passing** throughout all phase implementations
+- **Pre-commit checks passed** for every commit
+- **Clean commit messages** with detailed documentation
+- **Tags created** for each phase completion
+
+### Phase Progress Status
+✅ **Phase 1 Complete** - PaneCapabilities Infrastructure (Issue #164) - Tagged: phase1-pane-capabilities
+✅ **Phase 2 Complete** - Character Insertion Migration (Issue #165) - Tagged: phase2-character-insertion  
+✅ **Phase 3 Complete** - Backspace Deletion Migration (Issue #166) - Tagged: phase3-backspace-deletion
+✅ **Phase 4 Complete** - Forward Deletion Migration (Issue #167) - Tagged: phase4-forward-deletion
+🔄 **Phase 5 Ready** - Visual Selection Logic Migration (Issue #168)
+⏳ **Phases 6-10** - Pending systematic implementation
+
+### Current State After Phase 4
+- **Branch**: `feature/refactor-pane-logic`
+- **Four core operations migrated** with established pattern
+- **Core text editing operations complete** (insert, backspace, delete)
+- **Clean separation achieved** between layout management and business logic
+- **Foundation solid** for remaining phases
+
+### Next Steps: Phase 5 Implementation
+**GitHub Issue #168**: Migrate visual selection logic from PaneManager to PaneState
+- Move visual selection methods and visual mode handling to PaneState
+- Add capability checking with appropriate flags
+- Update PaneManager to delegate visual operations
+- Maintain compatibility for all three visual modes (Visual, VisualLine, VisualBlock)
+
+---
+
 ## 2025-08-14 Session - Phase 4 Preparation: Merge Tab Support ✅ COMPLETE
 
 ### User Request Summary

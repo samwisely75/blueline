@@ -3,20 +3,36 @@
 //! Handles pane switching, mode changes, and pane-related state management.
 //! Contains the PaneManager struct that encapsulates all pane-related operations.
 //!
+//! ⚠️ **CRITICAL ARCHITECTURAL GUIDELINE** ⚠️
+//!
+//! **DO NOT IMPLEMENT BUSINESS LOGIC IN PANE_MANAGER**
+//!
+//! PaneManager is a pure layout manager. All business logic (text editing, cursor movement,
+//! visual selection, etc.) should be implemented in PaneState. PaneManager should only:
+//! - Switch between panes
+//! - Calculate layout dimensions  
+//! - Delegate operations to the appropriate PaneState
+//! - Emit view events for rendering
+//!
+//! If you find yourself implementing text operations, cursor logic, or edit functionality
+//! in PaneManager, move it to PaneState instead. Use the PaneCapabilities system to
+//! control what operations are allowed on each pane.
+//!
 //! HIGH-LEVEL ARCHITECTURE:
 //! PaneManager implements the Manager pattern to encapsulate all pane-related operations:
 //! - Manages Request and Response panes as an array with semantic operations
 //! - Provides high-level pane switching without exposing internal array indices
 //! - Handles terminal dimension updates and pane layout calculations
-//! - Coordinates cursor management, scrolling, and text operations across panes
+//! - Delegates cursor management, scrolling, and text operations to PaneState instances
 //!
-//! CORE RESPONSIBILITIES:
-//! 1. Pane State Management: Maintains mode, cursor position, scroll state for each pane
-//! 2. Layout Calculation: Computes pane dimensions based on terminal size
-//! 3. Semantic Operations: Provides request/response-specific operations without array access
-//! 4. Event Coordination: Emits ViewEvents for selective rendering optimizations
+//! CORE RESPONSIBILITIES (Post-Refactoring):
+//! 1. Layout Management: Computes pane dimensions and content width based on terminal size
+//! 2. Pane Switching: Manages current pane state and provides semantic pane operations
+//! 3. Pure Delegation: Forwards business logic operations to appropriate PaneState instances
+//! 4. Event Coordination: Aggregates ViewEvents from PaneState operations for rendering
+//! 5. Settings Management: Handles display settings (wrap, line numbers, tab width) that affect all panes
 
-use crate::repl::events::{EditorMode, LogicalPosition, LogicalRange, Pane, ViewEvent};
+use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities, ViewEvent};
 use crate::repl::geometry::Position;
 use crate::repl::view_models::pane_state::PaneState;
 
@@ -75,9 +91,21 @@ impl PaneManager {
             .max(1); // Ensure minimum height of 1
 
         // Initialize pane array with proper display caches and dimensions
-        let request_pane = PaneState::new(Pane::Request, content_width, request_pane_height, true);
-        let response_pane =
-            PaneState::new(Pane::Response, content_width, response_pane_height, true);
+        // Initialize capabilities based on pane type - Request pane allows all operations, Response pane is read-only
+        let request_pane = PaneState::new(
+            Pane::Request,
+            content_width,
+            request_pane_height,
+            true,
+            PaneCapabilities::FULL_ACCESS,
+        );
+        let response_pane = PaneState::new(
+            Pane::Response,
+            content_width,
+            response_pane_height,
+            true,
+            PaneCapabilities::READ_ONLY,
+        );
 
         Self {
             panes: [request_pane, response_pane],
@@ -160,11 +188,11 @@ impl PaneManager {
 
     /// Get visual selection state for current pane
     pub fn get_visual_selection(&self) -> VisualSelectionState {
-        let current_pane_state = &self.panes[self.current_pane];
+        let (start, end) = self.panes[self.current_pane].get_visual_selection();
         (
-            current_pane_state.visual_selection_start,
-            current_pane_state.visual_selection_end,
-            if current_pane_state.visual_selection_start.is_some() {
+            start,
+            end,
+            if start.is_some() {
                 Some(self.current_pane)
             } else {
                 None
@@ -174,215 +202,40 @@ impl PaneManager {
 
     /// Check if a position is within visual selection
     pub fn is_position_selected(&self, position: LogicalPosition, pane: Pane) -> bool {
-        let pane_state = &self.panes[pane];
-
-        // Early return if no selection exists
-        let (Some(start), Some(end)) = (
-            pane_state.visual_selection_start,
-            pane_state.visual_selection_end,
-        ) else {
-            tracing::trace!("is_position_selected: no visual selection active");
-            return false;
-        };
-
-        let editor_mode = pane_state.editor_mode;
-
-        tracing::trace!(
-            "is_position_selected: checking position={:?} against selection start={:?} end={:?} in mode {:?}", 
-            position, start, end, editor_mode
-        );
-
-        // Handle different visual modes
-        match editor_mode {
-            EditorMode::Visual => {
-                // Character-wise selection (existing logic)
-                self.is_position_selected_character_wise(position, start, end)
-            }
-            EditorMode::VisualLine => {
-                // Line-wise selection: entire lines are selected
-                self.is_position_selected_line_wise(position, start, end)
-            }
-            EditorMode::VisualBlock => {
-                // Block-wise selection: rectangular regions
-                self.is_position_selected_block_wise(position, start, end)
-            }
-            _ => {
-                // Not in a visual mode, no selection
-                tracing::trace!("is_position_selected: not in visual mode");
-                false
-            }
-        }
-    }
-
-    /// Check character-wise selection (vim's 'v' mode)
-    fn is_position_selected_character_wise(
-        &self,
-        position: LogicalPosition,
-        start: LogicalPosition,
-        end: LogicalPosition,
-    ) -> bool {
-        // Normalize selection range (start <= end)
-        let (normalized_start, normalized_end) =
-            if start.line < end.line || (start.line == end.line && start.column <= end.column) {
-                (start, end)
-            } else {
-                (end, start)
-            };
-
-        // Early return if position is outside line range
-        if position.line < normalized_start.line || position.line > normalized_end.line {
-            tracing::trace!("is_position_selected: position outside line range");
-            return false;
-        }
-
-        // Check single line selection
-        if position.line == normalized_start.line && position.line == normalized_end.line {
-            let is_selected = position.column >= normalized_start.column
-                && position.column <= normalized_end.column;
-            tracing::trace!(
-                "is_position_selected: single line character selection, result={}",
-                is_selected
-            );
-            return is_selected;
-        }
-
-        // Check first line of multi-line selection
-        if position.line == normalized_start.line {
-            let is_selected = position.column >= normalized_start.column;
-            tracing::trace!(
-                "is_position_selected: first line of multi-line character selection, result={}",
-                is_selected
-            );
-            return is_selected;
-        }
-
-        // Check last line of multi-line selection
-        if position.line == normalized_end.line {
-            let is_selected = position.column <= normalized_end.column;
-            tracing::trace!(
-                "is_position_selected: last line of multi-line character selection, result={}",
-                is_selected
-            );
-            return is_selected;
-        }
-
-        // Middle line of multi-line selection
-        tracing::trace!("is_position_selected: middle line of character selection, result=true");
-        true
-    }
-
-    /// Check line-wise selection (vim's 'V' mode)
-    fn is_position_selected_line_wise(
-        &self,
-        position: LogicalPosition,
-        start: LogicalPosition,
-        end: LogicalPosition,
-    ) -> bool {
-        // For line-wise selection, we select entire lines
-        let (start_line, end_line) = if start.line <= end.line {
-            (start.line, end.line)
-        } else {
-            (end.line, start.line)
-        };
-
-        let is_selected = position.line >= start_line && position.line <= end_line;
-        tracing::trace!(
-            "is_position_selected: line-wise selection, line {} in range [{}, {}], result={}",
-            position.line,
-            start_line,
-            end_line,
-            is_selected
-        );
-        is_selected
-    }
-
-    /// Check block-wise selection (vim's Ctrl+V mode)
-    fn is_position_selected_block_wise(
-        &self,
-        position: LogicalPosition,
-        start: LogicalPosition,
-        end: LogicalPosition,
-    ) -> bool {
-        // For block selection, we create a rectangular region
-        let (start_line, end_line) = if start.line <= end.line {
-            (start.line, end.line)
-        } else {
-            (end.line, start.line)
-        };
-
-        let (start_col, end_col) = if start.column <= end.column {
-            (start.column, end.column)
-        } else {
-            (end.column, start.column)
-        };
-
-        let is_selected = position.line >= start_line
-            && position.line <= end_line
-            && position.column >= start_col
-            && position.column <= end_col;
-
-        tracing::trace!(
-            "is_position_selected: block-wise selection, position ({}, {}) in rectangle [({}, {}), ({}, {})], result={}",
-            position.line,
-            position.column,
-            start_line,
-            start_col,
-            end_line,
-            end_col,
-            is_selected
-        );
-        is_selected
+        // Delegate to specified pane
+        self.panes[pane].is_position_selected(position)
     }
 
     /// Start visual selection in current area
     pub fn start_visual_selection(&mut self) -> Vec<ViewEvent> {
-        let current_cursor = self.get_current_cursor_position();
-        let current_pane_state = &mut self.panes[self.current_pane];
-
-        current_pane_state.visual_selection_start = Some(current_cursor);
-        current_pane_state.visual_selection_end = Some(current_cursor);
-
-        tracing::info!(
-            "Entered visual mode, selection starts at {:?}",
-            current_cursor
-        );
-
-        vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::StatusBarUpdateRequired,
-            ViewEvent::ActiveCursorUpdateRequired,
-        ]
+        // Delegate to current pane
+        self.panes[self.current_pane].start_visual_selection()
     }
 
     /// End visual selection in current area
     pub fn end_visual_selection(&mut self) -> Vec<ViewEvent> {
-        let current_pane_state = &mut self.panes[self.current_pane];
-        current_pane_state.visual_selection_start = None;
-        current_pane_state.visual_selection_end = None;
-
-        tracing::info!("Exited visual mode, cleared selection state");
-
-        vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::StatusBarUpdateRequired,
-            ViewEvent::ActiveCursorUpdateRequired,
-        ]
+        // Delegate to current pane
+        self.panes[self.current_pane].end_visual_selection()
     }
 
     /// Update visual selection end position
     pub fn update_visual_selection(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
-        let current_pane_state = &mut self.panes[self.current_pane];
-        if current_pane_state.visual_selection_start.is_some() {
-            current_pane_state.visual_selection_end = Some(position);
-            vec![ViewEvent::CurrentAreaRedrawRequired]
-        } else {
-            vec![]
-        }
+        // Delegate to current pane
+        self.panes[self.current_pane].update_visual_selection(position)
     }
 
     /// Get selected text from the current pane
     pub fn get_selected_text(&self) -> Option<String> {
         self.panes[self.current_pane].get_selected_text()
+    }
+
+    /// Update visual selection during cursor movement if active
+    /// Helper method to be called from cursor movement operations
+    pub fn update_visual_selection_on_cursor_move(
+        &mut self,
+        new_position: LogicalPosition,
+    ) -> Option<ViewEvent> {
+        self.panes[self.current_pane].update_visual_selection_on_cursor_move(new_position)
     }
 
     /// Delete selected text from the current pane
@@ -687,424 +540,75 @@ impl PaneManager {
             .join("\n")
     }
 
-    /// Insert character in Request pane content
-    pub fn insert_char_in_request(&mut self, ch: char) -> Vec<ViewEvent> {
-        if self.is_in_request_pane() {
-            let _event = self.panes[Pane::Request].buffer.insert_char(ch);
+    /// Insert character at current cursor position using generic delegation
+    ///
+    /// This method delegates to the current pane's insert_char() method,
+    /// which handles capability checking and text insertion logic.
+    pub fn insert_char(&mut self, ch: char) -> Vec<ViewEvent> {
+        let content_width = self.get_content_width();
 
-            // Rebuild display cache to ensure rendering sees the updated content
-            let content_width = self.get_content_width();
-            self.panes[Pane::Request].build_display_cache(
-                content_width,
-                self.wrap_enabled,
-                self.tab_width,
-            );
-
-            // Sync display cursor after cache rebuild
-            let logical = self.panes[Pane::Request].buffer.cursor();
-            if let Some(display_pos) = self.panes[Pane::Request]
-                .display_cache
-                .logical_to_display_position(logical.line, logical.column)
-            {
-                self.panes[Pane::Request].display_cursor = display_pos;
-            } else {
-                // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
-                // This can happen with empty lines or edge cases after multiple newlines in Insert mode
-                tracing::warn!(
-                    "logical_to_display_position failed for cursor at {:?} - using fallback display position", 
-                    logical
-                );
-                // Fallback: Use logical position as display position (works for non-wrapped content)
-                self.panes[Pane::Request].display_cursor =
-                    Position::new(logical.line, logical.column);
-            }
-
-            let mut events = vec![
-                ViewEvent::RequestContentChanged,
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ];
-
-            // Ensure cursor is visible after insertion
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![] // Can't edit in display area
-        }
-    }
-
-    /// Delete character before cursor in Request pane
-    pub fn delete_char_before_cursor_in_request(&mut self) -> Vec<ViewEvent> {
-        tracing::debug!("🗑️  PaneManager::delete_char_before_cursor_in_request called");
-
-        // Early return if not in request pane
-        if !self.is_in_request_pane() {
-            tracing::debug!("🗑️  Not in request pane, skipping deletion");
-            return vec![];
-        }
-
-        tracing::debug!("🗑️  In request pane, performing actual deletion");
-
-        let request_pane = &mut self.panes[Pane::Request];
-        let current_cursor = request_pane.buffer.cursor();
-
-        tracing::debug!("🗑️  Current cursor position: {:?}", current_cursor);
-
-        // Dispatch to appropriate deletion method
-        if current_cursor.column > 0 {
-            self.delete_char_in_line(current_cursor)
-        } else if current_cursor.line > 0 {
-            self.join_with_previous_line(current_cursor)
-        } else {
-            tracing::debug!("🗑️  No deletion performed - at start of buffer");
-            vec![]
-        }
-    }
-
-    /// Delete a character within the current line
-    fn delete_char_in_line(&mut self, current_cursor: LogicalPosition) -> Vec<ViewEvent> {
-        tracing::debug!("🗑️  Deleting character before cursor in same line");
-
-        let request_pane = &mut self.panes[Pane::Request];
-        let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
-        let delete_end = LogicalPosition::new(current_cursor.line, current_cursor.column);
-        let delete_range = LogicalRange::new(delete_start, delete_end);
-
-        // Attempt deletion
-        let Some(_event) = request_pane
-            .buffer
-            .content_mut()
-            .delete_range(self.current_pane, delete_range)
-        else {
-            return vec![];
-        };
-
-        // Move cursor left after successful deletion
-        let new_cursor = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
-        request_pane.buffer.set_cursor(new_cursor);
-
-        tracing::debug!(
-            "🗑️  Deleted character in line, new cursor: {:?}",
-            new_cursor
+        // Delegate to current pane with capability checking
+        let mut events = self.panes[self.current_pane].insert_char(
+            ch,
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
         );
 
-        // Rebuild display cache and sync cursor
-        self.rebuild_display_and_sync_cursor(new_cursor);
-
-        // Build result events
-        let mut events = vec![
-            ViewEvent::RequestContentChanged,
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::CurrentAreaRedrawRequired,
-        ];
-
-        // Ensure cursor is visible after deletion
-        let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
+        // Ensure cursor is visible after insertion if events were generated
+        if !events.is_empty() {
+            let visibility_events = self.ensure_current_cursor_visible(content_width);
+            events.extend(visibility_events);
+        }
 
         events
     }
 
-    /// Join current line with previous line
-    fn join_with_previous_line(&mut self, current_cursor: LogicalPosition) -> Vec<ViewEvent> {
-        tracing::debug!("🗑️  At line start, joining with previous line");
+    /// Delete character before cursor using generic delegation
+    ///
+    /// This method delegates to the current pane's delete_char_before_cursor() method,
+    /// which handles capability checking and deletion logic.
+    pub fn delete_char_before_cursor(&mut self) -> Vec<ViewEvent> {
+        let content_width = self.get_content_width();
 
-        let request_pane = &mut self.panes[Pane::Request];
-
-        // Get length of previous line to position cursor correctly
-        let prev_line_length = request_pane
-            .buffer
-            .content()
-            .get_line(current_cursor.line - 1)
-            .map(|line| line.len())
-            .unwrap_or(0);
-
-        // Create range to delete the newline character (join lines)
-        let delete_start = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
-        let delete_end = LogicalPosition::new(current_cursor.line, 0);
-        let delete_range = LogicalRange::new(delete_start, delete_end);
-
-        // Attempt deletion
-        let Some(_event) = request_pane
-            .buffer
-            .content_mut()
-            .delete_range(self.current_pane, delete_range)
-        else {
-            return vec![];
-        };
-
-        // Move cursor to end of previous line (where the join happened)
-        let new_cursor = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
-        request_pane.buffer.set_cursor(new_cursor);
-
-        tracing::debug!("🗑️  Joined lines, new cursor: {:?}", new_cursor);
-
-        // Rebuild display cache and sync cursor
-        self.rebuild_display_and_sync_cursor(new_cursor);
-
-        vec![
-            ViewEvent::RequestContentChanged,
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::CurrentAreaRedrawRequired,
-        ]
+        // Delegate to current pane with capability checking
+        self.panes[self.current_pane].delete_char_before_cursor(
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
+        )
     }
 
-    /// Helper to rebuild display cache and sync cursor position
-    fn rebuild_display_and_sync_cursor(&mut self, new_cursor: LogicalPosition) {
-        let request_pane = &mut self.panes[Pane::Request];
-        let content_width = if self.show_line_numbers {
-            (self.terminal_dimensions.0 as usize).saturating_sub(4)
-        } else {
-            self.terminal_dimensions.0 as usize
-        };
+    /// Delete character after cursor (generic method for any pane)
+    pub fn delete_char_after_cursor(&mut self) -> Vec<ViewEvent> {
+        let content_width = self.get_content_width();
 
-        // Rebuild display cache since content changed
-        request_pane.build_display_cache(content_width, self.wrap_enabled, self.tab_width);
-
-        // Sync display cursor with new logical position after cache rebuild
-        match request_pane
-            .display_cache
-            .logical_to_display_position(new_cursor.line, new_cursor.column)
-        {
-            Some(display_pos) => {
-                request_pane.display_cursor = display_pos;
-            }
-            None => {
-                // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
-                tracing::warn!(
-                    "delete_char_before_cursor: logical_to_display_position failed at {:?} - using fallback", 
-                    new_cursor
-                );
-                // Fallback: Use logical position as display position (works for non-wrapped content)
-                request_pane.display_cursor = Position::new(new_cursor.line, new_cursor.column);
-            }
-        }
-    }
-
-    /// Delete character after cursor in Request pane
-    pub fn delete_char_after_cursor_in_request(&mut self) -> Vec<ViewEvent> {
-        tracing::debug!("🗑️  PaneManager::delete_char_after_cursor_in_request called");
-
-        if !self.is_in_request_pane() {
-            tracing::debug!("🗑️  Not in request pane, skipping deletion");
-            return vec![]; // Can't edit in display area
-        }
-
-        tracing::debug!("🗑️  In request pane, performing actual deletion");
-
-        let request_pane = &mut self.panes[Pane::Request];
-        let current_cursor = request_pane.buffer.cursor();
-
-        tracing::debug!("🗑️  Current cursor position: {:?}", current_cursor);
-
-        // Get current line to check if we can delete within the line
-        if let Some(current_line) = request_pane.buffer.content().get_line(current_cursor.line) {
-            if current_cursor.column < current_line.len() {
-                // Delete character at cursor position (same line)
-                tracing::debug!("🗑️  Deleting character at cursor position in same line");
-
-                let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column);
-                let delete_end =
-                    LogicalPosition::new(current_cursor.line, current_cursor.column + 1);
-                let delete_range = LogicalRange::new(delete_start, delete_end);
-
-                // Use the existing delete_range method
-                if let Some(_event) = request_pane
-                    .buffer
-                    .content_mut()
-                    .delete_range(self.current_pane, delete_range)
-                {
-                    // Cursor stays in same position
-                    tracing::debug!("🗑️  Deleted character at cursor, cursor position unchanged");
-
-                    // Rebuild display cache since content changed
-                    let content_width = if self.show_line_numbers {
-                        (self.terminal_dimensions.0 as usize).saturating_sub(4)
-                    } else {
-                        self.terminal_dimensions.0 as usize
-                    };
-                    request_pane.build_display_cache(
-                        content_width,
-                        self.wrap_enabled,
-                        self.tab_width,
-                    );
-
-                    // Sync display cursor with logical position after cache rebuild
-                    let current_logical = request_pane.buffer.cursor();
-                    if let Some(display_pos) = request_pane
-                        .display_cache
-                        .logical_to_display_position(current_logical.line, current_logical.column)
-                    {
-                        request_pane.display_cursor = display_pos;
-                    } else {
-                        // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
-                        tracing::warn!(
-                            "delete_char_after_cursor: logical_to_display_position failed at {:?} - using fallback", 
-                            current_logical
-                        );
-                        // Fallback: Use logical position as display position (works for non-wrapped content)
-                        request_pane.display_cursor =
-                            Position::new(current_logical.line, current_logical.column);
-                    }
-
-                    return vec![
-                        ViewEvent::RequestContentChanged,
-                        ViewEvent::ActiveCursorUpdateRequired,
-                        ViewEvent::CurrentAreaRedrawRequired,
-                    ];
-                }
-            } else if current_cursor.line + 1 < request_pane.buffer.content().line_count() {
-                // At end of line, join with next line (delete key at line end)
-                tracing::debug!("🗑️  At line end, joining with next line");
-
-                // Create range to delete the newline character (join lines)
-                // We delete from cursor position to start of next line
-                let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column);
-                let delete_end = LogicalPosition::new(current_cursor.line + 1, 0);
-                let delete_range = LogicalRange::new(delete_start, delete_end);
-
-                // Use the existing delete_range method
-                if let Some(_event) = request_pane
-                    .buffer
-                    .content_mut()
-                    .delete_range(self.current_pane, delete_range)
-                {
-                    // Cursor stays at current position (end of merged line)
-                    tracing::debug!("🗑️  Joined lines, cursor position unchanged");
-
-                    // Rebuild display cache since content structure changed
-                    let content_width = if self.show_line_numbers {
-                        (self.terminal_dimensions.0 as usize).saturating_sub(4)
-                    } else {
-                        self.terminal_dimensions.0 as usize
-                    };
-                    request_pane.build_display_cache(
-                        content_width,
-                        self.wrap_enabled,
-                        self.tab_width,
-                    );
-
-                    // Sync display cursor with logical position after cache rebuild
-                    let current_logical = request_pane.buffer.cursor();
-                    if let Some(display_pos) = request_pane
-                        .display_cache
-                        .logical_to_display_position(current_logical.line, current_logical.column)
-                    {
-                        request_pane.display_cursor = display_pos;
-                    } else {
-                        // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
-                        tracing::warn!(
-                            "delete_char_after_cursor: logical_to_display_position failed at {:?} - using fallback", 
-                            current_logical
-                        );
-                        // Fallback: Use logical position as display position (works for non-wrapped content)
-                        request_pane.display_cursor =
-                            Position::new(current_logical.line, current_logical.column);
-                    }
-
-                    return vec![
-                        ViewEvent::RequestContentChanged,
-                        ViewEvent::ActiveCursorUpdateRequired,
-                        ViewEvent::CurrentAreaRedrawRequired,
-                    ];
-                }
-            }
-        }
-
-        tracing::debug!("🗑️  No deletion performed - at end of buffer or invalid state");
-        vec![] // Nothing to delete (at end of buffer)
+        // Delegate to current pane with capability checking
+        self.panes[self.current_pane].delete_char_after_cursor(
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
+        )
     }
 
     /// Set cursor position in current area
     pub fn set_current_cursor_position(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
-        let clamped_position = self.panes[self.current_pane]
-            .buffer
-            .content()
-            .clamp_position(position);
-        self.panes[self.current_pane]
-            .buffer
-            .set_cursor(clamped_position);
-
-        // Sync display cursor with new logical position
-        if let Some(display_pos) = self.panes[self.current_pane]
-            .display_cache
-            .logical_to_display_position(clamped_position.line, clamped_position.column)
-        {
-            self.panes[self.current_pane].display_cursor = display_pos;
-        } else {
-            // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
-            tracing::warn!(
-                "set_current_cursor_position: logical_to_display_position failed at {:?} - using fallback", 
-                clamped_position
-            );
-            // Fallback: Use logical position as display position (works for non-wrapped content)
-            self.panes[self.current_pane].display_cursor =
-                Position::new(clamped_position.line, clamped_position.column);
-        }
-
-        // Update visual selection if active
-        if self.panes[self.current_pane]
-            .visual_selection_start
-            .is_some()
-        {
-            self.panes[self.current_pane].visual_selection_end = Some(clamped_position);
-        }
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Ensure cursor is visible and add visibility events
-        let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].set_current_cursor_position(position)
     }
 
     /// Clear editable content (semantic operation)
     pub fn clear_editable_content(&mut self) -> Vec<ViewEvent> {
-        self.panes[Pane::Request].buffer = crate::repl::models::BufferModel::new(Pane::Request);
-        vec![ViewEvent::RequestContentChanged]
+        self.panes[Pane::Request].clear_editable_content()
     }
 
     /// Set Request pane content
     pub fn set_request_content(&mut self, text: &str) -> Vec<ViewEvent> {
-        self.panes[Pane::Request].buffer = crate::repl::models::BufferModel::new(Pane::Request);
-        self.panes[Pane::Request]
-            .buffer
-            .content_mut()
-            .set_text(text);
-
-        // Update line number width after content changes
-        self.panes[Pane::Request].update_line_number_width();
-
-        vec![ViewEvent::RequestContentChanged]
+        self.panes[Pane::Request].set_request_content(text)
     }
 
     /// Set Response pane content
     pub fn set_response_content(&mut self, text: &str) -> Vec<ViewEvent> {
-        self.panes[Pane::Response].buffer = crate::repl::models::BufferModel::new(Pane::Response);
-
-        self.panes[Pane::Response]
-            .buffer
-            .content_mut()
-            .set_text(text);
-
-        // Update line number width after content changes
-        self.panes[Pane::Response].update_line_number_width();
-
-        // Reset cursor and scroll positions to avoid out-of-bounds issues
-        self.panes[Pane::Response].display_cursor = Position::origin();
-        self.panes[Pane::Response].scroll_offset = Position::origin();
-
-        // Clear any visual selection in the response pane
-        self.panes[Pane::Response].visual_selection_start = None;
-        self.panes[Pane::Response].visual_selection_end = None;
+        let events = self.panes[Pane::Response].set_response_content(text);
 
         // Rebuild display cache to ensure rendering sees the updated content
         let content_width = if self.show_line_numbers {
@@ -1118,7 +622,7 @@ impl PaneManager {
             self.tab_width,
         );
 
-        vec![ViewEvent::ResponseContentChanged]
+        events
     }
 
     /// Get display cache for current pane
@@ -1199,121 +703,23 @@ impl PaneManager {
 
     /// Move cursor to next word in current pane
     pub fn move_cursor_to_next_word(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let current_mode = self.get_current_pane_mode();
-
-        if let Some(new_pos) =
-            self.panes[self.current_pane].find_next_word_start_position(current_display_pos)
-        {
-            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
-            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
-                return vec![]; // Don't move if it would cross lines
-            }
-
-            let events = self.set_current_display_cursor(new_pos);
-            let mut all_events = events;
-            all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
-            all_events
-        } else {
-            vec![]
-        }
+        // Delegate to current pane with capability checking
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_to_next_word(content_width)
     }
 
     /// Move cursor to previous word in current pane
     pub fn move_cursor_to_previous_word(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let current_mode = self.get_current_pane_mode();
-
-        if let Some(new_pos) =
-            self.panes[self.current_pane].find_previous_word_start_position(current_display_pos)
-        {
-            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
-            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
-                return vec![]; // Don't move if it would cross lines
-            }
-
-            let events = self.set_current_display_cursor(new_pos);
-            let mut all_events = events;
-            all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
-            all_events
-        } else {
-            vec![]
-        }
+        // Delegate to current pane with capability checking
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_to_previous_word(content_width)
     }
 
     /// Move cursor to end of word in current pane
     pub fn move_cursor_to_end_of_word(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let current_mode = self.get_current_pane_mode();
-
-        if let Some(new_pos) =
-            self.panes[self.current_pane].find_next_word_end_position(current_display_pos)
-        {
-            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
-            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
-                return vec![]; // Don't move if it would cross lines
-            }
-
-            let events = self.set_current_display_cursor(new_pos);
-            let mut all_events = events;
-            all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
-            all_events
-        } else {
-            vec![]
-        }
-    }
-
-    /// Calculate maximum allowed column for Visual Block mode based on all selected lines
-    fn get_visual_block_max_column(&self, current_pos: Position, attempted_col: usize) -> usize {
-        // If not in visual selection, use attempted column
-        let (Some(start), Some(end)) = (
-            self.panes[self.current_pane].visual_selection_start,
-            self.panes[self.current_pane].visual_selection_end,
-        ) else {
-            return attempted_col;
-        };
-
-        // Get the line range for the Visual Block selection
-        let top_line = start.line.min(end.line);
-        let bottom_line = start.line.max(end.line);
-
-        // Convert logical positions to display positions for range calculation
-        let top_display_line = self.panes[self.current_pane]
-            .display_cache
-            .logical_to_display_position(top_line, 0)
-            .map(|pos| pos.row)
-            .unwrap_or(0);
-        let bottom_display_line = self.panes[self.current_pane]
-            .display_cache
-            .logical_to_display_position(bottom_line, 0)
-            .map(|pos| pos.row)
-            .unwrap_or(0);
-
-        // Find the maximum line length among all selected lines
-        let mut max_line_length = 0;
-        for display_line_idx in top_display_line..=bottom_display_line {
-            if let Some(line) = self.panes[self.current_pane]
-                .display_cache
-                .get_display_line(display_line_idx)
-            {
-                max_line_length = max_line_length.max(line.display_width());
-            }
-        }
-
-        // Allow movement up to the longest line's length, but only if we can move from current position
-        if attempted_col > current_pos.col {
-            // We're trying to move right - allow up to max length minus 1 (cursor ON last char, not after)
-            // In Vim, cursor positions are 0-indexed and should be ON characters, not after them
-            let max_cursor_position = if max_line_length > 0 {
-                max_line_length - 1
-            } else {
-                0
-            };
-            attempted_col.min(max_cursor_position)
-        } else {
-            // No movement or moving left - use attempted column
-            attempted_col
-        }
+        // Delegate to current pane with capability checking
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_to_end_of_word(content_width)
     }
 
     /// Get content width for current pane (temporary - will be moved to internal calculation)
@@ -1328,80 +734,11 @@ impl PaneManager {
     }
 
     /// Move cursor left in current area
+    ///
+    /// Delegates to PaneState for business logic with capability checking.
     pub fn move_cursor_left(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let display_cache = &self.panes[self.current_pane].display_cache;
-
-        let mut moved = false;
-
-        // Check if we can move left within current display line
-        if current_display_pos.col > 0 {
-            // Use character-aware left movement
-            if let Some(current_line) = display_cache.get_display_line(current_display_pos.row) {
-                let new_col = current_line.move_left_by_character(current_display_pos.col);
-                let new_display_pos = Position::new(current_display_pos.row, new_col);
-                self.panes[self.current_pane].display_cursor = new_display_pos;
-                // Update virtual column for horizontal movement
-                self.panes[self.current_pane].update_virtual_column();
-                moved = true;
-            }
-        } else if current_display_pos.row > 0 {
-            let current_mode = self.get_current_pane_mode();
-
-            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to previous line
-            // Cursor should be constrained to horizontal movement within the selected line range
-            if current_mode != EditorMode::VisualBlock {
-                // Move to end of previous display line
-                let prev_display_line = current_display_pos.row - 1;
-                if let Some(prev_line) = display_cache.get_display_line(prev_display_line) {
-                    // FIXED: Use display width instead of character count for proper multibyte character support
-                    let new_col = prev_line.display_width().saturating_sub(1);
-                    let new_display_pos = Position::new(prev_display_line, new_col);
-                    self.panes[self.current_pane].display_cursor = new_display_pos;
-                    // Update virtual column for horizontal movement
-                    self.panes[self.current_pane].update_virtual_column();
-                    moved = true;
-                }
-            }
-        }
-
-        if moved {
-            // Sync logical cursor with new display position
-            let new_display_pos = self.get_current_display_cursor();
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
-                }
-            }
-
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ];
-
-            // Ensure cursor is visible and add visibility events
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
-        }
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_left(content_width)
     }
 
     /// Move cursor right in current area
@@ -1412,1165 +749,101 @@ impl PaneManager {
     /// 3. Perform the actual cursor movement using character-aware positioning
     /// 4. Sync display cursor with logical cursor and update visual selections
     pub fn move_cursor_right(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-
-        let mut moved = false;
-        let mut new_display_pos = current_display_pos;
-
-        // PHASE 1: Check if cursor can move right within current line
-        // Uses mode-aware boundary checking for proper Insert vs Normal behavior
-        let can_move_right_in_line = if let Some(current_line) = self.panes[self.current_pane]
-            .display_cache
-            .get_display_line(current_display_pos.row)
-        {
-            // MULTIBYTE FIX: Use display width instead of character count for proper CJK support
-            // MODE-AWARE: Different boundary behavior for Insert vs Normal mode
-            let line_display_width = current_line.display_width();
-            let current_mode = self.get_current_pane_mode();
-
-            match current_mode {
-                EditorMode::Insert => {
-                    // Insert mode: Allow cursor to go one position past end of line (for typing new chars)
-                    current_display_pos.col < line_display_width
-                }
-                EditorMode::VisualBlock => {
-                    // Visual Block mode: Allow cursor to move beyond line content to create rectangular selections
-                    // This enables selecting "virtual" columns that may not exist on shorter lines
-                    true // Always allow right movement in Visual Block mode
-                }
-                _ => {
-                    // Normal/Visual mode: Stop at last character position (Vim behavior)
-                    if line_display_width == 0 {
-                        false // Empty line - no movement allowed
-                    } else {
-                        // Check if moving right would keep us within the line
-                        // We simulate the movement to see if it would go past the end
-                        let next_pos =
-                            current_line.move_right_by_character(current_display_pos.col);
-                        next_pos < line_display_width
-                    }
-                }
-            }
-        } else {
-            false
-        };
-
-        // PHASE 2: Check if cursor can move to next line (when right movement in current line fails)
-        let can_move_to_next_line = if !can_move_right_in_line {
-            let current_mode = self.get_current_pane_mode();
-
-            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to next line
-            // Cursor should be constrained to horizontal movement within the selected line range
-            if current_mode == EditorMode::VisualBlock {
-                false
-            } else {
-                let next_display_line = current_display_pos.row + 1;
-                self.panes[self.current_pane]
-                    .display_cache
-                    .get_display_line(next_display_line)
-                    .is_some()
-            }
-        } else {
-            false
-        };
-
-        // PHASE 3: Perform the actual cursor movement
-        if can_move_right_in_line {
-            // CASE 1: Move right within current line using character-aware positioning
-            if let Some(current_line) = self.panes[self.current_pane]
-                .display_cache
-                .get_display_line(current_display_pos.row)
-            {
-                let new_col = current_line.move_right_by_character(current_display_pos.col);
-                let current_mode = self.get_current_pane_mode();
-
-                // VISUAL BLOCK FIX: In Visual Block mode, allow cursor movement based on longest line
-                // in the selection, not just the current line
-                let new_col = if current_mode == EditorMode::VisualBlock {
-                    self.get_visual_block_max_column(current_display_pos, new_col)
-                } else {
-                    new_col
-                };
-
-                // When wrap is enabled, check if we've moved past the visible width
-                // If so, wrap to the next line instead of staying on the current line
-                let content_width = self.get_content_width();
-
-                // VISUAL BLOCK FIX: Prevent line wrapping in Visual Block mode
-                if self.wrap_enabled
-                    && new_col >= content_width
-                    && current_mode != EditorMode::VisualBlock
-                {
-                    // Check if there's a next line to wrap to
-                    let next_display_line = current_display_pos.row + 1;
-                    if self.panes[self.current_pane]
-                        .display_cache
-                        .get_display_line(next_display_line)
-                        .is_some()
-                    {
-                        new_display_pos = Position::new(next_display_line, 0);
-                    } else {
-                        // No next line, stay at current position
-                        new_display_pos =
-                            Position::new(current_display_pos.row, current_display_pos.col);
-                        moved = false;
-                    }
-                } else {
-                    new_display_pos = Position::new(current_display_pos.row, new_col);
-                }
-
-                if moved || new_display_pos != current_display_pos {
-                    self.panes[self.current_pane].display_cursor = new_display_pos;
-                    // Update virtual column for horizontal movement
-                    self.panes[self.current_pane].update_virtual_column();
-                    moved = true;
-                }
-            }
-        } else if can_move_to_next_line {
-            // CASE 2: Move to beginning of next line (line wrap navigation)
-            new_display_pos = Position::new(current_display_pos.row + 1, 0);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-            // Update virtual column for horizontal movement
-            self.panes[self.current_pane].update_virtual_column();
-            moved = true;
-        }
-
-        // PHASE 4: Synchronize cursor position and update related state
-        if moved {
-            // Sync logical cursor with new display position for buffer operations
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                // VISUAL MODE: Update visual selection end point if in visual mode
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
-                }
-            }
-
-            // EVENTS: Generate view events for UI updates
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ];
-
-            // VISIBILITY: Ensure cursor remains visible after movement (scrolling if needed)
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            // NO MOVEMENT: Return empty events if cursor couldn't move
-            vec![]
-        }
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_right(content_width)
     }
 
     /// Move cursor up in current area
+    ///
+    /// Delegates to PaneState for business logic with capability checking.
     pub fn move_cursor_up(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let current_mode = self.panes[self.current_pane].editor_mode;
-
-        if current_display_pos.row > 0 {
-            let new_line = current_display_pos.row - 1;
-
-            // Vim-style virtual column: try to restore the desired column position
-            // Use virtual column instead of current column for vertical navigation
-            let virtual_col = self.panes[self.current_pane].virtual_column;
-            let new_col = if let Some(display_line) = self.panes[self.current_pane]
-                .display_cache
-                .get_display_line(new_line)
-            {
-                let line_char_count = display_line.char_count();
-                let max_col = if current_mode == EditorMode::Insert {
-                    line_char_count // Insert mode: can be positioned after last character
-                } else {
-                    line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
-                };
-                let clamped_col = virtual_col.min(max_col);
-                // CRITICAL FIX: Snap to character boundary to handle DBCS characters
-                display_line.snap_to_character_boundary(clamped_col)
-            } else {
-                virtual_col
-            };
-
-            let new_display_pos = Position::new(new_line, new_col);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-
-            // Sync logical cursor with new display position
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
-                }
-            }
-
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ];
-
-            // Ensure cursor is visible and add visibility events
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
-        }
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_up(content_width)
     }
 
     /// Move cursor down in current area
+    ///
+    /// Delegates to PaneState for business logic with capability checking.
+    /// Use PaneState::move_cursor_down() directly for new code.
     pub fn move_cursor_down(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let current_mode = self.panes[self.current_pane].editor_mode;
-
-        let next_display_line = current_display_pos.row + 1;
-
-        // Check if the next display line actually exists in the display cache
-        // This prevents cursor from moving beyond actual content
-        if let Some(display_line) = self.panes[self.current_pane]
-            .display_cache
-            .get_display_line(next_display_line)
-        {
-            // Only move if there's actual content at the next line
-            // Vim-style virtual column: try to restore the desired column position
-            let virtual_col = self.panes[self.current_pane].virtual_column;
-            let line_char_count = display_line.char_count();
-            let max_col = if current_mode == EditorMode::Insert {
-                line_char_count // Insert mode: can be positioned after last character
-            } else {
-                line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
-            };
-            let clamped_col = virtual_col.min(max_col);
-            // CRITICAL FIX: Snap to character boundary to handle DBCS characters
-            let new_col = display_line.snap_to_character_boundary(clamped_col);
-            let new_display_pos = Position::new(next_display_line, new_col);
-
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-
-            // Sync logical cursor with new display position
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                // CRITICAL FIX: Update visual selection if active (similar to set_current_cursor_position)
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!("Updated visual selection end to {:?}", new_logical_pos);
-                }
-            }
-
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired, // Add redraw for visual selection
-            ];
-
-            // Ensure cursor is visible and add visibility events
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
-        }
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_down(content_width)
     }
 
     /// Move cursor to start of current line
+    ///
+    /// Delegates to PaneState for business logic with capability checking.
+    /// Use PaneState::move_cursor_to_start_of_line() directly for new code.
     pub fn move_cursor_to_start_of_line(&mut self) -> Vec<ViewEvent> {
-        // Get current logical position
-        let current_logical = self.panes[self.current_pane].buffer.cursor();
-
-        // Create new logical position at start of current line (column 0)
-        let new_logical = LogicalPosition::new(current_logical.line, 0);
-
-        // Update logical cursor first
-        self.panes[self.current_pane].buffer.set_cursor(new_logical);
-
-        // Sync display cursor with logical cursor
-        self.panes[self.current_pane].sync_display_cursor_with_logical();
-
-        // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        if self.panes[self.current_pane]
-            .visual_selection_start
-            .is_some()
-        {
-            self.panes[self.current_pane].visual_selection_end = Some(new_logical);
-            events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-            tracing::debug!(
-                "Line start movement updated visual selection end to {:?}",
-                new_logical
-            );
-        }
-
-        // Ensure cursor is visible and add visibility events
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_start_of_line(content_width)
     }
 
     /// Move cursor to end of current line for append (A command)
     /// This positions the cursor AFTER the last character for insert mode
+    ///
+    /// Delegates to PaneState for business logic with capability checking.
+    /// Use PaneState::move_cursor_to_line_end_for_append() directly for new code.
     pub fn move_cursor_to_line_end_for_append(&mut self) -> Vec<ViewEvent> {
-        // Get current logical position
-        let current_logical = self.panes[self.current_pane].buffer.cursor();
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Get the current line content to find its length
-        if let Some(line) = self.panes[self.current_pane]
-            .buffer
-            .content()
-            .get_line(current_logical.line)
-        {
-            let line_length = line.chars().count();
-
-            // For the 'A' command, position cursor AFTER the last character
-            // This allows inserting at the end of the line
-            let end_position = line_length; // Position after last character
-            let new_logical = LogicalPosition::new(current_logical.line, end_position);
-
-            // Update logical cursor first
-            self.panes[self.current_pane].buffer.set_cursor(new_logical);
-
-            // Sync display cursor with logical cursor
-            self.panes[self.current_pane].sync_display_cursor_with_logical();
-
-            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                self.panes[self.current_pane].visual_selection_end = Some(new_logical);
-                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-                tracing::debug!(
-                    "Line end append movement updated visual selection end to {:?}",
-                    new_logical
-                );
-            }
-        }
-
-        // Ensure cursor is visible with Insert-mode scrolling logic
-        // The A command will immediately switch to Insert mode, so we need to use
-        // Insert mode scrolling behavior here to ensure proper horizontal scrolling
         let content_width = self.get_content_width();
-        let original_mode = self.panes[self.current_pane].editor_mode;
-
-        // Temporarily set to Insert mode for proper scrolling calculation
-        self.panes[self.current_pane].editor_mode = EditorMode::Insert;
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-
-        // Restore original mode
-        self.panes[self.current_pane].editor_mode = original_mode;
-
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_line_end_for_append(content_width)
     }
 
     /// Move cursor to end of current line
+    ///
+    /// Delegates to PaneState for business logic with capability checking.
+    /// Use PaneState::move_cursor_to_end_of_line() directly for new code.
     pub fn move_cursor_to_end_of_line(&mut self) -> Vec<ViewEvent> {
-        // Get current logical position
-        let current_logical = self.panes[self.current_pane].buffer.cursor();
-        let current_mode = self.panes[self.current_pane].editor_mode;
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Get the current line content to find its length
-        if let Some(line) = self.panes[self.current_pane]
-            .buffer
-            .content()
-            .get_line(current_logical.line)
-        {
-            let line_length = line.chars().count();
-
-            // Create new logical position at end of current line
-            // Mode-dependent positioning:
-            // - Normal/Visual mode: cursor stops at the last character (index n-1)
-            // - Insert mode: cursor can be positioned after last character (index n)
-            // This is used for the 'A' command which should position after last char
-            let end_position = if current_mode == EditorMode::Insert && line_length > 0 {
-                line_length // Position after last character for insert mode
-            } else if line_length > 0 {
-                line_length - 1 // Stop at last character for normal/visual mode
-            } else {
-                0 // Empty line, stay at position 0
-            };
-            let new_logical = LogicalPosition::new(current_logical.line, end_position);
-
-            // Update logical cursor first
-            self.panes[self.current_pane].buffer.set_cursor(new_logical);
-
-            // Sync display cursor with logical cursor
-            self.panes[self.current_pane].sync_display_cursor_with_logical();
-
-            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                self.panes[self.current_pane].visual_selection_end = Some(new_logical);
-                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-                tracing::debug!(
-                    "Line end movement updated visual selection end to {:?}",
-                    new_logical
-                );
-            }
-        }
-
-        // Ensure cursor is visible and add visibility events
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_end_of_line(content_width)
     }
 
     /// Move cursor to start of document
+    ///
+    /// Delegates to PaneState for business logic with capability checking.
+    /// Use PaneState::move_cursor_to_document_start() directly for new code.
     pub fn move_cursor_to_document_start(&mut self) -> Vec<ViewEvent> {
-        // Use proper cursor positioning method to ensure logical/display sync
-        let start_position = Position::origin();
-        let _result = self.panes[self.current_pane].set_display_cursor(start_position);
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-        if self.panes[self.current_pane]
-            .visual_selection_start
-            .is_some()
-        {
-            let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
-            self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
-            events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-            tracing::debug!(
-                "Document start movement updated visual selection end to {:?}",
-                new_cursor_pos
-            );
-        }
-
-        // Ensure cursor is visible and add visibility events
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_document_start(content_width)
     }
 
     /// Move cursor to end of document
+    ///
+    /// Delegates to PaneState for business logic with capability checking.
+    /// Use PaneState::move_cursor_to_document_end() directly for new code.
     pub fn move_cursor_to_document_end(&mut self) -> Vec<ViewEvent> {
-        let display_cache = &self.panes[self.current_pane].display_cache;
-        // Find the last valid display line by iterating
-        let mut last_line_idx = 0;
-        let mut idx = 0;
-        while display_cache.get_display_line(idx).is_some() {
-            last_line_idx = idx;
-            idx += 1;
-        }
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        if let Some(last_line) = display_cache.get_display_line(last_line_idx) {
-            // FIXED: Use display width instead of character count for proper multibyte character support
-            let line_display_width = last_line.display_width();
-            let end_position = Position::new(last_line_idx, line_display_width);
-
-            // Use proper cursor positioning method to ensure logical/display sync
-            let _result = self.panes[self.current_pane].set_display_cursor(end_position);
-
-            // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
-                self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
-                events.push(ViewEvent::CurrentAreaRedrawRequired); // Redraw for visual selection
-                tracing::debug!(
-                    "Document end movement updated visual selection end to {:?}",
-                    new_cursor_pos
-                );
-            }
-        }
-
-        // Ensure cursor is visible and add visibility events
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_document_end(content_width)
     }
 
     /// Move cursor to specific line number (1-based)
     /// If line_number is out of bounds, clamps to the last available line (vim behavior)
+    ///
+    /// Delegates to PaneState for business logic with capability checking.
+    /// Use PaneState::move_cursor_to_line() directly for new code.
     pub fn move_cursor_to_line(&mut self, line_number: usize) -> Vec<ViewEvent> {
-        if line_number == 0 {
-            return vec![];
-        }
-
-        let display_cache = &self.panes[self.current_pane].display_cache;
-        let max_line_count = display_cache.display_line_count();
-
-        if max_line_count == 0 {
-            return vec![]; // No lines to navigate to
-        }
-
-        // Clamp to valid range (1 to max_line_count)
-        let clamped_line_number = line_number.min(max_line_count);
-        let target_line_idx = clamped_line_number - 1; // Convert to 0-based
-
-        // Set cursor position
-        self.panes[self.current_pane].display_cursor = Position::new(target_line_idx, 0);
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Ensure cursor is visible and add visibility events
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_to_line(line_number, content_width)
     }
 
     /// Move cursor down one page (Ctrl+f)
     pub fn move_cursor_page_down(&mut self) -> Vec<ViewEvent> {
-        let current_pane_state = &self.panes[self.current_pane];
-        let display_cache = &current_pane_state.display_cache;
-        let max_line_count = display_cache.display_line_count();
-
-        if max_line_count == 0 {
-            return vec![]; // No lines to navigate
-        }
-
-        // Calculate page size based on current pane height
-        let page_size = current_pane_state.pane_dimensions.height;
-        if page_size == 0 {
-            return vec![];
-        }
-
-        let current_line = current_pane_state.display_cursor.row;
-
-        // Move cursor down by page_size, but don't go beyond the last line
-        let new_line = (current_line + page_size).min(max_line_count - 1);
-
-        // If we're already at the bottom, don't move
-        if new_line == current_line {
-            return vec![];
-        }
-
-        tracing::debug!(
-            "PageDown: current_line={}, page_size={}, new_line={}, max_lines={}",
-            current_line,
-            page_size,
-            new_line,
-            max_line_count
-        );
-
-        // Get the display line at the target position to check its width
-        let target_display_line = if let Some(display_line) =
-            current_pane_state.display_cache.get_display_line(new_line)
-        {
-            display_line
-        } else {
-            // Fallback: if we can't get the display line, just use column 0
-            let new_display_pos = Position::new(new_line, 0);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-
-            // Still need to sync logical cursor
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!(
-                        "PageDown updated visual selection end to {:?}",
-                        new_logical_pos
-                    );
-                }
-            }
-
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ];
-
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            return events;
-        };
-
-        // Vim-style virtual column: try to restore the desired column position
-        // Instead of using current column, use the virtual column (desired position)
-        let current_mode = current_pane_state.editor_mode;
-        let virtual_col = current_pane_state.virtual_column;
-        let line_char_count = target_display_line.char_count();
-
-        // Clamp virtual column to the length of the target line to prevent cursor going beyond line end
-        // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
-        let max_col = if current_mode == EditorMode::Insert {
-            line_char_count // Insert mode: can be positioned after last character
-        } else {
-            line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
-        };
-        let clamped_col = virtual_col.min(max_col);
-
-        // CRITICAL FIX: Snap to character boundary to handle DBCS characters
-        // If the virtual column lands in the middle of a double-byte character,
-        // we need to pull it back to the start of that character
-        let boundary_snapped_col = target_display_line.snap_to_character_boundary(clamped_col);
-
-        tracing::debug!(
-            "PageDown: line_char_count={}, max_col={}, virtual_col={}, current_col={}, clamped_col={}, boundary_snapped_col={}",
-            line_char_count,
-            max_col,
-            virtual_col,
-            current_pane_state.display_cursor.col,
-            clamped_col,
-            boundary_snapped_col
-        );
-
-        // Set new display cursor position with DBCS boundary-snapped column
-        let new_display_pos = Position::new(new_line, boundary_snapped_col);
-        self.panes[self.current_pane].display_cursor = new_display_pos;
-
-        // Sync logical cursor with new display position
-        if let Some(logical_pos) = self.panes[self.current_pane]
-            .display_cache
-            .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-        {
-            let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-            self.panes[self.current_pane]
-                .buffer
-                .set_cursor(new_logical_pos);
-
-            // Update visual selection if active
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                tracing::debug!(
-                    "PageDown updated visual selection end to {:?}",
-                    new_logical_pos
-                );
-            }
-        }
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Ensure cursor is visible and add visibility events
-        let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_page_down()
     }
 
     /// Move cursor up one page (Ctrl+b)
     pub fn move_cursor_page_up(&mut self) -> Vec<ViewEvent> {
-        let current_pane_state = &self.panes[self.current_pane];
-        let display_cache = &current_pane_state.display_cache;
-        let max_line_count = display_cache.display_line_count();
-
-        if max_line_count == 0 {
-            return vec![]; // No lines to navigate
-        }
-
-        // Calculate page size based on current pane height
-        let page_size = current_pane_state.pane_dimensions.height;
-        if page_size == 0 {
-            return vec![];
-        }
-
-        let current_line = current_pane_state.display_cursor.row;
-
-        // Move cursor up by page_size, but don't go below line 0
-        let new_line = current_line.saturating_sub(page_size);
-
-        // If we're already at the top, don't move
-        if new_line == current_line {
-            return vec![];
-        }
-
-        tracing::debug!(
-            "PageUp: current_line={}, page_size={}, new_line={}",
-            current_line,
-            page_size,
-            new_line
-        );
-
-        // Get the display line at the target position to check its width
-        let target_display_line = if let Some(display_line) =
-            current_pane_state.display_cache.get_display_line(new_line)
-        {
-            display_line
-        } else {
-            // Fallback: if we can't get the display line, just use column 0
-            let new_display_pos = Position::new(new_line, 0);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-
-            // Still need to sync logical cursor
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!(
-                        "PageUp updated visual selection end to {:?}",
-                        new_logical_pos
-                    );
-                }
-            }
-
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ];
-
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            return events;
-        };
-
-        // Vim-style virtual column: try to restore the desired column position
-        // Instead of using current column, use the virtual column (desired position)
-        let current_mode = current_pane_state.editor_mode;
-        let virtual_col = current_pane_state.virtual_column;
-        let line_char_count = target_display_line.char_count();
-
-        // Clamp virtual column to the length of the target line to prevent cursor going beyond line end
-        // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
-        let max_col = if current_mode == EditorMode::Insert {
-            line_char_count // Insert mode: can be positioned after last character
-        } else {
-            line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
-        };
-        let clamped_col = virtual_col.min(max_col);
-
-        // CRITICAL FIX: Snap to character boundary to handle DBCS characters
-        // If the virtual column lands in the middle of a double-byte character,
-        // we need to pull it back to the start of that character
-        let boundary_snapped_col = target_display_line.snap_to_character_boundary(clamped_col);
-
-        tracing::debug!(
-            "PageUp: line_char_count={}, max_col={}, virtual_col={}, current_col={}, clamped_col={}, boundary_snapped_col={}",
-            line_char_count,
-            max_col,
-            virtual_col,
-            current_pane_state.display_cursor.col,
-            clamped_col,
-            boundary_snapped_col
-        );
-
-        // Set new display cursor position with DBCS boundary-snapped column
-        let new_display_pos = Position::new(new_line, boundary_snapped_col);
-        self.panes[self.current_pane].display_cursor = new_display_pos;
-
-        // Sync logical cursor with new display position
-        if let Some(logical_pos) = self.panes[self.current_pane]
-            .display_cache
-            .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-        {
-            let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-            self.panes[self.current_pane]
-                .buffer
-                .set_cursor(new_logical_pos);
-
-            // Update visual selection if active
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                tracing::debug!(
-                    "PageUp updated visual selection end to {:?}",
-                    new_logical_pos
-                );
-            }
-        }
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Ensure cursor is visible and add visibility events
-        let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_page_up()
     }
 
     /// Move cursor down half a page (Ctrl+d)
     pub fn move_cursor_half_page_down(&mut self) -> Vec<ViewEvent> {
-        let current_pane_state = &self.panes[self.current_pane];
-        let display_cache = &current_pane_state.display_cache;
-        let max_line_count = display_cache.display_line_count();
-
-        if max_line_count == 0 {
-            return vec![]; // No lines to navigate
-        }
-
-        // Calculate half page size based on current pane height
-        let page_size = current_pane_state.pane_dimensions.height;
-        if page_size == 0 {
-            return vec![];
-        }
-        let half_page_size = page_size.div_ceil(2); // Round up for odd numbers
-
-        let current_line = current_pane_state.display_cursor.row;
-
-        // Move cursor down by half_page_size, but don't go beyond the last line
-        let new_line = (current_line + half_page_size).min(max_line_count - 1);
-
-        // If we're already at the bottom, don't move
-        if new_line == current_line {
-            return vec![];
-        }
-
-        tracing::debug!(
-            "HalfPageDown: current_line={}, half_page_size={}, new_line={}, max_lines={}",
-            current_line,
-            half_page_size,
-            new_line,
-            max_line_count
-        );
-
-        // Get the display line at the target position to check its width
-        let target_display_line = if let Some(display_line) =
-            current_pane_state.display_cache.get_display_line(new_line)
-        {
-            display_line
-        } else {
-            // Fallback: if we can't get the display line, just use column 0
-            let new_display_pos = Position::new(new_line, 0);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-
-            // Still need to sync logical cursor
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!(
-                        "HalfPageDown updated visual selection end to {:?}",
-                        new_logical_pos
-                    );
-                }
-            }
-
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ];
-
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            return events;
-        };
-
-        // Vim-style virtual column: try to restore the desired column position
-        let current_mode = current_pane_state.editor_mode;
-        let virtual_col = current_pane_state.virtual_column;
-        let line_char_count = target_display_line.char_count();
-
-        // Clamp virtual column to the length of the target line to prevent cursor going beyond line end
-        // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
-        let max_col = if current_mode == EditorMode::Insert {
-            line_char_count // Insert mode: can be positioned after last character
-        } else {
-            line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
-        };
-        let clamped_col = virtual_col.min(max_col);
-
-        // CRITICAL FIX: Snap to character boundary to handle DBCS characters
-        let boundary_snapped_col = target_display_line.snap_to_character_boundary(clamped_col);
-
-        tracing::debug!(
-            "HalfPageDown: line_char_count={}, max_col={}, virtual_col={}, current_col={}, clamped_col={}, boundary_snapped_col={}",
-            line_char_count,
-            max_col,
-            virtual_col,
-            current_pane_state.display_cursor.col,
-            clamped_col,
-            boundary_snapped_col
-        );
-
-        // Set new display cursor position with DBCS boundary-snapped column
-        let new_display_pos = Position::new(new_line, boundary_snapped_col);
-        self.panes[self.current_pane].display_cursor = new_display_pos;
-
-        // Sync logical cursor with new display position
-        if let Some(logical_pos) = self.panes[self.current_pane]
-            .display_cache
-            .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-        {
-            let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-            self.panes[self.current_pane]
-                .buffer
-                .set_cursor(new_logical_pos);
-
-            // Update visual selection if active
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                tracing::debug!(
-                    "HalfPageDown updated visual selection end to {:?}",
-                    new_logical_pos
-                );
-            }
-        }
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Ensure cursor is visible and add visibility events
-        let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_half_page_down()
     }
 
     /// Move cursor up half a page (Ctrl+u)
     pub fn move_cursor_half_page_up(&mut self) -> Vec<ViewEvent> {
-        let current_pane_state = &self.panes[self.current_pane];
-        let display_cache = &current_pane_state.display_cache;
-        let max_line_count = display_cache.display_line_count();
-
-        if max_line_count == 0 {
-            return vec![]; // No lines to navigate
-        }
-
-        // Calculate half page size based on current pane height
-        let page_size = current_pane_state.pane_dimensions.height;
-        if page_size == 0 {
-            return vec![];
-        }
-        let half_page_size = page_size.div_ceil(2); // Round up for odd numbers
-
-        let current_line = current_pane_state.display_cursor.row;
-
-        // Move cursor up by half_page_size, but don't go before the first line
-        let new_line = current_line.saturating_sub(half_page_size);
-
-        // If we're already at the top, don't move
-        if new_line == current_line {
-            return vec![];
-        }
-
-        tracing::debug!(
-            "HalfPageUp: current_line={}, half_page_size={}, new_line={}, max_lines={}",
-            current_line,
-            half_page_size,
-            new_line,
-            max_line_count
-        );
-
-        // Get the display line at the target position to check its width
-        let target_display_line = if let Some(display_line) =
-            current_pane_state.display_cache.get_display_line(new_line)
-        {
-            display_line
-        } else {
-            // Fallback: if we can't get the display line, just use column 0
-            let new_display_pos = Position::new(new_line, 0);
-            self.panes[self.current_pane].display_cursor = new_display_pos;
-
-            // Still need to sync logical cursor
-            if let Some(logical_pos) = self.panes[self.current_pane]
-                .display_cache
-                .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-            {
-                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-                self.panes[self.current_pane]
-                    .buffer
-                    .set_cursor(new_logical_pos);
-
-                if self.panes[self.current_pane]
-                    .visual_selection_start
-                    .is_some()
-                {
-                    self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                    tracing::debug!(
-                        "HalfPageUp updated visual selection end to {:?}",
-                        new_logical_pos
-                    );
-                }
-            }
-
-            let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ];
-
-            let content_width = self.get_content_width();
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-
-            return events;
-        };
-
-        // Vim-style virtual column: try to restore the desired column position
-        let current_mode = current_pane_state.editor_mode;
-        let virtual_col = current_pane_state.virtual_column;
-        let line_char_count = target_display_line.char_count();
-
-        // Clamp virtual column to the length of the target line to prevent cursor going beyond line end
-        // Mode-dependent: Normal/Visual stops at last char, Insert can go one past
-        let max_col = if current_mode == EditorMode::Insert {
-            line_char_count // Insert mode: can be positioned after last character
-        } else {
-            line_char_count.saturating_sub(1) // Normal/Visual: stop at last character
-        };
-        let clamped_col = virtual_col.min(max_col);
-
-        // CRITICAL FIX: Snap to character boundary to handle DBCS characters
-        let boundary_snapped_col = target_display_line.snap_to_character_boundary(clamped_col);
-
-        tracing::debug!(
-            "HalfPageUp: line_char_count={}, max_col={}, virtual_col={}, current_col={}, clamped_col={}, boundary_snapped_col={}",
-            line_char_count,
-            max_col,
-            virtual_col,
-            current_pane_state.display_cursor.col,
-            clamped_col,
-            boundary_snapped_col
-        );
-
-        // Set new display cursor position with DBCS boundary-snapped column
-        let new_display_pos = Position::new(new_line, boundary_snapped_col);
-        self.panes[self.current_pane].display_cursor = new_display_pos;
-
-        // Sync logical cursor with new display position
-        if let Some(logical_pos) = self.panes[self.current_pane]
-            .display_cache
-            .display_to_logical_position(new_display_pos.row, new_display_pos.col)
-        {
-            let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
-            self.panes[self.current_pane]
-                .buffer
-                .set_cursor(new_logical_pos);
-
-            // Update visual selection if active
-            if self.panes[self.current_pane]
-                .visual_selection_start
-                .is_some()
-            {
-                self.panes[self.current_pane].visual_selection_end = Some(new_logical_pos);
-                tracing::debug!(
-                    "HalfPageUp updated visual selection end to {:?}",
-                    new_logical_pos
-                );
-            }
-        }
-
-        let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
-        ];
-
-        // Ensure cursor is visible and add visibility events
-        let content_width = self.get_content_width();
-        let visibility_events = self.ensure_current_cursor_visible(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.panes[self.current_pane].move_cursor_half_page_up()
     }
 
     /// Calculate pane boundaries for rendering

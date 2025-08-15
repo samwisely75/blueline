@@ -1,10 +1,12 @@
 //! # Core Event Types
 //!
 //! Common types used throughout the event system including positions,
-//! ranges, panes, and editor modes.
+//! ranges, panes, editor modes, and pane capabilities.
+
+use bitflags::bitflags;
 
 /// Logical position in text content (line and column)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct LogicalPosition {
     pub line: usize,
     pub column: usize,
@@ -61,6 +63,68 @@ pub enum EditorMode {
     VisualLine,
     /// Visual Block mode - block-wise text selection mode (vim's Ctrl+V)
     VisualBlock,
+}
+
+bitflags! {
+    /// Capabilities that control what operations are allowed on a pane
+    ///
+    /// This bitflag enum provides fine-grained control over pane functionality,
+    /// allowing for flexible configuration without hardcoding pane-specific behavior.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use blueline::repl::events::PaneCapabilities;
+    ///
+    /// // Request pane with full access
+    /// let request_caps = PaneCapabilities::FULL_ACCESS;
+    ///
+    /// // Response pane (read-only)
+    /// let response_caps = PaneCapabilities::READ_ONLY;
+    ///
+    /// // Custom configuration
+    /// let custom_caps = PaneCapabilities::FOCUSABLE | PaneCapabilities::NAVIGABLE;
+    ///
+    /// // Check capabilities
+    /// if request_caps.contains(PaneCapabilities::EDITABLE) {
+    ///     // Allow editing operations
+    /// }
+    /// ```
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct PaneCapabilities: u32 {
+        /// No capabilities - pane is completely inactive
+        const NONE         = 0b00000000;
+
+        /// Can receive focus and become the active pane
+        const FOCUSABLE    = 0b00000001;
+
+        /// Can edit content (insert, delete, modify text)
+        const EDITABLE     = 0b00000010;
+
+        /// Can select text for visual operations
+        const SELECTABLE   = 0b00000100;
+
+        /// Can scroll content vertically and horizontally
+        const SCROLLABLE   = 0b00001000;
+
+        /// Can navigate with cursor movement commands
+        const NAVIGABLE    = 0b00010000;
+
+        /// Standard read-only configuration for display panes
+        /// Allows focus, navigation, selection, and scrolling but not editing
+        const READ_ONLY = Self::FOCUSABLE.bits()
+                        | Self::SCROLLABLE.bits()
+                        | Self::NAVIGABLE.bits()
+                        | Self::SELECTABLE.bits();
+
+        /// Full access configuration for editable panes
+        /// Enables all capabilities for complete pane functionality
+        const FULL_ACCESS = Self::FOCUSABLE.bits()
+                          | Self::EDITABLE.bits()
+                          | Self::SELECTABLE.bits()
+                          | Self::SCROLLABLE.bits()
+                          | Self::NAVIGABLE.bits();
+    }
 }
 
 #[cfg(test)]

@@ -1,0 +1,600 @@
+//! Text editing operations for PaneState
+//!
+//! This module contains methods for:
+//! - Character insertion and deletion
+//! - Text selection and extraction
+//! - Line joining operations
+//! - Visual mode text manipulation
+
+use crate::repl::events::{
+    EditorMode, LogicalPosition, LogicalRange, ModelEvent, PaneCapabilities, ViewEvent,
+};
+use crate::repl::geometry::Position;
+
+use super::PaneState;
+
+// Type alias for deletion operation results
+type DeletionResult = Option<(String, ModelEvent)>;
+
+impl PaneState {
+    /// Get the currently selected text in visual mode
+    pub fn get_selected_text(&self) -> Option<String> {
+        // Check if we have a selection
+        let (Some(start), Some(end)) = (self.visual_selection_start, self.visual_selection_end)
+        else {
+            return None;
+        };
+
+        // Normalize selection (ensure start <= end)
+        let (selection_start, selection_end) =
+            if start.line < end.line || (start.line == end.line && start.column <= end.column) {
+                (start, end)
+            } else {
+                (end, start)
+            };
+
+        let content = self.buffer.content();
+        let mut selected_text = String::new();
+
+        match self.editor_mode {
+            EditorMode::VisualLine => {
+                // Visual Line mode: always select entire lines from beginning to end
+                let first_line = selection_start.line;
+                let last_line = selection_end.line;
+
+                for line_num in first_line..=last_line {
+                    if let Some(line) = content.get_line(line_num) {
+                        selected_text.push_str(&line);
+
+                        // Add newline after each line except the last one
+                        if line_num < last_line {
+                            selected_text.push('\n');
+                        }
+                    }
+                }
+            }
+            EditorMode::VisualBlock => {
+                // Visual Block mode: select rectangular region
+                // VISUAL BLOCK FIX: Use selection_start as the anchor column and selection_end as current cursor
+                // This ensures selection always goes from the starting column to the current cursor column
+                let top_line = selection_start.line;
+                let bottom_line = selection_end.line;
+                let start_col = selection_start.column; // Column where Visual Block mode started
+                let end_col = selection_end.column; // Current cursor column
+
+                // Determine selection direction and boundaries
+                let (left_col, right_col) = if start_col <= end_col {
+                    (start_col, end_col)
+                } else {
+                    (end_col, start_col)
+                };
+
+                for line_num in top_line..=bottom_line {
+                    if let Some(line) = content.get_line(line_num) {
+                        let line_length = line.len();
+
+                        // Skip lines that are too short to have content in the block region
+                        if left_col < line_length {
+                            let actual_right_col = (right_col + 1).min(line_length); // +1 to include character at end position
+                            let block_text = &line[left_col..actual_right_col];
+                            selected_text.push_str(block_text);
+                        }
+
+                        // Add newline after each line except the last one
+                        if line_num < bottom_line {
+                            selected_text.push('\n');
+                        }
+                    }
+                }
+            }
+            _ => {
+                // Visual mode (character-wise): original behavior
+                if selection_start.line == selection_end.line {
+                    // Single line selection
+                    if let Some(line) = content.get_line(selection_start.line) {
+                        let start_col = selection_start.column.min(line.len());
+                        let end_col = (selection_end.column + 1).min(line.len()); // +1 to include character at end position
+                        selected_text.push_str(&line[start_col..end_col]);
+                    }
+                } else {
+                    // Multi-line selection
+                    for line_num in selection_start.line..=selection_end.line {
+                        if let Some(line) = content.get_line(line_num) {
+                            if line_num == selection_start.line {
+                                // First line: from start column to end
+                                let start_col = selection_start.column.min(line.len());
+                                selected_text.push_str(&line[start_col..]);
+                            } else if line_num == selection_end.line {
+                                // Last line: from beginning to end column
+                                let end_col = (selection_end.column + 1).min(line.len());
+                                selected_text.push_str(&line[..end_col]);
+                            } else {
+                                // Middle lines: entire line
+                                selected_text.push_str(&line);
+                            }
+
+                            // Add newline between lines (but not after the last line)
+                            if line_num < selection_end.line {
+                                selected_text.push('\n');
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if selected_text.is_empty() {
+            None
+        } else {
+            Some(selected_text)
+        }
+    }
+
+    /// Insert character at current cursor position with capability checking
+    ///
+    /// This method checks EDITABLE capability before allowing text insertion.
+    /// It handles all the complex logic for display cache rebuilding, cursor
+    /// synchronization, and view event generation.
+    ///
+    /// # Parameters
+    /// - `ch`: Character to insert
+    /// - `content_width`: Available width for content display
+    /// - `wrap_enabled`: Whether text wrapping is enabled
+    /// - `tab_width`: Tab stop width for character display
+    ///
+    /// # Returns
+    /// Vector of ViewEvents to update the display, or empty if operation not allowed
+    pub fn insert_char(
+        &mut self,
+        ch: char,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        // Check if editing is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
+            return vec![]; // Editing not allowed on this pane
+        }
+
+        // Insert character into buffer
+        let _event = self.buffer.insert_char(ch);
+
+        // Rebuild display cache to ensure rendering sees the updated content
+        self.build_display_cache(content_width, wrap_enabled, tab_width);
+
+        // Sync display cursor after cache rebuild
+        let logical = self.buffer.cursor();
+        if let Some(display_pos) = self
+            .display_cache
+            .logical_to_display_position(logical.line, logical.column)
+        {
+            self.display_cursor = display_pos;
+        } else {
+            // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+            // This can happen with empty lines or edge cases after multiple newlines in Insert mode
+            tracing::warn!(
+                "logical_to_display_position failed for cursor at {:?} - using fallback display position", 
+                logical
+            );
+            // Fallback: Use logical position as display position (works for non-wrapped content)
+            self.display_cursor = Position::new(logical.line, logical.column);
+        }
+
+        // Return events for view updates - caller will handle cursor visibility
+        vec![
+            ViewEvent::RequestContentChanged,
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ]
+    }
+
+    /// Delete character before cursor with capability checking
+    ///
+    /// This method checks EDITABLE capability before allowing character deletion.
+    /// It handles two scenarios:
+    /// 1. Delete character within current line (move cursor left)
+    /// 2. Join with previous line when at beginning of line (backspace line join)
+    ///
+    /// # Parameters
+    /// - `content_width`: Available width for content display  
+    /// - `wrap_enabled`: Whether text wrapping is enabled
+    /// - `tab_width`: Tab stop width for formatting
+    ///
+    /// # Returns
+    /// Vector of ViewEvents to update the display, or empty if operation not allowed
+    pub fn delete_char_before_cursor(
+        &mut self,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        // Check if editing is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
+            return vec![]; // Editing not allowed on this pane
+        }
+
+        let current_cursor = self.buffer.cursor();
+
+        tracing::debug!(
+            "🗑️  PaneState::delete_char_before_cursor at position {:?}",
+            current_cursor
+        );
+
+        // Dispatch to appropriate deletion method
+        if current_cursor.column > 0 {
+            self.delete_char_in_line(current_cursor, content_width, wrap_enabled, tab_width)
+        } else if current_cursor.line > 0 {
+            self.join_with_previous_line(current_cursor, content_width, wrap_enabled, tab_width)
+        } else {
+            tracing::debug!("🗑️  No deletion performed - at start of buffer");
+            vec![]
+        }
+    }
+
+    /// Delete character after cursor (Delete key)
+    pub fn delete_char_after_cursor(
+        &mut self,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        // Check if editing is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
+            return vec![]; // Editing not allowed on this pane
+        }
+
+        let current_cursor = self.buffer.cursor();
+
+        tracing::debug!(
+            "🗑️  PaneState::delete_char_after_cursor at position {:?}",
+            current_cursor
+        );
+
+        // Get current line to check if we can delete within the line
+        if let Some(current_line) = self.buffer.content().get_line(current_cursor.line) {
+            if current_cursor.column < current_line.len() {
+                // Delete character at cursor position (same line)
+                self.delete_char_after_cursor_in_line(
+                    current_cursor,
+                    content_width,
+                    wrap_enabled,
+                    tab_width,
+                )
+            } else if current_cursor.line + 1 < self.buffer.content().line_count() {
+                // At end of line, join with next line (delete key at line end)
+                self.join_with_next_line(current_cursor, content_width, wrap_enabled, tab_width)
+            } else {
+                tracing::debug!("🗑️  No deletion performed - at end of buffer");
+                vec![] // Nothing to delete (at end of buffer)
+            }
+        } else {
+            tracing::debug!("🗑️  No deletion performed - invalid line");
+            vec![]
+        }
+    }
+
+    /// Delete the currently selected text and return the deleted content
+    pub fn delete_selected_text(&mut self) -> DeletionResult {
+        // Extract selection boundaries
+        let (start, end) = (self.visual_selection_start?, self.visual_selection_end?);
+
+        match self.editor_mode {
+            EditorMode::VisualBlock => self.delete_visual_block_selection(),
+            _ => {
+                // Get the selected text before deleting it
+                let selected_text = self.get_selected_text().unwrap_or_default();
+
+                // Normalize selection (ensure start <= end)
+                let (selection_start, selection_end) = if start.line < end.line
+                    || (start.line == end.line && start.column <= end.column)
+                {
+                    (start, end)
+                } else {
+                    (end, start)
+                };
+
+                // Create deletion range
+                let delete_range = LogicalRange::new(selection_start, selection_end);
+
+                // Perform deletion
+                let pane_type = self.buffer.pane();
+                if let Some(event) = self
+                    .buffer
+                    .content_mut()
+                    .delete_range(pane_type, delete_range)
+                {
+                    // Position cursor at start of deleted range
+                    self.buffer.set_cursor(selection_start);
+
+                    // Clear visual selection
+                    self.visual_selection_start = None;
+                    self.visual_selection_end = None;
+
+                    Some((selected_text, event))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    // ========================================
+    // Private Helper Methods
+    // ========================================
+
+    /// Delete a character within the current line
+    fn delete_char_in_line(
+        &mut self,
+        current_cursor: LogicalPosition,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        tracing::debug!("🗑️  Deleting character before cursor in same line");
+
+        let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
+        let delete_end = LogicalPosition::new(current_cursor.line, current_cursor.column);
+        let delete_range = LogicalRange::new(delete_start, delete_end);
+
+        // Attempt deletion
+        let pane_type = self.buffer.pane();
+        let Some(_event) = self
+            .buffer
+            .content_mut()
+            .delete_range(pane_type, delete_range)
+        else {
+            return vec![];
+        };
+
+        // Move cursor left after successful deletion
+        let new_cursor = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
+        self.buffer.set_cursor(new_cursor);
+
+        tracing::debug!(
+            "🗑️  Deleted character in line, new cursor: {:?}",
+            new_cursor
+        );
+
+        // Rebuild display cache and sync cursor
+        self.rebuild_display_and_sync_cursor(new_cursor, content_width, wrap_enabled, tab_width);
+
+        vec![
+            ViewEvent::RequestContentChanged,
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::CurrentAreaRedrawRequired,
+        ]
+    }
+
+    /// Delete a character after cursor within the current line
+    fn delete_char_after_cursor_in_line(
+        &mut self,
+        current_cursor: LogicalPosition,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        tracing::debug!("🗑️  Deleting character after cursor in same line");
+
+        let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column);
+        let delete_end = LogicalPosition::new(current_cursor.line, current_cursor.column + 1);
+        let delete_range = LogicalRange::new(delete_start, delete_end);
+
+        // Attempt deletion
+        let pane_type = self.buffer.pane();
+        let Some(_event) = self
+            .buffer
+            .content_mut()
+            .delete_range(pane_type, delete_range)
+        else {
+            return vec![];
+        };
+
+        // Cursor stays at same position after forward deletion
+        tracing::debug!(
+            "🗑️  Deleted character after cursor, cursor remains at: {:?}",
+            current_cursor
+        );
+
+        // Rebuild display cache and sync cursor
+        self.rebuild_display_and_sync_cursor(
+            current_cursor,
+            content_width,
+            wrap_enabled,
+            tab_width,
+        );
+
+        vec![
+            ViewEvent::RequestContentChanged,
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::CurrentAreaRedrawRequired,
+        ]
+    }
+
+    /// Join current line with previous line (backspace at beginning of line)
+    fn join_with_previous_line(
+        &mut self,
+        current_cursor: LogicalPosition,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        tracing::debug!("🗑️  Joining current line with previous line");
+
+        // Get length of previous line to position cursor correctly
+        let prev_line_length =
+            if let Some(prev_line) = self.buffer.content().get_line(current_cursor.line - 1) {
+                prev_line.len()
+            } else {
+                0
+            };
+
+        // Delete the newline character between previous and current line
+        let delete_start = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
+        let delete_end = LogicalPosition::new(current_cursor.line, 0);
+        let delete_range = LogicalRange::new(delete_start, delete_end);
+
+        // Attempt deletion
+        let pane_type = self.buffer.pane();
+        let Some(_event) = self
+            .buffer
+            .content_mut()
+            .delete_range(pane_type, delete_range)
+        else {
+            return vec![];
+        };
+
+        // Position cursor at end of previous line (where lines joined)
+        let new_cursor = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
+        self.buffer.set_cursor(new_cursor);
+
+        tracing::debug!("🗑️  Joined lines, new cursor: {:?}", new_cursor);
+
+        // Rebuild display cache and sync cursor
+        self.rebuild_display_and_sync_cursor(new_cursor, content_width, wrap_enabled, tab_width);
+
+        vec![
+            ViewEvent::RequestContentChanged,
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::CurrentAreaRedrawRequired,
+        ]
+    }
+
+    /// Join current line with next line (delete at end of line)
+    fn join_with_next_line(
+        &mut self,
+        current_cursor: LogicalPosition,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        tracing::debug!("🗑️  Joining current line with next line");
+
+        // Delete the newline character between current and next line
+        let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column);
+        let delete_end = LogicalPosition::new(current_cursor.line + 1, 0);
+        let delete_range = LogicalRange::new(delete_start, delete_end);
+
+        // Attempt deletion
+        let pane_type = self.buffer.pane();
+        let Some(_event) = self
+            .buffer
+            .content_mut()
+            .delete_range(pane_type, delete_range)
+        else {
+            return vec![];
+        };
+
+        // Cursor stays at same position
+        tracing::debug!("🗑️  Joined lines, cursor remains at: {:?}", current_cursor);
+
+        // Rebuild display cache and sync cursor
+        self.rebuild_display_and_sync_cursor(
+            current_cursor,
+            content_width,
+            wrap_enabled,
+            tab_width,
+        );
+
+        vec![
+            ViewEvent::RequestContentChanged,
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::CurrentAreaRedrawRequired,
+        ]
+    }
+
+    /// Helper to rebuild display cache and sync cursor position
+    fn rebuild_display_and_sync_cursor(
+        &mut self,
+        new_cursor: LogicalPosition,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) {
+        // Rebuild display cache since content changed
+        self.build_display_cache(content_width, wrap_enabled, tab_width);
+
+        // Sync display cursor with new logical position after cache rebuild
+        match self
+            .display_cache
+            .logical_to_display_position(new_cursor.line, new_cursor.column)
+        {
+            Some(display_pos) => {
+                self.display_cursor = display_pos;
+            }
+            None => {
+                // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+                tracing::warn!(
+                    "delete_char_before_cursor: logical_to_display_position failed at {:?} - using fallback", 
+                    new_cursor
+                );
+                // Fallback: Use logical position as display position (works for non-wrapped content)
+                self.display_cursor = Position::new(new_cursor.line, new_cursor.column);
+            }
+        }
+    }
+
+    /// Delete the selected text in Visual Block mode
+    fn delete_visual_block_selection(&mut self) -> DeletionResult {
+        let (start, end) = (self.visual_selection_start?, self.visual_selection_end?);
+
+        // Extract the text before deleting it
+        let selected_text = self.get_selected_text().unwrap_or_default();
+
+        // For Visual Block mode, we need to delete from each line individually
+        // Working backwards to maintain line number validity
+        let top_line = start.line.min(end.line);
+        let bottom_line = start.line.max(end.line);
+        let left_col = start.column.min(end.column);
+        let right_col = start.column.max(end.column);
+
+        let pane_type = self.buffer.pane();
+        let mut any_deletion = false;
+
+        // Delete from bottom to top to maintain line indices
+        for line_num in (top_line..=bottom_line).rev() {
+            if let Some(line) = self.buffer.content().get_line(line_num) {
+                let line_length = line.len();
+
+                // Only delete if the line is long enough to have content in the block region
+                if left_col < line_length {
+                    let actual_right_col = (right_col + 1).min(line_length);
+                    let delete_start = LogicalPosition::new(line_num, left_col);
+                    let delete_end = LogicalPosition::new(line_num, actual_right_col);
+                    let delete_range = LogicalRange::new(delete_start, delete_end);
+
+                    if self
+                        .buffer
+                        .content_mut()
+                        .delete_range(pane_type, delete_range)
+                        .is_some()
+                    {
+                        any_deletion = true;
+                    }
+                }
+            }
+        }
+
+        if any_deletion {
+            // Position cursor at top-left of the deleted block
+            let new_cursor = LogicalPosition::new(top_line, left_col);
+            self.buffer.set_cursor(new_cursor);
+
+            // Clear visual selection
+            self.visual_selection_start = None;
+            self.visual_selection_end = None;
+
+            // Create a synthetic event for the block deletion
+            let event = ModelEvent::TextDeleted {
+                pane: pane_type,
+                range: LogicalRange::new(
+                    LogicalPosition::new(top_line, left_col),
+                    LogicalPosition::new(bottom_line, right_col + 1),
+                ),
+            };
+
+            Some((selected_text, event))
+        } else {
+            None
+        }
+    }
+}
