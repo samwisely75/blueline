@@ -322,6 +322,7 @@ impl PaneState {
 
         match self.editor_mode {
             EditorMode::VisualBlock => self.delete_visual_block_selection(),
+            EditorMode::VisualLine => self.delete_visual_line_selection(),
             _ => {
                 // Get the selected text before deleting it
                 let selected_text = self.get_selected_text().unwrap_or_default();
@@ -633,6 +634,59 @@ impl PaneState {
                     LogicalPosition::new(bottom_line, right_col + 1),
                 ),
             };
+
+            Some((selected_text, event))
+        } else {
+            None
+        }
+    }
+
+    /// Delete the selected text in Visual Line mode (complete lines)
+    fn delete_visual_line_selection(&mut self) -> DeletionResult {
+        let (start, end) = (self.visual_selection_start?, self.visual_selection_end?);
+
+        // Extract the text before deleting it
+        let selected_text = self.get_selected_text().unwrap_or_default();
+
+        // For Visual Line mode, we delete complete lines from first to last
+        let first_line = start.line.min(end.line);
+        let last_line = start.line.max(end.line);
+
+        // Visual Line deletion: from beginning of first line to end of last line (including newline)
+        let delete_start = LogicalPosition::new(first_line, 0);
+
+        // For the end position, we need to include the newline after the last line
+        // Check if there's content after the last line
+        let content = self.buffer.content();
+        let last_line_length = content
+            .get_line(last_line)
+            .map(|line| line.len())
+            .unwrap_or(0);
+
+        let delete_end = if last_line + 1 < content.line_count() {
+            // There are lines after the last selected line, so delete up to start of next line
+            LogicalPosition::new(last_line + 1, 0)
+        } else {
+            // This is the last line in the buffer, delete to end of line
+            LogicalPosition::new(last_line, last_line_length)
+        };
+
+        // Create deletion range
+        let delete_range = LogicalRange::new(delete_start, delete_end);
+
+        // Perform deletion
+        let pane_type = self.buffer.pane();
+        if let Some(event) = self
+            .buffer
+            .content_mut()
+            .delete_range(pane_type, delete_range)
+        {
+            // Position cursor at start of deleted range (beginning of first line)
+            self.buffer.set_cursor(delete_start);
+
+            // Clear visual selection
+            self.visual_selection_start = None;
+            self.visual_selection_end = None;
 
             Some((selected_text, event))
         } else {

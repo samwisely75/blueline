@@ -35,11 +35,13 @@ use super::terminal_state::TerminalState;
 /// Application mode following Vim conventions
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppMode {
-    Normal,  // No status message, cursor not in command line
-    Insert,  // "-- INSERT --" message (left-aligned, bold)
-    Visual,  // "-- VISUAL --" message (left-aligned, bold)
-    Command, // Cursor at bottom row with ":" at column 1
-    Unknown, // Fallback for unclear state
+    Normal,      // No status message, cursor not in command line
+    Insert,      // "-- INSERT --" message (left-aligned, bold)
+    Visual,      // "-- VISUAL --" message (left-aligned, bold)
+    VisualLine,  // "-- VISUAL LINE --" message (left-aligned, bold)
+    VisualBlock, // "-- VISUAL BLOCK --" message (left-aligned, bold)
+    Command,     // Cursor at bottom row with ":" at column 1
+    Unknown,     // Fallback for unclear state
 }
 
 /// The Cucumber World for Blueline integration tests
@@ -895,6 +897,16 @@ impl BluelineWorld {
             if last_line.contains("-- INSERT --") {
                 debug!("Detected Insert mode: found '-- INSERT --' in status bar");
                 return AppMode::Insert;
+            }
+
+            if last_line.contains("-- VISUAL LINE --") {
+                debug!("Detected Visual Line mode: found '-- VISUAL LINE --' in status bar");
+                return AppMode::VisualLine;
+            }
+
+            if last_line.contains("-- VISUAL BLOCK --") {
+                debug!("Detected Visual Block mode: found '-- VISUAL BLOCK --' in status bar");
+                return AppMode::VisualBlock;
             }
 
             if last_line.contains("-- VISUAL --") {
