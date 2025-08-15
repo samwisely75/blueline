@@ -104,6 +104,26 @@ async fn then_should_be_visual_mode(world: &mut BluelineWorld) {
     );
 }
 
+#[then(regex = r"^I (?:should be|am) in Visual Line mode$")]
+async fn then_should_be_visual_line_mode(world: &mut BluelineWorld) {
+    let current_mode = world.get_current_mode().await;
+    assert_eq!(
+        current_mode,
+        AppMode::VisualLine,
+        "Expected Visual Line mode, but found {current_mode:?}"
+    );
+}
+
+#[then(regex = r"^I (?:should be|am) in Visual Block mode$")]
+async fn then_should_be_visual_block_mode(world: &mut BluelineWorld) {
+    let current_mode = world.get_current_mode().await;
+    assert_eq!(
+        current_mode,
+        AppMode::VisualBlock,
+        "Expected Visual Block mode, but found {current_mode:?}"
+    );
+}
+
 #[then("I should remain in Insert mode")]
 async fn then_should_remain_insert_mode(world: &mut BluelineWorld) {
     debug!("Verifying still in Insert mode");

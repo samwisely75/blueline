@@ -38,6 +38,18 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
                 .send_key_event(KeyCode::Char('v'), KeyModifiers::empty())
                 .await
         }
+        "V" => {
+            info!("Pressing 'V' key to enter visual line mode");
+            world
+                .send_key_event(KeyCode::Char('V'), KeyModifiers::empty())
+                .await
+        }
+        "Ctrl-v" => {
+            info!("Pressing Ctrl+V to enter visual block mode");
+            world
+                .send_key_event(KeyCode::Char('v'), KeyModifiers::CONTROL)
+                .await
+        }
         "$" => {
             info!("Pressing '$' key to move to end of line");
             world
@@ -106,6 +118,18 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
             info!("Pressing 'd' key for delete command");
             world
                 .send_key_event(KeyCode::Char('d'), KeyModifiers::empty())
+                .await
+        }
+        "x" => {
+            info!("Pressing 'x' key for cut command");
+            world
+                .send_key_event(KeyCode::Char('x'), KeyModifiers::empty())
+                .await
+        }
+        "y" => {
+            info!("Pressing 'y' key for yank command");
+            world
+                .send_key_event(KeyCode::Char('y'), KeyModifiers::empty())
                 .await
         }
         "shift+Left" => {
