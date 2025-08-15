@@ -22,7 +22,7 @@
 //! and follows the Single Responsibility Principle.
 
 use crate::repl::events::{
-    EditorMode, LogicalPosition, LogicalRange, ModelEvent, Pane, PaneCapabilities,
+    EditorMode, LogicalPosition, LogicalRange, ModelEvent, Pane, PaneCapabilities, ViewEvent,
 };
 use crate::repl::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache, DisplayLine};
@@ -964,6 +964,64 @@ impl PaneState {
         } else {
             Some(selected_text)
         }
+    }
+
+    /// Insert character at current cursor position with capability checking
+    ///
+    /// This method checks EDITABLE capability before allowing text insertion.
+    /// It handles all the complex logic for display cache rebuilding, cursor
+    /// synchronization, and view event generation.
+    ///
+    /// # Parameters
+    /// - `ch`: Character to insert
+    /// - `content_width`: Available width for content display
+    /// - `wrap_enabled`: Whether text wrapping is enabled
+    /// - `tab_width`: Tab stop width for formatting
+    ///
+    /// # Returns
+    /// Vector of ViewEvents to update the display, or empty if operation not allowed
+    pub fn insert_char(
+        &mut self,
+        ch: char,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Vec<ViewEvent> {
+        // Check if editing is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
+            return vec![]; // Editing not allowed on this pane
+        }
+
+        // Insert character into buffer
+        let _event = self.buffer.insert_char(ch);
+
+        // Rebuild display cache to ensure rendering sees the updated content
+        self.build_display_cache(content_width, wrap_enabled, tab_width);
+
+        // Sync display cursor after cache rebuild
+        let logical = self.buffer.cursor();
+        if let Some(display_pos) = self
+            .display_cache
+            .logical_to_display_position(logical.line, logical.column)
+        {
+            self.display_cursor = display_pos;
+        } else {
+            // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
+            // This can happen with empty lines or edge cases after multiple newlines in Insert mode
+            tracing::warn!(
+                "logical_to_display_position failed for cursor at {:?} - using fallback display position", 
+                logical
+            );
+            // Fallback: Use logical position as display position (works for non-wrapped content)
+            self.display_cursor = Position::new(logical.line, logical.column);
+        }
+
+        // Return events for view updates - caller will handle cursor visibility
+        vec![
+            ViewEvent::RequestContentChanged,
+            ViewEvent::ActiveCursorUpdateRequired,
+            ViewEvent::PositionIndicatorUpdateRequired,
+        ]
     }
 
     /// Delete the currently selected text based on visual mode

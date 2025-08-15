@@ -702,49 +702,39 @@ impl PaneManager {
             .join("\n")
     }
 
-    /// Insert character in Request pane content
-    pub fn insert_char_in_request(&mut self, ch: char) -> Vec<ViewEvent> {
-        if self.is_in_request_pane() {
-            let _event = self.panes[Pane::Request].buffer.insert_char(ch);
+    /// Insert character at current cursor position using generic delegation
+    ///
+    /// This method delegates to the current pane's insert_char() method,
+    /// which handles capability checking and text insertion logic.
+    pub fn insert_char(&mut self, ch: char) -> Vec<ViewEvent> {
+        let content_width = self.get_content_width();
 
-            // Rebuild display cache to ensure rendering sees the updated content
-            let content_width = self.get_content_width();
-            self.panes[Pane::Request].build_display_cache(
-                content_width,
-                self.wrap_enabled,
-                self.tab_width,
-            );
+        // Delegate to current pane with capability checking
+        let mut events = self.panes[self.current_pane].insert_char(
+            ch,
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
+        );
 
-            // Sync display cursor after cache rebuild
-            let logical = self.panes[Pane::Request].buffer.cursor();
-            if let Some(display_pos) = self.panes[Pane::Request]
-                .display_cache
-                .logical_to_display_position(logical.line, logical.column)
-            {
-                self.panes[Pane::Request].display_cursor = display_pos;
-            } else {
-                // BUGFIX Issue #89: If logical_to_display_position fails, ensure cursor tracking doesn't break
-                // This can happen with empty lines or edge cases after multiple newlines in Insert mode
-                tracing::warn!(
-                    "logical_to_display_position failed for cursor at {:?} - using fallback display position", 
-                    logical
-                );
-                // Fallback: Use logical position as display position (works for non-wrapped content)
-                self.panes[Pane::Request].display_cursor =
-                    Position::new(logical.line, logical.column);
-            }
-
-            let mut events = vec![
-                ViewEvent::RequestContentChanged,
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-            ];
-
-            // Ensure cursor is visible after insertion
+        // Ensure cursor is visible after insertion if events were generated
+        if !events.is_empty() {
             let visibility_events = self.ensure_current_cursor_visible(content_width);
             events.extend(visibility_events);
+        }
 
-            events
+        events
+    }
+
+    /// Insert character in Request pane content (DEPRECATED - use insert_char instead)
+    ///
+    /// This method is kept for backward compatibility but delegates to the generic
+    /// insert_char() method. New code should use insert_char() directly.
+    #[deprecated(since = "0.39.0", note = "Use insert_char() instead")]
+    pub fn insert_char_in_request(&mut self, ch: char) -> Vec<ViewEvent> {
+        // Only allow insertion if we're in the request pane for backward compatibility
+        if self.is_in_request_pane() {
+            self.insert_char(ch)
         } else {
             vec![] // Can't edit in display area
         }
