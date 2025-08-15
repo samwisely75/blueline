@@ -820,68 +820,23 @@ impl PaneManager {
 
     /// Move cursor to next word in current pane
     pub fn move_cursor_to_next_word(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let current_mode = self.get_current_pane_mode();
-
-        if let Some(new_pos) =
-            self.panes[self.current_pane].find_next_word_start_position(current_display_pos)
-        {
-            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
-            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
-                return vec![]; // Don't move if it would cross lines
-            }
-
-            let events = self.set_current_display_cursor(new_pos);
-            let mut all_events = events;
-            all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
-            all_events
-        } else {
-            vec![]
-        }
+        // Delegate to current pane with capability checking
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_to_next_word(content_width)
     }
 
     /// Move cursor to previous word in current pane
     pub fn move_cursor_to_previous_word(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let current_mode = self.get_current_pane_mode();
-
-        if let Some(new_pos) =
-            self.panes[self.current_pane].find_previous_word_start_position(current_display_pos)
-        {
-            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
-            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
-                return vec![]; // Don't move if it would cross lines
-            }
-
-            let events = self.set_current_display_cursor(new_pos);
-            let mut all_events = events;
-            all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
-            all_events
-        } else {
-            vec![]
-        }
+        // Delegate to current pane with capability checking
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_to_previous_word(content_width)
     }
 
     /// Move cursor to end of word in current pane
     pub fn move_cursor_to_end_of_word(&mut self) -> Vec<ViewEvent> {
-        let current_display_pos = self.get_current_display_cursor();
-        let current_mode = self.get_current_pane_mode();
-
-        if let Some(new_pos) =
-            self.panes[self.current_pane].find_next_word_end_position(current_display_pos)
-        {
-            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
-            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
-                return vec![]; // Don't move if it would cross lines
-            }
-
-            let events = self.set_current_display_cursor(new_pos);
-            let mut all_events = events;
-            all_events.extend(self.ensure_current_cursor_visible(self.get_content_width()));
-            all_events
-        } else {
-            vec![]
-        }
+        // Delegate to current pane with capability checking
+        let content_width = self.get_content_width();
+        self.panes[self.current_pane].move_cursor_to_end_of_word(content_width)
     }
 
     /// Calculate maximum allowed column for Visual Block mode based on all selected lines

@@ -21,9 +21,7 @@
 //! Previously scattered across multiple classes, this consolidation improves maintainability
 //! and follows the Single Responsibility Principle.
 
-use crate::repl::events::{
-    EditorMode, LogicalPosition, Pane, PaneCapabilities,
-};
+use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities};
 use crate::repl::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache};
 use std::ops::{Index, IndexMut};

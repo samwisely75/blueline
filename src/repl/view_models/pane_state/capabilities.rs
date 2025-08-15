@@ -33,7 +33,7 @@ impl PaneState {
     // ========================================
     // Virtual Column Management
     // ========================================
-    // 
+    //
     // Virtual column maintains the desired cursor position for vertical movement,
     // allowing the cursor to "remember" its intended column when moving through
     // lines of different lengths (Vim-style behavior).

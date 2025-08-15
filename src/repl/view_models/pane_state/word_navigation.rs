@@ -6,6 +6,7 @@
 //! - Cross-line word navigation
 //! - Support for Japanese and multi-byte character word boundaries
 
+use crate::repl::events::{EditorMode, LogicalPosition, PaneCapabilities, ViewEvent};
 use crate::repl::geometry::Position;
 
 use super::{OptionalPosition, PaneState};
@@ -129,5 +130,156 @@ impl PaneState {
             }
         }
         None
+    }
+
+    // ========================================
+    // Word Movement Methods
+    // ========================================
+
+    /// Move cursor to next word with capability checking and Visual Block restrictions
+    pub fn move_cursor_to_next_word(&mut self, content_width: usize) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        let current_display_pos = self.display_cursor;
+        let current_mode = self.editor_mode;
+
+        if let Some(new_pos) = self.find_next_word_start_position(current_display_pos) {
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
+            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
+                return vec![]; // Don't move if it would cross lines
+            }
+
+            // Update display cursor
+            self.display_cursor = new_pos;
+            // Update virtual column for horizontal movement
+            self.update_virtual_column();
+
+            // Sync logical cursor with new display position
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_pos.row, new_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+
+            let mut events = vec![
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired,
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+            events.extend(visibility_events);
+
+            events
+        } else {
+            vec![]
+        }
+    }
+
+    /// Move cursor to previous word with capability checking and Visual Block restrictions
+    pub fn move_cursor_to_previous_word(&mut self, content_width: usize) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        let current_display_pos = self.display_cursor;
+        let current_mode = self.editor_mode;
+
+        if let Some(new_pos) = self.find_previous_word_start_position(current_display_pos) {
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
+            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
+                return vec![]; // Don't move if it would cross lines
+            }
+
+            // Update display cursor
+            self.display_cursor = new_pos;
+            // Update virtual column for horizontal movement
+            self.update_virtual_column();
+
+            // Sync logical cursor with new display position
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_pos.row, new_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+
+            let mut events = vec![
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired,
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+            events.extend(visibility_events);
+
+            events
+        } else {
+            vec![]
+        }
+    }
+
+    /// Move cursor to end of word with capability checking and Visual Block restrictions
+    pub fn move_cursor_to_end_of_word(&mut self, content_width: usize) -> Vec<ViewEvent> {
+        // Check if navigation is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
+            return vec![]; // Navigation not allowed on this pane
+        }
+
+        let current_display_pos = self.display_cursor;
+        let current_mode = self.editor_mode;
+
+        if let Some(new_pos) = self.find_next_word_end_position(current_display_pos) {
+            // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
+            if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
+                return vec![]; // Don't move if it would cross lines
+            }
+
+            // Update display cursor
+            self.display_cursor = new_pos;
+            // Update virtual column for horizontal movement
+            self.update_virtual_column();
+
+            // Sync logical cursor with new display position
+            if let Some(logical_pos) = self
+                .display_cache
+                .display_to_logical_position(new_pos.row, new_pos.col)
+            {
+                let new_logical_pos = LogicalPosition::new(logical_pos.row, logical_pos.col);
+                self.buffer.set_cursor(new_logical_pos);
+
+                // Update visual selection if active
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
+            }
+
+            let mut events = vec![
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::PositionIndicatorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired,
+            ];
+
+            // Ensure cursor is visible and add visibility events
+            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+            events.extend(visibility_events);
+
+            events
+        } else {
+            vec![]
+        }
     }
 }

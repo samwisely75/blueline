@@ -6,7 +6,9 @@
 //! - Line joining operations
 //! - Visual mode text manipulation
 
-use crate::repl::events::{EditorMode, LogicalPosition, LogicalRange, ModelEvent, PaneCapabilities, ViewEvent};
+use crate::repl::events::{
+    EditorMode, LogicalPosition, LogicalRange, ModelEvent, PaneCapabilities, ViewEvent,
+};
 use crate::repl::geometry::Position;
 
 use super::PaneState;
@@ -394,7 +396,12 @@ impl PaneState {
         );
 
         // Rebuild display cache and sync cursor
-        self.rebuild_display_and_sync_cursor(current_cursor, content_width, wrap_enabled, tab_width);
+        self.rebuild_display_and_sync_cursor(
+            current_cursor,
+            content_width,
+            wrap_enabled,
+            tab_width,
+        );
 
         vec![
             ViewEvent::RequestContentChanged,
@@ -414,15 +421,12 @@ impl PaneState {
         tracing::debug!("🗑️  Joining current line with previous line");
 
         // Get length of previous line to position cursor correctly
-        let prev_line_length = if let Some(prev_line) = self
-            .buffer
-            .content()
-            .get_line(current_cursor.line - 1)
-        {
-            prev_line.len()
-        } else {
-            0
-        };
+        let prev_line_length =
+            if let Some(prev_line) = self.buffer.content().get_line(current_cursor.line - 1) {
+                prev_line.len()
+            } else {
+                0
+            };
 
         // Delete the newline character between previous and current line
         let delete_start = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
@@ -443,10 +447,7 @@ impl PaneState {
         let new_cursor = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
         self.buffer.set_cursor(new_cursor);
 
-        tracing::debug!(
-            "🗑️  Joined lines, new cursor: {:?}",
-            new_cursor
-        );
+        tracing::debug!("🗑️  Joined lines, new cursor: {:?}", new_cursor);
 
         // Rebuild display cache and sync cursor
         self.rebuild_display_and_sync_cursor(new_cursor, content_width, wrap_enabled, tab_width);
@@ -484,13 +485,15 @@ impl PaneState {
         };
 
         // Cursor stays at same position
-        tracing::debug!(
-            "🗑️  Joined lines, cursor remains at: {:?}",
-            current_cursor
-        );
+        tracing::debug!("🗑️  Joined lines, cursor remains at: {:?}", current_cursor);
 
         // Rebuild display cache and sync cursor
-        self.rebuild_display_and_sync_cursor(current_cursor, content_width, wrap_enabled, tab_width);
+        self.rebuild_display_and_sync_cursor(
+            current_cursor,
+            content_width,
+            wrap_enabled,
+            tab_width,
+        );
 
         vec![
             ViewEvent::RequestContentChanged,
@@ -533,7 +536,7 @@ impl PaneState {
     /// Delete the selected text in Visual Block mode
     fn delete_visual_block_selection(&mut self) -> DeletionResult {
         let (start, end) = (self.visual_selection_start?, self.visual_selection_end?);
-        
+
         // Extract the text before deleting it
         let selected_text = self.get_selected_text().unwrap_or_default();
 
@@ -551,7 +554,7 @@ impl PaneState {
         for line_num in (top_line..=bottom_line).rev() {
             if let Some(line) = self.buffer.content().get_line(line_num) {
                 let line_length = line.len();
-                
+
                 // Only delete if the line is long enough to have content in the block region
                 if left_col < line_length {
                     let actual_right_col = (right_col + 1).min(line_length);
@@ -559,7 +562,12 @@ impl PaneState {
                     let delete_end = LogicalPosition::new(line_num, actual_right_col);
                     let delete_range = LogicalRange::new(delete_start, delete_end);
 
-                    if self.buffer.content_mut().delete_range(pane_type, delete_range).is_some() {
+                    if self
+                        .buffer
+                        .content_mut()
+                        .delete_range(pane_type, delete_range)
+                        .is_some()
+                    {
                         any_deletion = true;
                     }
                 }
