@@ -506,6 +506,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::CutSelectionRequested => {
                 self.handle_cut_selection()?;
             }
+            CommandEvent::ChangeSelectionRequested => {
+                self.handle_change_selection()?;
+            }
             CommandEvent::PasteAfterRequested => {
                 self.handle_paste_after()?;
             }
@@ -877,6 +880,53 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
         } else {
             tracing::warn!("No text selected for cutting");
+            self.view_model
+                .set_status_message("No text selected".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Handle change selection operation (Visual Block mode 'c' command)
+    ///
+    /// This implements vim's Visual Block change command:
+    /// 1. Delete the selected rectangular block
+    /// 2. Enter Insert mode for text replacement
+    /// 3. When user types, text appears on first line initially
+    /// 4. When Esc is pressed, typed text is replicated to all affected lines
+    fn handle_change_selection(&mut self) -> Result<()> {
+        // Change operation is currently only supported in Visual Block mode
+        let current_mode = self.view_model.get_mode();
+        if current_mode != EditorMode::VisualBlock {
+            tracing::warn!("Change selection only supported in Visual Block mode, current mode: {current_mode:?}");
+            self.view_model.set_status_message(
+                "Change command only supported in Visual Block mode".to_string(),
+            );
+            return Ok(());
+        }
+
+        // Delete the selected block text (like delete_selection)
+        if let Some(deleted_text) = self.view_model.delete_selected_text()? {
+            // Switch to Insert mode (key difference from delete_selection)
+            self.view_model.change_mode(EditorMode::Insert)?;
+
+            // Show feedback in status bar
+            let char_count = deleted_text.chars().count();
+            let line_count = deleted_text.lines().count();
+            let message = if line_count > 1 {
+                format!("Changed {line_count} lines")
+            } else {
+                format!("Changed {char_count} characters")
+            };
+            self.view_model.set_status_message(message);
+
+            tracing::info!(
+                "Changed {} characters ({} lines), entered Insert mode",
+                char_count,
+                line_count
+            );
+        } else {
+            tracing::warn!("No text selected for changing");
             self.view_model
                 .set_status_message("No text selected".to_string());
         }
