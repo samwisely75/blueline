@@ -6,7 +6,7 @@
 use bitflags::bitflags;
 
 /// Logical position in text content (line and column)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct LogicalPosition {
     pub line: usize,
     pub column: usize,

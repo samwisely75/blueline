@@ -31,7 +31,7 @@
 //! 3. Semantic Operations: Provides request/response-specific operations without array access
 //! 4. Event Coordination: Emits ViewEvents for selective rendering optimizations
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane, ViewEvent};
+use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities, ViewEvent};
 use crate::repl::geometry::Position;
 use crate::repl::view_models::pane_state::PaneState;
 
@@ -90,9 +90,21 @@ impl PaneManager {
             .max(1); // Ensure minimum height of 1
 
         // Initialize pane array with proper display caches and dimensions
-        let request_pane = PaneState::new(Pane::Request, content_width, request_pane_height, true);
-        let response_pane =
-            PaneState::new(Pane::Response, content_width, response_pane_height, true);
+        // Initialize capabilities based on pane type - Request pane allows all operations, Response pane is read-only
+        let request_pane = PaneState::new(
+            Pane::Request,
+            content_width,
+            request_pane_height,
+            true,
+            PaneCapabilities::FULL_ACCESS,
+        );
+        let response_pane = PaneState::new(
+            Pane::Response,
+            content_width,
+            response_pane_height,
+            true,
+            PaneCapabilities::READ_ONLY,
+        );
 
         Self {
             panes: [request_pane, response_pane],
@@ -175,11 +187,11 @@ impl PaneManager {
 
     /// Get visual selection state for current pane
     pub fn get_visual_selection(&self) -> VisualSelectionState {
-        let current_pane_state = &self.panes[self.current_pane];
+        let (start, end) = self.panes[self.current_pane].get_visual_selection();
         (
-            current_pane_state.visual_selection_start,
-            current_pane_state.visual_selection_end,
-            if current_pane_state.visual_selection_start.is_some() {
+            start,
+            end,
+            if start.is_some() {
                 Some(self.current_pane)
             } else {
                 None
@@ -189,215 +201,40 @@ impl PaneManager {
 
     /// Check if a position is within visual selection
     pub fn is_position_selected(&self, position: LogicalPosition, pane: Pane) -> bool {
-        let pane_state = &self.panes[pane];
-
-        // Early return if no selection exists
-        let (Some(start), Some(end)) = (
-            pane_state.visual_selection_start,
-            pane_state.visual_selection_end,
-        ) else {
-            tracing::trace!("is_position_selected: no visual selection active");
-            return false;
-        };
-
-        let editor_mode = pane_state.editor_mode;
-
-        tracing::trace!(
-            "is_position_selected: checking position={:?} against selection start={:?} end={:?} in mode {:?}", 
-            position, start, end, editor_mode
-        );
-
-        // Handle different visual modes
-        match editor_mode {
-            EditorMode::Visual => {
-                // Character-wise selection (existing logic)
-                self.is_position_selected_character_wise(position, start, end)
-            }
-            EditorMode::VisualLine => {
-                // Line-wise selection: entire lines are selected
-                self.is_position_selected_line_wise(position, start, end)
-            }
-            EditorMode::VisualBlock => {
-                // Block-wise selection: rectangular regions
-                self.is_position_selected_block_wise(position, start, end)
-            }
-            _ => {
-                // Not in a visual mode, no selection
-                tracing::trace!("is_position_selected: not in visual mode");
-                false
-            }
-        }
-    }
-
-    /// Check character-wise selection (vim's 'v' mode)
-    fn is_position_selected_character_wise(
-        &self,
-        position: LogicalPosition,
-        start: LogicalPosition,
-        end: LogicalPosition,
-    ) -> bool {
-        // Normalize selection range (start <= end)
-        let (normalized_start, normalized_end) =
-            if start.line < end.line || (start.line == end.line && start.column <= end.column) {
-                (start, end)
-            } else {
-                (end, start)
-            };
-
-        // Early return if position is outside line range
-        if position.line < normalized_start.line || position.line > normalized_end.line {
-            tracing::trace!("is_position_selected: position outside line range");
-            return false;
-        }
-
-        // Check single line selection
-        if position.line == normalized_start.line && position.line == normalized_end.line {
-            let is_selected = position.column >= normalized_start.column
-                && position.column <= normalized_end.column;
-            tracing::trace!(
-                "is_position_selected: single line character selection, result={}",
-                is_selected
-            );
-            return is_selected;
-        }
-
-        // Check first line of multi-line selection
-        if position.line == normalized_start.line {
-            let is_selected = position.column >= normalized_start.column;
-            tracing::trace!(
-                "is_position_selected: first line of multi-line character selection, result={}",
-                is_selected
-            );
-            return is_selected;
-        }
-
-        // Check last line of multi-line selection
-        if position.line == normalized_end.line {
-            let is_selected = position.column <= normalized_end.column;
-            tracing::trace!(
-                "is_position_selected: last line of multi-line character selection, result={}",
-                is_selected
-            );
-            return is_selected;
-        }
-
-        // Middle line of multi-line selection
-        tracing::trace!("is_position_selected: middle line of character selection, result=true");
-        true
-    }
-
-    /// Check line-wise selection (vim's 'V' mode)
-    fn is_position_selected_line_wise(
-        &self,
-        position: LogicalPosition,
-        start: LogicalPosition,
-        end: LogicalPosition,
-    ) -> bool {
-        // For line-wise selection, we select entire lines
-        let (start_line, end_line) = if start.line <= end.line {
-            (start.line, end.line)
-        } else {
-            (end.line, start.line)
-        };
-
-        let is_selected = position.line >= start_line && position.line <= end_line;
-        tracing::trace!(
-            "is_position_selected: line-wise selection, line {} in range [{}, {}], result={}",
-            position.line,
-            start_line,
-            end_line,
-            is_selected
-        );
-        is_selected
-    }
-
-    /// Check block-wise selection (vim's Ctrl+V mode)
-    fn is_position_selected_block_wise(
-        &self,
-        position: LogicalPosition,
-        start: LogicalPosition,
-        end: LogicalPosition,
-    ) -> bool {
-        // For block selection, we create a rectangular region
-        let (start_line, end_line) = if start.line <= end.line {
-            (start.line, end.line)
-        } else {
-            (end.line, start.line)
-        };
-
-        let (start_col, end_col) = if start.column <= end.column {
-            (start.column, end.column)
-        } else {
-            (end.column, start.column)
-        };
-
-        let is_selected = position.line >= start_line
-            && position.line <= end_line
-            && position.column >= start_col
-            && position.column <= end_col;
-
-        tracing::trace!(
-            "is_position_selected: block-wise selection, position ({}, {}) in rectangle [({}, {}), ({}, {})], result={}",
-            position.line,
-            position.column,
-            start_line,
-            start_col,
-            end_line,
-            end_col,
-            is_selected
-        );
-        is_selected
+        // Delegate to specified pane
+        self.panes[pane].is_position_selected(position)
     }
 
     /// Start visual selection in current area
     pub fn start_visual_selection(&mut self) -> Vec<ViewEvent> {
-        let current_cursor = self.get_current_cursor_position();
-        let current_pane_state = &mut self.panes[self.current_pane];
-
-        current_pane_state.visual_selection_start = Some(current_cursor);
-        current_pane_state.visual_selection_end = Some(current_cursor);
-
-        tracing::info!(
-            "Entered visual mode, selection starts at {:?}",
-            current_cursor
-        );
-
-        vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::StatusBarUpdateRequired,
-            ViewEvent::ActiveCursorUpdateRequired,
-        ]
+        // Delegate to current pane
+        self.panes[self.current_pane].start_visual_selection()
     }
 
     /// End visual selection in current area
     pub fn end_visual_selection(&mut self) -> Vec<ViewEvent> {
-        let current_pane_state = &mut self.panes[self.current_pane];
-        current_pane_state.visual_selection_start = None;
-        current_pane_state.visual_selection_end = None;
-
-        tracing::info!("Exited visual mode, cleared selection state");
-
-        vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::StatusBarUpdateRequired,
-            ViewEvent::ActiveCursorUpdateRequired,
-        ]
+        // Delegate to current pane
+        self.panes[self.current_pane].end_visual_selection()
     }
 
     /// Update visual selection end position
     pub fn update_visual_selection(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
-        let current_pane_state = &mut self.panes[self.current_pane];
-        if current_pane_state.visual_selection_start.is_some() {
-            current_pane_state.visual_selection_end = Some(position);
-            vec![ViewEvent::CurrentAreaRedrawRequired]
-        } else {
-            vec![]
-        }
+        // Delegate to current pane
+        self.panes[self.current_pane].update_visual_selection(position)
     }
 
     /// Get selected text from the current pane
     pub fn get_selected_text(&self) -> Option<String> {
         self.panes[self.current_pane].get_selected_text()
+    }
+
+    /// Update visual selection during cursor movement if active
+    /// Helper method to be called from cursor movement operations
+    pub fn update_visual_selection_on_cursor_move(
+        &mut self,
+        new_position: LogicalPosition,
+    ) -> Option<ViewEvent> {
+        self.panes[self.current_pane].update_visual_selection_on_cursor_move(new_position)
     }
 
     /// Delete selected text from the current pane
