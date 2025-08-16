@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Block-wise Paste**: Implemented proper rectangular paste behavior for Visual Block mode
+  - Added `YankType` enum to track yank operation types (Character, Line, Block)
+  - Implemented `insert_block_wise()` method for rectangular text insertion at same column on successive lines
+  - 'P' and 'p' commands now correctly paste block selections maintaining rectangular structure
+  - Fixed clipboard synchronization to preserve yank type metadata
+  - Ensures immediate visual feedback with proper display cache rebuilding
+
 ## [0.42.0] - 2025-08-15
 
 ### Fixed
