@@ -127,5 +127,27 @@ impl ViewModel {
         self.emit_view_event(events)
     }
 
+    /// Get display line count for the current pane
+    pub fn get_display_line_count(&self) -> usize {
+        if let Some(pane_state) = self.pane_manager.get_current_pane_state() {
+            pane_state.display_cache.display_line_count()
+        } else {
+            0
+        }
+    }
+
+    /// Get display line length for a specific line index in the current pane
+    pub fn get_display_line_length(&self, line_index: usize) -> usize {
+        if let Some(pane_state) = self.pane_manager.get_current_pane_state() {
+            if let Some(display_line) = pane_state.display_cache.get_display_line(line_index) {
+                display_line.display_width()
+            } else {
+                0
+            }
+        } else {
+            0
+        }
+    }
+
     // Scrolling methods are implemented elsewhere - avoiding duplication
 }

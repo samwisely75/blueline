@@ -24,3 +24,4 @@ pub use core::ViewModel;
 pub use core::DisplayLineData;
 pub use pane_manager::PaneManager;
 pub use pane_state::PaneState;
+pub use yank_buffer::{YankEntry, YankType};

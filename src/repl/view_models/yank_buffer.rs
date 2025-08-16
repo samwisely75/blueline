@@ -2,17 +2,47 @@
 //!
 //! Provides abstraction for text copying/pasting operations.
 //! Supports both memory-based and system clipboard implementations.
+//! Enhanced with yank type metadata for proper block-wise operations.
 
 use anyhow::Result;
 use std::sync::{Arc, Mutex};
 
+/// Type of yank operation, determining paste behavior
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum YankType {
+    /// Character-wise selection (regular visual mode)
+    Character,
+    /// Line-wise selection (visual line mode)
+    Line,
+    /// Block-wise selection (visual block mode)
+    Block,
+}
+
+/// Yank entry containing text and metadata
+#[derive(Debug, Clone, PartialEq)]
+pub struct YankEntry {
+    /// The yanked text content
+    pub text: String,
+    /// Type of yank operation
+    pub yank_type: YankType,
+}
+
 /// Trait for yank buffer implementations
 #[allow(dead_code)]
 pub trait YankBuffer: Send {
-    /// Store text in the yank buffer
-    fn yank(&mut self, text: String) -> Result<()>;
+    /// Store text with type metadata in the yank buffer
+    fn yank_with_type(&mut self, text: String, yank_type: YankType) -> Result<()>;
 
-    /// Retrieve text from the yank buffer
+    /// Store text in the yank buffer (defaults to Character type for backward compatibility)
+    fn yank(&mut self, text: String) -> Result<()> {
+        self.yank_with_type(text, YankType::Character)
+    }
+
+    /// Retrieve yank entry from the yank buffer
+    /// Takes &mut self to allow syncing with system clipboard
+    fn paste_entry(&mut self) -> Option<YankEntry>;
+
+    /// Retrieve text from the yank buffer (for backward compatibility)
     /// Takes &mut self to allow syncing with system clipboard
     fn paste(&mut self) -> Option<&str>;
 
@@ -26,7 +56,7 @@ pub trait YankBuffer: Send {
 /// Memory-based yank buffer implementation
 #[derive(Debug, Default)]
 pub struct MemoryYankBuffer {
-    content: Option<String>,
+    content: Option<YankEntry>,
 }
 
 impl MemoryYankBuffer {
@@ -37,14 +67,22 @@ impl MemoryYankBuffer {
 }
 
 impl YankBuffer for MemoryYankBuffer {
-    fn yank(&mut self, text: String) -> Result<()> {
-        tracing::debug!("Yanking {} characters to memory buffer", text.len());
-        self.content = Some(text);
+    fn yank_with_type(&mut self, text: String, yank_type: YankType) -> Result<()> {
+        tracing::debug!(
+            "Yanking {} characters to memory buffer (type: {:?})",
+            text.len(),
+            yank_type
+        );
+        self.content = Some(YankEntry { text, yank_type });
         Ok(())
     }
 
+    fn paste_entry(&mut self) -> Option<YankEntry> {
+        self.content.clone()
+    }
+
     fn paste(&mut self) -> Option<&str> {
-        self.content.as_deref()
+        self.content.as_ref().map(|entry| entry.text.as_str())
     }
 
     fn clear(&mut self) {
@@ -58,8 +96,8 @@ impl YankBuffer for MemoryYankBuffer {
 
 /// System clipboard-based yank buffer implementation
 pub struct ClipboardYankBuffer {
-    /// Cache for the last yanked text (needed for the &str return type)
-    cached_content: Option<String>,
+    /// Cache for the last yanked entry (needed for the reference return type)
+    cached_content: Option<YankEntry>,
     /// The actual clipboard instance wrapped in Arc<Mutex> for thread safety
     clipboard: Arc<Mutex<arboard::Clipboard>>,
 }
@@ -87,22 +125,62 @@ impl ClipboardYankBuffer {
 
     /// Sync cached content with actual clipboard content
     /// This is needed because another application might have changed the clipboard
+    /// Note: External clipboard changes default to Character type since we can't know the original type
     fn sync_from_clipboard(&mut self) {
         if let Ok(mut clipboard) = self.clipboard.lock() {
-            if let Ok(text) = clipboard.get_text() {
-                // Update cache with clipboard content
-                self.cached_content = Some(text);
+            if let Ok(clipboard_text) = clipboard.get_text() {
+                // Only update if the clipboard text has actually changed (indicating external modification)
+                // or if we have no cached content yet
+                let should_update = match &self.cached_content {
+                    Some(cached) => {
+                        let text_changed = cached.text != clipboard_text;
+                        if text_changed {
+                            tracing::debug!(
+                                "Clipboard text changed from '{}' to '{}'",
+                                cached.text,
+                                clipboard_text
+                            );
+                        } else {
+                            tracing::debug!(
+                                "Clipboard text unchanged, preserving type: {:?}",
+                                cached.yank_type
+                            );
+                        }
+                        text_changed
+                    }
+                    None => {
+                        tracing::debug!("No cached content, syncing from clipboard");
+                        true
+                    }
+                };
+
+                if should_update {
+                    // External change detected: update cache with Character type (since we can't know the original type)
+                    tracing::debug!("Updating cache with Character type due to external change");
+                    self.cached_content = Some(YankEntry {
+                        text: clipboard_text,
+                        yank_type: YankType::Character,
+                    });
+                }
+                // If text matches our cache, preserve our existing metadata (including yank_type)
             }
         }
     }
 }
 
 impl YankBuffer for ClipboardYankBuffer {
-    fn yank(&mut self, text: String) -> Result<()> {
-        tracing::debug!("Yanking {} characters to system clipboard", text.len());
+    fn yank_with_type(&mut self, text: String, yank_type: YankType) -> Result<()> {
+        tracing::debug!(
+            "Yanking {} characters to system clipboard (type: {:?})",
+            text.len(),
+            yank_type
+        );
 
         // Update the cache first
-        self.cached_content = Some(text.clone());
+        self.cached_content = Some(YankEntry {
+            text: text.clone(),
+            yank_type,
+        });
 
         // Then update the system clipboard
         let mut clipboard = self
@@ -117,12 +195,22 @@ impl YankBuffer for ClipboardYankBuffer {
         Ok(())
     }
 
-    fn paste(&mut self) -> Option<&str> {
+    fn paste_entry(&mut self) -> Option<YankEntry> {
         // First sync from system clipboard to get any external changes
         self.sync_from_clipboard();
 
         // Return cached content (now updated from clipboard)
-        self.cached_content.as_deref()
+        self.cached_content.clone()
+    }
+
+    fn paste(&mut self) -> Option<&str> {
+        // First sync from system clipboard to get any external changes
+        self.sync_from_clipboard();
+
+        // Return cached content text (now updated from clipboard)
+        self.cached_content
+            .as_ref()
+            .map(|entry| entry.text.as_str())
     }
 
     fn clear(&mut self) {
@@ -161,19 +249,29 @@ mod tests {
         // Initially empty
         assert!(!buffer.has_content());
         assert_eq!(buffer.paste(), None);
+        assert_eq!(buffer.paste_entry(), None);
 
-        // Yank some text
+        // Yank some text with default type
         buffer.yank("Hello, world!".to_string()).unwrap();
         assert!(buffer.has_content());
         assert_eq!(buffer.paste(), Some("Hello, world!"));
+        let entry = buffer.paste_entry().unwrap();
+        assert_eq!(entry.text, "Hello, world!");
+        assert_eq!(entry.yank_type, YankType::Character);
 
-        // Replace with new text
-        buffer.yank("New text".to_string()).unwrap();
-        assert_eq!(buffer.paste(), Some("New text"));
+        // Yank with specific type
+        buffer
+            .yank_with_type("Block text".to_string(), YankType::Block)
+            .unwrap();
+        assert_eq!(buffer.paste(), Some("Block text"));
+        let entry = buffer.paste_entry().unwrap();
+        assert_eq!(entry.text, "Block text");
+        assert_eq!(entry.yank_type, YankType::Block);
 
         // Clear buffer
         buffer.clear();
         assert!(!buffer.has_content());
         assert_eq!(buffer.paste(), None);
+        assert_eq!(buffer.paste_entry(), None);
     }
 }
