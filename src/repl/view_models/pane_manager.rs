@@ -263,6 +263,15 @@ impl PaneManager {
         }
     }
 
+    /// Insert text block-wise at specific positions (for block paste operations)
+    pub fn insert_block_wise(
+        &mut self,
+        start_position: LogicalPosition,
+        block_lines: &[&str],
+    ) -> Vec<ViewEvent> {
+        self.panes[self.current_pane].insert_block_wise(start_position, block_lines)
+    }
+
     /// Get the length of the current line in the current pane
     pub fn get_current_line_length(&self) -> usize {
         let current_pane = &self.panes[self.current_pane];

@@ -693,4 +693,84 @@ impl PaneState {
             None
         }
     }
+
+    /// Insert text block-wise at specific positions (for block paste operations)
+    /// This inserts each line at the same column on successive lines without affecting cursor
+    pub fn insert_block_wise(
+        &mut self,
+        start_position: LogicalPosition,
+        block_lines: &[&str],
+    ) -> Vec<ViewEvent> {
+        if block_lines.is_empty() {
+            return vec![];
+        }
+
+        let pane_type = self.buffer.pane();
+
+        // Store original cursor position
+        let original_cursor = self.buffer.cursor();
+
+        // Process each line in the block
+        for (line_offset, line_content) in block_lines.iter().enumerate() {
+            let target_position = LogicalPosition {
+                line: start_position.line + line_offset,
+                column: start_position.column,
+            };
+
+            // Ensure target line exists
+            while target_position.line >= self.buffer.content().line_count() {
+                // Add a new line at the end of the buffer
+                let current_line_count = self.buffer.content().line_count();
+                let last_line = current_line_count.saturating_sub(1);
+                let last_line_length = self.buffer.content().line_length(last_line);
+                let end_of_buffer = LogicalPosition {
+                    line: last_line,
+                    column: last_line_length,
+                };
+                self.buffer
+                    .content_mut()
+                    .insert_text(pane_type, end_of_buffer, "\n");
+            }
+
+            // Ensure the target line is long enough by padding with spaces
+            let current_line_length = self.buffer.content().line_length(target_position.line);
+            if target_position.column > current_line_length {
+                let padding_needed = target_position.column - current_line_length;
+                let padding = " ".repeat(padding_needed);
+                let line_end = LogicalPosition {
+                    line: target_position.line,
+                    column: current_line_length,
+                };
+                self.buffer
+                    .content_mut()
+                    .insert_text(pane_type, line_end, &padding);
+            }
+
+            // Insert the line content at the target position
+            self.buffer
+                .content_mut()
+                .insert_text(pane_type, target_position, line_content);
+        }
+
+        // Restore original cursor position (block paste shouldn't move cursor)
+        self.buffer.set_cursor(original_cursor);
+
+        // Get display parameters from the current display cache
+        let content_width = self.display_cache.content_width;
+        let wrap_enabled = self.display_cache.wrap_enabled;
+        // Use a default tab width (should be passed in or stored somewhere)
+        let tab_width = 4; // Default tab width
+
+        // Rebuild the display cache since we've modified the buffer significantly
+        self.build_display_cache(content_width, wrap_enabled, tab_width);
+
+        // Sync the display cursor with the logical cursor position
+        self.sync_display_cursor_with_logical();
+
+        // Return view events for full redraw to ensure the block paste is visible
+        vec![
+            ViewEvent::CurrentAreaRedrawRequired,
+            ViewEvent::ActiveCursorUpdateRequired,
+        ]
+    }
 }

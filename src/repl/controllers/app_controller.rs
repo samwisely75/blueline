@@ -12,7 +12,7 @@ use crate::repl::{
     events::{EditorMode, LogicalPosition, Pane, SimpleEventBus},
     io::{EventStream, RenderStream},
     utils::parse_request_from_text,
-    view_models::ViewModel,
+    view_models::{ViewModel, YankType},
     views::{TerminalRenderer, ViewRenderer},
 };
 use anyhow::Result;
@@ -814,8 +814,18 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     fn handle_yank_selection(&mut self) -> Result<()> {
         // Get selected text from current pane
         if let Some(text) = self.view_model.get_selected_text() {
-            // Store in yank buffer
-            self.view_model.yank_to_buffer(text.clone())?;
+            // Determine yank type based on current visual mode
+            let current_mode = self.view_model.get_mode();
+            let yank_type = match current_mode {
+                EditorMode::Visual => YankType::Character,
+                EditorMode::VisualLine => YankType::Line,
+                EditorMode::VisualBlock => YankType::Block,
+                _ => YankType::Character, // Fallback for any other mode
+            };
+
+            // Store in yank buffer with appropriate type
+            self.view_model
+                .yank_to_buffer_with_type(text.clone(), yank_type)?;
 
             // Switch to Normal mode (automatically clears visual selection)
             self.view_model.change_mode(EditorMode::Normal)?;
@@ -823,17 +833,24 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             // Show feedback in status bar
             let char_count = text.chars().count();
             let line_count = text.lines().count();
-            let message = if line_count > 1 {
-                format!("{line_count} lines yanked")
-            } else {
-                format!("{char_count} characters yanked")
+            let message = match yank_type {
+                YankType::Character => {
+                    if line_count > 1 {
+                        format!("{line_count} lines yanked (character-wise)")
+                    } else {
+                        format!("{char_count} characters yanked")
+                    }
+                }
+                YankType::Line => format!("{line_count} lines yanked (line-wise)"),
+                YankType::Block => format!("Block yanked ({line_count} lines, {char_count} chars)"),
             };
             self.view_model.set_status_message(message);
 
             tracing::info!(
-                "Yanked {} characters ({} lines) to buffer",
+                "Yanked {} characters ({} lines) to buffer as {:?}",
                 char_count,
-                line_count
+                line_count,
+                yank_type
             );
         } else {
             tracing::warn!("No text selected for yanking");
@@ -875,8 +892,18 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     fn handle_cut_selection(&mut self) -> Result<()> {
         // Cut combines yank + delete, but we need to yank first before deleting
         if let Some(text) = self.view_model.get_selected_text() {
-            // First yank to buffer
-            self.view_model.yank_to_buffer(text.clone())?;
+            // Determine yank type based on current visual mode BEFORE any mode changes
+            let current_mode = self.view_model.get_mode();
+            let yank_type = match current_mode {
+                EditorMode::Visual => YankType::Character,
+                EditorMode::VisualLine => YankType::Line,
+                EditorMode::VisualBlock => YankType::Block,
+                _ => YankType::Character, // Fallback for any other mode
+            };
+
+            // First yank to buffer with appropriate type
+            self.view_model
+                .yank_to_buffer_with_type(text.clone(), yank_type)?;
 
             // Then delete the selected text (this also returns the deleted text for verification)
             if let Some(deleted_text) = self.view_model.delete_selected_text()? {
@@ -886,17 +913,26 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 // Show feedback in status bar
                 let char_count = deleted_text.chars().count();
                 let line_count = deleted_text.lines().count();
-                let message = if line_count > 1 {
-                    format!("{line_count} lines cut")
-                } else {
-                    format!("{char_count} characters cut")
+                let message = match yank_type {
+                    YankType::Character => {
+                        if line_count > 1 {
+                            format!("{line_count} lines cut (character-wise)")
+                        } else {
+                            format!("{char_count} characters cut")
+                        }
+                    }
+                    YankType::Line => format!("{line_count} lines cut (line-wise)"),
+                    YankType::Block => {
+                        format!("Block cut ({line_count} lines, {char_count} chars)")
+                    }
                 };
                 self.view_model.set_status_message(message);
 
                 tracing::info!(
-                    "Cut {} characters ({} lines) to buffer",
+                    "Cut {} characters ({} lines) to buffer as {:?}",
                     char_count,
-                    line_count
+                    line_count,
+                    yank_type
                 );
             } else {
                 tracing::warn!("Failed to delete selected text during cut operation");
@@ -1332,24 +1368,31 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
     /// Handle pasting yanked text after cursor
     fn handle_paste_after(&mut self) -> Result<()> {
-        if let Some(text) = self.view_model.get_yanked_text() {
-            // Paste the text after the current cursor position
-            self.view_model.paste_text_after(&text)?;
+        if let Some(yank_entry) = self.view_model.get_yanked_entry() {
+            // Paste the text after the current cursor position using type-aware paste
+            self.view_model.paste_after_with_type(&yank_entry)?;
 
             // Show feedback
-            let char_count = text.chars().count();
-            let line_count = text.lines().count();
-            let message = if line_count > 1 {
-                format!("{line_count} lines pasted")
-            } else {
-                format!("{char_count} characters pasted")
+            let char_count = yank_entry.text.chars().count();
+            let line_count = yank_entry.text.lines().count();
+            let message = match yank_entry.yank_type {
+                YankType::Character => {
+                    if line_count > 1 {
+                        format!("{line_count} lines pasted (character-wise)")
+                    } else {
+                        format!("{char_count} characters pasted")
+                    }
+                }
+                YankType::Line => format!("{line_count} lines pasted (line-wise)"),
+                YankType::Block => format!("Block pasted ({line_count} lines, {char_count} chars)"),
             };
             self.view_model.set_status_message(message);
 
             tracing::info!(
-                "Pasted {} characters ({} lines) after cursor",
+                "Pasted {} characters ({} lines) after cursor as {:?}",
                 char_count,
-                line_count
+                line_count,
+                yank_entry.yank_type
             );
         } else {
             self.view_model
@@ -1362,24 +1405,37 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
     /// Handle pasting yanked text at current cursor position
     fn handle_paste_at_cursor(&mut self) -> Result<()> {
-        if let Some(text) = self.view_model.get_yanked_text() {
-            // Paste the text at current position (before cursor)
-            self.view_model.paste_text(&text)?;
+        if let Some(yank_entry) = self.view_model.get_yanked_entry() {
+            tracing::debug!(
+                "Retrieved yank entry with type: {:?}, text length: {}",
+                yank_entry.yank_type,
+                yank_entry.text.len()
+            );
+
+            // Paste the text at current position (before cursor) using type-aware paste
+            self.view_model.paste_with_type(&yank_entry)?;
 
             // Show feedback
-            let char_count = text.chars().count();
-            let line_count = text.lines().count();
-            let message = if line_count > 1 {
-                format!("{line_count} lines pasted")
-            } else {
-                format!("{char_count} characters pasted")
+            let char_count = yank_entry.text.chars().count();
+            let line_count = yank_entry.text.lines().count();
+            let message = match yank_entry.yank_type {
+                YankType::Character => {
+                    if line_count > 1 {
+                        format!("{line_count} lines pasted (character-wise)")
+                    } else {
+                        format!("{char_count} characters pasted")
+                    }
+                }
+                YankType::Line => format!("{line_count} lines pasted (line-wise)"),
+                YankType::Block => format!("Block pasted ({line_count} lines, {char_count} chars)"),
             };
             self.view_model.set_status_message(message);
 
             tracing::info!(
-                "Pasted {} characters ({} lines) at cursor",
+                "Pasted {} characters ({} lines) at cursor as {:?}",
                 char_count,
-                line_count
+                line_count,
+                yank_entry.yank_type
             );
         } else {
             self.view_model

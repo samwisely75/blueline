@@ -13,8 +13,9 @@
 //! - ViewEvents are emitted for selective rendering optimization
 //! - Character-by-character processing maintains semantic consistency
 
-use crate::repl::events::EditorMode;
+use crate::repl::events::{EditorMode, LogicalPosition};
 use crate::repl::view_models::core::ViewModel;
+use crate::repl::view_models::{YankEntry, YankType};
 use anyhow::Result;
 
 impl ViewModel {
@@ -34,12 +35,22 @@ impl ViewModel {
         }
     }
 
-    /// Yank text to yank buffer
+    /// Yank text to yank buffer with type information
+    pub fn yank_to_buffer_with_type(&mut self, text: String, yank_type: YankType) -> Result<()> {
+        self.yank_buffer.yank_with_type(text, yank_type)
+    }
+
+    /// Yank text to yank buffer (defaults to Character type for backward compatibility)
     pub fn yank_to_buffer(&mut self, text: String) -> Result<()> {
         self.yank_buffer.yank(text)
     }
 
-    /// Get text from yank buffer
+    /// Get yank entry with type information from yank buffer
+    pub fn get_yanked_entry(&mut self) -> Option<YankEntry> {
+        self.yank_buffer.paste_entry()
+    }
+
+    /// Get text from yank buffer (for backward compatibility)
     pub fn get_yanked_text(&mut self) -> Option<String> {
         self.yank_buffer.paste().map(|s| s.to_string())
     }
@@ -105,6 +116,140 @@ impl ViewModel {
         self.change_mode(original_mode)?;
 
         Ok(())
+    }
+
+    /// Advanced paste operation that respects yank type (character, line, or block)
+    pub fn paste_with_type(&mut self, yank_entry: &YankEntry) -> Result<()> {
+        match yank_entry.yank_type {
+            YankType::Character => self.paste_text(&yank_entry.text),
+            YankType::Line => self.paste_line_wise(&yank_entry.text),
+            YankType::Block => self.paste_block_wise(&yank_entry.text),
+        }
+    }
+
+    /// Advanced paste after operation that respects yank type (character, line, or block)
+    pub fn paste_after_with_type(&mut self, yank_entry: &YankEntry) -> Result<()> {
+        match yank_entry.yank_type {
+            YankType::Character => self.paste_text_after(&yank_entry.text),
+            YankType::Line => self.paste_line_wise_after(&yank_entry.text),
+            YankType::Block => self.paste_block_wise_after(&yank_entry.text),
+        }
+    }
+
+    /// Paste text as lines (for line-wise yanks)
+    pub fn paste_line_wise(&mut self, text: &str) -> Result<()> {
+        // Only allow pasting in Request pane
+        if !self.is_in_request_pane() {
+            return Ok(());
+        }
+
+        // For line-wise paste at cursor (P), insert at beginning of current line
+        let current_pos = self.get_cursor_position();
+        let line_start = LogicalPosition {
+            line: current_pos.line,
+            column: 0,
+        };
+
+        // Move cursor to line start
+        self.set_cursor_position(line_start)?;
+
+        // Temporarily switch to Insert mode for the paste operation
+        let original_mode = self.mode();
+        self.change_mode(EditorMode::Insert)?;
+
+        // Insert the text followed by a newline
+        for ch in text.chars() {
+            let events = self.pane_manager.insert_char(ch);
+            self.emit_view_event(events)?;
+        }
+
+        // Add newline at the end
+        let events = self.pane_manager.insert_char('\n');
+        self.emit_view_event(events)?;
+
+        // Switch back to original mode
+        self.change_mode(original_mode)?;
+
+        Ok(())
+    }
+
+    /// Paste text as lines after current line (for line-wise yanks with p command)
+    pub fn paste_line_wise_after(&mut self, text: &str) -> Result<()> {
+        // Only allow pasting in Request pane
+        if !self.is_in_request_pane() {
+            return Ok(());
+        }
+
+        // For line-wise paste after (p), move to end of current line and add newline
+        let current_pos = self.get_cursor_position();
+        let line_length = self.pane_manager.get_current_line_length();
+        let line_end = LogicalPosition {
+            line: current_pos.line,
+            column: line_length,
+        };
+
+        // Move cursor to line end
+        self.set_cursor_position(line_end)?;
+
+        // Temporarily switch to Insert mode for the paste operation
+        let original_mode = self.mode();
+        self.change_mode(EditorMode::Insert)?;
+
+        // Insert newline first, then the text
+        let events = self.pane_manager.insert_char('\n');
+        self.emit_view_event(events)?;
+
+        for ch in text.chars() {
+            let events = self.pane_manager.insert_char(ch);
+            self.emit_view_event(events)?;
+        }
+
+        // Switch back to original mode
+        self.change_mode(original_mode)?;
+
+        Ok(())
+    }
+
+    /// Paste text in block-wise manner (rectangular paste maintaining column alignment)
+    pub fn paste_block_wise(&mut self, text: &str) -> Result<()> {
+        // Only allow pasting in Request pane
+        if !self.is_in_request_pane() {
+            return Ok(());
+        }
+
+        let current_pos = self.get_cursor_position();
+        tracing::debug!(
+            "paste_block_wise called at position {:?} with text: '{}'",
+            current_pos,
+            text
+        );
+
+        // Split the block text into lines
+        let lines: Vec<&str> = text.lines().collect();
+        if lines.is_empty() {
+            return Ok(());
+        }
+
+        tracing::debug!("Calling insert_block_wise with {} lines", lines.len());
+
+        // Use the new block-wise insertion method that handles positioning correctly
+        let events = self.pane_manager.insert_block_wise(current_pos, &lines);
+        self.emit_view_event(events)?;
+
+        Ok(())
+    }
+
+    /// Paste text in block-wise manner after cursor position
+    pub fn paste_block_wise_after(&mut self, text: &str) -> Result<()> {
+        // For block-wise paste after, move cursor one column right and paste
+        let current_pos = self.get_cursor_position();
+        let after_pos = LogicalPosition {
+            line: current_pos.line,
+            column: current_pos.column + 1,
+        };
+
+        self.set_cursor_position(after_pos)?;
+        self.paste_block_wise(text)
     }
 
     /// Insert a character at current cursor position
