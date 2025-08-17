@@ -38,6 +38,7 @@ pub mod visual_selection;
 pub mod word_navigation;
 
 // Re-export key types for external use
+pub use visual_selection::VisualSelectionRestoreResult;
 
 /// Minimum width for line number column as specified in requirements
 const MIN_LINE_NUMBER_WIDTH: usize = 3;
@@ -99,11 +100,15 @@ pub struct PaneState {
     pub scroll_offset: Position,  // (vertical, horizontal)
     pub visual_selection_start: Option<LogicalPosition>,
     pub visual_selection_end: Option<LogicalPosition>,
-    pub pane_dimensions: Dimensions,    // (width, height)
-    pub editor_mode: EditorMode,        // Current editor mode for this pane
-    pub line_number_width: usize,       // Width needed for line numbers display
-    pub virtual_column: usize,          // Vim-style virtual column - desired cursor position
-    pub capabilities: PaneCapabilities, // What operations are allowed on this pane
+    // Last visual selection for 'gv' command
+    pub last_visual_selection_start: Option<LogicalPosition>,
+    pub last_visual_selection_end: Option<LogicalPosition>,
+    pub last_visual_mode: Option<EditorMode>, // Track which visual mode was used
+    pub pane_dimensions: Dimensions,          // (width, height)
+    pub editor_mode: EditorMode,              // Current editor mode for this pane
+    pub line_number_width: usize,             // Width needed for line numbers display
+    pub virtual_column: usize,                // Vim-style virtual column - desired cursor position
+    pub capabilities: PaneCapabilities,       // What operations are allowed on this pane
 }
 
 impl PaneState {
@@ -121,6 +126,9 @@ impl PaneState {
             scroll_offset: Position::origin(),
             visual_selection_start: None,
             visual_selection_end: None,
+            last_visual_selection_start: None,
+            last_visual_selection_end: None,
+            last_visual_mode: None,
             pane_dimensions: Dimensions::new(pane_width, pane_height),
             editor_mode: EditorMode::Normal, // Start in Normal mode
             line_number_width: MIN_LINE_NUMBER_WIDTH, // Start with minimum width

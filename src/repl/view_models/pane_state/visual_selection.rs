@@ -13,6 +13,9 @@ use super::PaneState;
 // Type alias for visual selection state (start_position, end_position)
 type VisualSelection = (Option<LogicalPosition>, Option<LogicalPosition>);
 
+// Type alias for visual selection restoration result
+pub type VisualSelectionRestoreResult = Option<(EditorMode, Vec<ViewEvent>)>;
+
 impl PaneState {
     /// Start visual selection at current cursor position
     pub fn start_visual_selection(&mut self) -> Vec<ViewEvent> {
@@ -39,6 +42,26 @@ impl PaneState {
 
     /// End visual selection and clear selection state
     pub fn end_visual_selection(&mut self) -> Vec<ViewEvent> {
+        // Save the last visual selection for 'gv' command before clearing
+        if self.visual_selection_start.is_some() && self.visual_selection_end.is_some() {
+            self.last_visual_selection_start = self.visual_selection_start;
+            self.last_visual_selection_end = self.visual_selection_end;
+            // Save which visual mode was active
+            self.last_visual_mode = match self.editor_mode {
+                EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock => {
+                    Some(self.editor_mode)
+                }
+                _ => None,
+            };
+
+            tracing::info!(
+                "🎯 PaneState::end_visual_selection - saved last selection {:?} to {:?} in mode {:?}",
+                self.last_visual_selection_start,
+                self.last_visual_selection_end,
+                self.last_visual_mode
+            );
+        }
+
         self.visual_selection_start = None;
         self.visual_selection_end = None;
 
@@ -179,5 +202,43 @@ impl PaneState {
             && position.line <= last_line
             && position.column >= first_col
             && position.column <= last_col
+    }
+
+    /// Restore the last visual selection (for 'gv' command)
+    /// Returns the mode to enter and view events, or None if no last selection exists
+    pub fn restore_last_visual_selection(&mut self) -> VisualSelectionRestoreResult {
+        // Check if we have a saved selection
+        let (Some(start), Some(end), Some(mode)) = (
+            self.last_visual_selection_start,
+            self.last_visual_selection_end,
+            self.last_visual_mode,
+        ) else {
+            tracing::info!("🎯 PaneState::restore_last_visual_selection - no saved selection");
+            return None;
+        };
+
+        // Restore the selection
+        self.visual_selection_start = Some(start);
+        self.visual_selection_end = Some(end);
+
+        // Move cursor to the end of the selection
+        self.buffer.set_cursor(end);
+        self.sync_display_cursor_with_logical();
+
+        tracing::info!(
+            "🎯 PaneState::restore_last_visual_selection - restored selection {:?} to {:?} in mode {:?}",
+            start,
+            end,
+            mode
+        );
+
+        Some((
+            mode,
+            vec![
+                ViewEvent::CurrentAreaRedrawRequired,
+                ViewEvent::StatusBarUpdateRequired,
+                ViewEvent::ActiveCursorUpdateRequired,
+            ],
+        ))
     }
 }

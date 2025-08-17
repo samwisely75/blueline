@@ -128,6 +128,9 @@ pub enum CommandEvent {
     /// Request to exit Visual Block Insert mode with text replication
     ExitVisualBlockInsertRequested,
 
+    /// Request to repeat the last visual selection (gv command)
+    RepeatVisualSelectionRequested,
+
     /// No action needed (for commands that only query state)
     NoAction,
 }
@@ -263,6 +266,11 @@ impl CommandEvent {
     /// Create an exit visual block insert event
     pub fn exit_visual_block_insert() -> Self {
         Self::ExitVisualBlockInsertRequested
+    }
+
+    /// Create a repeat visual selection event
+    pub fn repeat_visual_selection() -> Self {
+        Self::RepeatVisualSelectionRequested
     }
 }
 

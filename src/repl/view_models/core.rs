@@ -384,6 +384,20 @@ impl ViewModel {
     pub fn pane_manager(&self) -> &PaneManager {
         &self.pane_manager
     }
+
+    /// Restore the last visual selection (for 'gv' command)
+    /// Returns the mode to enter if restoration successful
+    pub fn restore_last_visual_selection(&mut self) -> anyhow::Result<Option<EditorMode>> {
+        // Delegate to the pane manager to restore selection in current pane
+        match self.pane_manager.restore_last_visual_selection() {
+            Some((mode, events)) => {
+                // Emit the view events
+                self.emit_view_event(events)?;
+                Ok(Some(mode))
+            }
+            None => Ok(None),
+        }
+    }
 }
 
 impl Default for ViewModel {

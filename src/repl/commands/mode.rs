@@ -184,6 +184,28 @@ impl Command for EnterVisualBlockModeCommand {
     }
 }
 
+/// Repeat last visual selection (gv command)
+pub struct RepeatVisualSelectionCommand;
+
+impl Command for RepeatVisualSelectionCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        // This command is triggered by 'v' when in GPrefix mode (after pressing 'g')
+        matches!(event.code, KeyCode::Char('v'))
+            && context.state.current_mode == EditorMode::GPrefix
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        tracing::debug!("RepeatVisualSelectionCommand executing - restoring last visual selection");
+        // This will trigger the restoration of the last visual selection
+        Ok(vec![CommandEvent::repeat_visual_selection()])
+    }
+
+    fn name(&self) -> &'static str {
+        "RepeatVisualSelection"
+    }
+}
+
 /// Enter command mode (: key)
 pub struct EnterCommandModeCommand;
 

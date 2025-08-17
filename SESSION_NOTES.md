@@ -1,5 +1,70 @@
 # Session Notes
 
+## 2025-08-17 Session - Complete Visual Mode Features (Issue #147)
+
+### User Request Summary
+- User returned and asked to check open issues
+- Identified Issue #147 was closed but 'gv' command and Unicode support were not implemented
+- Implementing missing features from Phase 7 of visual mode implementation
+
+### What We Accomplished
+
+✅ **Implemented 'gv' Command (Visual Selection Repeat)**
+- **Branch**: `feature/complete-visual-mode-features`
+- **Implementation**: Added full support for 'gv' command to restore last visual selection
+- **Key Components**:
+  - Added `RepeatVisualSelectionCommand` that responds to 'v' in GPrefix mode
+  - Added tracking of last visual selection (start, end, mode) in PaneState
+  - Saving selection state when exiting any visual mode
+  - Restoring selection with proper cursor positioning on 'gv'
+- **Architecture Changes**:
+  - Added `last_visual_selection_start/end` and `last_visual_mode` fields to PaneState
+  - Created `VisualSelectionRestoreResult` type alias to avoid clippy complexity warnings
+  - Proper event flow: Command → Controller → ViewModel → PaneManager → PaneState
+- **Bug Fix**: Fixed issue where visual selections were not saved when cut/delete operations cleared them
+  - Added `save_last_visual_selection_before_clear()` helper method
+  - Now saves selection before clearing in delete operations (x, d commands)
+- **Quality**: All 377 unit tests passing, pre-commit checks pass
+
+### Technical Implementation Details
+
+1. **Command Layer**: 
+   - `RepeatVisualSelectionCommand` in `src/repl/commands/mode.rs`
+   - Registered in command registry with proper priority
+
+2. **Event System**:
+   - Added `RepeatVisualSelectionRequested` to `CommandEvent` enum
+   - Proper event handling in `AppController::handle_repeat_visual_selection()`
+
+3. **State Management**:
+   - PaneState tracks last selection in three new fields
+   - Selection saved automatically on visual mode exit
+   - Restoration includes mode type and cursor position
+
+4. **Type Safety**:
+   - Used type alias to satisfy clippy type complexity requirements
+   - Clean separation of concerns across layers
+
+### What's Still Pending from Issue #147
+
+❌ **Unicode/Multi-byte Character Support**
+- Visual Block selection still uses raw column indices
+- No special handling for double-width characters
+- Would require display width calculations in selection logic
+
+❌ **Comprehensive Testing**
+- No integration tests for 'gv' command yet
+- No Unicode character tests for visual modes
+
+❌ **Documentation**
+- COMMANDS.md not created/updated
+- Visual mode documentation not present
+
+### Next Steps
+- Unicode support would require significant changes to use display widths
+- Integration tests should be added for 'gv' command
+- Consider creating COMMANDS.md documentation
+
 ## 2025-08-15 Session - Visual Block Commands Implementation 🔄 IN PROGRESS
 
 ### Previous Context - Issue #161 Phases 1-4: PaneState Business Logic Migration ✅ COMPLETE
