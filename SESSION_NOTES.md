@@ -1,5 +1,97 @@
 # Session Notes
 
+## 2025-08-17 Session - Complete Visual Mode Features (Issue #147)
+
+### User Request Summary
+- User returned and asked to check open issues
+- Identified Issue #147 was closed but 'gv' command and Unicode support were not implemented
+- Implementing missing features from Phase 7 of visual mode implementation
+
+### What We Accomplished
+
+✅ **Implemented 'gv' Command (Visual Selection Repeat)**
+- **Branch**: `feature/complete-visual-mode-features`
+- **Implementation**: Added full support for 'gv' command to restore last visual selection
+- **Key Components**:
+  - Added `RepeatVisualSelectionCommand` that responds to 'v' in GPrefix mode
+  - Added tracking of last visual selection (start, end, mode) in PaneState
+  - Saving selection state when exiting any visual mode
+  - Restoring selection with proper cursor positioning on 'gv'
+- **Architecture Changes**:
+  - Added `last_visual_selection_start/end` and `last_visual_mode` fields to PaneState
+  - Created `VisualSelectionRestoreResult` type alias to avoid clippy complexity warnings
+  - Proper event flow: Command → Controller → ViewModel → PaneManager → PaneState
+- **Bug Fix**: Fixed issue where visual selections were not saved when cut/delete operations cleared them
+  - Added `save_last_visual_selection_before_clear()` helper method
+  - Now saves selection before clearing in delete operations (x, d commands)
+- **Quality**: All 377 unit tests passing, pre-commit checks pass
+
+### Technical Implementation Details
+
+1. **Command Layer**: 
+   - `RepeatVisualSelectionCommand` in `src/repl/commands/mode.rs`
+   - Registered in command registry with proper priority
+
+2. **Event System**:
+   - Added `RepeatVisualSelectionRequested` to `CommandEvent` enum
+   - Proper event handling in `AppController::handle_repeat_visual_selection()`
+
+3. **State Management**:
+   - PaneState tracks last selection in three new fields
+   - Selection saved automatically on visual mode exit
+   - Restoration includes mode type and cursor position
+
+4. **Type Safety**:
+   - Used type alias to satisfy clippy type complexity requirements
+   - Clean separation of concerns across layers
+
+### What's Still Pending from Issue #147
+
+❌ **Unicode/Multi-byte Character Support**
+- Visual Block selection still uses raw column indices
+- No special handling for double-width characters
+- Would require display width calculations in selection logic
+
+❌ **Comprehensive Testing**
+- No integration tests for 'gv' command yet
+- No Unicode character tests for visual modes
+
+❌ **Documentation**
+- COMMANDS.md not created/updated
+- Visual mode documentation not present
+
+### Flickering Issue Investigation and Fix
+
+**Problem**: User reported flickering when switching to Insert mode for the first time after app startup
+- Only happens on the very first Insert mode switch
+- Tilde characters and status bar flash briefly
+- Subsequent mode switches work cleanly without flickering
+
+**Root Cause Identified**: 
+- During `initialize()`, cursor was hidden to prepare for initial render
+- First mode switch to Insert required both:
+  1. Changing cursor style (block → bar)
+  2. Changing cursor visibility (hidden → shown)
+- The visibility state change was likely triggering additional rendering operations
+
+**Solution Implemented**:
+- Modified `terminal_renderer.rs` initialization to not hide cursor initially
+- Let `render_cursor()` handle visibility consistently
+- This ensures mode changes only modify cursor style, not visibility state
+- Cursor is temporarily hidden during render operations then restored
+
+**Technical Details**:
+- Removed `self.render_stream.hide_cursor()?` from `initialize()` method
+- `render_full()` and `render_pane()` temporarily hide cursor during operations
+- `render_cursor()` always shows cursor (except in Command mode)
+- This eliminates the need for visibility state changes on first mode switch
+
+### Next Steps
+- User should test if flickering is resolved with this fix
+- Unicode support would require significant changes to use display widths
+- Integration tests should be added for 'gv' command
+- Consider creating COMMANDS.md documentation
+
 ## 2025-08-15 Session - Visual Block Commands Implementation 🔄 IN PROGRESS
 
 ### Previous Context - Issue #161 Phases 1-4: PaneState Business Logic Migration ✅ COMPLETE

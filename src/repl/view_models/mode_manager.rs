@@ -119,7 +119,10 @@ impl ViewModel {
 
         if entering_visual_mode && !exiting_visual_mode {
             // Entering any visual mode from non-visual mode
-            events.extend(self.pane_manager.start_visual_selection());
+            // Only start a new selection if one doesn't already exist (e.g., not restoring via 'gv')
+            if !self.pane_manager.has_visual_selection() {
+                events.extend(self.pane_manager.start_visual_selection());
+            }
         } else if exiting_visual_mode && !entering_visual_mode {
             // Exiting visual mode to non-visual mode
             events.extend(self.pane_manager.end_visual_selection());

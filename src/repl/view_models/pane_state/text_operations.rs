@@ -17,6 +17,28 @@ use super::PaneState;
 type DeletionResult = Option<(String, ModelEvent)>;
 
 impl PaneState {
+    // Helper method to save last visual selection before clearing
+    fn save_last_visual_selection_before_clear(&mut self) {
+        if self.visual_selection_start.is_some() && self.visual_selection_end.is_some() {
+            self.last_visual_selection_start = self.visual_selection_start;
+            self.last_visual_selection_end = self.visual_selection_end;
+            // Save which visual mode was active
+            self.last_visual_mode = match self.editor_mode {
+                EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock => {
+                    Some(self.editor_mode)
+                }
+                _ => None,
+            };
+
+            tracing::info!(
+                "🎯 PaneState::save_last_visual_selection_before_clear - saved selection {:?} to {:?} in mode {:?}",
+                self.last_visual_selection_start,
+                self.last_visual_selection_end,
+                self.last_visual_mode
+            );
+        }
+    }
+
     /// Get the currently selected text in visual mode
     pub fn get_selected_text(&self) -> Option<String> {
         // Check if we have a selection
@@ -349,7 +371,8 @@ impl PaneState {
                     // Position cursor at start of deleted range
                     self.buffer.set_cursor(selection_start);
 
-                    // Clear visual selection
+                    // Save and clear visual selection
+                    self.save_last_visual_selection_before_clear();
                     self.visual_selection_start = None;
                     self.visual_selection_end = None;
 
@@ -622,7 +645,8 @@ impl PaneState {
             let new_cursor = LogicalPosition::new(top_line, left_col);
             self.buffer.set_cursor(new_cursor);
 
-            // Clear visual selection
+            // Save and clear visual selection
+            self.save_last_visual_selection_before_clear();
             self.visual_selection_start = None;
             self.visual_selection_end = None;
 
@@ -684,7 +708,8 @@ impl PaneState {
             // Position cursor at start of deleted range (beginning of first line)
             self.buffer.set_cursor(delete_start);
 
-            // Clear visual selection
+            // Save and clear visual selection
+            self.save_last_visual_selection_before_clear();
             self.visual_selection_start = None;
             self.visual_selection_end = None;
 

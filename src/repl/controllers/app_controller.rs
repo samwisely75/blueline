@@ -534,6 +534,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::ExitVisualBlockInsertRequested => {
                 self.handle_exit_visual_block_insert()?;
             }
+            CommandEvent::RepeatVisualSelectionRequested => {
+                self.handle_repeat_visual_selection()?;
+            }
             CommandEvent::PasteAfterRequested => {
                 self.handle_paste_after()?;
             }
@@ -1196,6 +1199,34 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Clear any previous status messages when exiting Visual Block Insert
         self.view_model.clear_status_message();
+
+        Ok(())
+    }
+
+    /// Handle repeat visual selection (gv command)
+    ///
+    /// Restores the last visual selection including:
+    /// 1. The selection range (start and end positions)
+    /// 2. The visual mode type (character/line/block)
+    /// 3. Cursor position at end of selection
+    fn handle_repeat_visual_selection(&mut self) -> Result<()> {
+        tracing::info!("Handling repeat visual selection (gv command)");
+
+        // First, return to Normal mode to exit GPrefix mode
+        self.view_model.change_mode(EditorMode::Normal)?;
+
+        // Try to restore the last visual selection
+        match self.view_model.restore_last_visual_selection()? {
+            Some(mode) => {
+                tracing::info!("Restored last visual selection with mode {:?}", mode);
+                // Change to the restored visual mode
+                self.view_model.change_mode(mode)?;
+            }
+            None => {
+                tracing::info!("No previous visual selection to restore");
+                // Stay in Normal mode if there's no selection to restore
+            }
+        }
 
         Ok(())
     }

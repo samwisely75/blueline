@@ -72,7 +72,7 @@ pub use mode::{
     EnterInsertModeCommand, EnterVisualBlockModeCommand, EnterVisualLineModeCommand,
     EnterVisualModeCommand, ExCommandModeCommand, ExitInsertModeCommand,
     ExitVisualBlockInsertModeCommand, ExitVisualModeCommand, InsertAtBeginningOfLineCommand,
-    VisualBlockAppendCommand, VisualBlockInsertCommand,
+    RepeatVisualSelectionCommand, VisualBlockAppendCommand, VisualBlockInsertCommand,
 };
 pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
@@ -107,6 +107,7 @@ impl CommandRegistry {
             // G mode commands (high priority - must be processed before regular g handling)
             Box::new(GoToTopCommand),
             Box::new(GoToBottomCommand),
+            Box::new(RepeatVisualSelectionCommand), // gv command
             Box::new(EnterGPrefixCommand),
             // Scroll commands (higher priority than regular movement)
             Box::new(ScrollLeftCommand),

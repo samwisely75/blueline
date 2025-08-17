@@ -34,7 +34,7 @@
 
 use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities, ViewEvent};
 use crate::repl::geometry::Position;
-use crate::repl::view_models::pane_state::PaneState;
+use crate::repl::view_models::pane_state::{PaneState, VisualSelectionRestoreResult};
 
 /// Type alias for visual selection state to reduce complexity
 type VisualSelectionState = (
@@ -206,6 +206,12 @@ impl PaneManager {
         self.panes[pane].is_position_selected(position)
     }
 
+    /// Check if current pane has an active visual selection
+    pub fn has_visual_selection(&self) -> bool {
+        let (start, _end) = self.panes[self.current_pane].get_visual_selection();
+        start.is_some()
+    }
+
     /// Start visual selection in current area
     pub fn start_visual_selection(&mut self) -> Vec<ViewEvent> {
         // Delegate to current pane
@@ -236,6 +242,12 @@ impl PaneManager {
         new_position: LogicalPosition,
     ) -> Option<ViewEvent> {
         self.panes[self.current_pane].update_visual_selection_on_cursor_move(new_position)
+    }
+
+    /// Restore the last visual selection (for 'gv' command)
+    /// Returns the mode and view events if restoration successful
+    pub fn restore_last_visual_selection(&mut self) -> VisualSelectionRestoreResult {
+        self.panes[self.current_pane].restore_last_visual_selection()
     }
 
     /// Delete selected text from the current pane
