@@ -60,7 +60,34 @@
 - COMMANDS.md not created/updated
 - Visual mode documentation not present
 
+### Flickering Issue Investigation and Fix
+
+**Problem**: User reported flickering when switching to Insert mode for the first time after app startup
+- Only happens on the very first Insert mode switch
+- Tilde characters and status bar flash briefly
+- Subsequent mode switches work cleanly without flickering
+
+**Root Cause Identified**: 
+- During `initialize()`, cursor was hidden to prepare for initial render
+- First mode switch to Insert required both:
+  1. Changing cursor style (block → bar)
+  2. Changing cursor visibility (hidden → shown)
+- The visibility state change was likely triggering additional rendering operations
+
+**Solution Implemented**:
+- Modified `terminal_renderer.rs` initialization to not hide cursor initially
+- Let `render_cursor()` handle visibility consistently
+- This ensures mode changes only modify cursor style, not visibility state
+- Cursor is temporarily hidden during render operations then restored
+
+**Technical Details**:
+- Removed `self.render_stream.hide_cursor()?` from `initialize()` method
+- `render_full()` and `render_pane()` temporarily hide cursor during operations
+- `render_cursor()` always shows cursor (except in Command mode)
+- This eliminates the need for visibility state changes on first mode switch
+
 ### Next Steps
+- User should test if flickering is resolved with this fix
 - Unicode support would require significant changes to use display widths
 - Integration tests should be added for 'gv' command
 - Consider creating COMMANDS.md documentation

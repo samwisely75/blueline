@@ -477,12 +477,18 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         self.render_stream.enable_raw_mode()?;
         self.render_stream.enter_alternate_screen()?;
         self.render_stream.clear_screen()?;
-        self.render_stream.hide_cursor()?;
+
+        // Set initial cursor style to steady block (Normal mode default)
+        // This prevents flickering on first mode change
+        write!(self.render_stream, "{}", ansi::CURSOR_BLOCK_STEADY)?;
+        // Don't hide cursor initially - let render_cursor handle visibility
+        // This prevents the need to change visibility state on first mode switch
         Ok(())
     }
 
     fn render_full(&mut self, view_model: &ViewModel) -> Result<()> {
-        // Hide cursor before screen refresh to avoid flickering
+        // Temporarily hide cursor during full screen redraw to prevent flicker
+        // The cursor will be shown again at the end by render_cursor()
         self.render_stream.hide_cursor()?;
         self.render_stream.clear_screen()?;
 
@@ -524,7 +530,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
     }
 
     fn render_pane(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()> {
-        // Hide cursor before any rendering to prevent ghost cursors
+        // Temporarily hide cursor during pane rendering to prevent ghost cursors
         self.render_stream.hide_cursor()?;
 
         let (request_height, response_start, response_height) = view_model
@@ -692,15 +698,16 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         }
 
         // Set cursor style based on editor mode using ANSI escape codes
+        // Using steady (non-blinking) cursors to prevent flickering on first mode change
         let cursor_style = match view_model.get_mode() {
-            EditorMode::Insert => ansi::CURSOR_BAR, // I-beam for insert mode
-            EditorMode::Normal => ansi::CURSOR_BLOCK, // Block for normal mode
-            EditorMode::Visual => ansi::CURSOR_BLOCK, // Block for visual mode
-            EditorMode::VisualLine => ansi::CURSOR_BLOCK, // Block for visual line mode
-            EditorMode::VisualBlock => ansi::CURSOR_BLOCK, // Block for visual block mode
-            EditorMode::VisualBlockInsert => ansi::CURSOR_BAR, // I-beam for visual block insert mode
-            EditorMode::Command => ansi::CURSOR_BAR,           // I-beam for command mode
-            EditorMode::GPrefix => ansi::CURSOR_BLOCK,         // Block for g-prefix mode
+            EditorMode::Insert => ansi::CURSOR_BAR_STEADY, // Steady I-beam for insert mode
+            EditorMode::Normal => ansi::CURSOR_BLOCK_STEADY, // Steady block for normal mode
+            EditorMode::Visual => ansi::CURSOR_BLOCK_STEADY, // Steady block for visual mode
+            EditorMode::VisualLine => ansi::CURSOR_BLOCK_STEADY, // Steady block for visual line mode
+            EditorMode::VisualBlock => ansi::CURSOR_BLOCK_STEADY, // Steady block for visual block mode
+            EditorMode::VisualBlockInsert => ansi::CURSOR_BAR_STEADY, // Steady I-beam for visual block insert mode
+            EditorMode::Command => ansi::CURSOR_BAR_STEADY, // Steady I-beam for command mode
+            EditorMode::GPrefix => ansi::CURSOR_BLOCK_STEADY, // Steady block for g-prefix mode
         };
 
         // Position cursor, set style, and show
@@ -735,7 +742,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             #[allow(unused_variables)]
             let cursor_pos = ex_command_text.len() as u16;
             self.render_stream.move_cursor(cursor_pos, status_row)?;
-            write!(self.render_stream, "{}", ansi::CURSOR_BAR)?;
+            write!(self.render_stream, "{}", ansi::CURSOR_BAR_STEADY)?;
             self.render_stream.show_cursor()?;
         } else {
             let pane_text = match view_model.get_current_pane() {
@@ -1109,7 +1116,8 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
             // Position and show the primary cursor
             self.render_stream
                 .move_cursor(clamped_col as u16, clamped_row as u16)?;
-            self.render_stream.write_all(ansi::CURSOR_BAR.as_bytes())?;
+            self.render_stream
+                .write_all(ansi::CURSOR_BAR_STEADY.as_bytes())?;
             self.render_stream.show_cursor()?;
             safe_flush!(self.render_stream)?;
 
