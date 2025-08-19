@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.0] - 2025-08-19
+
+### Added
+
+- **'D' Command for Cutting to End of Line (Issue #6)**: Implemented vim-style 'D' command
+  - Cuts text from cursor position to end of line
+  - Stores cut text in yank buffer with Character type for proper paste behavior
+  - Works only in Normal mode and Request pane (vim-consistent)
+  - Handles multi-byte characters correctly using character-based indexing
+  - Proper SHIFT modifier detection for uppercase commands
+  - No-op when cursor is at end of line (vim-consistent behavior)
+  - Added comprehensive unit tests (17 tests) and integration tests (10 scenarios)
+  - Added 'D' and 'o' key mappings to test infrastructure
+
 ## [0.43.1] - 2025-08-19
 
 ### Fixed
