@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] - 2025-08-19
+
 ### Added
+
+- **'x' Command Support**: Implemented Vim-style character cut command in Normal mode
+  - Added `CutCharacterCommand` that deletes character at cursor and yanks it to buffer
+  - Proper cursor positioning with multi-byte character support (Japanese/Chinese/Korean)
+  - Fixed display cursor synchronization for seamless visual feedback
+  - Comprehensive test coverage including edge cases and international text
+  - Only active in Normal mode + Request pane, preserves Insert mode behavior
+  - Integrates with existing yank buffer for paste operations
 
 - **Block-wise Paste**: Implemented proper rectangular paste behavior for Visual Block mode
   - Added `YankType` enum to track yank operation types (Character, Line, Block)
