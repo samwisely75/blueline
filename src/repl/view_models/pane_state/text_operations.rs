@@ -489,6 +489,27 @@ impl PaneState {
         // Rebuild display cache to ensure proper rendering
         self.build_display_cache(content_width, wrap_enabled, tab_width);
 
+        // Sync display cursor with the logical cursor position after cache rebuild
+        let logical_cursor = self.buffer.cursor();
+        if let Some(display_pos) = self
+            .display_cache
+            .logical_to_display_position(logical_cursor.line, logical_cursor.column)
+        {
+            self.display_cursor = display_pos;
+            tracing::debug!(
+                "✂️  Synced display cursor to {:?} (logical: {:?})",
+                display_pos,
+                logical_cursor
+            );
+        } else {
+            // Fallback: Use logical position as display position
+            self.display_cursor = Position::new(logical_cursor.line, logical_cursor.column);
+            tracing::warn!(
+                "✂️  Failed to sync display cursor, using fallback for logical: {:?}",
+                logical_cursor
+            );
+        }
+
         tracing::debug!("✂️  Successfully deleted character at cursor");
 
         Some(char_at_cursor.to_string())
