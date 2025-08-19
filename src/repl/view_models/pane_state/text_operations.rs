@@ -93,13 +93,15 @@ impl PaneState {
 
                 for line_num in top_line..=bottom_line {
                     if let Some(line) = content.get_line(line_num) {
-                        let line_length = line.len();
+                        let chars: Vec<char> = line.chars().collect();
+                        let line_char_length = chars.len();
 
                         // Skip lines that are too short to have content in the block region
-                        if left_col < line_length {
-                            let actual_right_col = (right_col + 1).min(line_length); // +1 to include character at end position
-                            let block_text = &line[left_col..actual_right_col];
-                            selected_text.push_str(block_text);
+                        if left_col < line_char_length {
+                            let actual_right_col = (right_col + 1).min(line_char_length); // +1 to include character at end position
+                            let selected_chars: String =
+                                chars[left_col..actual_right_col].iter().collect();
+                            selected_text.push_str(&selected_chars);
                         }
 
                         // Add newline after each line except the last one
@@ -114,9 +116,11 @@ impl PaneState {
                 if selection_start.line == selection_end.line {
                     // Single line selection
                     if let Some(line) = content.get_line(selection_start.line) {
-                        let start_col = selection_start.column.min(line.len());
-                        let end_col = (selection_end.column + 1).min(line.len()); // +1 to include character at end position
-                        selected_text.push_str(&line[start_col..end_col]);
+                        let chars: Vec<char> = line.chars().collect();
+                        let start_col = selection_start.column.min(chars.len());
+                        let end_col = (selection_end.column + 1).min(chars.len()); // +1 to include character at end position
+                        let selected_chars: String = chars[start_col..end_col].iter().collect();
+                        selected_text.push_str(&selected_chars);
                     }
                 } else {
                     // Multi-line selection
@@ -124,12 +128,16 @@ impl PaneState {
                         if let Some(line) = content.get_line(line_num) {
                             if line_num == selection_start.line {
                                 // First line: from start column to end
-                                let start_col = selection_start.column.min(line.len());
-                                selected_text.push_str(&line[start_col..]);
+                                let chars: Vec<char> = line.chars().collect();
+                                let start_col = selection_start.column.min(chars.len());
+                                let selected_chars: String = chars[start_col..].iter().collect();
+                                selected_text.push_str(&selected_chars);
                             } else if line_num == selection_end.line {
                                 // Last line: from beginning to end column
-                                let end_col = (selection_end.column + 1).min(line.len());
-                                selected_text.push_str(&line[..end_col]);
+                                let chars: Vec<char> = line.chars().collect();
+                                let end_col = (selection_end.column + 1).min(chars.len());
+                                let selected_chars: String = chars[..end_col].iter().collect();
+                                selected_text.push_str(&selected_chars);
                             } else {
                                 // Middle lines: entire line
                                 selected_text.push_str(&line);
@@ -932,5 +940,113 @@ impl PaneState {
             ViewEvent::CurrentAreaRedrawRequired,
             ViewEvent::ActiveCursorUpdateRequired,
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities};
+    use crate::repl::geometry::{Dimensions, Position};
+    use crate::repl::models::{BufferModel, DisplayCache};
+
+    fn create_test_pane_state_with_content(content: &str) -> PaneState {
+        let mut buffer = BufferModel::new(Pane::Request);
+        buffer.content_mut().set_text(content);
+
+        let display_cache = DisplayCache::new();
+
+        PaneState {
+            buffer,
+            display_cache,
+            display_cursor: Position::new(0, 0),
+            scroll_offset: Position::new(0, 0),
+            visual_selection_start: None,
+            visual_selection_end: None,
+            last_visual_selection_start: None,
+            last_visual_selection_end: None,
+            last_visual_mode: None,
+            pane_dimensions: Dimensions::new(80, 25),
+            editor_mode: EditorMode::Visual,
+            capabilities: PaneCapabilities::EDITABLE
+                | PaneCapabilities::NAVIGABLE
+                | PaneCapabilities::SELECTABLE,
+            line_number_width: 3,
+            virtual_column: 0,
+        }
+    }
+
+    #[test]
+    fn test_get_selected_text_single_line_multibyte() {
+        let mut pane_state = create_test_pane_state_with_content("あいうえおかきくけこ");
+
+        // Select "かきくけこ" (characters 5-9)
+        pane_state.visual_selection_start = Some(LogicalPosition::new(0, 5));
+        pane_state.visual_selection_end = Some(LogicalPosition::new(0, 9));
+
+        let result = pane_state.get_selected_text();
+        assert_eq!(result, Some("かきくけこ".to_string()));
+    }
+
+    #[test]
+    fn test_get_selected_text_single_line_mixed_chars() {
+        let mut pane_state = create_test_pane_state_with_content("abc漢字def");
+
+        // Select "漢字" (characters 3-4)
+        pane_state.visual_selection_start = Some(LogicalPosition::new(0, 3));
+        pane_state.visual_selection_end = Some(LogicalPosition::new(0, 4));
+
+        let result = pane_state.get_selected_text();
+        assert_eq!(result, Some("漢字".to_string()));
+    }
+
+    #[test]
+    fn test_get_selected_text_visual_block_multibyte() {
+        let mut pane_state =
+            create_test_pane_state_with_content("あいうえお\nかきくけこ\nさしすせそ");
+        pane_state.editor_mode = EditorMode::VisualBlock;
+
+        // Select a 2x2 block starting at column 1: "いう" + "きく"
+        pane_state.visual_selection_start = Some(LogicalPosition::new(0, 1));
+        pane_state.visual_selection_end = Some(LogicalPosition::new(1, 2));
+
+        let result = pane_state.get_selected_text();
+        assert_eq!(result, Some("いう\nきく".to_string()));
+    }
+
+    #[test]
+    fn test_get_selected_text_multiline_multibyte() {
+        let mut pane_state = create_test_pane_state_with_content("あいうえお\nかきくけこ");
+
+        // Select from middle of first line to middle of second line
+        pane_state.visual_selection_start = Some(LogicalPosition::new(0, 2)); // "う"
+        pane_state.visual_selection_end = Some(LogicalPosition::new(1, 2)); // "く"
+
+        let result = pane_state.get_selected_text();
+        assert_eq!(result, Some("うえお\nかきく".to_string()));
+    }
+
+    #[test]
+    fn test_get_selected_text_edge_case_end_of_multibyte_line() {
+        let mut pane_state = create_test_pane_state_with_content("あいうえお");
+
+        // Select last character "お" (character 4)
+        pane_state.visual_selection_start = Some(LogicalPosition::new(0, 4));
+        pane_state.visual_selection_end = Some(LogicalPosition::new(0, 4));
+
+        let result = pane_state.get_selected_text();
+        assert_eq!(result, Some("お".to_string()));
+    }
+
+    #[test]
+    fn test_get_selected_text_beyond_line_boundary() {
+        let mut pane_state = create_test_pane_state_with_content("あい");
+
+        // Try to select beyond the line (characters 0-5, but line only has 2 chars)
+        pane_state.visual_selection_start = Some(LogicalPosition::new(0, 0));
+        pane_state.visual_selection_end = Some(LogicalPosition::new(0, 5));
+
+        let result = pane_state.get_selected_text();
+        assert_eq!(result, Some("あい".to_string())); // Should clamp to line length
     }
 }
