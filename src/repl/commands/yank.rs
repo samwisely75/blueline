@@ -122,10 +122,16 @@ pub struct CutToEndOfLineCommand;
 
 impl Command for CutToEndOfLineCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Char('D'))
-            && context.state.current_mode == EditorMode::Normal
+        context.state.current_mode == EditorMode::Normal
             && context.state.current_pane == Pane::Request
-            && event.modifiers.is_empty()
+            && (
+                // Case 1: Uppercase 'D' without modifiers
+                (matches!(event.code, KeyCode::Char('D')) && event.modifiers.is_empty())
+                // Case 2: Lowercase 'd' with SHIFT modifier
+                || (matches!(event.code, KeyCode::Char('d')) && event.modifiers.contains(KeyModifiers::SHIFT))
+                // Case 3: Uppercase 'D' with SHIFT modifier (some terminals send this)
+                || (matches!(event.code, KeyCode::Char('D')) && event.modifiers.contains(KeyModifiers::SHIFT))
+            )
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -437,9 +443,25 @@ mod tests {
 
     // Tests for CutToEndOfLineCommand
     #[test]
-    fn cut_to_end_of_line_should_be_relevant_for_d_in_normal_mode() {
+    fn cut_to_end_of_line_should_be_relevant_for_uppercase_d_in_normal_mode() {
         let context = create_test_context(EditorMode::Normal, Pane::Request);
         let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::empty());
+        let command = CutToEndOfLineCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_to_end_of_line_should_be_relevant_for_lowercase_d_with_shift() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::SHIFT);
+        let command = CutToEndOfLineCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_to_end_of_line_should_be_relevant_for_uppercase_d_with_shift() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::SHIFT);
         let command = CutToEndOfLineCommand;
         assert!(command.is_relevant(&context, &event));
     }
@@ -469,9 +491,17 @@ mod tests {
     }
 
     #[test]
-    fn cut_to_end_of_line_should_not_be_relevant_with_modifiers() {
+    fn cut_to_end_of_line_should_not_be_relevant_with_ctrl_modifier() {
         let context = create_test_context(EditorMode::Normal, Pane::Request);
         let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::CONTROL);
+        let command = CutToEndOfLineCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_to_end_of_line_should_not_be_relevant_with_alt_modifier() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::ALT);
         let command = CutToEndOfLineCommand;
         assert!(!command.is_relevant(&context, &event));
     }
