@@ -13,7 +13,7 @@
 //! - ViewEvents are emitted for selective rendering optimization
 //! - Character-by-character processing maintains semantic consistency
 
-use crate::repl::events::{EditorMode, LogicalPosition};
+use crate::repl::events::{EditorMode, LogicalPosition, ViewEvent};
 use crate::repl::view_models::core::ViewModel;
 use crate::repl::view_models::{YankEntry, YankType};
 use anyhow::Result;
@@ -352,6 +352,29 @@ impl ViewModel {
             self.pane_manager.delete_char_after_cursor()
         };
         self.emit_view_event(events)?;
+
+        Ok(())
+    }
+
+    /// Cut (delete and yank) character at cursor position
+    pub fn cut_char_at_cursor(&mut self) -> Result<()> {
+        // Only allow in Request pane and Normal mode
+        if !self.is_in_request_pane() || self.mode() != EditorMode::Normal {
+            return Ok(());
+        }
+
+        // Delete the character and get it back for yanking
+        if let Some(deleted_char) = self.pane_manager.cut_char_at_cursor() {
+            // Yank the deleted character to the buffer
+            self.yank_to_buffer_with_type(deleted_char, YankType::Character)?;
+
+            // Emit view events for display update
+            self.emit_view_event(vec![
+                ViewEvent::RequestContentChanged,
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired,
+            ])?;
+        }
 
         Ok(())
     }
