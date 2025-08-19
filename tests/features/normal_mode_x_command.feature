@@ -63,6 +63,18 @@ Feature: Normal mode 'x' command (cut character)
     When I press "p"
     Then I should see "こんにちは" in the request pane at line 1
 
+  Scenario: Cut multi-byte character at end of line adjusts cursor properly
+    Given I am in Insert mode
+    When I type "abc漢字"
+    And I press Escape
+    Then the cursor should be at display line 1 display column 5
+    When I press "x"
+    Then I should see "abc漢" in the request pane at line 1
+    And the cursor should be at display line 1 display column 4
+    When I press "x"
+    Then I should see "abc" in the request pane at line 1
+    And the cursor should be at display line 1 display column 3
+
   Scenario: Try to cut character at end of empty line (no-op)
     Given the request buffer is empty
     When I press "x"

@@ -466,21 +466,25 @@ impl PaneState {
 
         // After deletion, check if we need to adjust cursor position
         if let Some(line) = self.buffer.content().get_line(current_cursor.line) {
+            // Calculate character count (not byte count) for proper multi-byte character handling
+            let char_count = line.chars().count();
+
             // If cursor is now beyond the end of the line, move it to the last valid position
-            if current_cursor.column >= line.len() {
+            if current_cursor.column >= char_count {
                 let new_cursor_column = if line.is_empty() {
                     // Line is empty, cursor goes to column 0
                     0
                 } else {
-                    // Cursor goes to the last character of the line
-                    line.len().saturating_sub(1)
+                    // Cursor goes to the last character position (character count - 1)
+                    char_count.saturating_sub(1)
                 };
                 let new_cursor = LogicalPosition::new(current_cursor.line, new_cursor_column);
                 self.buffer.set_cursor(new_cursor);
                 tracing::debug!(
-                    "✂️  Adjusted cursor from {:?} to {:?} (line length: {})",
+                    "✂️  Adjusted cursor from {:?} to {:?} (char count: {}, byte length: {})",
                     current_cursor,
                     new_cursor,
+                    char_count,
                     line.len()
                 );
             }
