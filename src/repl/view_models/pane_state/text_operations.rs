@@ -358,8 +358,34 @@ impl PaneState {
                     (end, start)
                 };
 
-                // Create deletion range
-                let delete_range = LogicalRange::new(selection_start, selection_end);
+                // Create deletion range - adjust end position for character-wise selection
+                // to make it inclusive (matching how get_selected_text works)
+                let content = self.buffer.content();
+                let adjusted_end = if selection_start.line == selection_end.line {
+                    // Single line: add 1 to end column to include the character at end position
+                    // but don't go beyond the line length
+                    let max_col = content.line_length(selection_end.line);
+                    LogicalPosition::new(
+                        selection_end.line,
+                        (selection_end.column + 1).min(max_col),
+                    )
+                } else {
+                    // Multi-line: add 1 to end column to include the character at end position
+                    // but don't go beyond the line length
+                    let max_col = content.line_length(selection_end.line);
+                    LogicalPosition::new(
+                        selection_end.line,
+                        (selection_end.column + 1).min(max_col),
+                    )
+                };
+                let delete_range = LogicalRange::new(selection_start, adjusted_end);
+
+                tracing::debug!(
+                    "🗑️  delete_selected_text: deleting range {:?} to {:?} (adjusted from {:?})",
+                    selection_start,
+                    adjusted_end,
+                    selection_end
+                );
 
                 // Perform deletion
                 let pane_type = self.buffer.pane();
