@@ -96,6 +96,27 @@ impl Command for CutSelectionCommand {
     }
 }
 
+/// Cut (delete + yank) character at cursor in normal mode
+pub struct CutCharacterCommand;
+
+impl Command for CutCharacterCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('x'))
+            && context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Cut character at cursor (yank + delete)
+        Ok(vec![CommandEvent::cut_character()])
+    }
+
+    fn name(&self) -> &'static str {
+        "CutCharacter"
+    }
+}
+
 /// Paste yanked text at current cursor position
 pub struct PasteAtCursorCommand;
 
@@ -358,5 +379,38 @@ mod tests {
         let result = command.execute(event, &context).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], CommandEvent::change_selection());
+    }
+
+    // Tests for CutCharacterCommand
+    #[test]
+    fn cut_character_should_be_relevant_for_x_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
+        let command = CutCharacterCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_character_should_not_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
+        let command = CutCharacterCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_character_should_not_be_relevant_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
+        let command = CutCharacterCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_character_should_not_be_relevant_in_response_pane() {
+        let context = create_test_context(EditorMode::Normal, Pane::Response);
+        let event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
+        let command = CutCharacterCommand;
+        assert!(!command.is_relevant(&context, &event));
     }
 }

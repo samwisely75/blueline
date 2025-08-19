@@ -84,8 +84,8 @@ pub use navigation::{
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
 pub use yank::{
-    ChangeSelectionCommand, CutSelectionCommand, DeleteSelectionCommand, PasteAfterCommand,
-    PasteAtCursorCommand, YankCommand,
+    ChangeSelectionCommand, CutCharacterCommand, CutSelectionCommand, DeleteSelectionCommand,
+    PasteAfterCommand, PasteAtCursorCommand, YankCommand,
 };
 
 /// Type alias for command collection to reduce complexity
@@ -155,6 +155,7 @@ impl CommandRegistry {
             Box::new(YankCommand),
             Box::new(DeleteSelectionCommand),
             Box::new(CutSelectionCommand),
+            Box::new(CutCharacterCommand),
             Box::new(ChangeSelectionCommand),
             Box::new(PasteAfterCommand),
             Box::new(PasteAtCursorCommand),

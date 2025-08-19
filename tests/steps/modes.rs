@@ -14,10 +14,13 @@ use tracing::{debug, info};
 #[given("I am in Insert mode")]
 async fn given_insert_mode(world: &mut BluelineWorld) {
     debug!("Ensuring we are in Insert mode");
-    // The application starts in Insert mode by default
-    let _state = world.get_terminal_state().await;
-    // TODO: Add mode detection from terminal state
-    debug!("Current terminal state captured");
+    // Press 'i' to enter Insert mode from Normal mode
+    world
+        .send_key_event(KeyCode::Char('i'), KeyModifiers::empty())
+        .await;
+    world.tick().await.expect("Failed to tick");
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    debug!("Switched to Insert mode");
 }
 
 #[given("I am in Command mode")]

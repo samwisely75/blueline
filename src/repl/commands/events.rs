@@ -110,6 +110,9 @@ pub enum CommandEvent {
     /// Request to cut (delete + yank) selected text
     CutSelectionRequested,
 
+    /// Request to cut (delete + yank) character at cursor
+    CutCharacterRequested,
+
     /// Request to paste yanked text after cursor
     PasteAfterRequested,
 
@@ -236,6 +239,11 @@ impl CommandEvent {
     /// Create a cut selection event
     pub fn cut_selection() -> Self {
         Self::CutSelectionRequested
+    }
+
+    /// Create a cut character event
+    pub fn cut_character() -> Self {
+        Self::CutCharacterRequested
     }
 
     /// Create a paste after event

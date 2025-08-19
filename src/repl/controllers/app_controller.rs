@@ -522,6 +522,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::CutSelectionRequested => {
                 self.handle_cut_selection()?;
             }
+            CommandEvent::CutCharacterRequested => {
+                self.handle_cut_character()?;
+            }
             CommandEvent::ChangeSelectionRequested => {
                 self.handle_change_selection()?;
             }
@@ -947,6 +950,16 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             self.view_model
                 .set_status_message("No text selected".to_string());
         }
+
+        Ok(())
+    }
+
+    /// Handle cutting (delete + yank) character at cursor
+    fn handle_cut_character(&mut self) -> Result<()> {
+        // Cut character at cursor position - the method already handles yanking
+        self.view_model.cut_char_at_cursor()?;
+
+        tracing::info!("Cut 1 character at cursor to yank buffer");
 
         Ok(())
     }
