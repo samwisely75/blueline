@@ -92,6 +92,21 @@ Feature: Normal mode 'x' command (cut character)
     When I press "x"
     Then I should see "DE" in the request pane at line 1
 
+  Scenario: Cut from end of line adjusts cursor position
+    Given I am in Insert mode
+    When I type "123456"
+    And I press Escape
+    Then the cursor should be at display line 1 display column 6
+    When I press "x"
+    Then I should see "12345" in the request pane at line 1
+    And the cursor should be at display line 1 display column 5
+    When I press "x"
+    Then I should see "1234" in the request pane at line 1
+    And the cursor should be at display line 1 display column 4
+    When I press "x"
+    Then I should see "123" in the request pane at line 1
+    And the cursor should be at display line 1 display column 3
+
   Scenario: Verify 'x' only works in Normal mode
     Given I am in Insert mode
     When I type "Hello"
