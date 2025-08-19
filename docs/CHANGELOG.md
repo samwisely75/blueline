@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.1] - 2025-08-19
+
+### Fixed
+
+- **Critical Multi-Byte Character Crash (Issue #190)**: Fixed panic when deleting multi-byte characters in Visual mode
+  - Fixed `get_selected_text()` method using byte-based slicing with character-based indices
+  - Replaced with character-based approach: `line.chars().collect()` → slice → convert back to string
+  - Applied fix to all visual modes: Visual, VisualLine, and VisualBlock
+  - Added comprehensive unit tests for multi-byte character edge cases (Japanese, Chinese, Korean)
+  - Created integration test to prevent regression
+  - Now safely handles UTF-8 text deletion without crashes for international users
+
 ## [0.43.0] - 2025-08-19
 
 ### Added
