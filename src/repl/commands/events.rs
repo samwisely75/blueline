@@ -113,6 +113,9 @@ pub enum CommandEvent {
     /// Request to cut (delete + yank) character at cursor
     CutCharacterRequested,
 
+    /// Request to cut (delete + yank) from cursor to end of line
+    CutToEndOfLineRequested,
+
     /// Request to paste yanked text after cursor
     PasteAfterRequested,
 
@@ -244,6 +247,11 @@ impl CommandEvent {
     /// Create a cut character event
     pub fn cut_character() -> Self {
         Self::CutCharacterRequested
+    }
+
+    /// Create a cut to end of line event
+    pub fn cut_to_end_of_line() -> Self {
+        Self::CutToEndOfLineRequested
     }
 
     /// Create a paste after event

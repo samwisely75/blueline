@@ -32,6 +32,12 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
                 .send_key_event(KeyCode::Char('A'), KeyModifiers::empty())
                 .await
         }
+        "o" => {
+            info!("Pressing 'o' key to open new line below");
+            world
+                .send_key_event(KeyCode::Char('o'), KeyModifiers::empty())
+                .await
+        }
         "v" => {
             info!("Pressing 'v' key to enter visual mode");
             world
@@ -118,6 +124,12 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
             info!("Pressing 'd' key for delete command");
             world
                 .send_key_event(KeyCode::Char('d'), KeyModifiers::empty())
+                .await
+        }
+        "D" => {
+            info!("Pressing 'D' key for cut to end of line command");
+            world
+                .send_key_event(KeyCode::Char('D'), KeyModifiers::empty())
                 .await
         }
         "x" => {

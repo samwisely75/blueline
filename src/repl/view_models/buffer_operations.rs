@@ -379,6 +379,29 @@ impl ViewModel {
         Ok(())
     }
 
+    /// Cut from cursor to end of line and yank to buffer (D command)
+    pub fn cut_to_end_of_line(&mut self) -> Result<()> {
+        // Only allow in Request pane and Normal mode
+        if !self.is_in_request_pane() || self.mode() != EditorMode::Normal {
+            return Ok(());
+        }
+
+        // Delete from cursor to end of line and get the text for yanking
+        if let Some(cut_text) = self.pane_manager.cut_to_end_of_line() {
+            // Yank the cut text to the buffer as character type
+            self.yank_to_buffer_with_type(cut_text, YankType::Character)?;
+
+            // Emit view events for display update
+            self.emit_view_event(vec![
+                ViewEvent::RequestContentChanged,
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired,
+            ])?;
+        }
+
+        Ok(())
+    }
+
     /// Convert all tab characters to spaces in the request buffer
     /// Called when expandtab is enabled
     pub fn convert_tabs_to_spaces(&mut self) -> Result<()> {
@@ -530,6 +553,155 @@ mod tests {
         assert!(
             selection_after.0.is_none(),
             "Visual selection should be cleared"
+        );
+    }
+
+    #[test]
+    fn test_cut_to_end_of_line_in_normal_mode() {
+        let mut vm = ViewModel::new();
+
+        // Start in Insert mode and add test content
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello world").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Move cursor to middle of line (position 6, after "hello ")
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 6 })
+            .unwrap();
+
+        // Cut from cursor to end of line
+        let result = vm.cut_to_end_of_line();
+        assert!(
+            result.is_ok(),
+            "cut_to_end_of_line should work in Normal mode"
+        );
+
+        // Verify text was cut from buffer
+        let request_text = vm.get_request_text();
+        assert_eq!(
+            request_text, "hello ",
+            "Text from cursor to end should be removed"
+        );
+
+        // Verify yanked text is in buffer
+        let yanked = vm.get_yanked_text();
+        assert_eq!(
+            yanked,
+            Some("world".to_string()),
+            "Cut text should be in yank buffer"
+        );
+    }
+
+    #[test]
+    fn test_cut_to_end_of_line_at_end_of_line() {
+        let mut vm = ViewModel::new();
+
+        // Start in Insert mode and add test content
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Move cursor to end of line
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 5 })
+            .unwrap();
+
+        // Cut from cursor to end of line (should cut nothing)
+        let result = vm.cut_to_end_of_line();
+        assert!(result.is_ok(), "cut_to_end_of_line should work even at end");
+
+        // Verify text unchanged
+        let request_text = vm.get_request_text();
+        assert_eq!(
+            request_text, "hello",
+            "Text should be unchanged when at end"
+        );
+    }
+
+    #[test]
+    fn test_cut_to_end_of_line_whole_line() {
+        let mut vm = ViewModel::new();
+
+        // Start in Insert mode and add test content
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("entire line").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Move cursor to beginning of line
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 0 })
+            .unwrap();
+
+        // Cut from beginning to end
+        let result = vm.cut_to_end_of_line();
+        assert!(result.is_ok(), "cut_to_end_of_line should work");
+
+        // Verify entire line was cut
+        let request_text = vm.get_request_text();
+        assert_eq!(request_text, "", "Entire line should be removed");
+
+        // Verify yanked text
+        let yanked = vm.get_yanked_text();
+        assert_eq!(
+            yanked,
+            Some("entire line".to_string()),
+            "Entire line should be yanked"
+        );
+    }
+
+    #[test]
+    fn test_cut_to_end_of_line_blocked_in_insert_mode() {
+        let mut vm = ViewModel::new();
+
+        // Start in Insert mode and add test content
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("hello world").unwrap();
+        // Stay in Insert mode
+
+        // Try to cut (should be blocked)
+        let result = vm.cut_to_end_of_line();
+        assert!(result.is_ok(), "Method should return Ok but do nothing");
+
+        // Verify text unchanged
+        let request_text = vm.get_request_text();
+        assert_eq!(
+            request_text, "hello world",
+            "Text should be unchanged in Insert mode"
+        );
+
+        // Verify nothing was yanked
+        let yanked = vm.get_yanked_text();
+        assert!(yanked.is_none(), "Nothing should be yanked in Insert mode");
+    }
+
+    #[test]
+    fn test_cut_to_end_of_line_with_multibyte_characters() {
+        let mut vm = ViewModel::new();
+
+        // Start in Insert mode and add content with multibyte characters
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("こんにちは world").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Move cursor to position 5 (after "こんにちは")
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 5 })
+            .unwrap();
+
+        // Cut from cursor to end
+        let result = vm.cut_to_end_of_line();
+        assert!(
+            result.is_ok(),
+            "cut_to_end_of_line should work with multibyte chars"
+        );
+
+        // Verify correct text was cut
+        let request_text = vm.get_request_text();
+        assert_eq!(request_text, "こんにちは", "Japanese text should remain");
+
+        // Verify yanked text
+        let yanked = vm.get_yanked_text();
+        assert_eq!(
+            yanked,
+            Some(" world".to_string()),
+            "English part should be yanked"
         );
     }
 }

@@ -117,6 +117,27 @@ impl Command for CutCharacterCommand {
     }
 }
 
+/// Cut (delete + yank) from cursor to end of line in normal mode
+pub struct CutToEndOfLineCommand;
+
+impl Command for CutToEndOfLineCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('D'))
+            && context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Cut from cursor to end of line (yank + delete)
+        Ok(vec![CommandEvent::cut_to_end_of_line()])
+    }
+
+    fn name(&self) -> &'static str {
+        "CutToEndOfLine"
+    }
+}
+
 /// Paste yanked text at current cursor position
 pub struct PasteAtCursorCommand;
 
@@ -412,5 +433,56 @@ mod tests {
         let event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
         let command = CutCharacterCommand;
         assert!(!command.is_relevant(&context, &event));
+    }
+
+    // Tests for CutToEndOfLineCommand
+    #[test]
+    fn cut_to_end_of_line_should_be_relevant_for_d_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::empty());
+        let command = CutToEndOfLineCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_to_end_of_line_should_not_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::empty());
+        let command = CutToEndOfLineCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_to_end_of_line_should_not_be_relevant_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::empty());
+        let command = CutToEndOfLineCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_to_end_of_line_should_not_be_relevant_in_response_pane() {
+        let context = create_test_context(EditorMode::Normal, Pane::Response);
+        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::empty());
+        let command = CutToEndOfLineCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_to_end_of_line_should_not_be_relevant_with_modifiers() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::CONTROL);
+        let command = CutToEndOfLineCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn cut_to_end_of_line_should_execute_cut_to_end_of_line_event() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::empty());
+        let command = CutToEndOfLineCommand;
+        let result = command.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::cut_to_end_of_line());
     }
 }

@@ -527,6 +527,99 @@ impl PaneState {
         Some(char_at_cursor.to_string())
     }
 
+    /// Cut from cursor position to end of line and return the deleted text
+    pub fn cut_to_end_of_line_with_return(
+        &mut self,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Option<String> {
+        // Check if editing is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
+            return None; // Editing not allowed on this pane
+        }
+
+        let current_cursor = self.buffer.cursor();
+
+        tracing::debug!(
+            "✂️  PaneState::cut_to_end_of_line_with_return at position {:?}",
+            current_cursor
+        );
+
+        // Get the current line
+        let Some(current_line) = self.buffer.content().get_line(current_cursor.line) else {
+            tracing::debug!("✂️  Invalid line for cut to end of line operation");
+            return None;
+        };
+
+        // Convert line to characters for proper multi-byte handling
+        let chars: Vec<char> = current_line.chars().collect();
+        let line_char_length = chars.len();
+
+        // Check if cursor is at or beyond the end of line
+        if current_cursor.column >= line_char_length {
+            tracing::debug!("✂️  Cursor at or beyond end of line, nothing to cut");
+            return None;
+        }
+
+        // Get text from cursor to end of line
+        let cut_chars: String = chars[current_cursor.column..].iter().collect();
+
+        tracing::debug!(
+            "✂️  Will cut text '{}' from cursor to end of line",
+            cut_chars
+        );
+
+        // Delete the text using delete_range
+        let delete_start = current_cursor;
+        let delete_end = LogicalPosition::new(current_cursor.line, line_char_length);
+        let delete_range = LogicalRange::new(delete_start, delete_end);
+
+        let pane_type = self.buffer.pane();
+        let Some(_event) = self
+            .buffer
+            .content_mut()
+            .delete_range(pane_type, delete_range)
+        else {
+            tracing::warn!("✂️  Failed to cut text to end of line");
+            return None;
+        };
+
+        // Cursor stays at current position (no movement after cutting to end of line)
+        tracing::debug!(
+            "✂️  Cut text to end of line, cursor remains at: {:?}",
+            current_cursor
+        );
+
+        // Rebuild display cache to ensure proper rendering
+        self.build_display_cache(content_width, wrap_enabled, tab_width);
+
+        // Sync display cursor with the logical cursor position after cache rebuild
+        let logical_cursor = self.buffer.cursor();
+        if let Some(display_pos) = self
+            .display_cache
+            .logical_to_display_position(logical_cursor.line, logical_cursor.column)
+        {
+            self.display_cursor = display_pos;
+            tracing::debug!(
+                "✂️  Synced display cursor to {:?} (logical: {:?})",
+                display_pos,
+                logical_cursor
+            );
+        } else {
+            // Fallback: Use logical position as display position
+            self.display_cursor = Position::new(logical_cursor.line, logical_cursor.column);
+            tracing::warn!(
+                "✂️  Failed to sync display cursor, using fallback for logical: {:?}",
+                logical_cursor
+            );
+        }
+
+        tracing::debug!("✂️  Successfully cut text to end of line");
+
+        Some(cut_chars)
+    }
+
     // ========================================
     // Private Helper Methods
     // ========================================
