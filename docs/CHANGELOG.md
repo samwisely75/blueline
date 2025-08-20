@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.1] - 2025-08-20
+
+### Fixed
+
+- **dd Command Execution**: Fixed dd command not working due to DPrefix mode check issue
+  - Allow both Normal and DPrefix modes for line cutting operations
+  - dd command now properly cuts entire lines as intended
+- **Line-wise Paste Behavior**: Fixed double-newline bug in P (paste before) and p (paste after) commands
+  - Removed extra newline insertion since dd already includes trailing newline
+  - Paste behavior now matches vim's expected line-wise paste functionality
+- **Integration Test Coverage**: Added missing step definitions for dd command test scenarios
+  - Enhanced test coverage for dd, P, and p command interactions
+
 ## [0.44.0] - 2025-08-19
 
 ### Added

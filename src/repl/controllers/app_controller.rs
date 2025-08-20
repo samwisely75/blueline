@@ -528,6 +528,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::CutToEndOfLineRequested => {
                 self.handle_cut_to_end_of_line()?;
             }
+            CommandEvent::CutCurrentLineRequested => {
+                self.handle_cut_current_line()?;
+            }
             CommandEvent::ChangeSelectionRequested => {
                 self.handle_change_selection()?;
             }
@@ -973,6 +976,16 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         self.view_model.cut_to_end_of_line()?;
 
         tracing::info!("Cut from cursor to end of line to yank buffer");
+
+        Ok(())
+    }
+
+    /// Handle cutting (delete + yank) entire current line
+    fn handle_cut_current_line(&mut self) -> Result<()> {
+        // Cut entire current line - the method already handles yanking
+        self.view_model.cut_current_line()?;
+
+        tracing::info!("Cut entire current line to yank buffer");
 
         Ok(())
     }

@@ -620,6 +620,134 @@ impl PaneState {
         Some(cut_chars)
     }
 
+    /// Cut entire current line and return the deleted text (dd command)
+    pub fn cut_current_line_with_return(
+        &mut self,
+        content_width: usize,
+        wrap_enabled: bool,
+        tab_width: usize,
+    ) -> Option<String> {
+        // Check if editing is allowed on this pane
+        if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
+            return None; // Editing not allowed on this pane
+        }
+
+        let current_cursor = self.buffer.cursor();
+        let total_lines = self.buffer.content().line_count();
+
+        tracing::debug!(
+            "✂️  PaneState::cut_current_line_with_return at line {} (total: {})",
+            current_cursor.line,
+            total_lines
+        );
+
+        // Get the current line
+        let Some(current_line) = self.buffer.content().get_line(current_cursor.line) else {
+            tracing::debug!("✂️  Invalid line for cut current line operation");
+            return None;
+        };
+
+        // Clone the entire line text (excluding the newline character that's implicit)
+        let cut_text = current_line.to_string();
+
+        tracing::debug!(
+            "✂️  Will cut entire line '{}' at line {}",
+            cut_text,
+            current_cursor.line
+        );
+
+        // For line-wise cuts, we include the newline in the yank buffer
+        let cut_text_with_newline = format!("{cut_text}\n");
+
+        // Delete the entire line including its newline
+        let (delete_start, delete_end) = if current_cursor.line < total_lines - 1 {
+            // Not the last line - delete from start of current line to start of next line
+            (
+                LogicalPosition::new(current_cursor.line, 0),
+                LogicalPosition::new(current_cursor.line + 1, 0),
+            )
+        } else if current_cursor.line > 0 {
+            // Last line but not the only line - delete from end of previous line to end of current line
+            // This removes the newline that precedes the current line
+            let prev_line = self
+                .buffer
+                .content()
+                .get_line(current_cursor.line - 1)
+                .unwrap();
+            (
+                LogicalPosition::new(current_cursor.line - 1, prev_line.len()),
+                LogicalPosition::new(current_cursor.line, current_line.len()),
+            )
+        } else {
+            // Only line in buffer - delete the entire line content
+            (
+                LogicalPosition::new(current_cursor.line, 0),
+                LogicalPosition::new(current_cursor.line, current_line.len()),
+            )
+        };
+
+        let delete_range = LogicalRange::new(delete_start, delete_end);
+        let pane_type = self.buffer.pane();
+
+        let Some(_event) = self
+            .buffer
+            .content_mut()
+            .delete_range(pane_type, delete_range)
+        else {
+            tracing::warn!("✂️  Failed to cut current line");
+            return None;
+        };
+
+        // Position cursor after line deletion
+        let new_total_lines = self.buffer.content().line_count();
+        let new_cursor_line = if current_cursor.line < new_total_lines {
+            // Move to beginning of the line that moved up to take deleted line's place
+            current_cursor.line
+        } else if new_total_lines > 0 {
+            // We deleted the last line, move to beginning of the new last line
+            new_total_lines - 1
+        } else {
+            // We deleted the only line, stay at line 0
+            0
+        };
+
+        let new_cursor = LogicalPosition::new(new_cursor_line, 0);
+        self.buffer.set_cursor(new_cursor);
+
+        tracing::debug!(
+            "✂️  After line cut, moved cursor to beginning of line: {:?}",
+            new_cursor
+        );
+
+        // Rebuild display cache to ensure proper rendering
+        self.build_display_cache(content_width, wrap_enabled, tab_width);
+
+        // Sync display cursor with the logical cursor position after cache rebuild
+        let logical_cursor = self.buffer.cursor();
+        if let Some(display_pos) = self
+            .display_cache
+            .logical_to_display_position(logical_cursor.line, logical_cursor.column)
+        {
+            self.display_cursor = display_pos;
+            tracing::debug!(
+                "✂️  Synced display cursor to {:?} (logical: {:?})",
+                display_pos,
+                logical_cursor
+            );
+        } else {
+            // Fallback: Use logical position as display position
+            self.display_cursor = Position::new(logical_cursor.line, logical_cursor.column);
+            tracing::warn!(
+                "✂️  Failed to sync display cursor, using fallback for logical: {:?}",
+                logical_cursor
+            );
+        }
+
+        tracing::debug!("✂️  Successfully cut entire line");
+
+        Some(cut_text_with_newline)
+    }
+
     // ========================================
     // Private Helper Methods
     // ========================================

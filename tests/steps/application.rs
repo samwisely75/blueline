@@ -33,6 +33,17 @@ async fn given_request_buffer_is_empty(world: &mut BluelineWorld) {
     debug!("Request buffer verified as empty");
 }
 
+#[given("I have started the application")]
+async fn given_i_have_started_the_application(world: &mut BluelineWorld) {
+    info!("=== Starting application ===");
+    world.initialize().await;
+    world.start_app(vec![]).await.expect("Failed to start app");
+
+    // Give the app time to initialize
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    info!("=== Application started successfully ===");
+}
+
 #[given(regex = r"the terminal dimensions are set to width (\d+) and height (\d+)")]
 async fn given_terminal_dimensions(world: &mut BluelineWorld, width: String, height: String) {
     let w: u16 = width.parse().expect("Invalid width");

@@ -708,6 +708,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             EditorMode::VisualBlockInsert => ansi::CURSOR_BAR_STEADY, // Steady I-beam for visual block insert mode
             EditorMode::Command => ansi::CURSOR_BAR_STEADY, // Steady I-beam for command mode
             EditorMode::GPrefix => ansi::CURSOR_BLOCK_STEADY, // Steady block for g-prefix mode
+            EditorMode::DPrefix => ansi::CURSOR_BLOCK_STEADY, // Steady block for d-prefix mode
         };
 
         // Position cursor, set style, and show

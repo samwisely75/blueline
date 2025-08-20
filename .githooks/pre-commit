@@ -6,6 +6,8 @@
 
 set -e
 
+rm -f test_* debug_* *.log *.txt
+
 echo "> Running cargo fix..."
 if ! cargo fix -q --allow-dirty --allow-staged --all-targets --all-features > /dev/null 2>&1; then
     echo "❌ Auto format failed!"
