@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.0] - 2025-08-20
+
+### Added
+
+- **'yy' Command for Yanking Current Line**: Implemented vim-style 'yy' command for copying entire lines
+  - Press 'y' twice to yank (copy) the current line to yank buffer
+  - Works with existing 'p' (paste after) and 'P' (paste before) commands  
+  - Includes trailing newline for proper line-wise paste behavior
+  - Shows "1 line yanked" status message for user feedback
+  - YPrefix mode support for multi-key command recognition
+  - Comprehensive integration test coverage for yy/dd/p/P interactions
+
+### Improved
+
+- **Paste Operation User Experience**: Enhanced paste command feedback
+  - Removed repetitive paste status messages ("X pasted Y-wise")
+  - Status messages now clear after successful paste operations
+  - Only "Nothing to paste" error message remains visible when needed
+  - More professional, less cluttered interface
+
 ## [0.44.1] - 2025-08-20
 
 ### Fixed
