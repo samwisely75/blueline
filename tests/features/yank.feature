@@ -100,3 +100,127 @@ Feature: Yank and paste operations
       """
     When I press "p"
     Then the status message should contain "Nothing to paste"
+
+  Scenario: Yank current line with yy command
+    Given the request buffer contains:
+      """
+      First line
+      Second line
+      Third line
+      """
+    And the cursor is at display line 2 display column 1
+    When I press "y"
+    And I press "y"
+    Then I should be in Normal mode
+    And the status message should contain "1 line yanked"
+
+  Scenario: Yank current line and paste after
+    Given the request buffer contains:
+      """
+      First line
+      Second line
+      Third line
+      """
+    And the cursor is at display line 2 display column 1
+    When I press "y"
+    And I press "y"
+    And I press "p"
+    Then I should see in the request pane:
+      """
+      First line
+      Second line
+      Second line
+      Third line
+      """
+
+  Scenario: Yank current line and paste before
+    Given the request buffer contains:
+      """
+      First line
+      Second line
+      Third line
+      """
+    And the cursor is at display line 2 display column 1
+    When I press "y"
+    And I press "y"
+    And I press "P"
+    Then I should see in the request pane:
+      """
+      First line
+      Second line
+      Second line
+      Third line
+      """
+
+  Scenario: Yank single line file with yy command
+    Given the request buffer contains:
+      """
+      Only line
+      """
+    And the cursor is at display line 1 display column 1
+    When I press "y"
+    And I press "y"
+    And I press "p"
+    Then I should see in the request pane:
+      """
+      Only line
+      Only line
+      """
+
+  Scenario: Yank current line with yy at end of file
+    Given the request buffer contains:
+      """
+      First line
+      Second line
+      Third line
+      """
+    And the cursor is at display line 3 display column 1
+    When I press "y"
+    And I press "y"
+    And I press "p"
+    Then I should see in the request pane:
+      """
+      First line
+      Second line
+      Third line
+      Third line
+      """
+
+  Scenario: Cancel yy command with Escape
+    Given the request buffer contains:
+      """
+      Test line
+      """
+    And the cursor is at display line 1 display column 1
+    When I press "y"
+    Then I should be in YPrefix mode
+    When I press "Escape"
+    Then I should be in Normal mode
+
+  Scenario: Combine dd and yy operations
+    Given the request buffer contains:
+      """
+      Line A
+      Line B
+      Line C
+      Line D
+      """
+    And the cursor is at display line 2 display column 1
+    # Cut line B with dd
+    When I press "d"
+    And I press "d"
+    # Move to line C (now line 2)
+    And the cursor is at display line 2 display column 1
+    # Yank line C with yy
+    When I press "y"
+    And I press "y"
+    # Move to line D (now line 3) and paste both
+    And I press "j"
+    And I press "p"
+    Then I should see in the request pane:
+      """
+      Line A
+      Line C
+      Line D
+      Line C
+      """

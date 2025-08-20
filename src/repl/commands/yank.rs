@@ -228,6 +228,49 @@ impl Command for ChangeSelectionCommand {
     }
 }
 
+/// Enter Y prefix mode on first 'y' press (for yy command)
+pub struct EnterYPrefixCommand;
+
+impl Command for EnterYPrefixCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('y'))
+            && context.state.current_mode == EditorMode::Normal
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::mode_change(EditorMode::YPrefix)])
+    }
+
+    fn name(&self) -> &'static str {
+        "EnterYPrefix"
+    }
+}
+
+/// Yank (copy) entire current line without deleting (yy command)
+pub struct YankCurrentLineCommand;
+
+impl Command for YankCurrentLineCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('y'))
+            && context.state.current_mode == EditorMode::YPrefix
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![
+            CommandEvent::yank_current_line(),
+            CommandEvent::mode_change(EditorMode::Normal),
+        ])
+    }
+
+    fn name(&self) -> &'static str {
+        "YankCurrentLine"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -659,6 +702,109 @@ mod tests {
         let result = command.execute(event, &context).unwrap();
         assert_eq!(result.len(), 2);
         assert_eq!(result[0], CommandEvent::cut_current_line());
+        assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Normal));
+    }
+
+    // Tests for EnterYPrefixCommand
+    #[test]
+    fn enter_y_prefix_should_be_relevant_for_y_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = EnterYPrefixCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_y_prefix_should_not_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = EnterYPrefixCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_y_prefix_should_not_be_relevant_in_visual_mode() {
+        let context = create_test_context(EditorMode::Visual, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = EnterYPrefixCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_y_prefix_should_not_be_relevant_in_response_pane() {
+        let context = create_test_context(EditorMode::Normal, Pane::Response);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = EnterYPrefixCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_y_prefix_should_not_be_relevant_with_modifiers() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::CONTROL);
+        let command = EnterYPrefixCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn enter_y_prefix_should_execute_mode_change_to_y_prefix() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = EnterYPrefixCommand;
+        let result = command.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], CommandEvent::mode_change(EditorMode::YPrefix));
+    }
+
+    // Tests for YankCurrentLineCommand
+    #[test]
+    fn yank_current_line_should_be_relevant_for_y_in_y_prefix_mode() {
+        let context = create_test_context(EditorMode::YPrefix, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = YankCurrentLineCommand;
+        assert!(command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn yank_current_line_should_not_be_relevant_in_normal_mode() {
+        let context = create_test_context(EditorMode::Normal, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = YankCurrentLineCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn yank_current_line_should_not_be_relevant_in_insert_mode() {
+        let context = create_test_context(EditorMode::Insert, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = YankCurrentLineCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn yank_current_line_should_not_be_relevant_in_response_pane() {
+        let context = create_test_context(EditorMode::YPrefix, Pane::Response);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = YankCurrentLineCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn yank_current_line_should_not_be_relevant_with_modifiers() {
+        let context = create_test_context(EditorMode::YPrefix, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::CONTROL);
+        let command = YankCurrentLineCommand;
+        assert!(!command.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn yank_current_line_should_execute_yank_and_mode_change() {
+        let context = create_test_context(EditorMode::YPrefix, Pane::Request);
+        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
+        let command = YankCurrentLineCommand;
+        let result = command.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], CommandEvent::yank_current_line());
         assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Normal));
     }
 }

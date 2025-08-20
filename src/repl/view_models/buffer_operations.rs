@@ -426,6 +426,31 @@ impl ViewModel {
         Ok(())
     }
 
+    /// Yank (copy) entire current line to buffer without deleting (yy command)
+    pub fn yank_current_line(&mut self) -> Result<()> {
+        // Only allow in Request pane and Normal/YPrefix modes
+        if !self.is_in_request_pane()
+            || !matches!(self.mode(), EditorMode::Normal | EditorMode::YPrefix)
+        {
+            return Ok(());
+        }
+
+        // Get the current line text
+        if let Some(line_text) = self.pane_manager.get_current_line_content() {
+            // Add newline if not present (to match vim behavior for line yanks)
+            let line_with_newline = if line_text.ends_with('\n') {
+                line_text
+            } else {
+                format!("{line_text}\n")
+            };
+
+            // Yank the line text to the buffer as line type
+            self.yank_to_buffer_with_type(line_with_newline, YankType::Line)?;
+        }
+
+        Ok(())
+    }
+
     /// Convert all tab characters to spaces in the request buffer
     /// Called when expandtab is enabled
     pub fn convert_tabs_to_spaces(&mut self) -> Result<()> {

@@ -41,6 +41,7 @@ pub enum AppMode {
     VisualLine,  // "-- VISUAL LINE --" message (left-aligned, bold)
     VisualBlock, // "-- VISUAL BLOCK --" message (left-aligned, bold)
     Command,     // Cursor at bottom row with ":" at column 1
+    YPrefix,     // Y prefix mode - waiting for second character after 'y' press
     Unknown,     // Fallback for unclear state
 }
 

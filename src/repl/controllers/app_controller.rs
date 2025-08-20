@@ -531,6 +531,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::CutCurrentLineRequested => {
                 self.handle_cut_current_line()?;
             }
+            CommandEvent::YankCurrentLineRequested => {
+                self.handle_yank_current_line()?;
+            }
             CommandEvent::ChangeSelectionRequested => {
                 self.handle_change_selection()?;
             }
@@ -986,6 +989,16 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         self.view_model.cut_current_line()?;
 
         tracing::info!("Cut entire current line to yank buffer");
+
+        Ok(())
+    }
+
+    /// Handle yanking (copy) entire current line without deleting
+    fn handle_yank_current_line(&mut self) -> Result<()> {
+        // Yank entire current line to yank buffer without deleting
+        self.view_model.yank_current_line()?;
+
+        tracing::info!("Yanked entire current line to yank buffer");
 
         Ok(())
     }
