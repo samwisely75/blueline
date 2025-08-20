@@ -84,8 +84,9 @@ pub use navigation::{
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
 pub use yank::{
-    ChangeSelectionCommand, CutCharacterCommand, CutSelectionCommand, CutToEndOfLineCommand,
-    DeleteSelectionCommand, PasteAfterCommand, PasteAtCursorCommand, YankCommand,
+    ChangeSelectionCommand, CutCharacterCommand, CutCurrentLineCommand, CutSelectionCommand,
+    CutToEndOfLineCommand, DeleteSelectionCommand, EnterDPrefixCommand, PasteAfterCommand,
+    PasteAtCursorCommand, YankCommand,
 };
 
 /// Type alias for command collection to reduce complexity
@@ -157,6 +158,8 @@ impl CommandRegistry {
             Box::new(CutSelectionCommand),
             Box::new(CutCharacterCommand),
             Box::new(CutToEndOfLineCommand),
+            Box::new(EnterDPrefixCommand),
+            Box::new(CutCurrentLineCommand),
             Box::new(ChangeSelectionCommand),
             Box::new(PasteAfterCommand),
             Box::new(PasteAtCursorCommand),
@@ -482,15 +485,21 @@ mod tests {
     }
 
     #[test]
-    fn registry_should_not_handle_regular_d_as_half_page_down() {
+    fn registry_should_handle_regular_d_as_enter_d_prefix() {
         let registry = CommandRegistry::new();
         let context = create_test_context();
 
         let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
         let events = registry.process_event(event, &context).unwrap();
 
-        // Should not produce any events (regular 'd' has no command in Normal mode)
-        assert!(events.is_empty());
+        // Should produce a mode change event to DPrefix mode (for dd command)
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            events[0],
+            CommandEvent::ModeChangeRequested {
+                new_mode: EditorMode::DPrefix
+            }
+        ));
     }
 
     #[test]

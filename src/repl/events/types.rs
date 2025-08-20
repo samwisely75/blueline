@@ -57,6 +57,8 @@ pub enum EditorMode {
     Command,
     /// G prefix mode - waiting for second character after 'g' press
     GPrefix,
+    /// D prefix mode - waiting for second character after 'd' press
+    DPrefix,
     /// Visual mode - character-wise text selection mode (vim's 'v')
     Visual,
     /// Visual Line mode - line-wise text selection mode (vim's 'V')

@@ -402,6 +402,29 @@ impl ViewModel {
         Ok(())
     }
 
+    /// Cut entire current line and yank to buffer (dd command)
+    pub fn cut_current_line(&mut self) -> Result<()> {
+        // Only allow in Request pane and Normal mode
+        if !self.is_in_request_pane() || self.mode() != EditorMode::Normal {
+            return Ok(());
+        }
+
+        // Delete entire current line and get the text for yanking
+        if let Some(cut_text) = self.pane_manager.cut_current_line() {
+            // Yank the cut text to the buffer as line type (includes newline)
+            self.yank_to_buffer_with_type(cut_text, YankType::Line)?;
+
+            // Emit view events for display update
+            self.emit_view_event(vec![
+                ViewEvent::RequestContentChanged,
+                ViewEvent::ActiveCursorUpdateRequired,
+                ViewEvent::CurrentAreaRedrawRequired,
+            ])?;
+        }
+
+        Ok(())
+    }
+
     /// Convert all tab characters to spaces in the request buffer
     /// Called when expandtab is enabled
     pub fn convert_tabs_to_spaces(&mut self) -> Result<()> {
@@ -703,5 +726,228 @@ mod tests {
             Some(" world".to_string()),
             "English part should be yanked"
         );
+    }
+
+    #[test]
+    fn test_cut_current_line_in_normal_mode() {
+        let mut vm = ViewModel::new();
+
+        // Start in Insert mode and add multiple lines
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("line 1\nline 2\nline 3").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Move to line 1 (middle line)
+        vm.set_cursor_position(LogicalPosition { line: 1, column: 3 })
+            .unwrap();
+
+        // Cut current line
+        let result = vm.cut_current_line();
+        assert!(
+            result.is_ok(),
+            "cut_current_line should work in Normal mode"
+        );
+
+        // Verify line was removed and cursor moved appropriately
+        let request_text = vm.get_request_text();
+        assert_eq!(
+            request_text, "line 1\nline 3",
+            "Middle line should be removed"
+        );
+
+        // Verify cursor moved to beginning of next line (now line 1)
+        let cursor_pos = vm.get_cursor_position();
+        assert_eq!(
+            cursor_pos,
+            LogicalPosition { line: 1, column: 0 },
+            "Cursor should be at beginning of next line"
+        );
+
+        // Verify yanked text is in buffer with newline (Line type)
+        let yanked = vm.get_yanked_text();
+        assert_eq!(
+            yanked,
+            Some("line 2\n".to_string()),
+            "Cut line should be in yank buffer with newline"
+        );
+    }
+
+    #[test]
+    fn test_cut_current_line_last_line() {
+        let mut vm = ViewModel::new();
+
+        // Start in Insert mode and add multiple lines
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("line 1\nline 2\nline 3").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Move to last line (line 2)
+        vm.set_cursor_position(LogicalPosition { line: 2, column: 2 })
+            .unwrap();
+
+        // Cut current line
+        let result = vm.cut_current_line();
+        assert!(result.is_ok(), "cut_current_line should work on last line");
+
+        // Verify last line was removed
+        let request_text = vm.get_request_text();
+        assert_eq!(
+            request_text, "line 1\nline 2",
+            "Last line should be removed"
+        );
+
+        // Verify cursor moved to beginning of previous line (now last line)
+        let cursor_pos = vm.get_cursor_position();
+        assert_eq!(
+            cursor_pos,
+            LogicalPosition { line: 1, column: 0 },
+            "Cursor should be at beginning of new last line"
+        );
+
+        // Verify yanked text
+        let yanked = vm.get_yanked_text();
+        assert_eq!(
+            yanked,
+            Some("line 3\n".to_string()),
+            "Cut line should be in yank buffer"
+        );
+    }
+
+    #[test]
+    fn test_cut_current_line_single_line() {
+        let mut vm = ViewModel::new();
+
+        // Start in Insert mode and add single line
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("only line").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Move cursor to middle of line
+        vm.set_cursor_position(LogicalPosition { line: 0, column: 3 })
+            .unwrap();
+
+        // Cut current line
+        let result = vm.cut_current_line();
+        assert!(
+            result.is_ok(),
+            "cut_current_line should work on single line"
+        );
+
+        // Verify line was removed, leaving empty buffer
+        let request_text = vm.get_request_text();
+        assert_eq!(
+            request_text, "",
+            "Single line should be removed, leaving empty"
+        );
+
+        // Verify cursor at line 0, column 0
+        let cursor_pos = vm.get_cursor_position();
+        assert_eq!(
+            cursor_pos,
+            LogicalPosition { line: 0, column: 0 },
+            "Cursor should be at origin after cutting only line"
+        );
+
+        // Verify yanked text
+        let yanked = vm.get_yanked_text();
+        assert_eq!(
+            yanked,
+            Some("only line\n".to_string()),
+            "Cut line should be in yank buffer"
+        );
+    }
+
+    #[test]
+    fn test_cut_current_line_blocked_in_insert_mode() {
+        let mut vm = ViewModel::new();
+
+        // Start in Insert mode and add content
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("line 1\nline 2").unwrap();
+        // Stay in Insert mode
+
+        // Try to cut (should be blocked)
+        let result = vm.cut_current_line();
+        assert!(result.is_ok(), "Method should return Ok but do nothing");
+
+        // Verify text unchanged
+        let request_text = vm.get_request_text();
+        assert_eq!(
+            request_text, "line 1\nline 2",
+            "Text should be unchanged in Insert mode"
+        );
+
+        // Verify nothing was yanked
+        let yanked = vm.get_yanked_text();
+        assert!(yanked.is_none(), "Nothing should be yanked in Insert mode");
+    }
+
+    #[test]
+    fn test_cut_current_line_with_multibyte_characters() {
+        let mut vm = ViewModel::new();
+
+        // Start in Insert mode and add content with multibyte characters
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("こんにちは\n世界\nHello").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Move to line 1 (Japanese line)
+        vm.set_cursor_position(LogicalPosition { line: 1, column: 1 })
+            .unwrap();
+
+        // Cut current line
+        let result = vm.cut_current_line();
+        assert!(
+            result.is_ok(),
+            "cut_current_line should work with multibyte chars"
+        );
+
+        // Verify correct line was cut
+        let request_text = vm.get_request_text();
+        assert_eq!(
+            request_text, "こんにちは\nHello",
+            "Japanese line should be removed"
+        );
+
+        // Verify cursor moved to beginning of next line
+        let cursor_pos = vm.get_cursor_position();
+        assert_eq!(
+            cursor_pos,
+            LogicalPosition { line: 1, column: 0 },
+            "Cursor should be at beginning of next line"
+        );
+
+        // Verify yanked text
+        let yanked = vm.get_yanked_text();
+        assert_eq!(
+            yanked,
+            Some("世界\n".to_string()),
+            "Japanese text should be yanked"
+        );
+    }
+
+    #[test]
+    fn test_cut_current_line_yank_type_is_line() {
+        let mut vm = ViewModel::new();
+
+        // Start in Insert mode and add content
+        vm.change_mode(EditorMode::Insert).unwrap();
+        vm.insert_text("test line").unwrap();
+        vm.change_mode(EditorMode::Normal).unwrap();
+
+        // Cut current line
+        let result = vm.cut_current_line();
+        assert!(result.is_ok(), "cut_current_line should work");
+
+        // Verify yanked entry is Line type
+        let yanked_entry = vm.get_yanked_entry();
+        assert!(yanked_entry.is_some(), "Should have yanked entry");
+
+        let entry = yanked_entry.unwrap();
+        assert_eq!(
+            entry.text, "test line\n",
+            "Yanked text should include newline"
+        );
+        assert_eq!(entry.yank_type, YankType::Line, "Yank type should be Line");
     }
 }

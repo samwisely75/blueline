@@ -648,6 +648,18 @@ impl PaneManager {
         )
     }
 
+    /// Cut (delete and yank) entire current line, returning deleted text
+    pub fn cut_current_line(&mut self) -> Option<String> {
+        let content_width = self.get_content_width();
+
+        // Delegate to current pane with capability checking
+        self.panes[self.current_pane].cut_current_line_with_return(
+            content_width,
+            self.wrap_enabled,
+            self.tab_width,
+        )
+    }
+
     /// Set cursor position in current area
     pub fn set_current_cursor_position(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
         self.panes[self.current_pane].set_current_cursor_position(position)
