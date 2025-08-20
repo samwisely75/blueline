@@ -157,15 +157,11 @@ impl ViewModel {
         let original_mode = self.mode();
         self.change_mode(EditorMode::Insert)?;
 
-        // Insert the text followed by a newline
+        // Insert the text (dd already includes the newline)
         for ch in text.chars() {
             let events = self.pane_manager.insert_char(ch);
             self.emit_view_event(events)?;
         }
-
-        // Add newline at the end
-        let events = self.pane_manager.insert_char('\n');
-        self.emit_view_event(events)?;
 
         // Switch back to original mode
         self.change_mode(original_mode)?;
@@ -195,11 +191,14 @@ impl ViewModel {
         let original_mode = self.mode();
         self.change_mode(EditorMode::Insert)?;
 
-        // Insert newline first, then the text
+        // Insert newline first to move to next line, then the text (without its trailing newline)
         let events = self.pane_manager.insert_char('\n');
         self.emit_view_event(events)?;
 
-        for ch in text.chars() {
+        // Insert text but skip the trailing newline that dd added
+        let text_without_trailing_newline = text.strip_suffix('\n').unwrap_or(text);
+
+        for ch in text_without_trailing_newline.chars() {
             let events = self.pane_manager.insert_char(ch);
             self.emit_view_event(events)?;
         }
@@ -404,8 +403,10 @@ impl ViewModel {
 
     /// Cut entire current line and yank to buffer (dd command)
     pub fn cut_current_line(&mut self) -> Result<()> {
-        // Only allow in Request pane and Normal mode
-        if !self.is_in_request_pane() || self.mode() != EditorMode::Normal {
+        // Only allow in Request pane and Normal/DPrefix modes
+        if !self.is_in_request_pane()
+            || !matches!(self.mode(), EditorMode::Normal | EditorMode::DPrefix)
+        {
             return Ok(());
         }
 
