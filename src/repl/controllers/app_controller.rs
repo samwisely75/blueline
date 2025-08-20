@@ -1462,6 +1462,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             let char_count = yank_entry.text.chars().count();
             let line_count = yank_entry.text.lines().count();
 
+            // Clear any previous status message (e.g., "1 line yanked")
+            self.view_model.clear_status_message();
+
             tracing::info!(
                 "Pasted {} characters ({} lines) after cursor as {:?}",
                 char_count,
@@ -1491,6 +1494,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
             let char_count = yank_entry.text.chars().count();
             let line_count = yank_entry.text.lines().count();
+
+            // Clear any previous status message (e.g., "1 line yanked")
+            self.view_model.clear_status_message();
 
             tracing::info!(
                 "Pasted {} characters ({} lines) at cursor as {:?}",
