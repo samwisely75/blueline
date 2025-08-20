@@ -119,6 +119,9 @@ pub enum CommandEvent {
     /// Request to cut (delete + yank) entire current line
     CutCurrentLineRequested,
 
+    /// Request to yank (copy) entire current line without deleting
+    YankCurrentLineRequested,
+
     /// Request to paste yanked text after cursor
     PasteAfterRequested,
 
@@ -260,6 +263,11 @@ impl CommandEvent {
     /// Create a cut current line event
     pub fn cut_current_line() -> Self {
         Self::CutCurrentLineRequested
+    }
+
+    /// Create a yank current line event
+    pub fn yank_current_line() -> Self {
+        Self::YankCurrentLineRequested
     }
 
     /// Create a paste after event

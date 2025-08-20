@@ -127,6 +127,16 @@ async fn then_should_be_visual_block_mode(world: &mut BluelineWorld) {
     );
 }
 
+#[then(regex = r"^I (?:should be|am) in YPrefix mode$")]
+async fn then_should_be_yprefix_mode(world: &mut BluelineWorld) {
+    let current_mode = world.get_current_mode().await;
+    assert_eq!(
+        current_mode,
+        AppMode::YPrefix,
+        "Expected YPrefix mode, but found {current_mode:?}"
+    );
+}
+
 #[then("I should remain in Insert mode")]
 async fn then_should_remain_insert_mode(world: &mut BluelineWorld) {
     debug!("Verifying still in Insert mode");

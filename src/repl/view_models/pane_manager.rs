@@ -660,6 +660,16 @@ impl PaneManager {
         )
     }
 
+    /// Get line content at current cursor position
+    pub fn get_current_line_content(&self) -> Option<String> {
+        let cursor_pos = self.get_current_cursor_position();
+        self.panes[self.current_pane]
+            .buffer
+            .content()
+            .get_line(cursor_pos.line)
+            .map(|line| line.to_string())
+    }
+
     /// Set cursor position in current area
     pub fn set_current_cursor_position(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
         self.panes[self.current_pane].set_current_cursor_position(position)

@@ -531,6 +531,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::CutCurrentLineRequested => {
                 self.handle_cut_current_line()?;
             }
+            CommandEvent::YankCurrentLineRequested => {
+                self.handle_yank_current_line()?;
+            }
             CommandEvent::ChangeSelectionRequested => {
                 self.handle_change_selection()?;
             }
@@ -990,6 +993,20 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         Ok(())
     }
 
+    /// Handle yanking (copy) entire current line without deleting
+    fn handle_yank_current_line(&mut self) -> Result<()> {
+        // Yank entire current line to yank buffer without deleting
+        self.view_model.yank_current_line()?;
+
+        // Show status message
+        self.view_model
+            .set_status_message("1 line yanked".to_string());
+
+        tracing::info!("Yanked entire current line to yank buffer");
+
+        Ok(())
+    }
+
     /// Handle change selection operation (Visual Block mode 'c' command)
     ///
     /// This implements vim's Visual Block change command:
@@ -1442,21 +1459,11 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             // Paste the text after the current cursor position using type-aware paste
             self.view_model.paste_after_with_type(&yank_entry)?;
 
-            // Show feedback
             let char_count = yank_entry.text.chars().count();
             let line_count = yank_entry.text.lines().count();
-            let message = match yank_entry.yank_type {
-                YankType::Character => {
-                    if line_count > 1 {
-                        format!("{line_count} lines pasted (character-wise)")
-                    } else {
-                        format!("{char_count} characters pasted")
-                    }
-                }
-                YankType::Line => format!("{line_count} lines pasted (line-wise)"),
-                YankType::Block => format!("Block pasted ({line_count} lines, {char_count} chars)"),
-            };
-            self.view_model.set_status_message(message);
+
+            // Clear any previous status message (e.g., "1 line yanked")
+            self.view_model.clear_status_message();
 
             tracing::info!(
                 "Pasted {} characters ({} lines) after cursor as {:?}",
@@ -1485,21 +1492,11 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             // Paste the text at current position (before cursor) using type-aware paste
             self.view_model.paste_with_type(&yank_entry)?;
 
-            // Show feedback
             let char_count = yank_entry.text.chars().count();
             let line_count = yank_entry.text.lines().count();
-            let message = match yank_entry.yank_type {
-                YankType::Character => {
-                    if line_count > 1 {
-                        format!("{line_count} lines pasted (character-wise)")
-                    } else {
-                        format!("{char_count} characters pasted")
-                    }
-                }
-                YankType::Line => format!("{line_count} lines pasted (line-wise)"),
-                YankType::Block => format!("Block pasted ({line_count} lines, {char_count} chars)"),
-            };
-            self.view_model.set_status_message(message);
+
+            // Clear any previous status message (e.g., "1 line yanked")
+            self.view_model.clear_status_message();
 
             tracing::info!(
                 "Pasted {} characters ({} lines) at cursor as {:?}",
