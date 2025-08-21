@@ -9,7 +9,7 @@
 use crate::repl::events::{
     EditorMode, LogicalPosition, LogicalRange, ModelEvent, PaneCapabilities, ViewEvent,
 };
-use crate::repl::geometry::Position;
+use crate::repl::models::geometry::Position;
 
 use super::PaneState;
 
@@ -1168,7 +1168,7 @@ impl PaneState {
 mod tests {
     use super::*;
     use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities};
-    use crate::repl::geometry::{Dimensions, Position};
+    use crate::repl::models::geometry::{Dimensions, Position};
     use crate::repl::models::{BufferModel, DisplayCache};
 
     fn create_test_pane_state_with_content(content: &str) -> PaneState {

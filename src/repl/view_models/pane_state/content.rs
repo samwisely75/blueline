@@ -6,7 +6,7 @@
 //! - Content manipulation with capability checking
 
 use crate::repl::events::{Pane, PaneCapabilities, ViewEvent};
-use crate::repl::geometry::Position;
+use crate::repl::models::geometry::Position;
 use crate::repl::models::BufferModel;
 
 use super::PaneState;

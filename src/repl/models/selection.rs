@@ -4,7 +4,7 @@
 //! Contains only start and end positions without mode or pane references.
 //! Methods are pure functions that work with provided context.
 
-use crate::repl::events::LogicalPosition;
+use crate::repl::models::LogicalPosition;
 
 /// Represents a text selection with start and end positions
 ///

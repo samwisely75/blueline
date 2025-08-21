@@ -6,7 +6,7 @@
 //! - Display width calculations for multi-byte characters
 //! - Line number width management
 
-use crate::repl::geometry::Dimensions;
+use crate::repl::models::geometry::Dimensions;
 use crate::repl::models::{DisplayCache, DisplayLine};
 use std::collections::HashMap;
 use std::time::Instant;

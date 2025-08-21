@@ -4,7 +4,7 @@
 //! This module provides high-level cursor operations that work with the current/other area abstraction.
 
 use crate::repl::events::LogicalPosition;
-use crate::repl::geometry::Position;
+use crate::repl::models::geometry::Position;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 

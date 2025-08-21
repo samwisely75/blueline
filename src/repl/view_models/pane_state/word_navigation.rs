@@ -7,7 +7,7 @@
 //! - Support for Japanese and multi-byte character word boundaries
 
 use crate::repl::events::{EditorMode, LogicalPosition, PaneCapabilities, ViewEvent};
-use crate::repl::geometry::Position;
+use crate::repl::models::geometry::Position;
 
 use super::{OptionalPosition, PaneState};
 

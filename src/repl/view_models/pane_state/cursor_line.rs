@@ -7,7 +7,7 @@
 //! - Append mode positioning
 
 use crate::repl::events::{EditorMode, LogicalPosition, PaneCapabilities, ViewEvent};
-use crate::repl::geometry::Position;
+use crate::repl::models::geometry::Position;
 
 use super::PaneState;
 

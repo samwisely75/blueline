@@ -3,7 +3,7 @@
 //! Provides display line caching for efficient word wrap rendering and cursor positioning.
 //! Maps logical lines to display lines with position tracking for navigation.
 
-use crate::repl::geometry::Position;
+use crate::repl::models::geometry::Position;
 use crate::repl::models::buffer_char::BufferLine;
 use crate::repl::models::display_line::DisplayLine;
 use std::collections::HashMap;

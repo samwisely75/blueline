@@ -15,7 +15,7 @@ mod pane_manager;
 mod pane_state;
 mod rendering_coordinator;
 // screen_buffer moved to models/
-mod selection;
+// selection moved to models/
 mod settings_manager;
 // yank_buffer moved to models/
 
@@ -26,6 +26,5 @@ pub use core::ViewModel;
 pub use core::DisplayLineData;
 pub use pane_manager::PaneManager;
 pub use pane_state::PaneState;
-pub use selection::Selection;
-// YankBuffer types now imported from models
-pub use crate::repl::models::{YankEntry, YankType};
+// Selection and YankBuffer types now imported from models
+pub use crate::repl::models::{Selection, YankEntry, YankType};
