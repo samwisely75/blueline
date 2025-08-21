@@ -1,5 +1,94 @@
 # Session Notes
 
+## [2025-08-21] Model Consolidation and Phase 1 Completion
+
+### User Request Summary
+- Complete Phase 1 of unified Command architecture and close GH #197
+- Move data model files to models/ directory for better organization
+- Consolidate overlapping types (initially LogicalPosition vs Position, but later decided to keep separate)
+- Fix compilation errors and maintain backward compatibility
+
+### What We Accomplished
+
+#### ✅ Phase 1: Unified Command Pattern Infrastructure - COMPLETE
+- Successfully implemented unified command system where commands contain both `is_relevant()` and `handle()` methods
+- Created `UnifiedCommandRegistry` that processes events by checking each command sequentially  
+- Integrated into main event loop with gradual migration strategy via `handle_key_event_with_unified_first()`
+- YankSelectionCommand working perfectly in the application
+
+#### ✅ Model Organization Cleanup - COMPLETE
+Successfully moved all data model files to `/src/repl/models/` directory:
+
+1. **yank_buffer.rs** → `models/yank_buffer.rs` (Fixed issue #180)
+   - Moved YankBuffer, ClipboardYankBuffer, MemoryYankBuffer to models
+   - Updated imports throughout codebase
+
+2. **screen_buffer.rs** → `models/screen_buffer.rs` 
+   - Completed display infrastructure grouping
+   - ScreenBuffer, BufferCell now properly in models
+
+3. **geometry.rs** → `models/geometry.rs`
+   - Position, Dimensions types for display coordinates
+   - Maintained original `row/col` field naming for compatibility
+
+4. **selection.rs** → `models/selection.rs`
+   - Selection type for text selection operations
+   - Uses LogicalPosition for text coordinates
+
+5. **NEW: logical_position.rs** → `models/logical_position.rs`
+   - Created new file for LogicalPosition, LogicalRange types
+   - Moved from events/types.rs to consolidate data models
+   - Added backward compatibility re-exports in events/types.rs
+
+#### ✅ Import and Compilation Fixes - COMPLETE
+- Updated all geometry imports throughout codebase: `use crate::repl::geometry::` → `use crate::repl::models::geometry::`
+- Updated models/mod.rs to export all new types
+- Updated view_models/mod.rs and repl/mod.rs for new module structure
+- All 467 tests passing successfully
+- Clean compilation with no errors or warnings
+
+### Key Decisions Made
+1. **Kept LogicalPosition and Position separate** - User decided they are logically different (text coordinates vs display coordinates) and should coexist rather than be consolidated
+2. **Maintained backward compatibility** - Re-exported LogicalPosition/LogicalRange from events/types.rs so existing imports continue to work
+3. **Used patch version v0.45.2** - This was organizational refactoring, not a new feature
+
+### Technical Implementation Details
+- **Unified Command Pattern**: Commands are self-contained with `is_relevant()` check and `handle()` execution
+- **Gradual Migration Strategy**: New system integrated alongside old system for feature-by-feature migration
+- **Clean Model Organization**: All pure data structures now properly located in models/ directory
+- **Type Safety**: Maintained strong typing with LogicalPosition (line/column) for text and Position (row/col) for display
+
+### Temporary Changes
+None - all changes are permanent architectural improvements
+
+### Version Information
+- **Current Version**: v0.45.2
+- **Git Tag**: v0.45.2
+- **Commit**: "Consolidate data models into models/ directory"
+
+### Next Steps / TODO
+- **Phase 2**: Migrate more commands to unified system
+  - Candidates: navigation commands, editing commands, mode commands
+  - Use existing YankSelectionCommand as template
+  - Continue gradual migration approach
+
+### Architecture Status
+- ✅ **Phase 1**: Unified Command Infrastructure - COMPLETE  
+- 🔄 **Phase 2**: Migrate Business Logic to Commands - READY TO START
+- ⏳ **Phase 3**: Merge PaneManager into ViewModel - PENDING
+- ⏳ **Phase 4**: Move Event Loop to ViewModel - PENDING  
+- ⏳ **Phase 5**: Decouple ViewRenderer - PENDING
+- ⏳ **Phase 6**: Dual Event Loops with Ghost Cursor Fix - PENDING
+
+### Notes for Next Session
+- Start Phase 2 by selecting commands to migrate to unified system
+- YankSelectionCommand is working perfectly as template
+- Focus on simple commands first (cursor movement, basic text operations)  
+- Use `handle_key_event_with_unified_first()` pattern for gradual migration
+- All infrastructure is in place for rapid command migration
+
+---
+
 ## 2025-08-21 Session - Architecture Refactoring Plan for Issue #178
 
 ### User Request Summary
