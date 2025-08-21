@@ -18,10 +18,10 @@
 //! 4. HTTP Operations: Manages request/response lifecycle with status updates
 
 use crate::repl::events::{EditorMode, EventBus, LogicalPosition, ModelEvent, Pane, ViewEvent};
+use crate::repl::models::ScreenBuffer;
+use crate::repl::models::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer};
 use crate::repl::models::{ResponseModel, StatusLine};
 use crate::repl::view_models::pane_manager::PaneManager;
-use crate::repl::view_models::screen_buffer::ScreenBuffer;
-use crate::repl::models::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer};
 // use anyhow::Result; // Currently unused
 use bluenote::HttpClient;
 use std::collections::HashMap;

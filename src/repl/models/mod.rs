@@ -12,6 +12,7 @@ pub mod display_char;
 pub mod display_line;
 pub mod request_model;
 pub mod response_model;
+pub mod screen_buffer;
 pub mod status_line;
 pub mod yank_buffer;
 
@@ -23,6 +24,7 @@ pub use display_char::DisplayChar;
 pub use display_line::DisplayLine;
 pub use request_model::{HttpHeaders, RequestModel};
 pub use response_model::ResponseModel;
+pub use screen_buffer::{BufferCell, ScreenBuffer};
 pub use status_line::{HttpStatus, StatusLine};
 pub use yank_buffer::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType};
 

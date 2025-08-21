@@ -14,7 +14,7 @@ mod mode_manager;
 mod pane_manager;
 mod pane_state;
 mod rendering_coordinator;
-mod screen_buffer;
+// screen_buffer moved to models/
 mod selection;
 mod settings_manager;
 // yank_buffer moved to models/
