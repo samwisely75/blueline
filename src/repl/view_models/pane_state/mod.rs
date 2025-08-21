@@ -24,6 +24,7 @@
 use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities};
 use crate::repl::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache};
+use crate::repl::view_models::Selection;
 use std::ops::{Index, IndexMut};
 
 // Re-export all modules
@@ -33,6 +34,7 @@ pub mod cursor_basic;
 pub mod cursor_line;
 pub mod display;
 pub mod scrolling;
+pub mod selection_methods;
 pub mod text_operations;
 pub mod visual_selection;
 pub mod word_navigation;
@@ -98,6 +100,9 @@ pub struct PaneState {
     pub display_cache: DisplayCache,
     pub display_cursor: Position, // (display_line, display_column)
     pub scroll_offset: Position,  // (vertical, horizontal)
+    // New encapsulated selection object
+    pub selection: Option<Selection>,
+    // Legacy visual selection fields (to be migrated gradually)
     pub visual_selection_start: Option<LogicalPosition>,
     pub visual_selection_end: Option<LogicalPosition>,
     // Last visual selection for 'gv' command
@@ -124,6 +129,7 @@ impl PaneState {
             display_cache: DisplayCache::new(),
             display_cursor: Position::origin(),
             scroll_offset: Position::origin(),
+            selection: None, // New selection object
             visual_selection_start: None,
             visual_selection_end: None,
             last_visual_selection_start: None,

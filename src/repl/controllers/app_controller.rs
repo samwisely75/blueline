@@ -12,7 +12,13 @@ use crate::repl::{
     events::{EditorMode, LogicalPosition, Pane, SimpleEventBus},
     io::{EventStream, RenderStream},
     utils::parse_request_from_text,
-    view_models::{ViewModel, YankType},
+    view_models::{
+        commands::{
+            Command, ModelEvent, UnifiedCommandRegistry,
+            events::YankType as NewYankType,
+        },
+        ViewModel, YankType,
+    },
     views::{TerminalRenderer, ViewRenderer},
 };
 use anyhow::Result;
@@ -24,8 +30,11 @@ use std::time::Duration;
 pub struct AppController<ES: EventStream, RS: RenderStream> {
     view_model: ViewModel,
     view_renderer: TerminalRenderer<RS>,
+    // Old command system (being phased out)
     command_registry: CommandRegistry,
     ex_command_registry: ExCommandRegistry,
+    // New unified command system
+    unified_command_registry: UnifiedCommandRegistry,
     #[allow(dead_code)]
     event_bus: SimpleEventBus,
     event_stream: ES,
@@ -42,6 +51,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         let view_renderer = TerminalRenderer::with_render_stream(render_stream)?;
         let command_registry = CommandRegistry::new();
         let ex_command_registry = ExCommandRegistry::new();
+        let unified_command_registry = UnifiedCommandRegistry::new();
         let event_bus = SimpleEventBus::new();
 
         // Synchronize view model with actual terminal size
@@ -62,6 +72,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             view_renderer,
             command_registry,
             ex_command_registry,
+            unified_command_registry,
             event_bus,
             event_stream,
             should_quit: false,
@@ -235,6 +246,44 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             self.render_if_needed()?;
         }
 
+        Ok(())
+    }
+    
+    /// Handle key events using the new unified command system
+    /// 
+    /// This demonstrates the new architecture where Commands contain both
+    /// key binding logic (is_relevant) and business logic (handle).
+    async fn handle_key_event_unified(&mut self, key_event: KeyEvent) -> Result<()> {
+        tracing::debug!("Processing key event with unified system: {:?}", key_event);
+
+        // Create command context from current state
+        let context = crate::repl::view_models::commands::CommandContext::from_view_model(&self.view_model);
+        let current_mode = self.view_model.get_mode();
+
+        // Find the first relevant command
+        if let Some(command) = self.unified_command_registry.process_key_event(key_event, current_mode, &context) {
+            tracing::debug!("Executing unified command: {}", command.name());
+            
+            // Execute the command
+            let events = command.handle(&mut self.view_model)?;
+            
+            tracing::debug!("Command {} produced {} events", command.name(), events.len());
+            
+            // Process the ModelEvents
+            for event in events {
+                self.process_model_event_internal(event)?;
+            }
+            
+            // Render changes
+            if !self.should_quit {
+                self.render_if_needed()?;
+            }
+        } else {
+            tracing::debug!("No unified command found for key {:?} in mode {:?}", key_event, current_mode);
+            // Fall back to old system for now
+            self.handle_key_event(key_event).await?;
+        }
+        
         Ok(())
     }
 
@@ -1570,6 +1619,106 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     pub fn should_quit(&self) -> bool {
         self.should_quit
     }
+
+    /// Execute a Command using the new Command Pattern
+    /// 
+    /// This method allows execution of Commands that emit ModelEvents
+    /// alongside the existing command system. This enables gradual migration.
+    pub fn execute_command(&mut self, command: Box<dyn Command>) -> Result<()> {
+        tracing::debug!("Executing command: {}", command.name());
+        
+        let events = command.handle(&mut self.view_model)?;
+        
+        tracing::debug!("Command {} produced {} events", command.name(), events.len());
+        
+        // Process each ModelEvent and convert to actual state changes
+        for event in events {
+            self.process_model_event_internal(event)?;
+        }
+        
+        Ok(())
+    }
+    
+    /// Process a ModelEvent and convert it to actual state changes
+    /// 
+    /// This is the bridge between semantic ModelEvents and the actual
+    /// application state changes. It handles status messages, logging,
+    /// and any necessary side effects.
+    #[cfg(test)]
+    pub fn process_model_event(&mut self, event: ModelEvent) -> Result<()> {
+        self.process_model_event_internal(event)
+    }
+    
+    /// Internal implementation of process_model_event
+    fn process_model_event_internal(&mut self, event: ModelEvent) -> Result<()> {
+        match event {
+            ModelEvent::TextYanked { pane, text, yank_type } => {
+                // Convert NewYankType to existing YankType
+                let existing_yank_type = match yank_type {
+                    NewYankType::Character => YankType::Character,
+                    NewYankType::Line => YankType::Line,
+                    NewYankType::Block => YankType::Block,
+                };
+                
+                // Store in yank buffer
+                self.view_model.yank_to_buffer_with_type(text.clone(), existing_yank_type)?;
+                
+                // Create appropriate status message
+                let char_count = text.chars().count();
+                let line_count = text.lines().count();
+                let message = match yank_type {
+                    NewYankType::Character => {
+                        if line_count > 1 {
+                            format!("{line_count} lines yanked (character-wise)")
+                        } else {
+                            format!("{char_count} characters yanked")
+                        }
+                    },
+                    NewYankType::Line => {
+                        format!("{line_count} lines yanked")
+                    },
+                    NewYankType::Block => {
+                        format!("Block yanked ({line_count} lines, {char_count} chars)")
+                    },
+                };
+                
+                self.view_model.set_status_message(message);
+                
+                tracing::info!(
+                    "Yanked {} characters ({} lines) to buffer as {:?} from {:?}",
+                    char_count,
+                    line_count,
+                    yank_type,
+                    pane
+                );
+            },
+            
+            ModelEvent::ModeChanged { old_mode, new_mode } => {
+                self.view_model.change_mode(new_mode)?;
+                tracing::debug!("Mode changed from {:?} to {:?}", old_mode, new_mode);
+            },
+            
+            ModelEvent::SelectionCleared { pane } => {
+                // Selection clearing happens automatically when mode changes to Normal
+                tracing::debug!("Selection cleared for {:?}", pane);
+            },
+            
+            ModelEvent::StatusMessageSet { message } => {
+                self.view_model.set_status_message(message);
+            },
+            
+            ModelEvent::StatusMessageCleared => {
+                self.view_model.set_status_message(String::new());
+            },
+            
+            // Handle other events as we implement them
+            _ => {
+                tracing::debug!("ModelEvent not yet implemented: {:?}", event);
+            }
+        }
+        
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1593,6 +1742,89 @@ mod tests {
             let controller = controller.unwrap();
             assert_eq!(controller.view_model().get_mode(), EditorMode::Normal);
             assert_eq!(controller.view_model().get_current_pane(), Pane::Request);
+        }
+    }
+
+    #[test]
+    fn app_controller_should_execute_yank_selection_command() {
+        use crate::repl::view_models::commands::yank::YankSelectionCommand;
+        
+        if crossterm::terminal::size().is_ok() {
+            let cmd_args = CommandLineArgs::parse_from(["test"]);
+            let config = AppConfig::from_args(cmd_args);
+            let mut controller = AppController::with_io_streams(
+                config,
+                crate::repl::io::TerminalEventStream::new(),
+                crate::repl::io::TerminalRenderStream::new(),
+            ).unwrap();
+
+            // Test YankSelectionCommand in Normal mode (should fail as expected)
+            let command = Box::new(YankSelectionCommand::new());
+            let result = controller.execute_command(command);
+
+            // Verify the command failed as expected (not in visual mode)
+            assert!(result.is_err(), "Command should fail when not in visual mode");
+            
+            // Verify we're still in Normal mode
+            assert_eq!(controller.view_model().get_mode(), EditorMode::Normal);
+        }
+    }
+
+    #[test] 
+    fn app_controller_should_process_model_events() {
+        use crate::repl::view_models::commands::{ModelEvent, events::YankType};
+        
+        if crossterm::terminal::size().is_ok() {
+            let cmd_args = CommandLineArgs::parse_from(["test"]);
+            let config = AppConfig::from_args(cmd_args);
+            let mut controller = AppController::with_io_streams(
+                config,
+                crate::repl::io::TerminalEventStream::new(),
+                crate::repl::io::TerminalRenderStream::new(),
+            ).unwrap();
+
+            // Test processing a TextYanked event
+            let event = ModelEvent::TextYanked {
+                pane: Pane::Request,
+                text: "test text".to_string(), 
+                yank_type: YankType::Character,
+            };
+
+            let result = controller.process_model_event(event);
+            assert!(result.is_ok(), "ModelEvent processing should succeed");
+
+            // Verify yank buffer contains the text
+            if let Some(yank_entry) = controller.view_model_mut().get_yanked_entry() {
+                assert_eq!(yank_entry.text, "test text");
+            } else {
+                panic!("Yank buffer should contain event text");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn app_controller_should_use_unified_command_system() {
+        use crossterm::event::{KeyCode, KeyModifiers};
+        
+        if crossterm::terminal::size().is_ok() {
+            let cmd_args = CommandLineArgs::parse_from(["test"]);
+            let config = AppConfig::from_args(cmd_args);
+            let mut controller = AppController::with_io_streams(
+                config,
+                crate::repl::io::TerminalEventStream::new(),
+                crate::repl::io::TerminalRenderStream::new(),
+            ).unwrap();
+
+            // Verify unified command registry is initialized
+            assert!(controller.unified_command_registry.command_count() > 0);
+
+            // Test 'y' key in Normal mode - should fall back to old system (no unified command)
+            let y_key = crossterm::event::KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
+            let result = controller.handle_key_event_unified(y_key).await;
+            assert!(result.is_ok(), "Unified command system should handle key events gracefully");
+            
+            // Verify old system handled it (y in Normal mode goes to YPrefix mode)
+            assert_eq!(controller.view_model().get_mode(), EditorMode::YPrefix);
         }
     }
 }

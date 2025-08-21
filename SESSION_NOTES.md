@@ -1,5 +1,89 @@
 # Session Notes
 
+## 2025-08-21 Session - Architecture Refactoring Plan for Issue #178
+
+### User Request Summary
+- Analyzed GitHub Issue #178: "Refactor: Centralize control into ViewModel"
+- Created comprehensive refactoring plan to eliminate layers and centralize business logic
+- Designed Command Pattern architecture with clean separation of concerns
+- Addressed ghost cursor and flickering issues with dual event loops
+
+### What We Accomplished
+
+✅ **Comprehensive Architecture Analysis**
+- Analyzed current AppController (1500+ lines) with excessive business logic
+- Identified PaneManager as unnecessary delegation layer
+- Found tight coupling between ViewRenderer and ViewModel
+
+✅ **Command Pattern Design**
+- Designed self-contained Commands owning their business logic
+- Created Service layer for shared functionality (SelectionService, YankService, HttpService)
+- Separated semantic Model Events from display-specific Render Events
+
+✅ **Event-Driven Rendering Architecture**
+- Designed dual event loops (input and render) for optimal performance
+- Created atomic render transactions to eliminate ghost cursors
+- Added double buffering with smart diffing for smooth updates
+
+✅ **Complete Implementation Plan**
+- Created detailed 6-phase implementation plan
+- Estimated 12-18 days total effort across 3 weeks
+- Designed incremental approach with independent testing
+
+✅ **GitHub Issue Creation**
+- Created 6 implementation issues (#197-#202) for parallel development
+- Created meta coordination issue (#203) for tracking
+- Each phase has clear tasks, dependencies, and acceptance criteria
+
+### Architectural Decisions
+
+**Command Pattern with Services**
+```rust
+trait Command {
+    fn handle(&self, context: &mut CommandContext) -> Result<Vec<ModelEvent>>;
+}
+```
+- Commands own business logic (not ViewModel)
+- Services provide shared functionality
+- Clean separation from rendering concerns
+
+**Event Flow Design**
+```
+Input Events → Commands → Model Events → Render Events → ViewRenderer
+```
+- Model Events are semantic (what happened)
+- Render Events are display-specific (how to show it)
+- No coupling between ViewRenderer and ViewModel
+
+**Ghost Cursor Solution**
+```rust
+struct RenderTransaction {
+    hide_cursor: bool,
+    operations: Vec<RenderOperation>,
+    show_cursor_at: Option<Position>,
+    flush: bool,
+}
+```
+- Atomic rendering prevents ghost cursors
+- Double buffering eliminates flickering
+- Smart batching optimizes performance
+
+### Files Created
+- `REFACTORING_PLAN.md` - Comprehensive 6-phase implementation plan
+- GitHub Issues #197-#203 - Implementation and coordination issues
+
+### Success Metrics Defined
+- AppController: 1500+ lines → ~100 lines
+- Commands: Self-contained 50-100 line units
+- ViewModel: Pure state management (~400 lines)
+- Zero ghost cursors and flickering
+- <1ms input response, 60fps rendering
+
+### Next Steps
+- Begin Phase 1 (#197): Command infrastructure and service layer
+- Phases can be developed in parallel by different team members
+- Meta issue (#203) provides coordination and progress tracking
+
 ## 2025-08-17 Session - Complete Visual Mode Features (Issue #147)
 
 ### User Request Summary
