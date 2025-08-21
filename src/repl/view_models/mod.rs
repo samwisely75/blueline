@@ -4,6 +4,7 @@
 //! This replaces the monolithic view_models.rs with a clean, maintainable architecture.
 
 mod buffer_operations;
+pub mod commands;
 mod core;
 mod cursor_manager;
 mod display_manager;
@@ -14,6 +15,7 @@ mod pane_manager;
 mod pane_state;
 mod rendering_coordinator;
 mod screen_buffer;
+mod selection;
 mod settings_manager;
 mod yank_buffer;
 
@@ -24,4 +26,5 @@ pub use core::ViewModel;
 pub use core::DisplayLineData;
 pub use pane_manager::PaneManager;
 pub use pane_state::PaneState;
+pub use selection::Selection;
 pub use yank_buffer::{YankEntry, YankType};

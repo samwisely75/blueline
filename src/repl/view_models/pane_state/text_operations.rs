@@ -1182,6 +1182,7 @@ mod tests {
             display_cache,
             display_cursor: Position::new(0, 0),
             scroll_offset: Position::new(0, 0),
+            selection: None,
             visual_selection_start: None,
             visual_selection_end: None,
             last_visual_selection_start: None,
