@@ -13,6 +13,7 @@ pub mod display_line;
 pub mod request_model;
 pub mod response_model;
 pub mod status_line;
+pub mod yank_buffer;
 
 // Re-export all models for easy access
 pub use buffer_char::{BufferChar, BufferLine, CharacterBuffer};
@@ -23,6 +24,7 @@ pub use display_line::DisplayLine;
 pub use request_model::{HttpHeaders, RequestModel};
 pub use response_model::ResponseModel;
 pub use status_line::{HttpStatus, StatusLine};
+pub use yank_buffer::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType};
 
 #[cfg(test)]
 mod tests {

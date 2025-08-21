@@ -21,7 +21,7 @@ use crate::repl::events::{EditorMode, EventBus, LogicalPosition, ModelEvent, Pan
 use crate::repl::models::{ResponseModel, StatusLine};
 use crate::repl::view_models::pane_manager::PaneManager;
 use crate::repl::view_models::screen_buffer::ScreenBuffer;
-use crate::repl::view_models::yank_buffer::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer};
+use crate::repl::models::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer};
 // use anyhow::Result; // Currently unused
 use bluenote::HttpClient;
 use std::collections::HashMap;

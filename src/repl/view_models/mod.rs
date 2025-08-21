@@ -17,7 +17,7 @@ mod rendering_coordinator;
 mod screen_buffer;
 mod selection;
 mod settings_manager;
-mod yank_buffer;
+// yank_buffer moved to models/
 
 // Re-export the main ViewModel
 pub use core::ViewModel;
@@ -27,4 +27,5 @@ pub use core::DisplayLineData;
 pub use pane_manager::PaneManager;
 pub use pane_state::PaneState;
 pub use selection::Selection;
-pub use yank_buffer::{YankEntry, YankType};
+// YankBuffer types now imported from models
+pub use crate::repl::models::{YankEntry, YankType};
