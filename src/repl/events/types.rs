@@ -1,6 +1,6 @@
 //! # Core Event Types
 //!
-//! Common types used throughout the event system including panes, 
+//! Common types used throughout the event system including panes,
 //! editor modes, and pane capabilities.
 //!
 //! Note: LogicalPosition and LogicalRange have been moved to models module.
