@@ -127,8 +127,8 @@ mod tests {
 
     #[test]
     fn yank_selection_command_should_be_relevant_for_y_in_visual_mode() {
-        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
         use crate::repl::events::Pane;
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
         let command = YankSelectionCommand::new();
 
@@ -144,7 +144,7 @@ mod tests {
         let y_key = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
         assert!(command.is_relevant(y_key, EditorMode::Visual, &context));
 
-        // Test 'y' key in visual line mode - should be relevant  
+        // Test 'y' key in visual line mode - should be relevant
         assert!(command.is_relevant(y_key, EditorMode::VisualLine, &context));
 
         // Test 'y' key in visual block mode - should be relevant
@@ -153,8 +153,8 @@ mod tests {
 
     #[test]
     fn yank_selection_command_should_not_be_relevant_in_wrong_conditions() {
-        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
         use crate::repl::events::Pane;
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
         let command = YankSelectionCommand::new();
 

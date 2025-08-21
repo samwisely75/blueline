@@ -88,7 +88,12 @@ mod tests {
     }
 
     impl Command for MockCommand {
-        fn is_relevant(&self, _key_event: KeyEvent, _mode: EditorMode, _context: &CommandContext) -> bool {
+        fn is_relevant(
+            &self,
+            _key_event: KeyEvent,
+            _mode: EditorMode,
+            _context: &CommandContext,
+        ) -> bool {
             // Mock command is always relevant for testing
             true
         }
@@ -123,7 +128,10 @@ mod tests {
         let context = CommandContext::from_view_model(&view_model);
 
         // Verify context captures current state
-        assert_eq!(context.current_mode, crate::repl::events::EditorMode::Normal);
+        assert_eq!(
+            context.current_mode,
+            crate::repl::events::EditorMode::Normal
+        );
         assert_eq!(context.current_pane, crate::repl::events::Pane::Request);
         assert!(!context.has_selection);
     }
