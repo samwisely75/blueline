@@ -13,6 +13,6 @@ pub mod registry;
 pub mod yank;
 
 // Re-export main types
-pub use command::{Command, CommandContext};
+pub use command::{Command, CommandContext, ExecutionContext};
 pub use events::{ModelEvent, YankType};
 pub use registry::UnifiedCommandRegistry;

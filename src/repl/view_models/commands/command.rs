@@ -1,22 +1,22 @@
 //! # Command Pattern Infrastructure
 //!
-//! New Command Pattern where Commands own their business logic and emit ModelEvents.
-//! This is simpler than the previous approach - no services layer initially,
-//! just clean Commands that work with ViewModel directly.
+//! Command Pattern where Commands use Services for business logic and emit ModelEvents.
+//! Commands receive both ViewModel and Services through an ExecutionContext.
 
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
 use crate::repl::{
     events::{EditorMode, Pane},
+    services::Services,
     view_models::{commands::events::ModelEvent, ViewModel},
 };
 
 /// Command trait for the new Command Pattern architecture
 ///
-/// Commands own their business logic and emit ModelEvents describing
-/// what state changes occurred. Commands have mutable access to ViewModel
-/// to perform their operations.
+/// Commands use Services for business logic and emit ModelEvents describing
+/// what state changes occurred. Commands receive both ViewModel and Services
+/// through an ExecutionContext.
 pub trait Command: Send + Sync {
     /// Check if this command should handle the given key event
     ///
@@ -28,15 +28,26 @@ pub trait Command: Send + Sync {
     /// Only one command should return true for any given input.
     fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool;
 
-    /// Execute the command with mutable access to ViewModel
+    /// Execute the command with access to ViewModel and Services
     ///
-    /// Commands should perform their business logic and return ModelEvents
+    /// Commands should use Services for business logic and return ModelEvents
     /// describing what state changes occurred. The events are semantic
     /// (describe WHAT happened) rather than display-specific.
-    fn handle(&self, view_model: &mut ViewModel) -> Result<Vec<ModelEvent>>;
+    fn handle(&self, context: &mut ExecutionContext) -> Result<Vec<ModelEvent>>;
 
     /// Get command name for debugging and logging
     fn name(&self) -> &'static str;
+}
+
+/// Execution context for Commands containing ViewModel and Services
+///
+/// This provides Commands with access to both state (ViewModel) and
+/// business logic services for performing operations.
+pub struct ExecutionContext<'a> {
+    /// Mutable access to the ViewModel for state management
+    pub view_model: &'a mut ViewModel,
+    /// Mutable access to Services for business operations
+    pub services: &'a mut Services,
 }
 
 /// Context for Commands containing current application state
@@ -98,7 +109,7 @@ mod tests {
             true
         }
 
-        fn handle(&self, _view_model: &mut ViewModel) -> Result<Vec<ModelEvent>> {
+        fn handle(&self, _context: &mut ExecutionContext) -> Result<Vec<ModelEvent>> {
             Ok(self.events_to_return.clone())
         }
 
@@ -118,7 +129,12 @@ mod tests {
 
         // Create minimal context for testing
         let mut view_model = ViewModel::new();
-        let result = command.handle(&mut view_model).unwrap();
+        let mut services = crate::repl::services::Services::new();
+        let mut context = ExecutionContext {
+            view_model: &mut view_model,
+            services: &mut services,
+        };
+        let result = command.handle(&mut context).unwrap();
         assert_eq!(result, events);
     }
 

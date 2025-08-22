@@ -1,6 +1,7 @@
 # Comprehensive Refactoring Plan for Issue #178
 
 ## Executive Summary
+
 Complete architectural refactoring to centralize control in ViewModel while maintaining clean separation of concerns through Command Pattern and event-driven rendering.
 
 ## Final Architecture Overview
@@ -28,12 +29,14 @@ Input Events → AppController → Commands → Model Events → Render Events �
 ### 1.1 Architectural Decisions (Updated)
 
 **Selection as Encapsulated Object:**
+
 - Selection is a proper object owned by PaneState
 - Contains only positional data (start, end) - no mode or pane references
 - Methods receive EditorMode as parameter for mode-specific behavior
 - PaneState provides buffer-aware selection operations
 
 **Command Pattern Foundation:**
+
 ```rust
 // Command trait with business logic
 trait Command {
@@ -78,6 +81,7 @@ impl PaneState {
 ### 1.3 Services Decision
 
 **No Services Layer Initially:**
+
 - Keep existing YankBuffer (already well-designed with polymorphism)
 - Focus on proper object encapsulation rather than service abstraction
 - Services can be added later when actual duplication emerges
@@ -639,6 +643,7 @@ impl ViewRenderer {
 ## Key Benefits
 
 ### Architecture
+
 1. **Clean Separation**: Each component has single responsibility
 2. **No Coupling**: ViewRenderer independent of ViewModel
 3. **Testable**: Each layer independently testable
@@ -646,12 +651,14 @@ impl ViewRenderer {
 5. **Future-Ready**: AppController can be eliminated entirely
 
 ### Performance
+
 1. **No Ghost Cursors**: Atomic render transactions
 2. **No Flickering**: Double buffering and smart diffing
 3. **Efficient Updates**: Only changed content is rendered
 4. **Batched Rendering**: Multiple events combined into single update
 
 ### Maintainability
+
 1. **Command Pattern**: Each operation is self-contained
 2. **Event-Driven**: Clear data flow through events
 3. **Service Layer**: Reusable business logic
@@ -660,16 +667,19 @@ impl ViewRenderer {
 ## Implementation Order
 
 ### Week 1: Foundation (Phase 1-2)
+
 - **Days 1-2**: Command infrastructure and services
 - **Days 3-4**: Migrate simple commands (cursor, text operations)
 - **Days 4-5**: Migrate complex commands (yank, paste, visual, HTTP)
 
 ### Week 2: Core Refactoring (Phase 3-4)
+
 - **Day 1**: Merge PaneManager into ViewModel
 - **Day 2**: Move event loop to ViewModel
 - **Day 3**: Testing and bug fixes
 
 ### Week 3: Rendering (Phase 5-6)
+
 - **Days 1-2**: Create RenderEvent system and decouple ViewRenderer
 - **Days 2-3**: Implement dual event loops
 - **Days 4-5**: Add render transactions and double buffering
@@ -679,18 +689,21 @@ Total estimated effort: **15 working days** (3 weeks)
 ## Success Metrics
 
 ### Code Quality
+
 - AppController reduced from **1500+ to ~100 lines**
 - Commands are self-contained units (**50-100 lines each**)
 - ViewModel is pure state management (**~400 lines**)
 - Zero coupling between ViewRenderer and ViewModel
 
 ### Performance
+
 - **Zero ghost cursors** in all scenarios
 - **No flickering** during rapid updates
 - **Consistent 60fps** rendering performance
 - **Sub-millisecond** input response time
 
 ### Architecture
+
 - **Single Responsibility** principle followed by all components
 - **Open/Closed** principle enables easy feature addition
 - **Testability** - each layer can be unit tested independently

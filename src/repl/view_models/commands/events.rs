@@ -76,16 +76,8 @@ pub enum ModelEvent {
     HttpResponseReceived { status: u16, body: String },
 }
 
-/// Type of yank operation (from existing YankType)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum YankType {
-    /// Character-wise yank (vim's 'v' mode)
-    Character,
-    /// Line-wise yank (vim's 'V' mode)  
-    Line,
-    /// Block-wise yank (vim's Ctrl+V mode)
-    Block,
-}
+// Re-export YankType from models to avoid duplication
+pub use crate::repl::models::yank_buffer::YankType;
 
 #[cfg(test)]
 mod tests {
@@ -172,6 +164,7 @@ mod tests {
 
     #[test]
     fn yank_type_enum_should_support_all_visual_modes() {
+        // Test that YankType from models is properly re-exported
         let character = YankType::Character;
         let line = YankType::Line;
         let block = YankType::Block;

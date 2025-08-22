@@ -8,12 +8,9 @@ use anyhow::{bail, Result};
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::repl::events::EditorMode;
-use crate::repl::view_models::{
-    commands::{
-        events::{ModelEvent, YankType},
-        Command, CommandContext,
-    },
-    ViewModel,
+use crate::repl::view_models::commands::{
+    events::{ModelEvent, YankType},
+    Command, CommandContext, ExecutionContext,
 };
 
 /// Command to yank (copy) the current visual selection
@@ -58,9 +55,9 @@ impl Command for YankSelectionCommand {
             && !context.is_read_only
     }
 
-    fn handle(&self, view_model: &mut ViewModel) -> Result<Vec<ModelEvent>> {
-        let current_pane = view_model.get_current_pane();
-        let current_mode = view_model.get_mode();
+    fn handle(&self, context: &mut ExecutionContext) -> Result<Vec<ModelEvent>> {
+        let current_pane = context.view_model.get_current_pane();
+        let current_mode = context.view_model.get_mode();
 
         // Check if we're in a visual mode
         if !matches!(
@@ -70,8 +67,8 @@ impl Command for YankSelectionCommand {
             bail!("Yank selection only works in visual modes");
         }
 
-        // Get selected text from current pane
-        let selected_text = match view_model.get_selected_text() {
+        // Get selected text directly from ViewModel
+        let selected_text = match context.view_model.get_selected_text() {
             Some(text) => text,
             None => {
                 return Ok(vec![ModelEvent::StatusMessageSet {
@@ -83,8 +80,17 @@ impl Command for YankSelectionCommand {
         // Determine yank type based on current mode
         let yank_type = Self::determine_yank_type(current_mode);
 
-        // Store in yank buffer - for now we'll use a placeholder
-        // TODO: Actually store in yank buffer when we integrate with existing system
+        // Store in yank buffer using YankService
+        context
+            .services
+            .yank
+            .yank(selected_text.clone(), yank_type)?;
+
+        // Clear selection directly on ViewModel
+        context.view_model.clear_visual_selection()?;
+
+        // Change mode back to Normal
+        context.view_model.set_mode(EditorMode::Normal);
 
         // Prepare events to emit
         let events = vec![
@@ -103,9 +109,6 @@ impl Command for YankSelectionCommand {
             },
         ];
 
-        // TODO: Actually clear selection and change mode when we integrate
-        // For now, just emit the events to show the architecture
-
         Ok(events)
     }
 
@@ -117,7 +120,6 @@ impl Command for YankSelectionCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::view_models::ViewModel;
 
     #[test]
     fn yank_selection_command_should_return_correct_name() {
@@ -219,11 +221,19 @@ mod tests {
 
     #[test]
     fn yank_selection_command_should_fail_gracefully_in_normal_mode() {
+        use crate::repl::services::Services;
+        use crate::repl::view_models::ViewModel;
+
         let command = YankSelectionCommand::new();
         let mut view_model = ViewModel::new();
+        let mut services = Services::new();
+        let mut context = ExecutionContext {
+            view_model: &mut view_model,
+            services: &mut services,
+        };
 
         // ViewModel starts in Normal mode by default
-        let result = command.handle(&mut view_model);
+        let result = command.handle(&mut context);
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("visual modes"));
@@ -231,6 +241,8 @@ mod tests {
 
     #[test]
     fn yank_selection_command_should_emit_events_for_empty_selection() {
+        use crate::repl::view_models::ViewModel;
+
         let _command = YankSelectionCommand::new();
         let _view_model = ViewModel::new();
 
