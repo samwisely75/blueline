@@ -42,6 +42,7 @@ pub enum AppMode {
     VisualBlock, // "-- VISUAL BLOCK --" message (left-aligned, bold)
     Command,     // Cursor at bottom row with ":" at column 1
     YPrefix,     // Y prefix mode - waiting for second character after 'y' press
+    DPrefix,     // D prefix mode - waiting for second character after 'd' press
     Unknown,     // Fallback for unclear state
 }
 
@@ -345,6 +346,7 @@ impl BluelineWorld {
                 }
                 KeyCode::Esc => {
                     // Simulate returning to Normal mode - clear left side, only show right status
+                    // Also exit from any prefix modes (DPrefix, YPrefix) back to Normal
                     self.current_mode = AppMode::Normal; // Set the mode!
 
                     let status_pos = format!("\x1b[{status_row};1H");
@@ -459,6 +461,29 @@ impl BluelineWorld {
                     mode_output.extend_from_slice(right_status.as_bytes());
 
                     debug!("✅ Simulating delete/cut in Visual mode - returning to Normal mode");
+                }
+                KeyCode::Char('d') if self.current_mode == AppMode::Normal => {
+                    // Enter D prefix mode - waiting for second 'd'
+                    self.current_mode = AppMode::DPrefix;
+                    debug!("✅ Entering D prefix mode");
+                    // No visual feedback for prefix modes
+                }
+                KeyCode::Char('d') if self.current_mode == AppMode::DPrefix => {
+                    // dd command - delete current line and return to Normal mode
+                    self.current_mode = AppMode::Normal;
+                    
+                    // Simulate line deletion by removing current line from text buffer
+                    if !self.text_buffer.is_empty() {
+                        // For simplicity, remove the last line (where cursor typically is after Escape)
+                        self.text_buffer.pop();
+                        if self.text_buffer.is_empty() {
+                            self.text_buffer.push("".to_string());
+                        }
+                    }
+                    
+                    debug!("✅ Simulating dd command - deleted line, returning to Normal mode");
+                    
+                    // Note: We'll need to re-render after this function completes to avoid borrow issues
                 }
                 KeyCode::Up => {
                     // Simulate up arrow key
