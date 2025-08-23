@@ -250,11 +250,11 @@ impl BluelineWorld {
         }
 
         // Simulate mode changes for testing since the full app controller isn't running
-        self.simulate_mode_change(code).await;
+        self.simulate_mode_change(code, modifiers).await;
     }
 
     /// Simulate mode changes based on key input for testing
-    async fn simulate_mode_change(&mut self, code: KeyCode) {
+    async fn simulate_mode_change(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         if let Some(monitor) = &self.render_monitor {
             let status_row = self.terminal_size.1;
             let mut mode_output = Vec::new();
@@ -280,7 +280,7 @@ impl BluelineWorld {
 
                     debug!("✅ Simulating Insert mode status bar");
                 }
-                KeyCode::Char('v') => {
+                KeyCode::Char('v') if modifiers.is_empty() => {
                     // Simulate entering Visual mode - show "-- VISUAL --" on left
                     self.current_mode = AppMode::Visual; // Set the mode!
 
@@ -300,6 +300,48 @@ impl BluelineWorld {
                     mode_output.extend_from_slice(right_status.as_bytes());
 
                     debug!("✅ Simulating Visual mode status bar");
+                }
+                KeyCode::Char('V') => {
+                    // Simulate entering Visual Line mode - show "-- VISUAL LINE --" on left
+                    self.current_mode = AppMode::VisualLine;
+
+                    let status_pos = format!("\x1b[{status_row};1H");
+                    mode_output.extend_from_slice(status_pos.as_bytes());
+                    mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+                    mode_output.extend_from_slice(b"\x1b[1m-- VISUAL LINE --\x1b[0m"); // Bold VISUAL LINE
+
+                    // Add right-aligned status
+                    let right_status = "REQUEST | 1:1";
+                    let right_col = self
+                        .terminal_size
+                        .0
+                        .saturating_sub(right_status.len() as u16);
+                    let right_move = format!("\x1b[{right_col}G");
+                    mode_output.extend_from_slice(right_move.as_bytes());
+                    mode_output.extend_from_slice(right_status.as_bytes());
+
+                    debug!("✅ Simulating Visual Line mode status bar");
+                }
+                KeyCode::Char('v') if modifiers.contains(KeyModifiers::CONTROL) => {
+                    // Simulate entering Visual Block mode - show "-- VISUAL BLOCK --" on left
+                    self.current_mode = AppMode::VisualBlock;
+
+                    let status_pos = format!("\x1b[{status_row};1H");
+                    mode_output.extend_from_slice(status_pos.as_bytes());
+                    mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+                    mode_output.extend_from_slice(b"\x1b[1m-- VISUAL BLOCK --\x1b[0m"); // Bold VISUAL BLOCK
+
+                    // Add right-aligned status
+                    let right_status = "REQUEST | 1:1";
+                    let right_col = self
+                        .terminal_size
+                        .0
+                        .saturating_sub(right_status.len() as u16);
+                    let right_move = format!("\x1b[{right_col}G");
+                    mode_output.extend_from_slice(right_move.as_bytes());
+                    mode_output.extend_from_slice(right_status.as_bytes());
+
+                    debug!("✅ Simulating Visual Block mode status bar");
                 }
                 KeyCode::Esc => {
                     // Simulate returning to Normal mode - clear left side, only show right status
@@ -366,7 +408,12 @@ impl BluelineWorld {
                     mode_output.extend_from_slice(b"\x1b[999C"); // Move far right, terminal will limit
                     debug!("✅ Simulating cursor move to end of line ($)");
                 }
-                KeyCode::Char('y') if self.current_mode == AppMode::Visual => {
+                KeyCode::Char('y')
+                    if matches!(
+                        self.current_mode,
+                        AppMode::Visual | AppMode::VisualLine | AppMode::VisualBlock
+                    ) =>
+                {
                     // Simulate yank in Visual mode - should return to Normal mode
                     self.current_mode = AppMode::Normal;
 
@@ -386,6 +433,32 @@ impl BluelineWorld {
                     mode_output.extend_from_slice(right_status.as_bytes());
 
                     debug!("✅ Simulating yank in Visual mode - returning to Normal mode");
+                }
+                KeyCode::Char('d') | KeyCode::Char('x')
+                    if matches!(
+                        self.current_mode,
+                        AppMode::Visual | AppMode::VisualLine | AppMode::VisualBlock
+                    ) =>
+                {
+                    // Simulate delete/cut in any Visual mode - should return to Normal mode
+                    self.current_mode = AppMode::Normal;
+
+                    // Clear the visual mode indicator and show normal mode status
+                    let status_pos = format!("\x1b[{status_row};1H");
+                    mode_output.extend_from_slice(status_pos.as_bytes());
+                    mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+
+                    // Add right-aligned status: "REQUEST | 1:1" (no mode indicator for Normal)
+                    let right_status = "REQUEST | 1:1";
+                    let right_col = self
+                        .terminal_size
+                        .0
+                        .saturating_sub(right_status.len() as u16);
+                    let right_move = format!("\x1b[{right_col}G");
+                    mode_output.extend_from_slice(right_move.as_bytes());
+                    mode_output.extend_from_slice(right_status.as_bytes());
+
+                    debug!("✅ Simulating delete/cut in Visual mode - returning to Normal mode");
                 }
                 KeyCode::Up => {
                     // Simulate up arrow key
