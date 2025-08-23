@@ -37,17 +37,20 @@
 - "Fix Visual Line and Visual Block mode simulation in tests"
 
 ### Current Status
-- Down from 29 failures to ~20 failures
+- Down from 29 failures to 9 failures!
 - Visual mode transitions working correctly
-- Still remaining:
-  - Line number visibility test failures
-  - dd command test failures  
-  - Visual block deletion accuracy issues
+- dd command mostly working (8/10 scenarios pass)
+- Line numbers partially working (3/6 scenarios pass)
+- Remaining 9 failures:
+  - 3 line number edge cases
+  - 2 dd command edge cases  
+  - 1 visual character deletion
+  - 1 text deletion (backspace at beginning)
+  - 2 visual block deletion accuracy
 
 ### Next Steps
-- Fix line number visibility tests
-- Fix dd command tests
-- Fix remaining test failures
+- Could fix remaining 9 with more simulation improvements
+- Or move to Option 1 (real AppController) after unified command refactor
 
 ## [2025-08-23] HTTP Request Debugging Session - DNS Fix Applied
 

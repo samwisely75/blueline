@@ -87,7 +87,7 @@ pub struct BluelineWorld {
 
     /// Track all typed text for multiline persistence
     text_buffer: Vec<String>,
-    
+
     /// Track whether line numbers should be shown
     show_line_numbers: bool,
 }
@@ -127,7 +127,7 @@ impl Default for BluelineWorld {
             current_command: String::new(),
             current_mode: AppMode::Normal,
             text_buffer: vec!["".to_string()], // Start with first line
-            show_line_numbers: true, // Line numbers visible by default
+            show_line_numbers: true,           // Line numbers visible by default
         }
     }
 }
@@ -519,7 +519,7 @@ impl BluelineWorld {
                     if self.current_mode == AppMode::Command {
                         // Process command and return to Normal mode
                         let cmd = self.current_command.clone();
-                        
+
                         // Handle specific commands
                         if cmd == "set number off" {
                             self.show_line_numbers = false;
@@ -528,16 +528,16 @@ impl BluelineWorld {
                             self.show_line_numbers = true;
                             debug!("✅ Line numbers enabled");
                         }
-                        
+
                         // Clear command and return to Normal mode
                         self.current_command.clear();
                         self.current_mode = AppMode::Normal;
-                        
+
                         // Clear the command line
                         let status_pos = format!("\x1b[{status_row};1H");
                         mode_output.extend_from_slice(status_pos.as_bytes());
                         mode_output.extend_from_slice(b"\x1b[K"); // Clear line
-                        
+
                         // Add right-aligned status for Normal mode
                         let right_status = "REQUEST | 1:1";
                         let right_col = self
@@ -547,8 +547,25 @@ impl BluelineWorld {
                         let right_move = format!("\x1b[{right_col}G");
                         mode_output.extend_from_slice(right_move.as_bytes());
                         mode_output.extend_from_slice(right_status.as_bytes());
-                        
+
                         debug!("✅ Command '{}' executed, returning to Normal mode", cmd);
+
+                        // Re-render display after line number change
+                        if cmd.starts_with("set number") {
+                            // Need to re-render the entire display
+                            // We'll do this by calling simulate_text_input after this function completes
+                            // For now, just clear and re-render the first line
+                            let line_pos = "\x1b[1;1H";
+                            mode_output.extend_from_slice(line_pos.as_bytes());
+                            mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+
+                            if self.show_line_numbers {
+                                mode_output.extend_from_slice(b"  1: ");
+                            }
+                            if !self.text_buffer.is_empty() {
+                                mode_output.extend_from_slice(self.text_buffer[0].as_bytes());
+                            }
+                        }
                     } else {
                         // Simulate Enter key - preserve existing content and add new line
                         // This ensures multiline text persistence for verification
@@ -556,7 +573,7 @@ impl BluelineWorld {
                         // First, ensure the current line content is maintained
                         mode_output.extend_from_slice(b"\x1b[2;1H"); // Move to line 2
                         if self.show_line_numbers {
-                            mode_output.extend_from_slice(b"  2 "); // Add line number "2"
+                            mode_output.extend_from_slice(b"  2: "); // Add line number "2"
                         }
 
                         debug!("✅ Simulating Enter key (new line with content preservation)");
@@ -601,6 +618,19 @@ impl BluelineWorld {
                     mode_output.extend_from_slice(right_status.as_bytes());
 
                     debug!("✅ Simulating a command (append after cursor) -> Insert mode");
+                }
+                KeyCode::Char(ch) if self.current_mode == AppMode::Insert => {
+                    // In Insert mode, add character to text buffer
+                    if self.text_buffer.is_empty() {
+                        self.text_buffer.push(String::new());
+                    }
+                    let last_idx = self.text_buffer.len() - 1;
+                    self.text_buffer[last_idx].push(ch);
+
+                    // Update display to show the character
+                    mode_output.extend_from_slice(ch.to_string().as_bytes());
+
+                    debug!("✅ Added '{}' to text buffer in Insert mode", ch);
                 }
                 _ => {
                     // No mode change for other keys
@@ -843,7 +873,7 @@ impl BluelineWorld {
 
                     // Add line number if enabled
                     if self.show_line_numbers {
-                        let line_num = format!("{row:3} ");
+                        let line_num = format!("{row:3}: ");
                         text_output.extend_from_slice(line_num.as_bytes());
                     }
 
