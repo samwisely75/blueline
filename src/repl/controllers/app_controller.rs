@@ -6,12 +6,12 @@
 use crate::config::AppConfig;
 use crate::repl::{
     commands::{
-        CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, HttpHeaders,
-        MovementDirection, Setting, SettingValue, ViewModelSnapshot,
+        CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, MovementDirection,
+        Setting, SettingValue, ViewModelSnapshot,
     },
     events::{EditorMode, LogicalPosition, Pane, SimpleEventBus},
     io::{EventStream, RenderStream},
-    services::Services,
+    services::{HttpResponseMessage, Services},
     view_models::{
         commands::{
             events::YankType as NewYankType, Command, ExecutionContext, ModelEvent,
@@ -22,10 +22,9 @@ use crate::repl::{
     views::{TerminalRenderer, ViewRenderer},
 };
 use anyhow::Result;
-use bluenote::{get_blank_profile, HttpConnectionProfile, IniProfileStore};
+use bluenote::{get_blank_profile, HttpConnectionProfile, HttpRequestArgs, IniProfileStore};
 use crossterm::event::{Event, KeyEvent};
 use std::time::Duration;
-
 /// The main application controller that orchestrates the MVVM pattern
 pub struct AppController<ES: EventStream, RS: RenderStream> {
     view_model: ViewModel,
@@ -52,8 +51,17 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         // Pass RenderStream ownership to the View layer (TerminalRenderer)
         let view_renderer = TerminalRenderer::with_render_stream(render_stream)?;
 
-        // Initialize services - HttpService will create its own client
-        let services = Services::new();
+        // Load profile from configuration first (needed for Services)
+        let profile_name = config.profile_name();
+        let profile_path = config.profile_path();
+        let profile = Self::load_profile(profile_name, profile_path)?;
+
+        // Initialize services with the profile
+        let mut services = Services::new();
+        if let Err(e) = services.configure_http(&profile) {
+            tracing::warn!("Failed to configure HTTP service: {}", e);
+        }
+
         let command_registry = CommandRegistry::new();
         let ex_command_registry = ExCommandRegistry::new();
         let unified_command_registry = UnifiedCommandRegistry::new();
@@ -62,11 +70,6 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         // Synchronize view model with actual terminal size
         let (width, height) = view_renderer.terminal_size();
         view_model.update_terminal_size(width, height);
-
-        // Load profile from configuration
-        let profile_name = config.profile_name();
-        let profile_path = config.profile_path();
-        let profile = Self::load_profile(profile_name, profile_path)?;
 
         // Configure view model with profile and settings
         Self::configure_view_model(&mut view_model, &profile, profile_name, profile_path);
@@ -210,6 +213,14 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
     /// Process the next terminal event if available
     async fn process_next_event(&mut self) -> Result<()> {
+        // Check for HTTP responses from the service (non-blocking)
+        if let Some(ref mut http_service) = self.services.http {
+            if let Some(response_msg) = http_service.poll_response() {
+                self.handle_http_response(response_msg)?;
+                return Ok(());
+            }
+        }
+
         // Poll for terminal events with 100ms timeout
         if !self.event_stream.poll(Duration::from_millis(100))? {
             return Ok(());
@@ -305,6 +316,56 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             // Fall back to old system for now
             self.handle_key_event(key_event).await?;
         }
+
+        Ok(())
+    }
+
+    /// Handle HTTP response received from the service
+    fn handle_http_response(&mut self, response_msg: HttpResponseMessage) -> Result<()> {
+        let event = match response_msg {
+            HttpResponseMessage::Success {
+                request,
+                response,
+                url,
+            } => {
+                // Update response pane with the response
+                self.view_model.set_response_from_http(&response);
+                self.view_model.set_executing_request(false);
+
+                let status = response.status().as_u16();
+                let body = response.body().to_string();
+
+                // Log the completion
+                let duration_ms = response.duration_ms();
+                tracing::info!(
+                    "HTTP {} {} completed with status {} in {}ms",
+                    request.method().unwrap_or(&"GET".to_string()),
+                    url,
+                    status,
+                    duration_ms
+                );
+
+                ModelEvent::HttpResponseReceived { status, body }
+            }
+            HttpResponseMessage::Error { message } => {
+                // Update response with error message
+                self.view_model.set_response(0, message.clone());
+                self.view_model.set_executing_request(false);
+
+                tracing::error!("HTTP request failed: {}", message);
+
+                ModelEvent::StatusMessageSet { message }
+            }
+        };
+
+        // Process the event through the normal flow
+        self.process_model_event_internal(event)?;
+
+        // Switch to response pane to show results
+        self.view_model.switch_to_response_pane();
+
+        // Trigger re-render to show the response
+        self.render_if_needed()?;
 
         Ok(())
     }
@@ -500,13 +561,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 Pane::Request => self.view_model.switch_to_request_pane(),
                 Pane::Response => self.view_model.switch_to_response_pane(),
             },
-            CommandEvent::HttpRequestRequested {
-                method,
-                url,
-                headers,
-                body,
-            } => {
-                self.handle_http_request(method, url, headers, body).await?;
+            CommandEvent::HttpRequestRequested { .. } => {
+                // This is now handled by HttpExecuteCommand
+                tracing::debug!("HTTP request received via old command path - ignoring");
             }
             CommandEvent::TerminalResizeRequested { width, height } => {
                 self.view_model.update_terminal_size(width, height);
@@ -647,50 +704,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// - Status bar updates happen immediately (before/after request)
     /// - Request execution is fully asynchronous
     /// - UI remains responsive during network operations
-    async fn handle_http_request(
-        &mut self,
-        _method: String,
-        _url: String,
-        _headers: HttpHeaders,
-        _body: Option<String>,
-    ) -> Result<()> {
-        // Set executing status to show "Executing..." in status bar
-        self.view_model.set_executing_request(true);
-
-        // Immediately refresh the status bar to show executing message
-        self.view_renderer.render_status_bar(&self.view_model)?;
-
-        // Get request text from view model
-        let request_text = self.view_model.get_request_text();
-
-        // Use HttpService to parse and execute the request
-        match self.services.http.parse_request(&request_text) {
-            Ok((request_args, _url_str)) => {
-                // Execute the HTTP request through the service
-                match self.services.http.execute_request(&request_args).await {
-                    Ok(response) => {
-                        self.view_model.set_response_from_http(&response);
-                    }
-                    Err(error) => {
-                        self.view_model
-                            .set_response(0, format!("HTTP Error: {error}"));
-                    }
-                }
-            }
-            Err(error) => {
-                self.view_model.set_response(0, format!("Error: {error}"));
-            }
-        }
-
-        // Clear executing status when request completes
-        self.view_model.set_executing_request(false);
-
-        // Refresh status bar to show response status
-        self.view_renderer.render_status_bar(&self.view_model)?;
-
-        Ok(())
-    }
-
+    ///
     /// Get reference to view model (for testing)
     pub fn view_model(&self) -> &ViewModel {
         &self.view_model
@@ -1740,6 +1754,25 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
             ModelEvent::StatusMessageCleared => {
                 self.view_model.set_status_message(String::new());
+            }
+
+            ModelEvent::HttpRequestStarted { method, url } => {
+                // Just log it - the actual execution is handled by HttpExecuteCommand
+                tracing::info!("HTTP request initiated: {method} {url}");
+            }
+
+            ModelEvent::HttpResponseReceived { status, body } => {
+                // Update response pane with received data
+                self.view_model.set_response(status, body);
+                self.view_model.set_executing_request(false);
+                self.view_model.switch_to_response_pane();
+
+                let status_msg = if (200..300).contains(&status) {
+                    format!("Request completed: {status}")
+                } else {
+                    format!("Request failed: {status}")
+                };
+                self.view_model.set_status_message(status_msg);
             }
 
             // Handle other events as we implement them

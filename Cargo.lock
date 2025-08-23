@@ -226,7 +226,7 @@ checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
 
 [[package]]
 name = "blueline"
-version = "0.45.2"
+version = "0.45.3"
 dependencies = [
  "anyhow",
  "arboard",
@@ -256,7 +256,7 @@ dependencies = [
 [[package]]
 name = "bluenote"
 version = "0.1.1"
-source = "git+https://github.com/samwisely75/bluenote.git?branch=main#c2397dbf93f834846ee86ddacb5b482bfe8ac5dc"
+source = "git+https://github.com/samwisely75/bluenote.git?branch=main#d043ea41bc86376515fcb0dc97f562090eb4c2f6"
 dependencies = [
  "anyhow",
  "bytes",

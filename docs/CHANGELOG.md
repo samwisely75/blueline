@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.3] - 2025-08-23
+
+### Fixed
+
+- **HTTP Request Execution**: Fixed critical issue where HTTP requests would fail after first execution
+  - HttpService was incorrectly using `take()` on HttpClient, causing subsequent requests to fail
+  - Now properly uses Clone trait to share HttpClient across async tasks
+  - Preserves session state (cookies, auth tokens) across requests
+
+### Improved
+
+- **Error Reporting**: Enhanced HTTP error messages with detailed diagnostics
+  - Shows full error chain with root causes
+  - Categorizes errors (connection, timeout, SSL/TLS, DNS resolution)
+  - Provides helpful hints for common error types
+  - No more truncated error messages
+
 ## [0.45.0] - 2025-08-20
 
 ### Added

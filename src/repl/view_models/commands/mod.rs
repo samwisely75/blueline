@@ -10,6 +10,7 @@ pub mod events;
 pub mod registry;
 
 // Command implementations
+pub mod http;
 pub mod yank;
 
 // Re-export main types

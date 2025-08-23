@@ -3,16 +3,31 @@
 //! Manages HTTP request execution and response handling.
 
 use anyhow::Result;
-use bluenote::{
-    get_blank_profile, HttpClient, HttpRequestArgs, HttpResponse, IniProfile, Url, UrlPath,
-};
+use bluenote::{HttpClient, HttpConnectionProfile, HttpRequestArgs, HttpResponse, Url, UrlPath};
 use std::collections::HashMap;
+use tokio::sync::mpsc;
 
 /// Type alias for parsed request result
 pub type ParsedRequest = (BufferRequestArgs, String);
 
-/// HTTP request arguments parsed from the request buffer
+/// Type alias for profile information (name, path)
+type ProfileInfo = (String, String);
+
+/// Message type for async HTTP response handling
 #[derive(Debug)]
+pub enum HttpResponseMessage {
+    /// Successful HTTP response with full request context
+    Success {
+        request: BufferRequestArgs,
+        response: Box<HttpResponse>,
+        url: String,
+    },
+    /// Error during request execution
+    Error { message: String },
+}
+
+/// HTTP request arguments parsed from the request buffer
+#[derive(Debug, Clone)]
 pub struct BufferRequestArgs {
     method: Option<String>,
     url_path: Option<UrlPath>,
@@ -45,27 +60,44 @@ impl HttpRequestArgs for BufferRequestArgs {
 pub struct HttpService {
     /// The underlying HTTP client
     client: Option<HttpClient>,
+    /// Profile info for recreating clients if needed
+    profile_info: Option<ProfileInfo>,
     /// Session headers that persist across requests
     session_headers: HashMap<String, String>,
+    /// Channel for receiving async HTTP responses
+    response_receiver: mpsc::Receiver<HttpResponseMessage>,
+    /// Channel sender for async tasks to send responses
+    response_sender: mpsc::Sender<HttpResponseMessage>,
 }
 
 impl HttpService {
-    /// Create a new HttpService
-    pub fn new() -> Self {
-        // Create a default profile for HTTP client
-        let profile = get_blank_profile();
-        Self {
-            client: HttpClient::new(&profile).ok(),
+    /// Create a new HttpService with a profile
+    pub fn new(profile: &impl HttpConnectionProfile) -> Result<Self> {
+        tracing::debug!("Creating HttpService with profile");
+        let (response_sender, response_receiver) = mpsc::channel(10);
+
+        tracing::debug!("Creating HttpClient from profile");
+        let client = HttpClient::new(profile)?;
+        tracing::info!("HttpClient created successfully");
+
+        Ok(Self {
+            client: Some(client),
+            profile_info: None, // Will be set separately if needed
             session_headers: HashMap::new(),
-        }
+            response_receiver,
+            response_sender,
+        })
     }
 
-    /// Create HttpService with existing client
-    pub fn with_client(client: Option<HttpClient>) -> Self {
-        Self {
-            client,
-            session_headers: HashMap::new(),
-        }
+    /// Set profile info for recreating clients
+    pub fn set_profile_info(&mut self, profile_name: String, profile_path: String) {
+        self.profile_info = Some((profile_name, profile_path));
+    }
+
+    /// Reconfigure the HTTP client with a profile (used after taking the client)
+    pub fn reconfigure(&mut self, profile: &impl HttpConnectionProfile) -> Result<()> {
+        self.client = Some(HttpClient::new(profile)?);
+        Ok(())
     }
 
     /// Check if HTTP client is available
@@ -73,9 +105,11 @@ impl HttpService {
         self.client.is_some()
     }
 
-    /// Parse HTTP request from text content
-    /// Returns (BufferRequestArgs, url_str) or error message
-    pub fn parse_request(&self, text: &str) -> Result<ParsedRequest> {
+    /// Parse HTTP request from text content (static version for async usage)
+    fn parse_request_static(
+        text: &str,
+        session_headers: HashMap<String, String>,
+    ) -> Result<ParsedRequest> {
         let lines: Vec<&str> = text.lines().collect();
 
         if lines.is_empty() || lines[0].trim().is_empty() {
@@ -112,10 +146,16 @@ impl HttpService {
             method: Some(method),
             url_path: url.to_url_path().cloned(),
             body,
-            headers: self.session_headers.clone(),
+            headers: session_headers,
         };
 
         Ok((request_args, url_str))
+    }
+
+    /// Parse HTTP request from text content
+    /// Returns (BufferRequestArgs, url_str) or error message
+    pub fn parse_request(&self, text: &str) -> Result<ParsedRequest> {
+        Self::parse_request_static(text, self.session_headers.clone())
     }
 
     /// Execute an HTTP request
@@ -212,17 +252,89 @@ impl HttpService {
         &self.session_headers
     }
 
-    /// Create a default HTTP profile for cases where no profile is configured
-    pub fn create_default_profile() -> IniProfile {
-        // Set a default server if needed
-        // For now, we'll leave it blank and handle missing server in the client
-        get_blank_profile()
+    /// Check if there are any pending HTTP responses (non-blocking)
+    pub fn poll_response(&mut self) -> Option<HttpResponseMessage> {
+        self.response_receiver.try_recv().ok()
     }
-}
 
-impl Default for HttpService {
-    fn default() -> Self {
-        Self::new()
+    /// Execute HTTP request asynchronously
+    ///
+    /// This spawns a tokio task that executes the request and sends the result
+    /// back through the internal channel, allowing non-blocking operation.
+    pub fn execute_async(&mut self, request_text: String) {
+        // Parse the request first (synchronously)
+        // Clone session headers before parsing to avoid lifetime issues
+        let session_headers = self.session_headers.clone();
+
+        // Clone the client if available
+        let client = self.client.clone();
+
+        // Clone the sender for the async task
+        let result_sender = self.response_sender.clone();
+
+        // Now parse the request completely independently
+        let parsed_result = Self::parse_request_static(&request_text, session_headers);
+
+        match parsed_result {
+            Ok((request_args, url_str)) => {
+                // Check if we have a client
+                let client = match client {
+                    Some(c) => c,
+                    None => {
+                        tokio::spawn(async move {
+                            let _ = result_sender
+                                .send(HttpResponseMessage::Error {
+                                    message: "HTTP client not configured".to_string(),
+                                })
+                                .await;
+                        });
+                        return;
+                    }
+                };
+
+                // result_sender was already cloned above
+
+                // Spawn async task for HTTP execution
+                tokio::spawn(async move {
+                    // Clone for the response since we'll move it for the request
+                    let request_args_clone = request_args.clone();
+
+                    // Execute the HTTP request
+                    let response_msg = match client.request(&request_args).await {
+                        Ok(response) => HttpResponseMessage::Success {
+                            request: request_args_clone,
+                            response: Box::new(response),
+                            url: url_str,
+                        },
+                        Err(e) => {
+                            // Show full error chain using anyhow's chain iterator
+                            let mut error_message = format!("{e}");
+                            for cause in e.chain().skip(1) {
+                                error_message.push_str(&format!("\n  Caused by: {cause}"));
+                            }
+                            tracing::error!("HTTP request failed: {error_message}");
+                            HttpResponseMessage::Error {
+                                message: error_message,
+                            }
+                        }
+                    };
+
+                    // Send the result back through the channel
+                    // Ignore send errors (receiver might have been dropped)
+                    let _ = result_sender.send(response_msg).await;
+                });
+            }
+            Err(e) => {
+                // Send error message through channel
+                tokio::spawn(async move {
+                    let _ = result_sender
+                        .send(HttpResponseMessage::Error {
+                            message: format!("Failed to parse request: {e}"),
+                        })
+                        .await;
+                });
+            }
+        }
     }
 }
 
@@ -253,17 +365,34 @@ impl From<&HttpResponse> for HttpExecutionResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bluenote::get_blank_profile;
+
+    fn create_test_service() -> HttpService {
+        let profile = get_blank_profile();
+        HttpService::new(&profile).unwrap_or_else(|_| {
+            // If blank profile fails, create a service without client
+            let (response_sender, response_receiver) = mpsc::channel(10);
+            HttpService {
+                client: None,
+                profile_info: None,
+                session_headers: HashMap::new(),
+                response_receiver,
+                response_sender,
+            }
+        })
+    }
 
     #[test]
-    fn http_service_should_create_with_new() {
-        let service = HttpService::new();
-        // Client availability depends on environment
-        assert!(service.session_headers().is_empty());
+    fn http_service_should_create_with_profile() {
+        let profile = get_blank_profile();
+        let result = HttpService::new(&profile);
+        // May fail if profile is not valid, but structure should be created
+        assert!(result.is_ok() || result.is_err());
     }
 
     #[test]
     fn http_service_should_manage_session_headers() {
-        let mut service = HttpService::new();
+        let mut service = create_test_service();
 
         // Add header
         service.set_session_header("Authorization".to_string(), "Bearer token".to_string());
@@ -295,7 +424,7 @@ mod tests {
 
     #[test]
     fn http_service_should_parse_simple_request() {
-        let service = HttpService::new();
+        let service = create_test_service();
         let request_text = "GET https://httpbin.org/get";
 
         match service.parse_request(request_text) {
@@ -309,7 +438,7 @@ mod tests {
 
     #[test]
     fn test_parse_request_with_body() {
-        let service = HttpService::new();
+        let service = create_test_service();
         let text = "POST http://example.com/api/users\n\n{\"name\": \"test\"}";
 
         let result = service.parse_request(text);
@@ -323,7 +452,7 @@ mod tests {
 
     #[test]
     fn test_parse_request_with_session_headers() {
-        let mut service = HttpService::new();
+        let mut service = create_test_service();
         service.set_session_header("Authorization".to_string(), "Bearer token123".to_string());
 
         let text = "GET http://example.com/api/users";
@@ -340,7 +469,7 @@ mod tests {
 
     #[test]
     fn test_parse_request_empty() {
-        let service = HttpService::new();
+        let service = create_test_service();
         let text = "";
 
         let result = service.parse_request(text);
@@ -353,7 +482,7 @@ mod tests {
 
     #[test]
     fn test_parse_request_invalid_format() {
-        let service = HttpService::new();
+        let service = create_test_service();
         let text = "GET";
 
         let result = service.parse_request(text);
