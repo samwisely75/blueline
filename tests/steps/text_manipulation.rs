@@ -192,6 +192,10 @@ async fn given_request_buffer_contains(world: &mut BluelineWorld, step: &gherkin
     world.type_text(docstring).await;
     world.tick().await.expect("Failed to tick");
 
+    // Return to Normal mode after typing text
+    world.press_escape().await;
+    world.tick().await.expect("Failed to tick");
+
     // Debug: show terminal content after insertion
     let terminal_content = world.get_terminal_content().await;
     info!(
