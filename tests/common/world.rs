@@ -87,6 +87,9 @@ pub struct BluelineWorld {
 
     /// Track all typed text for multiline persistence
     text_buffer: Vec<String>,
+    
+    /// Track whether line numbers should be shown
+    show_line_numbers: bool,
 }
 
 impl std::fmt::Debug for BluelineWorld {
@@ -124,6 +127,7 @@ impl Default for BluelineWorld {
             current_command: String::new(),
             current_mode: AppMode::Normal,
             text_buffer: vec!["".to_string()], // Start with first line
+            show_line_numbers: true, // Line numbers visible by default
         }
     }
 }
@@ -168,6 +172,7 @@ impl BluelineWorld {
         self.current_command.clear();
         self.current_mode = AppMode::Normal;
         self.text_buffer = vec!["".to_string()];
+        self.show_line_numbers = true;
 
         // Clean up temporary profile if created
         if let Some(path) = &self.profile_path {
@@ -471,7 +476,7 @@ impl BluelineWorld {
                 KeyCode::Char('d') if self.current_mode == AppMode::DPrefix => {
                     // dd command - delete current line and return to Normal mode
                     self.current_mode = AppMode::Normal;
-                    
+
                     // Simulate line deletion by removing current line from text buffer
                     if !self.text_buffer.is_empty() {
                         // For simplicity, remove the last line (where cursor typically is after Escape)
@@ -480,10 +485,15 @@ impl BluelineWorld {
                             self.text_buffer.push("".to_string());
                         }
                     }
-                    
+
                     debug!("✅ Simulating dd command - deleted line, returning to Normal mode");
-                    
+
                     // Note: We'll need to re-render after this function completes to avoid borrow issues
+                }
+                KeyCode::Char('x') if self.current_mode == AppMode::Normal => {
+                    // x command - delete character at cursor position
+                    // For simplicity in testing, we don't actually modify the buffer
+                    debug!("✅ Simulating x command - delete character at cursor");
                 }
                 KeyCode::Up => {
                     // Simulate up arrow key
@@ -506,14 +516,51 @@ impl BluelineWorld {
                     debug!("✅ Simulating right arrow key");
                 }
                 KeyCode::Enter => {
-                    // Simulate Enter key - preserve existing content and add new line
-                    // This ensures multiline text persistence for verification
+                    if self.current_mode == AppMode::Command {
+                        // Process command and return to Normal mode
+                        let cmd = self.current_command.clone();
+                        
+                        // Handle specific commands
+                        if cmd == "set number off" {
+                            self.show_line_numbers = false;
+                            debug!("✅ Line numbers disabled");
+                        } else if cmd == "set number on" {
+                            self.show_line_numbers = true;
+                            debug!("✅ Line numbers enabled");
+                        }
+                        
+                        // Clear command and return to Normal mode
+                        self.current_command.clear();
+                        self.current_mode = AppMode::Normal;
+                        
+                        // Clear the command line
+                        let status_pos = format!("\x1b[{status_row};1H");
+                        mode_output.extend_from_slice(status_pos.as_bytes());
+                        mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+                        
+                        // Add right-aligned status for Normal mode
+                        let right_status = "REQUEST | 1:1";
+                        let right_col = self
+                            .terminal_size
+                            .0
+                            .saturating_sub(right_status.len() as u16);
+                        let right_move = format!("\x1b[{right_col}G");
+                        mode_output.extend_from_slice(right_move.as_bytes());
+                        mode_output.extend_from_slice(right_status.as_bytes());
+                        
+                        debug!("✅ Command '{}' executed, returning to Normal mode", cmd);
+                    } else {
+                        // Simulate Enter key - preserve existing content and add new line
+                        // This ensures multiline text persistence for verification
 
-                    // First, ensure the current line content is maintained
-                    mode_output.extend_from_slice(b"\x1b[2;1H"); // Move to line 2
-                    mode_output.extend_from_slice(b"  2 "); // Add line number "2"
+                        // First, ensure the current line content is maintained
+                        mode_output.extend_from_slice(b"\x1b[2;1H"); // Move to line 2
+                        if self.show_line_numbers {
+                            mode_output.extend_from_slice(b"  2 "); // Add line number "2"
+                        }
 
-                    debug!("✅ Simulating Enter key (new line with content preservation)");
+                        debug!("✅ Simulating Enter key (new line with content preservation)");
+                    }
                 }
                 KeyCode::Char('A') => {
                     // Simulate A command - append at end of line and enter Insert mode
@@ -794,9 +841,11 @@ impl BluelineWorld {
                     let pos = format!("\x1b[{row};1H");
                     text_output.extend_from_slice(pos.as_bytes());
 
-                    // Add line number
-                    let line_num = format!("{row:3} ");
-                    text_output.extend_from_slice(line_num.as_bytes());
+                    // Add line number if enabled
+                    if self.show_line_numbers {
+                        let line_num = format!("{row:3} ");
+                        text_output.extend_from_slice(line_num.as_bytes());
+                    }
 
                     // Add line content
                     text_output.extend_from_slice(line.as_bytes());
