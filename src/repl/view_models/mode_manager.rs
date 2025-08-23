@@ -150,6 +150,21 @@ impl ViewModel {
         self.pane_manager.get_visual_selection()
     }
 
+    /// Check if there's an active visual selection
+    pub fn has_visual_selection(&self) -> bool {
+        self.pane_manager.has_visual_selection()
+    }
+
+    /// Start a new visual selection at current cursor
+    pub fn start_visual_selection(&mut self) -> Vec<ViewEvent> {
+        self.pane_manager.start_visual_selection()
+    }
+
+    /// Update visual selection to new position
+    pub fn update_visual_selection(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
+        self.pane_manager.update_visual_selection(position)
+    }
+
     /// Check if a position is within visual selection
     pub fn is_position_selected(&self, position: LogicalPosition, pane: Pane) -> bool {
         self.pane_manager.is_position_selected(position, pane)

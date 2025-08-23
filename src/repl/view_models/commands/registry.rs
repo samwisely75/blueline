@@ -176,7 +176,7 @@ mod tests {
         let initial_count = registry.command_count();
 
         // Add a mock command
-        use crate::repl::view_models::{commands::events::ModelEvent, ViewModel};
+        use crate::repl::view_models::commands::events::ModelEvent;
         use anyhow::Result;
 
         #[derive(Default)]
@@ -192,7 +192,10 @@ mod tests {
                 false // Never relevant for testing
             }
 
-            fn handle(&self, _view_model: &mut ViewModel) -> Result<Vec<ModelEvent>> {
+            fn handle(
+                &self,
+                _context: &mut crate::repl::view_models::commands::ExecutionContext,
+            ) -> Result<Vec<ModelEvent>> {
                 Ok(vec![])
             }
 

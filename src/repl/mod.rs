@@ -8,6 +8,7 @@ pub mod controllers;
 pub mod events;
 pub mod io;
 pub mod models;
+pub mod services;
 pub mod text;
 pub mod utils;
 pub mod view_models;
