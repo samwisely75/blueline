@@ -144,6 +144,18 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
                 .send_key_event(KeyCode::Char('y'), KeyModifiers::empty())
                 .await
         }
+        "p" => {
+            info!("Pressing 'p' key for paste after cursor");
+            world
+                .send_key_event(KeyCode::Char('p'), KeyModifiers::empty())
+                .await
+        }
+        "P" => {
+            info!("Pressing 'P' key for paste before cursor");
+            world
+                .send_key_event(KeyCode::Char('P'), KeyModifiers::empty())
+                .await
+        }
         "shift+Left" => {
             info!("Pressing Shift+Left for horizontal scroll left");
             world

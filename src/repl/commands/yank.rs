@@ -9,16 +9,13 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 pub struct YankCommand;
 
 impl Command for YankCommand {
-    fn is_relevant(&self, _context: &CommandContext, _event: &KeyEvent) -> bool {
-        // Disabled - now handled by unified YankSelectionCommand
-        false
-        // Original logic (disabled):
-        // matches!(event.code, KeyCode::Char('y'))
-        //     && matches!(
-        //         context.state.current_mode,
-        //         EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
-        //     )
-        //     && event.modifiers.is_empty()
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Char('y'))
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+            )
+            && event.modifiers.is_empty()
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -300,8 +297,7 @@ mod tests {
         let context = create_test_context(EditorMode::Visual, Pane::Request);
         let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
         let command = YankCommand;
-        // Disabled - now handled by unified YankSelectionCommand
-        assert!(!command.is_relevant(&context, &event));
+        assert!(command.is_relevant(&context, &event));
     }
 
     #[test]
@@ -436,8 +432,7 @@ mod tests {
         let context = create_test_context(EditorMode::VisualLine, Pane::Request);
         let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
         let command = YankCommand;
-        // Disabled - now handled by unified YankSelectionCommand
-        assert!(!command.is_relevant(&context, &event));
+        assert!(command.is_relevant(&context, &event));
     }
 
     #[test]
@@ -445,8 +440,7 @@ mod tests {
         let context = create_test_context(EditorMode::VisualBlock, Pane::Request);
         let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
         let command = YankCommand;
-        // Disabled - now handled by unified YankSelectionCommand
-        assert!(!command.is_relevant(&context, &event));
+        assert!(command.is_relevant(&context, &event));
     }
 
     // Tests for ChangeSelectionCommand

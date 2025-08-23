@@ -28,13 +28,6 @@ async fn when_press_u_for_undo_explicit(world: &mut BluelineWorld) {
 
 // === COPY/PASTE OPERATIONS ===
 
-#[when("I press \"y\"")]
-async fn when_press_y_for_yank(world: &mut BluelineWorld) {
-    info!("Pressing 'y' to yank/copy");
-    world.press_key('y').await;
-    world.tick().await.expect("Failed to tick");
-}
-
 #[when("I copy it with \"y\"")]
 async fn when_copy_with_y(world: &mut BluelineWorld) {
     info!("Copying selected text with 'y'");
@@ -42,24 +35,10 @@ async fn when_copy_with_y(world: &mut BluelineWorld) {
     world.tick().await.expect("Failed to tick");
 }
 
-#[when("I press \"p\"")]
-async fn when_press_p_for_paste(world: &mut BluelineWorld) {
-    info!("Pressing 'p' to paste");
-    world.press_key('p').await;
-    world.tick().await.expect("Failed to tick");
-}
-
 #[when("I paste it with \"p\"")]
 async fn when_paste_with_p(world: &mut BluelineWorld) {
     info!("Pasting with 'p'");
     world.press_key('p').await;
-    world.tick().await.expect("Failed to tick");
-}
-
-#[when("I press \"P\"")]
-async fn when_press_uppercase_p_for_paste(world: &mut BluelineWorld) {
-    info!("Pressing 'P' to paste before cursor");
-    world.press_key('P').await;
     world.tick().await.expect("Failed to tick");
 }
 

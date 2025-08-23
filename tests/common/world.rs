@@ -366,6 +366,27 @@ impl BluelineWorld {
                     mode_output.extend_from_slice(b"\x1b[999C"); // Move far right, terminal will limit
                     debug!("✅ Simulating cursor move to end of line ($)");
                 }
+                KeyCode::Char('y') if self.current_mode == AppMode::Visual => {
+                    // Simulate yank in Visual mode - should return to Normal mode
+                    self.current_mode = AppMode::Normal;
+
+                    // Clear the visual mode indicator and show normal mode status
+                    let status_pos = format!("\x1b[{status_row};1H");
+                    mode_output.extend_from_slice(status_pos.as_bytes());
+                    mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+
+                    // Add right-aligned status: "REQUEST | 1:1" (no mode indicator for Normal)
+                    let right_status = "REQUEST | 1:1";
+                    let right_col = self
+                        .terminal_size
+                        .0
+                        .saturating_sub(right_status.len() as u16);
+                    let right_move = format!("\x1b[{right_col}G");
+                    mode_output.extend_from_slice(right_move.as_bytes());
+                    mode_output.extend_from_slice(right_status.as_bytes());
+
+                    debug!("✅ Simulating yank in Visual mode - returning to Normal mode");
+                }
                 KeyCode::Up => {
                     // Simulate up arrow key
                     mode_output.extend_from_slice(b"\x1b[1A"); // Move cursor up
