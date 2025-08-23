@@ -173,6 +173,73 @@ struct RenderTransaction {
 - Phases can be developed in parallel by different team members
 - Meta issue (#203) provides coordination and progress tracking
 
+---
+
+## 2025-08-23 Session - Service Layer Implementation for Yank/Paste
+
+### User Request Summary
+- Complete TODOs in YankSelectionCommand from Phase 1
+- Implement Service Layer (originally part of Phase 1 design)
+- Fix Visual Block mode copy/paste functionality
+- Maintain clipboard toggle functionality (`:set clipboard on/off`)
+
+### What We Accomplished
+
+✅ **Service Layer Architecture Implementation**
+- Created `/src/repl/services/` directory with modular service structure
+- Implemented `YankService` wrapping YankBuffer trait implementations
+- Updated Command pattern to use `ExecutionContext` with both ViewModel and Services
+- Successfully fixed Visual Block mode copy/paste operations
+
+#### Key Components Created:
+
+1. **YankService** (`src/repl/services/yank.rs`)
+   - Manages switching between memory and clipboard yank buffers
+   - Preserves content when switching modes
+   - Provides consistent API for yank/paste operations
+
+2. **ExecutionContext** (`src/repl/view_models/commands/command.rs`)
+   - Provides both ViewModel and Services to commands
+   - Avoids circular dependencies in architecture
+
+3. **Services Aggregator** (`src/repl/services/mod.rs`)
+   - Central struct containing all services
+   - Currently contains YankService
+   - Extensible for future services
+
+### Technical Decisions Made
+
+1. **Removed SelectionService** - User correctly identified it as unnecessary indirection
+   - Selection operations remain in ViewModel (UI state management)
+   - Services should only exist when they add real value
+
+2. **Service Layer Principles Established**:
+   - Services manage their own state and resources
+   - Services provide complex business logic
+   - Services abstract external resources
+   - Avoid creating services that are just delegators
+
+### Bug Fixes Completed
+
+✅ **Visual Block Copy Fix**
+- `handle_yank_selection` was using old `view_model.yank_to_buffer_with_type()`
+- Fixed to use `services.yank.yank()`
+
+✅ **Visual Block Paste Fix**
+- `handle_paste_after` and `handle_paste_at_cursor` were using `view_model.get_yanked_entry()`
+- Fixed to use `services.yank.paste()`
+
+### Pull Request Created and Merged
+- **PR #204**: Service layer implementation with yank/paste fixes
+- Successfully merged into develop branch
+- Post-merge workflow completed (branches cleaned up)
+
+### Architecture Status After This Session
+- Service Layer pattern successfully integrated into Phase 1 architecture
+- Commands now have access to both ViewModel (UI state) and Services (business logic)
+- Visual Block mode fully functional with proper yank/paste operations
+- Clipboard toggle functionality preserved and working
+
 ## 2025-08-17 Session - Complete Visual Mode Features (Issue #147)
 
 ### User Request Summary

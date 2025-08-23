@@ -12,7 +12,6 @@ use crate::repl::{
     events::{EditorMode, LogicalPosition, Pane, SimpleEventBus},
     io::{EventStream, RenderStream},
     services::Services,
-    utils::parse_request_from_text,
     view_models::{
         commands::{
             events::YankType as NewYankType, Command, ExecutionContext, ModelEvent,
@@ -52,6 +51,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Pass RenderStream ownership to the View layer (TerminalRenderer)
         let view_renderer = TerminalRenderer::with_render_stream(render_stream)?;
+
+        // Initialize services - HttpService will create its own client
         let services = Services::new();
         let command_registry = CommandRegistry::new();
         let ex_command_registry = ExCommandRegistry::new();
@@ -659,40 +660,26 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         // Immediately refresh the status bar to show executing message
         self.view_renderer.render_status_bar(&self.view_model)?;
 
-        // Get request text and session headers from view model
+        // Get request text from view model
         let request_text = self.view_model.get_request_text();
-        let session_headers = std::collections::HashMap::new(); // TODO: Get from view model
 
-        // Parse request from buffer content
-        let (request_args, _url_str) =
-            match parse_request_from_text(&request_text, &session_headers) {
-                Ok(result) => result,
-                Err(error_message) => {
-                    self.view_model
-                        .set_response(0, format!("Error: {error_message}"));
-                    // Clear executing status on error
-                    self.view_model.set_executing_request(false);
-                    // Refresh status bar to show error (skip in CI mode)
-                    self.view_renderer.render_status_bar(&self.view_model)?;
-                    return Ok(());
-                }
-            };
-
-        // Check if HTTP client is available
-        if let Some(client) = self.view_model.http_client() {
-            // Execute the HTTP request directly using bluenote
-            match client.request(&request_args).await {
-                Ok(response) => {
-                    self.view_model.set_response_from_http(&response);
-                }
-                Err(error) => {
-                    self.view_model
-                        .set_response(0, format!("HTTP Error: {error}"));
+        // Use HttpService to parse and execute the request
+        match self.services.http.parse_request(&request_text) {
+            Ok((request_args, _url_str)) => {
+                // Execute the HTTP request through the service
+                match self.services.http.execute_request(&request_args).await {
+                    Ok(response) => {
+                        self.view_model.set_response_from_http(&response);
+                    }
+                    Err(error) => {
+                        self.view_model
+                            .set_response(0, format!("HTTP Error: {error}"));
+                    }
                 }
             }
-        } else {
-            self.view_model
-                .set_response(0, "Error: HTTP client not configured".to_string());
+            Err(error) => {
+                self.view_model.set_response(0, format!("Error: {error}"));
+            }
         }
 
         // Clear executing status when request completes

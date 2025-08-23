@@ -3,11 +3,10 @@
 //! Commands for executing HTTP requests and related operations
 
 use crate::repl::events::{EditorMode, Pane};
-use crate::repl::utils::parse_request_from_text;
+use crate::repl::services::HttpService;
 use anyhow::Result;
 use bluenote::HttpRequestArgs;
 use crossterm::event::{KeyCode, KeyEvent};
-use std::collections::HashMap;
 
 use super::{
     Command, CommandContext, CommandEvent, HttpClientAccess, HttpCommand, HttpCommandContext,
@@ -44,10 +43,10 @@ impl HttpCommand for ExecuteRequestCommand {
 
     fn execute(&self, _event: KeyEvent, context: &HttpCommandContext) -> Result<Vec<CommandEvent>> {
         let request_text = &context.state().request_text;
-        let session_headers = HashMap::new(); // Could be passed via context in the future
 
-        // Parse the request from the buffer
-        match parse_request_from_text(request_text, &session_headers) {
+        // Parse the request from the buffer using HttpService
+        let service = HttpService::new();
+        match service.parse_request(request_text) {
             Ok((request_args, _url_str)) => {
                 // Check if HTTP client is available
                 if context.http_client().is_some() {
@@ -112,10 +111,10 @@ impl Command for ExecuteRequestCommand {
 
     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
         let request_text = &context.state.request_text;
-        let session_headers = HashMap::new(); // Could be passed via context in the future
 
-        // Parse the request from the buffer
-        match parse_request_from_text(request_text, &session_headers) {
+        // Parse the request from the buffer using HttpService
+        let service = HttpService::new();
+        match service.parse_request(request_text) {
             Ok((request_args, _url_str)) => {
                 // Create HTTP request event - note we don't have HTTP client in basic context
                 // Controller will need to handle this with HTTP client
