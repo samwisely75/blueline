@@ -38,13 +38,24 @@ async fn given_command_mode(world: &mut BluelineWorld) {
 #[given("I am in Normal mode")]
 async fn given_normal_mode(world: &mut BluelineWorld) {
     debug!("Ensuring we are in Normal mode");
-    // The application starts in Normal mode by default (vim-like behavior)
-    // If we're not in Normal mode, press Escape to get there
-    world
-        .send_key_event(KeyCode::Esc, KeyModifiers::empty())
-        .await;
-    world.tick().await.expect("Failed to tick");
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    // Check if we're already in Normal mode
+    let current_mode = world.get_current_mode().await;
+
+    // Only press Escape if we're NOT already in Normal mode
+    if current_mode != AppMode::Normal {
+        debug!(
+            "Not in Normal mode (currently {:?}), pressing Escape",
+            current_mode
+        );
+        world
+            .send_key_event(KeyCode::Esc, KeyModifiers::empty())
+            .await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    } else {
+        debug!("Already in Normal mode, no action needed");
+    }
 }
 
 // When steps for mode transitions
