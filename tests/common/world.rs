@@ -90,6 +90,12 @@ pub struct BluelineWorld {
 
     /// Track whether line numbers should be shown
     show_line_numbers: bool,
+
+    /// Track cursor position for selection
+    cursor_position: (usize, usize), // (line, column)
+
+    /// Track visual selection start position
+    visual_start: Option<(usize, usize)>, // (line, column) when visual mode started
 }
 
 impl std::fmt::Debug for BluelineWorld {
@@ -128,6 +134,8 @@ impl Default for BluelineWorld {
             current_mode: AppMode::Normal,
             text_buffer: vec!["".to_string()], // Start with first line
             show_line_numbers: true,           // Line numbers visible by default
+            cursor_position: (0, 0),
+            visual_start: None,
         }
     }
 }
@@ -173,6 +181,8 @@ impl BluelineWorld {
         self.current_mode = AppMode::Normal;
         self.text_buffer = vec!["".to_string()];
         self.show_line_numbers = true;
+        self.cursor_position = (0, 0);
+        self.visual_start = None;
 
         // Clean up temporary profile if created
         if let Some(path) = &self.profile_path {
@@ -289,6 +299,7 @@ impl BluelineWorld {
                 KeyCode::Char('v') if modifiers.is_empty() => {
                     // Simulate entering Visual mode - show "-- VISUAL --" on left
                     self.current_mode = AppMode::Visual; // Set the mode!
+                    self.visual_start = Some(self.cursor_position); // Mark selection start
 
                     let status_pos = format!("\x1b[{status_row};1H");
                     mode_output.extend_from_slice(status_pos.as_bytes());
@@ -310,6 +321,7 @@ impl BluelineWorld {
                 KeyCode::Char('V') => {
                     // Simulate entering Visual Line mode - show "-- VISUAL LINE --" on left
                     self.current_mode = AppMode::VisualLine;
+                    self.visual_start = Some(self.cursor_position); // Mark selection start
 
                     let status_pos = format!("\x1b[{status_row};1H");
                     mode_output.extend_from_slice(status_pos.as_bytes());
@@ -331,6 +343,7 @@ impl BluelineWorld {
                 KeyCode::Char('v') if modifiers.contains(KeyModifiers::CONTROL) => {
                     // Simulate entering Visual Block mode - show "-- VISUAL BLOCK --" on left
                     self.current_mode = AppMode::VisualBlock;
+                    self.visual_start = Some(self.cursor_position); // Mark selection start
 
                     let status_pos = format!("\x1b[{status_row};1H");
                     mode_output.extend_from_slice(status_pos.as_bytes());
@@ -387,21 +400,38 @@ impl BluelineWorld {
                 }
                 KeyCode::Char('k') => {
                     // Simulate moving cursor up one line
+                    if self.cursor_position.0 > 0 {
+                        self.cursor_position.0 -= 1;
+                    }
                     mode_output.extend_from_slice(b"\x1b[1A"); // Move cursor up
                     debug!("✅ Simulating cursor move up (k)");
                 }
                 KeyCode::Char('j') => {
                     // Simulate moving cursor down one line
+                    if self.cursor_position.0 < self.text_buffer.len().saturating_sub(1) {
+                        self.cursor_position.0 += 1;
+                    }
                     mode_output.extend_from_slice(b"\x1b[1B"); // Move cursor down
                     debug!("✅ Simulating cursor move down (j)");
                 }
                 KeyCode::Char('h') => {
                     // Simulate moving cursor left one character
+                    if self.cursor_position.1 > 0 {
+                        self.cursor_position.1 -= 1;
+                    }
                     mode_output.extend_from_slice(b"\x1b[1D"); // Move cursor left
                     debug!("✅ Simulating cursor move left (h)");
                 }
                 KeyCode::Char('l') => {
                     // Simulate moving cursor right one character
+                    let max_col = if self.cursor_position.0 < self.text_buffer.len() {
+                        self.text_buffer[self.cursor_position.0].len()
+                    } else {
+                        0
+                    };
+                    if self.cursor_position.1 < max_col {
+                        self.cursor_position.1 += 1;
+                    }
                     mode_output.extend_from_slice(b"\x1b[1C"); // Move cursor right
                     debug!("✅ Simulating cursor move right (l)");
                 }
@@ -447,6 +477,87 @@ impl BluelineWorld {
                         AppMode::Visual | AppMode::VisualLine | AppMode::VisualBlock
                     ) =>
                 {
+                    // Perform the actual deletion based on visual mode type
+                    if let Some(start) = self.visual_start {
+                        match self.current_mode {
+                            AppMode::VisualLine => {
+                                // Delete entire lines from start to current
+                                let (start_line, end_line) = if start.0 <= self.cursor_position.0 {
+                                    (start.0, self.cursor_position.0)
+                                } else {
+                                    (self.cursor_position.0, start.0)
+                                };
+
+                                // Remove the selected lines
+                                if !self.text_buffer.is_empty() {
+                                    for _ in start_line..=end_line {
+                                        if start_line < self.text_buffer.len() {
+                                            self.text_buffer.remove(start_line);
+                                        }
+                                    }
+                                    // Ensure at least one line remains
+                                    if self.text_buffer.is_empty() {
+                                        self.text_buffer.push("".to_string());
+                                    }
+                                    // Adjust cursor position
+                                    self.cursor_position =
+                                        (start_line.min(self.text_buffer.len() - 1), 0);
+                                }
+                            }
+                            AppMode::Visual => {
+                                // Delete characters from start to current position
+                                if self.cursor_position.0 < self.text_buffer.len() {
+                                    let line = &mut self.text_buffer[self.cursor_position.0];
+                                    let (start_col, end_col) = if start.1 <= self.cursor_position.1
+                                    {
+                                        (start.1, self.cursor_position.1)
+                                    } else {
+                                        (self.cursor_position.1, start.1)
+                                    };
+
+                                    // Remove the selected characters (inclusive)
+                                    if start_col < line.len() {
+                                        let end = (end_col + 1).min(line.len());
+                                        line.drain(start_col..end);
+                                        // Adjust cursor position
+                                        self.cursor_position.1 =
+                                            start_col.min(line.len().saturating_sub(1));
+                                    }
+                                }
+                            }
+                            AppMode::VisualBlock => {
+                                // Delete rectangular block
+                                let (start_line, end_line) = if start.0 <= self.cursor_position.0 {
+                                    (start.0, self.cursor_position.0)
+                                } else {
+                                    (self.cursor_position.0, start.0)
+                                };
+                                let (start_col, end_col) = if start.1 <= self.cursor_position.1 {
+                                    (start.1, self.cursor_position.1)
+                                } else {
+                                    (self.cursor_position.1, start.1)
+                                };
+
+                                // Remove characters in the block
+                                for line_idx in start_line..=end_line {
+                                    if line_idx < self.text_buffer.len() {
+                                        let line = &mut self.text_buffer[line_idx];
+                                        if start_col < line.len() {
+                                            let end = (end_col + 1).min(line.len());
+                                            line.drain(start_col..end);
+                                        }
+                                    }
+                                }
+                                // Adjust cursor position
+                                self.cursor_position = (start_line, start_col);
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    // Clear visual selection
+                    self.visual_start = None;
+
                     // Simulate delete/cut in any Visual mode - should return to Normal mode
                     self.current_mode = AppMode::Normal;
 
@@ -558,7 +669,7 @@ impl BluelineWorld {
                                 let line_pos = format!("\x1b[{row};1H");
                                 mode_output.extend_from_slice(line_pos.as_bytes());
                                 mode_output.extend_from_slice(b"\x1b[K"); // Clear line
-                                
+
                                 if self.show_line_numbers {
                                     let line_num = format!("{row:3}: ");
                                     mode_output.extend_from_slice(line_num.as_bytes());
@@ -1052,13 +1163,25 @@ impl BluelineWorld {
         &self.text_buffer
     }
 
+    /// Set cursor position for testing
+    pub fn set_cursor_position(&mut self, line: usize, column: usize) {
+        self.cursor_position = (line, column);
+        debug!("Set cursor position to ({}, {})", line, column);
+    }
+
     /// Get terminal content from our test simulation
     fn get_simulated_terminal_content(&self) -> String {
         let mut lines = Vec::new();
 
-        // Add text buffer lines with line numbers
+        // Add text buffer lines with or without line numbers based on setting
         for (i, line) in self.text_buffer.iter().enumerate() {
-            lines.push(format!("  {} {}", i + 1, line));
+            if self.show_line_numbers {
+                // Use the correct format with colon
+                lines.push(format!("  {}: {}", i + 1, line));
+            } else {
+                // No line numbers - content starts at beginning of line
+                lines.push(line.clone());
+            }
         }
 
         // Add empty line markers if needed

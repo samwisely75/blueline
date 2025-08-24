@@ -566,10 +566,8 @@ async fn given_cursor_at_display_position(world: &mut BluelineWorld, line: usize
         line, column
     );
 
-    // TODO: Implement display cursor position setting
-    // This requires precise cursor positioning in display coordinates
-    let _ = world; // Acknowledge parameter
-    let _ = (line, column); // Acknowledge coordinates
+    // Set cursor position in our test simulation (0-indexed internally)
+    world.set_cursor_position(line.saturating_sub(1), column.saturating_sub(1));
 
     debug!(
         "Cursor set to display position ({}, {}) (placeholder implementation)",
