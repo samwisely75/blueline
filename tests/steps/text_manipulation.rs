@@ -190,6 +190,13 @@ async fn given_request_buffer_contains(world: &mut BluelineWorld, step: &gherkin
 
     // Clear any existing text first
     world.clear_request_buffer().await;
+
+    // Enter Insert mode to type the text
+    world
+        .send_key_event(KeyCode::Char('i'), KeyModifiers::empty())
+        .await;
+    world.tick().await.expect("Failed to tick");
+
     // Type the multiline text
     world.type_text(docstring).await;
     world.tick().await.expect("Failed to tick");

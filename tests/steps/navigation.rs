@@ -66,7 +66,9 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
             info!("Pressing colon key to enter command mode");
             world
                 .send_key_event(KeyCode::Char(':'), KeyModifiers::empty())
-                .await
+                .await;
+            // Give extra time for command mode to activate
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
         // Navigation keys
         "h" => {

@@ -27,7 +27,7 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, Mutex};
-use tokio::task::JoinHandle;
+// use tokio::task::JoinHandle;  // Not needed anymore, using std::thread
 use tracing::{debug, error, info, trace, warn};
 
 use super::terminal_state::TerminalState;
@@ -52,8 +52,8 @@ pub enum AppMode {
 /// interacting with the application under test.
 #[derive(World)]
 pub struct BluelineWorld {
-    /// Task handle for the running application
-    app_task: Option<JoinHandle<Result<()>>>,
+    /// Thread handle for the running application
+    app_thread: Option<std::thread::JoinHandle<Result<()>>>,
 
     /// Controller for sending events to the app
     event_controller: Option<EventStreamController>,
@@ -127,7 +127,7 @@ impl Drop for BluelineWorld {
 impl Default for BluelineWorld {
     fn default() -> Self {
         Self {
-            app_task: None,
+            app_thread: None,
             event_controller: None,
             render_monitor: None,
             vte_parser: Arc::new(Mutex::new(VteRenderStream::with_size((80, 24)))),
@@ -174,11 +174,30 @@ impl BluelineWorld {
         if self.app_running {
             debug!("Shutting down test app");
 
-            // Clean up resources (no task to abort since we're not running the event loop)
+            // Send quit event to the app
+            if let Some(controller) = &self.event_controller {
+                // Send Ctrl-C to quit the app
+                let quit_event =
+                    Event::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+                let _ = controller.send_event(quit_event);
+                debug!("Sent quit event to app");
+            }
+
+            // Wait for the app thread to finish
+            if let Some(thread) = self.app_thread.take() {
+                debug!("Waiting for app thread to finish...");
+                // Give it a moment to process the quit event
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                // Note: We can't forcefully abort a thread, it should exit on quit event
+                // thread.join() would block, so we just drop it
+                drop(thread);
+                debug!("App thread handle dropped");
+            }
+
+            // Clean up resources
             self.event_controller = None;
             self.render_monitor = None;
             self.shutdown_tx = None;
-            self.app_task = None;
             self.app_running = false;
             debug!("Test app shut down successfully");
         }
@@ -236,19 +255,45 @@ impl BluelineWorld {
 
         debug!("Creating AppController with bridged streams");
 
-        // For testing, just create the AppController without running it
-        // The tests simulate behavior without needing the full event loop
-        debug!("Creating AppController for testing (no event loop)...");
+        // Actually run the AppController in a spawned task
+        debug!("Creating and running AppController with event loop...");
         let config = AppConfig::from_args(cmd_args);
-        let _app = AppController::with_io_streams(config, event_stream, render_stream)?;
+        let mut app = AppController::with_io_streams(config, event_stream, render_stream)?;
         debug!("✅ AppController created successfully");
 
-        // Mark as running for test simulation purposes (but no actual task)
+        // Spawn the app.run() in a separate runtime to avoid deadlock with cucumber
+        // This is necessary because cucumber-rs and tokio::spawn can deadlock
+        // when running in the same runtime
+        let app_handle = std::thread::spawn(move || {
+            // Create a new runtime for the app
+            let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+            rt.block_on(async move {
+                tracing::info!("🚀 Starting AppController event loop in separate runtime");
+                match app.run().await {
+                    Ok(()) => {
+                        tracing::info!("✅ AppController exited normally");
+                        Ok(())
+                    }
+                    Err(e) => {
+                        tracing::error!("❌ AppController error: {}", e);
+                        Err(e)
+                    }
+                }
+            })
+        });
+
+        // Store the thread handle
+        self.app_thread = Some(app_handle);
         self.app_running = true;
 
-        // Simulate the initial terminal rendering that would normally happen
-        // This matches what the tests expect from a freshly started app
-        self.simulate_initial_rendering().await?;
+        // Give the app a moment to initialize and render
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Process any initial output
+        if let Some(monitor) = &self.render_monitor {
+            monitor.process_output().await;
+            debug!("Processed initial app output");
+        }
 
         debug!("Test setup complete");
 
@@ -266,14 +311,18 @@ impl BluelineWorld {
         if let Some(controller) = &self.event_controller {
             let event = Event::Key(KeyEvent::new(code, modifiers));
             if let Err(e) = controller.send_event(event) {
-                error!("Failed to send key event: {}", e);
+                error!("❌ Failed to send key event: {}", e);
+            } else {
+                info!("✅ Key event {:?} sent successfully to AppController", code);
+                // Give the app time to process the event
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
         } else {
-            warn!("Cannot send key event: app not started");
+            warn!("⚠️ Cannot send key event: app not started");
         }
 
-        // Simulate mode changes for testing since the full app controller isn't running
-        self.simulate_mode_change(code, modifiers).await;
+        // Don't simulate mode changes - the app is actually running now!
+        // self.simulate_mode_change(code, modifiers).await;
     }
 
     /// Simulate mode changes based on key input for testing
@@ -1105,12 +1154,19 @@ impl BluelineWorld {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
         for ch in text.chars() {
-            self.send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
-                .await;
+            if ch == '\n' {
+                // Send Enter for newlines
+                self.send_key_event(KeyCode::Enter, KeyModifiers::empty())
+                    .await;
+            } else {
+                self.send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
+                    .await;
+            }
         }
 
-        // Simulate the text appearing in the terminal as it's typed
-        self.simulate_text_input(text).await;
+        // Don't simulate text input when the real app is running
+        // The app will render the text itself
+        // self.simulate_text_input(text).await;
     }
 
     /// Send an Enter key press
@@ -1118,44 +1174,9 @@ impl BluelineWorld {
         self.send_key_event(KeyCode::Enter, KeyModifiers::empty())
             .await;
 
-        // Only execute commands when in Command mode
-        match self.current_mode {
-            AppMode::Command => {
-                // Simulate command execution if we have a command
-                debug!(
-                    "Enter pressed in Command mode, current_command: '{}'",
-                    self.current_command
-                );
-                if !self.current_command.is_empty() {
-                    let command = self.current_command.clone();
-
-                    // For set number commands, give the app extra time to re-render
-                    if command.starts_with("set number") {
-                        debug!("Executing line number command: {}", command);
-                        // Give app time to process the command
-                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                    }
-
-                    let _ = self.simulate_command_output(&command).await;
-                    self.current_command.clear(); // Clear after execution
-                    self.current_mode = AppMode::Normal; // Return to Normal mode after command
-                } else {
-                    // Empty command, just return to Normal mode
-                    self.current_mode = AppMode::Normal;
-                }
-            }
-            AppMode::Insert => {
-                // Enter in Insert mode is now handled in simulate_mode_change
-                debug!("Enter pressed in Insert mode - handled by simulate_mode_change");
-            }
-            _ => {
-                // In Normal/Visual modes, Enter typically does nothing special
-                debug!(
-                    "✅ Enter in {:?} mode - no special action",
-                    self.current_mode
-                );
-            }
-        }
+        // Don't simulate command execution when the real app is running
+        // The app will handle command execution and mode changes
+        debug!("Enter pressed, app will handle it")
     }
 
     /// Simulate command execution output for testing
@@ -1394,11 +1415,12 @@ impl BluelineWorld {
     pub async fn tick(&mut self) -> Result<()> {
         if self.app_running {
             // Give the app time to process events
-            tokio::time::sleep(Duration::from_millis(10)).await;
+            tokio::time::sleep(Duration::from_millis(50)).await;
 
             // Process any pending output from the render stream
             if let Some(monitor) = &self.render_monitor {
                 monitor.process_output().await;
+                debug!("Processed output after tick");
             }
 
             Ok(())
@@ -1409,7 +1431,7 @@ impl BluelineWorld {
 
     /// Get the current terminal state
     pub async fn get_terminal_state(&mut self) -> TerminalState {
-        trace!("Getting current terminal state");
+        debug!("Getting current terminal state");
 
         if let Some(monitor) = &self.render_monitor {
             // Process any pending output
@@ -1417,6 +1439,13 @@ impl BluelineWorld {
 
             // Get the captured output and feed it to our VTE parser
             let output = monitor.get_captured().await;
+            debug!("Captured output length: {} bytes", output.len());
+            if !output.is_empty() {
+                debug!(
+                    "Raw output first 200 bytes: {:?}",
+                    &output[..output.len().min(200)]
+                );
+            }
 
             // Create a VTE stream and write the output to it for parsing
             let mut vte_parser = self.vte_parser.lock().await;
@@ -1561,11 +1590,20 @@ impl BluelineWorld {
         let state = self.get_terminal_state().await;
         let lines = state.get_visible_text();
 
+        // Debug: print all lines to see what we're getting
+        debug!("Terminal lines for mode detection:");
+        for (i, line) in lines.iter().enumerate() {
+            debug!("  Line {}: '{}'", i, line);
+        }
+        debug!("Cursor position: {:?}", state.cursor_position);
+
         // Command mode detection: cursor at bottom row + ":" at column 1
         let bottom_row = state.height - 1;
         if state.cursor_position.1 == bottom_row {
             // Check if there's a ":" at the beginning of the bottom row
             if let Some(bottom_line) = state.grid.get(bottom_row as usize) {
+                let bottom_text: String = bottom_line.iter().collect();
+                debug!("Bottom row text: '{}'", bottom_text);
                 if !bottom_line.is_empty() && bottom_line[0] == ':' {
                     debug!("Detected Command mode: cursor at bottom row with ':'");
                     return AppMode::Command;
@@ -1643,13 +1681,7 @@ impl BluelineWorld {
 
     /// Press a single key (for navigation, commands, etc.)
     pub async fn press_key(&mut self, key: char) {
-        // Special handling for ':' to enter command mode
-        if key == ':' && self.current_mode == AppMode::Normal {
-            self.current_mode = AppMode::Command;
-            self.current_command.clear(); // Clear any previous command
-            debug!("✅ Entered Command mode");
-        }
-
+        // Don't simulate mode changes - let the app handle everything
         let code = match key {
             '0'..='9' | 'a'..='z' | 'A'..='Z' => KeyCode::Char(key),
             '$' => KeyCode::Char('$'),

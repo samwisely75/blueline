@@ -6,13 +6,17 @@
 use super::{EventStream, RenderStream, TerminalSize};
 use anyhow::Result;
 use crossterm::event::Event;
+use std::collections::VecDeque;
 use std::io::Write;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 use tokio::sync::{mpsc, Mutex};
 
-/// Type alias for shared event receiver
-type SharedEventReceiver = Arc<Mutex<mpsc::UnboundedReceiver<Event>>>;
+/// Type alias for shared event queue
+type SharedEventQueue = Arc<StdMutex<VecDeque<Event>>>;
+
+/// Type alias for wake sender
+type WakeSender = Arc<StdMutex<Option<std::sync::mpsc::Sender<()>>>>;
 
 /// Type alias for shared byte receiver
 type SharedByteReceiver = Arc<Mutex<mpsc::UnboundedReceiver<Vec<u8>>>>;
@@ -21,64 +25,113 @@ type SharedByteReceiver = Arc<Mutex<mpsc::UnboundedReceiver<Vec<u8>>>>;
 type SharedByteBuffer = Arc<Mutex<Vec<u8>>>;
 
 /// Bridge for sending events from tests to the application
+///
+/// Uses a simple VecDeque with std::sync::Mutex to avoid async complications
+/// in the sync EventStream interface
 pub struct BridgedEventStream {
-    receiver: SharedEventReceiver,
+    events: SharedEventQueue,
+    #[allow(dead_code)]
+    waker: WakeSender,
+    wake_receiver: Option<std::sync::mpsc::Receiver<()>>,
 }
 
 impl BridgedEventStream {
     /// Create a new bridged event stream with its controller
     pub fn new() -> (Self, EventStreamController) {
-        let (sender, receiver) = mpsc::unbounded_channel();
+        let events = Arc::new(StdMutex::new(VecDeque::new()));
+        let (wake_sender, wake_receiver) = std::sync::mpsc::channel();
+        let waker = Arc::new(StdMutex::new(Some(wake_sender)));
 
         let stream = BridgedEventStream {
-            receiver: Arc::new(Mutex::new(receiver)),
+            events: events.clone(),
+            waker: waker.clone(),
+            wake_receiver: Some(wake_receiver),
         };
 
-        let controller = EventStreamController { sender };
+        let controller = EventStreamController { events, waker };
 
         (stream, controller)
     }
 }
 
 impl EventStream for BridgedEventStream {
-    fn poll(&mut self, _timeout: Duration) -> Result<bool> {
-        // Check if there are events available
-        // We use try_lock to avoid blocking
-        if let Ok(receiver) = self.receiver.try_lock() {
-            Ok(!receiver.is_empty())
+    fn poll(&mut self, timeout: Duration) -> Result<bool> {
+        // Check if we have events
+        if let Ok(queue) = self.events.lock() {
+            if !queue.is_empty() {
+                return Ok(true);
+            }
+        }
+
+        // Wait for a wake signal with timeout
+        if let Some(receiver) = &self.wake_receiver {
+            match receiver.recv_timeout(timeout) {
+                Ok(_) => {
+                    // Got a wake signal, check for events again
+                    if let Ok(queue) = self.events.lock() {
+                        Ok(!queue.is_empty())
+                    } else {
+                        Ok(false)
+                    }
+                }
+                Err(_) => Ok(false), // Timeout or disconnected
+            }
         } else {
-            // If we can't get the lock, assume no events
             Ok(false)
         }
     }
 
     fn read(&mut self) -> Result<Event> {
-        // Block until we get an event
-        let receiver = self.receiver.clone();
+        // Try to get an event from the queue
+        if let Ok(mut queue) = self.events.lock() {
+            if let Some(event) = queue.pop_front() {
+                return Ok(event);
+            }
+        }
 
-        // Use blocking_recv in a blocking context
-        let handle = tokio::runtime::Handle::current();
-        let event = handle.block_on(async {
-            let mut rx = receiver.lock().await;
-            rx.recv().await
-        });
+        // No events available, block until we get one
+        loop {
+            // Wait for a wake signal
+            if let Some(receiver) = &self.wake_receiver {
+                // Block indefinitely waiting for an event
+                let _ = receiver.recv();
+            }
 
-        event.ok_or_else(|| anyhow::anyhow!("Event stream closed"))
+            // Check for events again
+            if let Ok(mut queue) = self.events.lock() {
+                if let Some(event) = queue.pop_front() {
+                    return Ok(event);
+                }
+            }
+        }
     }
 }
 
 /// Controller for sending events to a BridgedEventStream
 #[derive(Clone)]
 pub struct EventStreamController {
-    sender: mpsc::UnboundedSender<Event>,
+    events: SharedEventQueue,
+    waker: WakeSender,
 }
 
 impl EventStreamController {
     /// Send an event to the stream
     pub fn send_event(&self, event: Event) -> Result<()> {
-        self.sender
-            .send(event)
-            .map_err(|_| anyhow::anyhow!("Failed to send event"))
+        // Add event to queue
+        if let Ok(mut queue) = self.events.lock() {
+            queue.push_back(event);
+        } else {
+            return Err(anyhow::anyhow!("Failed to lock event queue"));
+        }
+
+        // Send wake signal
+        if let Ok(waker_guard) = self.waker.lock() {
+            if let Some(sender) = &*waker_guard {
+                let _ = sender.send(()); // Ignore error if receiver is gone
+            }
+        }
+
+        Ok(())
     }
 }
 
