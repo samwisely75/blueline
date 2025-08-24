@@ -272,7 +272,7 @@ impl BluelineWorld {
     /// Simulate mode changes based on key input for testing
     async fn simulate_mode_change(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         let mut needs_rerender = false;
-        
+
         if let Some(monitor) = &self.render_monitor {
             let status_row = self.terminal_size.1;
             let mut mode_output = Vec::new();
@@ -754,7 +754,7 @@ impl BluelineWorld {
                 monitor.inject_data(&mode_output).await;
             }
         }
-        
+
         // Handle deferred re-rendering after dd command (outside of monitor borrow)
         if needs_rerender {
             // Re-render the text buffer after dd command
@@ -954,6 +954,7 @@ impl BluelineWorld {
                 }
                 "help" | "h" => {
                     debug!("Simulating 'help' command output");
+                    self.current_mode = AppMode::Normal; // Return to Normal mode after command
 
                     // Move cursor to next line and display the help message
                     let mut cmd_output = Vec::new();

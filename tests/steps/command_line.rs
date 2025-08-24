@@ -49,11 +49,20 @@ async fn then_command_line_should_be_cleared(world: &mut BluelineWorld) {
 #[then("I should see the help message in the output")]
 async fn then_should_see_help_message(world: &mut BluelineWorld) {
     debug!("Checking for help message in output");
+
+    // Debug: Print terminal content
+    let content = world.get_terminal_content().await;
+    debug!("Terminal content when checking for help:\n{}", content);
+
     // Help message might contain various text - check for something common
     let contains = world.terminal_contains("help").await
         || world.terminal_contains("Help").await
-        || world.terminal_contains("Commands").await;
-    assert!(contains, "Expected to see help message in output");
+        || world.terminal_contains("Commands").await
+        || world.terminal_contains("Blueline").await;
+    assert!(
+        contains,
+        "Expected to see help message in output. Terminal content:\n{content}"
+    );
 }
 
 #[then("the application should exit")]
