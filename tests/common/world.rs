@@ -400,52 +400,58 @@ impl BluelineWorld {
 
                     debug!("✅ Simulating Command mode status bar");
                 }
-                KeyCode::Char('k') => {
+                KeyCode::Char('k') if self.current_mode == AppMode::Normal || self.current_mode == AppMode::Visual => {
                     // Simulate moving cursor up one line
                     if self.cursor_position.0 > 0 {
                         self.cursor_position.0 -= 1;
+                        mode_output.extend_from_slice(b"\x1b[1A"); // Move cursor up
                     }
-                    mode_output.extend_from_slice(b"\x1b[1A"); // Move cursor up
-                    debug!("✅ Simulating cursor move up (k)");
+                    debug!("✅ Simulating cursor move up (k), cursor now at ({}, {})", self.cursor_position.0, self.cursor_position.1);
                 }
-                KeyCode::Char('j') => {
+                KeyCode::Char('j') if self.current_mode == AppMode::Normal || self.current_mode == AppMode::Visual => {
                     // Simulate moving cursor down one line
-                    if self.cursor_position.0 < self.text_buffer.len().saturating_sub(1) {
+                    let max_line = if self.text_buffer.is_empty() { 0 } else { self.text_buffer.len() - 1 };
+                    if self.cursor_position.0 < max_line {
                         self.cursor_position.0 += 1;
+                        mode_output.extend_from_slice(b"\x1b[1B"); // Move cursor down
                     }
-                    mode_output.extend_from_slice(b"\x1b[1B"); // Move cursor down
-                    debug!("✅ Simulating cursor move down (j)");
+                    debug!("✅ Simulating cursor move down (j), cursor now at ({}, {})", self.cursor_position.0, self.cursor_position.1);
                 }
-                KeyCode::Char('h') => {
+                KeyCode::Char('h') if self.current_mode == AppMode::Normal || self.current_mode == AppMode::Visual => {
                     // Simulate moving cursor left one character
                     if self.cursor_position.1 > 0 {
                         self.cursor_position.1 -= 1;
+                        mode_output.extend_from_slice(b"\x1b[1D"); // Move cursor left
                     }
-                    mode_output.extend_from_slice(b"\x1b[1D"); // Move cursor left
-                    debug!("✅ Simulating cursor move left (h)");
+                    debug!("✅ Simulating cursor move left (h), cursor now at ({}, {})", self.cursor_position.0, self.cursor_position.1);
                 }
-                KeyCode::Char('l') => {
+                KeyCode::Char('l') if self.current_mode == AppMode::Normal || self.current_mode == AppMode::Visual => {
                     // Simulate moving cursor right one character
                     let max_col = if self.cursor_position.0 < self.text_buffer.len() {
-                        self.text_buffer[self.cursor_position.0].len()
+                        self.text_buffer[self.cursor_position.0].len().saturating_sub(1)
                     } else {
                         0
                     };
                     if self.cursor_position.1 < max_col {
                         self.cursor_position.1 += 1;
+                        mode_output.extend_from_slice(b"\x1b[1C"); // Move cursor right
                     }
-                    mode_output.extend_from_slice(b"\x1b[1C"); // Move cursor right
-                    debug!("✅ Simulating cursor move right (l)");
+                    debug!("✅ Simulating cursor move right (l), cursor now at ({}, {})", self.cursor_position.0, self.cursor_position.1);
                 }
-                KeyCode::Char('0') => {
-                    // Simulate moving cursor to very beginning of line (column 1)
+                KeyCode::Char('0') if self.current_mode == AppMode::Normal || self.current_mode == AppMode::Visual => {
+                    // Simulate moving cursor to very beginning of line (column 0)
+                    self.cursor_position.1 = 0;
                     mode_output.extend_from_slice(b"\x1b[1G"); // Move to column 1 (vim behavior)
-                    debug!("✅ Simulating cursor move to start of line (0)");
+                    debug!("✅ Simulating cursor move to start of line (0), cursor now at ({}, {})", self.cursor_position.0, self.cursor_position.1);
                 }
-                KeyCode::Char('$') => {
-                    // Simulate moving cursor to end of line (approximate)
+                KeyCode::Char('$') if self.current_mode == AppMode::Normal || self.current_mode == AppMode::Visual => {
+                    // Simulate moving cursor to end of line
+                    if self.cursor_position.0 < self.text_buffer.len() {
+                        let line_len = self.text_buffer[self.cursor_position.0].len();
+                        self.cursor_position.1 = if line_len > 0 { line_len - 1 } else { 0 };
+                    }
                     mode_output.extend_from_slice(b"\x1b[999C"); // Move far right, terminal will limit
-                    debug!("✅ Simulating cursor move to end of line ($)");
+                    debug!("✅ Simulating cursor move to end of line ($), cursor now at ({}, {})", self.cursor_position.0, self.cursor_position.1);
                 }
                 KeyCode::Char('y')
                     if matches!(
@@ -590,14 +596,24 @@ impl BluelineWorld {
                     // dd command - delete current line and return to Normal mode
                     self.current_mode = AppMode::Normal;
 
-                    // Simulate line deletion by removing current line from text buffer
+                    // Simulate line deletion by removing line at cursor position
                     if !self.text_buffer.is_empty() {
-                        // For simplicity, remove the last line (where cursor typically is after Escape)
-                        self.text_buffer.pop();
-                        // Don't add an empty line if buffer becomes empty - this represents truly empty content
+                        let line_to_delete = self.cursor_position.0;
+                        if line_to_delete < self.text_buffer.len() {
+                            self.text_buffer.remove(line_to_delete);
+                            
+                            // If buffer becomes empty, keep it truly empty (don't add placeholder)
+                            // Adjust cursor position if needed
+                            if !self.text_buffer.is_empty() {
+                                // Move cursor to valid position
+                                self.cursor_position.0 = self.cursor_position.0.min(self.text_buffer.len() - 1);
+                            } else {
+                                self.cursor_position = (0, 0);
+                            }
+                        }
                     }
 
-                    debug!("✅ Simulating dd command - deleted line, returning to Normal mode");
+                    debug!("✅ Simulating dd command - deleted line at position {}, returning to Normal mode", self.cursor_position.0);
 
                     // Schedule re-rendering after the borrow ends
                     needs_rerender = true;
@@ -608,24 +624,41 @@ impl BluelineWorld {
                     debug!("✅ Simulating x command - delete character at cursor");
                 }
                 KeyCode::Up => {
-                    // Simulate up arrow key
-                    mode_output.extend_from_slice(b"\x1b[1A"); // Move cursor up
-                    debug!("✅ Simulating up arrow key");
+                    // Simulate up arrow key - move cursor up one line
+                    if self.cursor_position.0 > 0 {
+                        self.cursor_position.0 -= 1;
+                        mode_output.extend_from_slice(b"\x1b[1A"); // Move cursor up
+                    }
+                    debug!("✅ Simulating up arrow key, cursor now at ({}, {})", self.cursor_position.0, self.cursor_position.1);
                 }
                 KeyCode::Down => {
-                    // Simulate down arrow key
-                    mode_output.extend_from_slice(b"\x1b[1B"); // Move cursor down
-                    debug!("✅ Simulating down arrow key");
+                    // Simulate down arrow key - move cursor down one line
+                    if self.cursor_position.0 < self.text_buffer.len().saturating_sub(1) {
+                        self.cursor_position.0 += 1;
+                        mode_output.extend_from_slice(b"\x1b[1B"); // Move cursor down
+                    }
+                    debug!("✅ Simulating down arrow key, cursor now at ({}, {})", self.cursor_position.0, self.cursor_position.1);
                 }
                 KeyCode::Left => {
-                    // Simulate left arrow key
-                    mode_output.extend_from_slice(b"\x1b[1D"); // Move cursor left
-                    debug!("✅ Simulating left arrow key");
+                    // Simulate left arrow key - move cursor left one character
+                    if self.cursor_position.1 > 0 {
+                        self.cursor_position.1 -= 1;
+                        mode_output.extend_from_slice(b"\x1b[1D"); // Move cursor left
+                    }
+                    debug!("✅ Simulating left arrow key, cursor now at ({}, {})", self.cursor_position.0, self.cursor_position.1);
                 }
                 KeyCode::Right => {
-                    // Simulate right arrow key
-                    mode_output.extend_from_slice(b"\x1b[1C"); // Move cursor right
-                    debug!("✅ Simulating right arrow key");
+                    // Simulate right arrow key - move cursor right one character
+                    let max_col = if self.cursor_position.0 < self.text_buffer.len() {
+                        self.text_buffer[self.cursor_position.0].len()
+                    } else {
+                        0
+                    };
+                    if self.cursor_position.1 < max_col {
+                        self.cursor_position.1 += 1;
+                        mode_output.extend_from_slice(b"\x1b[1C"); // Move cursor right
+                    }
+                    debug!("✅ Simulating right arrow key, cursor now at ({}, {})", self.cursor_position.0, self.cursor_position.1);
                 }
                 KeyCode::Enter => {
                     if self.current_mode == AppMode::Command {
@@ -736,13 +769,26 @@ impl BluelineWorld {
                     if self.text_buffer.is_empty() {
                         self.text_buffer.push(String::new());
                     }
-                    let last_idx = self.text_buffer.len() - 1;
-                    self.text_buffer[last_idx].push(ch);
+                    
+                    // Ensure cursor is on a valid line
+                    while self.cursor_position.0 >= self.text_buffer.len() {
+                        self.text_buffer.push(String::new());
+                    }
+                    
+                    // Insert character at cursor position
+                    let line = &mut self.text_buffer[self.cursor_position.0];
+                    if self.cursor_position.1 <= line.len() {
+                        line.insert(self.cursor_position.1, ch);
+                        self.cursor_position.1 += 1;
+                    } else {
+                        line.push(ch);
+                        self.cursor_position.1 = line.len();
+                    }
 
                     // Update display to show the character
                     mode_output.extend_from_slice(ch.to_string().as_bytes());
 
-                    debug!("✅ Added '{}' to text buffer in Insert mode", ch);
+                    debug!("✅ Added '{}' to text buffer in Insert mode at ({}, {})", ch, self.cursor_position.0, self.cursor_position.1);
                 }
                 _ => {
                     // No mode change for other keys
@@ -1252,6 +1298,11 @@ impl BluelineWorld {
     pub fn set_mode(&mut self, mode: AppMode) {
         debug!("Set mode to {:?}", mode);
         self.current_mode = mode;
+    }
+
+    /// Get current cursor position for testing
+    pub fn get_cursor_position(&self) -> (usize, usize) {
+        self.cursor_position
     }
 
     /// Set cursor position for testing
