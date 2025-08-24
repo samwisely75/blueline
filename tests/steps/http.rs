@@ -40,6 +40,13 @@ async fn given_executed_request(world: &mut BluelineWorld) {
 
     // Give more time for the mock request to be processed
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    // Ensure we're back in Normal mode after request execution
+    // Press Escape to make sure we're not in Insert mode
+    world
+        .send_key_event(KeyCode::Esc, KeyModifiers::empty())
+        .await;
+    world.tick().await.expect("Failed to tick after Escape");
 }
 
 // === PANE VISIBILITY ===

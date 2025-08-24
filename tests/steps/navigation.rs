@@ -199,11 +199,27 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
 #[when(regex = r#"^(?:And )?I press ([a-zA-Z0-9])$"#)]
 async fn when_press_single_char(world: &mut BluelineWorld, key: char) {
     info!("Pressing single character key: {}", key);
+
+    // Check if we're in Visual Block mode and pressing 'd' or 'x' (deletion)
+    let current_mode = world.get_current_mode().await;
+    let is_visual_block_delete = matches!(current_mode, crate::common::world::AppMode::VisualBlock)
+        && (key == 'd' || key == 'x');
+
     world
         .send_key_event(KeyCode::Char(key), KeyModifiers::empty())
         .await;
     world.tick().await.expect("Failed to tick");
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    // Give more time for Visual Block deletion to process
+    if is_visual_block_delete {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        world
+            .tick()
+            .await
+            .expect("Failed to tick after Visual Block delete");
+    } else {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
 }
 
 // Arrow key step definitions

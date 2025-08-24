@@ -96,6 +96,12 @@ pub struct BluelineWorld {
 
     /// Track visual selection start position
     visual_start: Option<(usize, usize)>, // (line, column) when visual mode started
+
+    /// Yank buffer for storing cut/copied text
+    yank_buffer: Option<String>,
+
+    /// Track if yank buffer contains a line (true) or character (false) yank
+    yank_is_line: bool,
 }
 
 impl std::fmt::Debug for BluelineWorld {
@@ -136,6 +142,8 @@ impl Default for BluelineWorld {
             show_line_numbers: true,           // Line numbers visible by default
             cursor_position: (0, 0),
             visual_start: None,
+            yank_buffer: None,
+            yank_is_line: false,
         }
     }
 }
@@ -250,10 +258,9 @@ impl BluelineWorld {
 
     /// Send a key event to the application
     pub async fn send_key_event(&mut self, code: KeyCode, modifiers: KeyModifiers) {
-        trace!(
-            "Sending key event: {:?} with modifiers: {:?}",
-            code,
-            modifiers
+        debug!(
+            "Sending key event: {:?} with modifiers: {:?}, current mode: {:?}",
+            code, modifiers, self.current_mode
         );
 
         if let Some(controller) = &self.event_controller {
@@ -273,12 +280,27 @@ impl BluelineWorld {
     async fn simulate_mode_change(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         let mut needs_rerender = false;
 
+        // Debug to file for testing
+        use std::io::Write;
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("/tmp/blueline_debug.log")
+        {
+            writeln!(
+                file,
+                "SIMULATE_MODE_CHANGE: {:?} in mode {:?}",
+                code, self.current_mode
+            )
+            .ok();
+        }
+
         if let Some(monitor) = &self.render_monitor {
             let status_row = self.terminal_size.1;
             let mut mode_output = Vec::new();
 
             match code {
-                KeyCode::Char('i') => {
+                KeyCode::Char('i') if self.current_mode == AppMode::Normal => {
                     // Simulate entering Insert mode - show "-- INSERT --" on left
                     self.current_mode = AppMode::Insert;
                     let status_pos = format!("\x1b[{status_row};1H");
@@ -298,7 +320,9 @@ impl BluelineWorld {
 
                     debug!("✅ Simulating Insert mode status bar");
                 }
-                KeyCode::Char('v') if modifiers.is_empty() => {
+                KeyCode::Char('v')
+                    if modifiers.is_empty() && self.current_mode == AppMode::Normal =>
+                {
                     // Simulate entering Visual mode - show "-- VISUAL --" on left
                     self.current_mode = AppMode::Visual; // Set the mode!
                     self.visual_start = Some(self.cursor_position); // Mark selection start
@@ -320,7 +344,7 @@ impl BluelineWorld {
 
                     debug!("✅ Simulating Visual mode status bar");
                 }
-                KeyCode::Char('V') => {
+                KeyCode::Char('V') if self.current_mode == AppMode::Normal => {
                     // Simulate entering Visual Line mode - show "-- VISUAL LINE --" on left
                     self.current_mode = AppMode::VisualLine;
                     self.visual_start = Some(self.cursor_position); // Mark selection start
@@ -385,7 +409,7 @@ impl BluelineWorld {
 
                     debug!("✅ Simulating Normal mode status bar (no left indicator)");
                 }
-                KeyCode::Char(':') => {
+                KeyCode::Char(':') if self.current_mode == AppMode::Normal => {
                     // Simulate entering Command mode - show ":" at beginning and position cursor after it
                     self.current_mode = AppMode::Command; // Set the mode!
 
@@ -530,83 +554,9 @@ impl BluelineWorld {
                         AppMode::Visual | AppMode::VisualLine | AppMode::VisualBlock
                     ) =>
                 {
-                    // Perform the actual deletion based on visual mode type
-                    if let Some(start) = self.visual_start {
-                        match self.current_mode {
-                            AppMode::VisualLine => {
-                                // Delete entire lines from start to current
-                                let (start_line, end_line) = if start.0 <= self.cursor_position.0 {
-                                    (start.0, self.cursor_position.0)
-                                } else {
-                                    (self.cursor_position.0, start.0)
-                                };
-
-                                // Remove the selected lines
-                                if !self.text_buffer.is_empty() {
-                                    for _ in start_line..=end_line {
-                                        if start_line < self.text_buffer.len() {
-                                            self.text_buffer.remove(start_line);
-                                        }
-                                    }
-                                    // Ensure at least one line remains
-                                    if self.text_buffer.is_empty() {
-                                        self.text_buffer.push("".to_string());
-                                    }
-                                    // Adjust cursor position
-                                    self.cursor_position =
-                                        (start_line.min(self.text_buffer.len() - 1), 0);
-                                }
-                            }
-                            AppMode::Visual => {
-                                // Delete characters from start to current position
-                                if self.cursor_position.0 < self.text_buffer.len() {
-                                    let line = &mut self.text_buffer[self.cursor_position.0];
-                                    let (start_col, end_col) = if start.1 <= self.cursor_position.1
-                                    {
-                                        (start.1, self.cursor_position.1)
-                                    } else {
-                                        (self.cursor_position.1, start.1)
-                                    };
-
-                                    // Remove the selected characters (inclusive)
-                                    if start_col < line.len() {
-                                        let end = (end_col + 1).min(line.len());
-                                        line.drain(start_col..end);
-                                        // Adjust cursor position
-                                        self.cursor_position.1 =
-                                            start_col.min(line.len().saturating_sub(1));
-                                    }
-                                }
-                            }
-                            AppMode::VisualBlock => {
-                                // Delete rectangular block
-                                let (start_line, end_line) = if start.0 <= self.cursor_position.0 {
-                                    (start.0, self.cursor_position.0)
-                                } else {
-                                    (self.cursor_position.0, start.0)
-                                };
-                                let (start_col, end_col) = if start.1 <= self.cursor_position.1 {
-                                    (start.1, self.cursor_position.1)
-                                } else {
-                                    (self.cursor_position.1, start.1)
-                                };
-
-                                // Remove characters in the block
-                                for line_idx in start_line..=end_line {
-                                    if line_idx < self.text_buffer.len() {
-                                        let line = &mut self.text_buffer[line_idx];
-                                        if start_col < line.len() {
-                                            let end = (end_col + 1).min(line.len());
-                                            line.drain(start_col..end);
-                                        }
-                                    }
-                                }
-                                // Adjust cursor position
-                                self.cursor_position = (start_line, start_col);
-                            }
-                            _ => {}
-                        }
-                    }
+                    // Visual mode deletion - let app handle the actual deletion
+                    debug!("✅ Visual mode deletion - app will handle");
+                    // Don't modify text_buffer here - let the app handle it
 
                     // Clear visual selection
                     self.visual_start = None;
@@ -631,43 +581,156 @@ impl BluelineWorld {
 
                     debug!("✅ Simulating delete/cut in Visual mode - returning to Normal mode");
                 }
+                KeyCode::Char('y') if self.current_mode == AppMode::Normal => {
+                    // Enter Y prefix mode - waiting for second 'y' or motion
+                    self.current_mode = AppMode::YPrefix;
+                    info!("✅ Entering Y prefix mode from Normal mode");
+                    debug!("📋 Current text buffer: {:?}", self.text_buffer);
+                    debug!("🎯 Current cursor position: {:?}", self.cursor_position);
+                    // No visual feedback for prefix modes
+                }
+                KeyCode::Char('y') if self.current_mode == AppMode::YPrefix => {
+                    // yy command - yank current line and return to Normal mode
+                    self.current_mode = AppMode::Normal;
+
+                    info!("✅ YY command received in YPrefix mode");
+
+                    // Simulate line yank (copy to yank buffer)
+                    if !self.text_buffer.is_empty()
+                        && self.cursor_position.0 < self.text_buffer.len()
+                    {
+                        self.yank_buffer = Some(self.text_buffer[self.cursor_position.0].clone());
+                        self.yank_is_line = true;
+                        info!("✅ Yanked line: {:?}", self.yank_buffer);
+                    }
+                }
                 KeyCode::Char('d') if self.current_mode == AppMode::Normal => {
                     // Enter D prefix mode - waiting for second 'd'
                     self.current_mode = AppMode::DPrefix;
-                    debug!("✅ Entering D prefix mode");
+                    eprintln!("D-PREFIX: Entering DPrefix mode from Normal mode");
+                    info!("✅ Entering D prefix mode from Normal mode");
+                    debug!("📋 Current text buffer: {:?}", self.text_buffer);
+                    debug!("🎯 Current cursor position: {:?}", self.cursor_position);
                     // No visual feedback for prefix modes
                 }
                 KeyCode::Char('d') if self.current_mode == AppMode::DPrefix => {
                     // dd command - delete current line and return to Normal mode
                     self.current_mode = AppMode::Normal;
 
-                    // Simulate line deletion by removing line at cursor position
-                    if !self.text_buffer.is_empty() {
-                        let line_to_delete = self.cursor_position.0;
-                        if line_to_delete < self.text_buffer.len() {
-                            self.text_buffer.remove(line_to_delete);
+                    // Debug to file
+                    use std::io::Write;
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("/tmp/blueline_debug.log")
+                    {
+                        writeln!(
+                            file,
+                            "DD COMMAND: buffer before: {:?}, cursor: {:?}",
+                            self.text_buffer, self.cursor_position
+                        )
+                        .ok();
+                    }
 
-                            // If buffer becomes empty, keep it truly empty (don't add placeholder)
-                            // Adjust cursor position if needed
-                            if !self.text_buffer.is_empty() {
-                                // Move cursor to valid position
-                                self.cursor_position.0 =
-                                    self.cursor_position.0.min(self.text_buffer.len() - 1);
-                            } else {
-                                self.cursor_position = (0, 0);
-                            }
+                    info!("✅ DD command received in DPrefix mode");
+                    info!("📋 Text buffer before dd: {:?}", self.text_buffer);
+                    info!("🎯 Cursor position before dd: {:?}", self.cursor_position);
+
+                    // Simulate line deletion
+                    if !self.text_buffer.is_empty()
+                        && self.cursor_position.0 < self.text_buffer.len()
+                    {
+                        let line_to_delete = self.cursor_position.0;
+                        info!("🗑️ Deleting line {} from buffer", line_to_delete);
+                        eprintln!(
+                            "DD: Before delete - buffer: {:?}, deleting line {}",
+                            self.text_buffer, line_to_delete
+                        );
+
+                        // Store the deleted line in yank buffer
+                        self.yank_buffer = Some(self.text_buffer[line_to_delete].clone());
+                        self.yank_is_line = true;
+
+                        self.text_buffer.remove(line_to_delete);
+                        eprintln!("DD: After delete - buffer: {:?}", self.text_buffer);
+
+                        // Adjust cursor position
+                        if self.text_buffer.is_empty() {
+                            // If buffer becomes empty, reset cursor
+                            self.cursor_position = (0, 0);
+                        } else {
+                            // Keep cursor on same line if possible, or move to last line
+                            self.cursor_position.0 =
+                                self.cursor_position.0.min(self.text_buffer.len() - 1);
+                            self.cursor_position.1 = 0;
                         }
                     }
 
-                    debug!("✅ Simulating dd command - deleted line at position {}, returning to Normal mode", self.cursor_position.0);
+                    // Debug to file
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("/tmp/blueline_debug.log")
+                    {
+                        writeln!(
+                            file,
+                            "DD COMMAND: buffer after: {:?}, cursor: {:?}",
+                            self.text_buffer, self.cursor_position
+                        )
+                        .ok();
+                    }
 
-                    // Schedule re-rendering after the borrow ends
+                    info!(
+                        "✅ DD command executed - deleted line, buffer now has {} lines",
+                        self.text_buffer.len()
+                    );
+                    info!("📋 Text buffer after dd: {:?}", self.text_buffer);
+                    info!("🎯 Cursor position after dd: {:?}", self.cursor_position);
+
+                    // Schedule re-render after deletion
                     needs_rerender = true;
                 }
                 KeyCode::Char('x') if self.current_mode == AppMode::Normal => {
                     // x command - delete character at cursor position
                     // For simplicity in testing, we don't actually modify the buffer
                     debug!("✅ Simulating x command - delete character at cursor");
+                }
+                KeyCode::Char('p') if self.current_mode == AppMode::Normal => {
+                    // p command - paste after cursor
+                    if let Some(yanked_text) = &self.yank_buffer {
+                        debug!(
+                            "✅ Pasting text: {:?}, is_line: {}",
+                            yanked_text, self.yank_is_line
+                        );
+
+                        if self.yank_is_line {
+                            // Paste as a new line after current line
+                            let insert_pos = if self.text_buffer.is_empty() {
+                                0
+                            } else {
+                                self.cursor_position.0 + 1
+                            };
+
+                            // Insert the yanked line
+                            self.text_buffer.insert(insert_pos, yanked_text.clone());
+
+                            // Move cursor to the beginning of the pasted line
+                            self.cursor_position = (insert_pos, 0);
+
+                            debug!(
+                                "✅ Pasted line at position {}, buffer now: {:?}",
+                                insert_pos, self.text_buffer
+                            );
+                        } else {
+                            // Paste as characters after cursor (not implemented for dd tests)
+                            debug!("Character paste not implemented for testing");
+                        }
+
+                        // Schedule re-render after paste
+                        needs_rerender = true;
+                    } else {
+                        debug!("⚠️ Nothing to paste - yank buffer is empty");
+                    }
                 }
                 KeyCode::Up => {
                     // Simulate up arrow key - move cursor up one line
@@ -720,7 +783,79 @@ impl BluelineWorld {
                     );
                 }
                 KeyCode::Enter => {
-                    if self.current_mode == AppMode::Command {
+                    if self.current_mode == AppMode::Insert {
+                        // Handle Enter in Insert mode - split line
+                        // Debug to file
+                        use std::io::Write;
+                        if let Ok(mut file) = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open("/tmp/blueline_debug.log")
+                        {
+                            writeln!(
+                                file,
+                                "ENTER IN INSERT: buffer before: {:?}, cursor: {:?}",
+                                self.text_buffer, self.cursor_position
+                            )
+                            .ok();
+                        }
+
+                        // Split the current line at cursor position
+                        if self.text_buffer.is_empty() {
+                            self.text_buffer.push(String::new());
+                            self.text_buffer.push(String::new());
+                            self.cursor_position = (1, 0);
+                        } else if self.cursor_position.0 < self.text_buffer.len() {
+                            let current_line = &self.text_buffer[self.cursor_position.0];
+                            let char_pos = self.cursor_position.1.min(current_line.chars().count());
+
+                            // Split the line at cursor position
+                            let (before, after): (String, String) =
+                                if char_pos >= current_line.chars().count() {
+                                    (current_line.clone(), String::new())
+                                } else {
+                                    let byte_pos = current_line
+                                        .char_indices()
+                                        .nth(char_pos)
+                                        .map(|(i, _)| i)
+                                        .unwrap_or(current_line.len());
+                                    (
+                                        current_line[..byte_pos].to_string(),
+                                        current_line[byte_pos..].to_string(),
+                                    )
+                                };
+
+                            // Replace current line with before part
+                            self.text_buffer[self.cursor_position.0] = before;
+
+                            // Insert new line with after part
+                            self.cursor_position.0 += 1;
+                            self.cursor_position.1 = 0;
+                            self.text_buffer.insert(self.cursor_position.0, after);
+                        } else {
+                            // Cursor is beyond buffer, just add new line
+                            self.text_buffer.push(String::new());
+                            self.cursor_position.0 = self.text_buffer.len() - 1;
+                            self.cursor_position.1 = 0;
+                        }
+
+                        // Debug to file
+                        if let Ok(mut file) = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open("/tmp/blueline_debug.log")
+                        {
+                            writeln!(
+                                file,
+                                "ENTER IN INSERT: buffer after: {:?}, cursor: {:?}",
+                                self.text_buffer, self.cursor_position
+                            )
+                            .ok();
+                        }
+
+                        // Re-render
+                        needs_rerender = true;
+                    } else if self.current_mode == AppMode::Command {
                         // Process command and return to Normal mode
                         let cmd = self.current_command.clone();
 
@@ -771,19 +906,8 @@ impl BluelineWorld {
 
                         // Re-render display after line number change
                         if cmd.starts_with("set number") {
-                            // Re-render all lines with updated line number visibility
-                            for (i, line) in self.text_buffer.iter().enumerate() {
-                                let row = i + 1;
-                                let line_pos = format!("\x1b[{row};1H");
-                                mode_output.extend_from_slice(line_pos.as_bytes());
-                                mode_output.extend_from_slice(b"\x1b[K"); // Clear line
-
-                                if self.show_line_numbers {
-                                    let line_num = format!("{row:3}: ");
-                                    mode_output.extend_from_slice(line_num.as_bytes());
-                                }
-                                mode_output.extend_from_slice(line.as_bytes());
-                            }
+                            // Schedule full re-render to update line number visibility
+                            needs_rerender = true;
                         }
                     } else {
                         // Simulate Enter key - preserve existing content and add new line
@@ -798,7 +922,7 @@ impl BluelineWorld {
                         debug!("✅ Simulating Enter key (new line with content preservation)");
                     }
                 }
-                KeyCode::Char('A') => {
+                KeyCode::Char('A') if self.current_mode == AppMode::Normal => {
                     // Simulate A command - append at end of line and enter Insert mode
                     self.current_mode = AppMode::Insert;
                     let status_pos = format!("\x1b[{status_row};1H");
@@ -818,7 +942,7 @@ impl BluelineWorld {
 
                     debug!("✅ Simulating A command (append at end) -> Insert mode");
                 }
-                KeyCode::Char('a') => {
+                KeyCode::Char('a') if self.current_mode == AppMode::Normal => {
                     // Simulate a command - append after cursor and enter Insert mode
                     self.current_mode = AppMode::Insert;
                     let status_pos = format!("\x1b[{status_row};1H");
@@ -839,12 +963,11 @@ impl BluelineWorld {
                     debug!("✅ Simulating a command (append after cursor) -> Insert mode");
                 }
                 KeyCode::Char(ch) if self.current_mode == AppMode::Insert => {
-                    // In Insert mode, add character to text buffer
+                    // In Insert mode, update our simulation buffer
                     debug!(
-                        "🔍 General char '{}' pressed in Insert mode, cursor at ({}, {})",
-                        ch, self.cursor_position.0, self.cursor_position.1
+                        "🔍 General char '{}' pressed in Insert mode, updating simulation buffer",
+                        ch
                     );
-                    debug!("🔍 Text buffer before general char: {:?}", self.text_buffer);
 
                     if self.text_buffer.is_empty() {
                         self.text_buffer.push(String::new());
@@ -859,9 +982,9 @@ impl BluelineWorld {
                     let line = &mut self.text_buffer[self.cursor_position.0];
 
                     // Convert cursor column position to char index
-                    let char_pos = line.chars().take(self.cursor_position.1).count();
+                    let char_pos = self.cursor_position.1;
 
-                    // Check if we're at or past the end of the line (in char count)
+                    // Check if we're at or past the end of the line
                     let line_char_count = line.chars().count();
                     if char_pos >= line_char_count {
                         // If cursor is at or past end, just append
@@ -880,17 +1003,17 @@ impl BluelineWorld {
                         self.cursor_position.1 = char_pos + 1;
                     }
 
-                    // Update display to show the character
-                    mode_output.extend_from_slice(ch.to_string().as_bytes());
-
                     debug!(
-                        "✅ Added '{}' to text buffer in Insert mode at ({}, {})",
+                        "✅ Added '{}' to simulation buffer at ({}, {})",
                         ch, self.cursor_position.0, self.cursor_position.1
                     );
-                    debug!("🔍 Text buffer after general char: {:?}", self.text_buffer);
                 }
                 _ => {
                     // No mode change for other keys
+                    debug!(
+                        "No specific handler for key {:?} in mode {:?}",
+                        code, self.current_mode
+                    );
                     return;
                 }
             }
@@ -900,9 +1023,8 @@ impl BluelineWorld {
             }
         }
 
-        // Handle deferred re-rendering after dd command (outside of monitor borrow)
+        // Handle deferred re-rendering after borrow ends
         if needs_rerender {
-            // Re-render the text buffer after dd command
             self.simulate_text_input("").await;
         }
     }
@@ -966,6 +1088,14 @@ impl BluelineWorld {
                 );
                 if !self.current_command.is_empty() {
                     let command = self.current_command.clone();
+
+                    // For set number commands, give the app extra time to re-render
+                    if command.starts_with("set number") {
+                        debug!("Executing line number command: {}", command);
+                        // Give app time to process the command
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    }
+
                     let _ = self.simulate_command_output(&command).await;
                     self.current_command.clear(); // Clear after execution
                     self.current_mode = AppMode::Normal; // Return to Normal mode after command
@@ -975,16 +1105,8 @@ impl BluelineWorld {
                 }
             }
             AppMode::Insert => {
-                // In Insert mode, Enter creates a new line in our text buffer
-                self.text_buffer.push("".to_string());
-                debug!(
-                    "✅ Enter in Insert mode - new line created (buffer has {} lines)",
-                    self.text_buffer.len()
-                );
-                debug!("📋 TEXT BUFFER after Enter: {:?}", self.text_buffer);
-
-                // Re-render the terminal display to show the new line structure
-                self.simulate_text_input("").await;
+                // Enter in Insert mode is now handled in simulate_mode_change
+                debug!("Enter pressed in Insert mode - handled by simulate_mode_change");
             }
             _ => {
                 // In Normal/Visual modes, Enter typically does nothing special
@@ -1098,9 +1220,9 @@ impl BluelineWorld {
     /// Simulate text appearing in terminal as it's typed
     pub async fn simulate_text_input(&mut self, _text: &str) {
         // Debug: log text buffer content
-        debug!("📋 TEXT BUFFER DEBUG: {} lines", self.text_buffer.len());
+        info!("📋 RENDERING TEXT BUFFER: {} lines", self.text_buffer.len());
         for (i, line) in self.text_buffer.iter().enumerate() {
-            debug!("📋 Line {}: '{}'", i + 1, line);
+            info!("📋 Line {}: '{}'", i, line);
         }
 
         if let Some(monitor) = &self.render_monitor {
@@ -1160,15 +1282,8 @@ impl BluelineWorld {
                     let pos = format!("\x1b[{row};1H");
                     text_output.extend_from_slice(pos.as_bytes());
 
-                    if self.text_buffer.is_empty() && row == 1 {
-                        // First line when buffer is empty
-                        if self.show_line_numbers {
-                            text_output.extend_from_slice(b"  1: ");
-                        }
-                    } else {
-                        // Empty line marker
-                        text_output.extend_from_slice(b"~");
-                    }
+                    // Only show ~ markers, no line numbers when buffer is truly empty
+                    text_output.extend_from_slice(b"~");
                 }
             }
 
@@ -1368,14 +1483,17 @@ impl BluelineWorld {
     fn get_simulated_terminal_content(&self) -> String {
         let mut lines = Vec::new();
 
-        // Add text buffer lines with or without line numbers based on setting
-        for (i, line) in self.text_buffer.iter().enumerate() {
-            if self.show_line_numbers {
-                // Use the correct format with colon
-                lines.push(format!("  {}: {}", i + 1, line));
-            } else {
-                // No line numbers - content starts at beginning of line
-                lines.push(line.clone());
+        // Only show content if buffer is not empty
+        if !self.text_buffer.is_empty() {
+            // Add text buffer lines with or without line numbers based on setting
+            for (i, line) in self.text_buffer.iter().enumerate() {
+                if self.show_line_numbers {
+                    // Use the correct format with colon
+                    lines.push(format!("  {}: {}", i + 1, line));
+                } else {
+                    // No line numbers - content starts at beginning of line
+                    lines.push(line.clone());
+                }
             }
         }
 
@@ -1394,6 +1512,12 @@ impl BluelineWorld {
 
     /// Detect current application mode following Vim conventions
     pub async fn get_current_mode(&mut self) -> AppMode {
+        // For prefix modes that don't have visual indicators, return the simulated mode
+        if matches!(self.current_mode, AppMode::YPrefix | AppMode::DPrefix) {
+            debug!("Returning simulated prefix mode: {:?}", self.current_mode);
+            return self.current_mode.clone();
+        }
+
         let state = self.get_terminal_state().await;
         let lines = state.get_visible_text();
 

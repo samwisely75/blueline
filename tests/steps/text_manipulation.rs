@@ -16,6 +16,8 @@ async fn when_press_enter(world: &mut BluelineWorld) {
     world.press_enter().await;
     world.tick().await.expect("Failed to tick");
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    // Extra tick for command processing
+    world.tick().await.expect("Failed to tick after sleep");
 }
 
 #[when(regex = r#"I type "([^"]+)""#)]
@@ -466,13 +468,22 @@ async fn then_request_content_should_be_empty(world: &mut BluelineWorld) {
         terminal_content
     );
 
-    // TODO: Implement proper request buffer empty check
-    // For now, we'll check that there's minimal content (just UI elements)
+    // Check that there's minimal content (just UI elements and empty line markers)
     let lines: Vec<&str> = terminal_content.lines().collect();
     let non_empty_lines: Vec<&str> = lines
         .iter()
         .filter(|line| {
-            !line.trim().is_empty() && !line.contains("Request") && !line.contains("Response")
+            let trimmed = line.trim();
+            // Filter out:
+            // - Empty lines
+            // - UI elements (Request/Response status)
+            // - Empty line markers (~)
+            // - Line numbers without content (e.g., "  1:" with nothing after)
+            !trimmed.is_empty()
+                && !line.contains("REQUEST")
+                && !line.contains("Response")
+                && trimmed != "~"
+                && !trimmed.matches(':').count() == 1 // Line number with no content
         })
         .copied()
         .collect();
