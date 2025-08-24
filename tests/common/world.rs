@@ -552,18 +552,18 @@ impl BluelineWorld {
 
                         // Re-render display after line number change
                         if cmd.starts_with("set number") {
-                            // Need to re-render the entire display
-                            // We'll do this by calling simulate_text_input after this function completes
-                            // For now, just clear and re-render the first line
-                            let line_pos = "\x1b[1;1H";
-                            mode_output.extend_from_slice(line_pos.as_bytes());
-                            mode_output.extend_from_slice(b"\x1b[K"); // Clear line
-
-                            if self.show_line_numbers {
-                                mode_output.extend_from_slice(b"  1: ");
-                            }
-                            if !self.text_buffer.is_empty() {
-                                mode_output.extend_from_slice(self.text_buffer[0].as_bytes());
+                            // Re-render all lines with updated line number visibility
+                            for (i, line) in self.text_buffer.iter().enumerate() {
+                                let row = i + 1;
+                                let line_pos = format!("\x1b[{row};1H");
+                                mode_output.extend_from_slice(line_pos.as_bytes());
+                                mode_output.extend_from_slice(b"\x1b[K"); // Clear line
+                                
+                                if self.show_line_numbers {
+                                    let line_num = format!("{row:3}: ");
+                                    mode_output.extend_from_slice(line_num.as_bytes());
+                                }
+                                mode_output.extend_from_slice(line.as_bytes());
                             }
                         }
                     } else {
