@@ -875,10 +875,15 @@ impl BluelineWorld {
         match self.current_mode {
             AppMode::Command => {
                 // Simulate command execution if we have a command
+                debug!("Enter pressed in Command mode, current_command: '{}'", self.current_command);
                 if !self.current_command.is_empty() {
                     let command = self.current_command.clone();
                     let _ = self.simulate_command_output(&command).await;
                     self.current_command.clear(); // Clear after execution
+                    self.current_mode = AppMode::Normal; // Return to Normal mode after command
+                } else {
+                    // Empty command, just return to Normal mode
+                    self.current_mode = AppMode::Normal;
                 }
             }
             AppMode::Insert => {
