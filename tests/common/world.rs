@@ -924,6 +924,25 @@ impl BluelineWorld {
 
                     cmd_output
                 }
+                "help" | "h" => {
+                    debug!("Simulating 'help' command output");
+
+                    // Move cursor to next line and display the help message
+                    let mut cmd_output = Vec::new();
+
+                    // Clear screen and show help message
+                    cmd_output.extend_from_slice(b"\x1b[2J\x1b[H");
+                    cmd_output.extend_from_slice(b"Blueline Help\n");
+                    cmd_output.extend_from_slice(b"\n");
+                    cmd_output.extend_from_slice(b"Commands:\n");
+                    cmd_output.extend_from_slice(b"  :q        - Quit\n");
+                    cmd_output.extend_from_slice(b"  :q!       - Force quit\n");
+                    cmd_output.extend_from_slice(b"  :w        - Save\n");
+                    cmd_output.extend_from_slice(b"  :help     - Show this help\n");
+                    cmd_output.extend_from_slice(b"  :set      - Configuration\n");
+
+                    cmd_output
+                }
                 _ => {
                     debug!("No simulation for command: {}", command);
                     Vec::new()
@@ -1011,6 +1030,13 @@ impl BluelineWorld {
         let previous_mode = self.current_mode.clone();
         self.send_key_event(KeyCode::Esc, KeyModifiers::empty())
             .await;
+
+        // Update mode when exiting Command mode
+        if self.current_mode == AppMode::Command {
+            self.current_mode = AppMode::Normal;
+            self.current_command.clear();
+            debug!("✅ Exited Command mode to Normal mode");
+        }
 
         // If we were in Insert mode, re-render the text buffer to make sure content is visible
         if previous_mode == AppMode::Insert {
@@ -1284,6 +1310,13 @@ impl BluelineWorld {
 
     /// Press a single key (for navigation, commands, etc.)
     pub async fn press_key(&mut self, key: char) {
+        // Special handling for ':' to enter command mode
+        if key == ':' && self.current_mode == AppMode::Normal {
+            self.current_mode = AppMode::Command;
+            self.current_command.clear(); // Clear any previous command
+            debug!("✅ Entered Command mode");
+        }
+        
         let code = match key {
             '0'..='9' | 'a'..='z' | 'A'..='Z' => KeyCode::Char(key),
             '$' => KeyCode::Char('$'),
