@@ -278,13 +278,13 @@ async fn then_cursor_should_move_down_one_line(world: &mut BluelineWorld) {
 async fn then_cursor_should_move_left_one_character(world: &mut BluelineWorld) {
     // Use our simulated cursor position instead of terminal state
     let cursor_pos = world.get_cursor_position();
-    
+
     // Just verify the cursor moved (we track it in our simulation)
     debug!(
         "Cursor successfully moved left to position ({}, {})",
         cursor_pos.0, cursor_pos.1
     );
-    
+
     // Basic sanity check - cursor should be at a reasonable position
     assert!(
         cursor_pos.1 < 1000,
@@ -404,7 +404,7 @@ async fn then_cursor_should_be_at_end_of_content(world: &mut BluelineWorld) {
     // Use our simulated cursor position
     let cursor_pos = world.get_cursor_position();
     let text_buffer = world.get_text_buffer();
-    
+
     // Check if cursor is at the end of the current line
     if cursor_pos.0 < text_buffer.len() && !text_buffer.is_empty() {
         let line_len = text_buffer[cursor_pos.0].len();
@@ -412,11 +412,15 @@ async fn then_cursor_should_be_at_end_of_content(world: &mut BluelineWorld) {
         assert!(
             cursor_pos.1 >= line_len.saturating_sub(1),
             "Cursor should be at end of content, but is at column {} (line length: {})",
-            cursor_pos.1, line_len
+            cursor_pos.1,
+            line_len
         );
     }
-    
-    debug!("Cursor is at end of content at position ({}, {})", cursor_pos.0, cursor_pos.1);
+
+    debug!(
+        "Cursor is at end of content at position ({}, {})",
+        cursor_pos.0, cursor_pos.1
+    );
 }
 
 // Boundary checks

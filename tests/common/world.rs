@@ -453,8 +453,10 @@ impl BluelineWorld {
                 {
                     // Simulate moving cursor right one character
                     let max_col = if self.cursor_position.0 < self.text_buffer.len() {
+                        // Count characters, not bytes
                         self.text_buffer[self.cursor_position.0]
-                            .len()
+                            .chars()
+                            .count()
                             .saturating_sub(1)
                     } else {
                         0
@@ -486,8 +488,9 @@ impl BluelineWorld {
                 {
                     // Simulate moving cursor to end of line
                     if self.cursor_position.0 < self.text_buffer.len() {
-                        let line_len = self.text_buffer[self.cursor_position.0].len();
-                        self.cursor_position.1 = if line_len > 0 { line_len - 1 } else { 0 };
+                        // Count characters, not bytes
+                        let char_count = self.text_buffer[self.cursor_position.0].chars().count();
+                        self.cursor_position.1 = if char_count > 0 { char_count - 1 } else { 0 };
                     }
                     mode_output.extend_from_slice(b"\x1b[999C"); // Move far right, terminal will limit
                     debug!(
@@ -702,7 +705,8 @@ impl BluelineWorld {
                 KeyCode::Right => {
                     // Simulate right arrow key - move cursor right one character
                     let max_col = if self.cursor_position.0 < self.text_buffer.len() {
-                        self.text_buffer[self.cursor_position.0].len()
+                        // Count characters, not bytes
+                        self.text_buffer[self.cursor_position.0].chars().count()
                     } else {
                         0
                     };
@@ -727,6 +731,21 @@ impl BluelineWorld {
                         } else if cmd == "set number on" {
                             self.show_line_numbers = true;
                             debug!("✅ Line numbers enabled");
+                        } else if cmd == "help" || cmd == "h" {
+                            // Handle help command - update text buffer
+                            self.text_buffer.clear();
+                            self.text_buffer.push("Blueline Help".to_string());
+                            self.text_buffer.push(String::new());
+                            self.text_buffer.push("Commands:".to_string());
+                            self.text_buffer.push("  :q        - Quit".to_string());
+                            self.text_buffer
+                                .push("  :q!       - Force quit".to_string());
+                            self.text_buffer.push("  :w        - Save".to_string());
+                            self.text_buffer
+                                .push("  :help     - Show this help".to_string());
+                            self.text_buffer
+                                .push("  :set      - Configuration".to_string());
+                            debug!("✅ Help text added to buffer");
                         }
 
                         // Clear command and return to Normal mode
@@ -821,6 +840,12 @@ impl BluelineWorld {
                 }
                 KeyCode::Char(ch) if self.current_mode == AppMode::Insert => {
                     // In Insert mode, add character to text buffer
+                    debug!(
+                        "🔍 General char '{}' pressed in Insert mode, cursor at ({}, {})",
+                        ch, self.cursor_position.0, self.cursor_position.1
+                    );
+                    debug!("🔍 Text buffer before general char: {:?}", self.text_buffer);
+
                     if self.text_buffer.is_empty() {
                         self.text_buffer.push(String::new());
                     }
@@ -832,16 +857,27 @@ impl BluelineWorld {
 
                     // Insert character at cursor position
                     let line = &mut self.text_buffer[self.cursor_position.0];
-                    
-                    // Ensure we're inserting at a valid position
-                    if self.cursor_position.1 >= line.len() {
+
+                    // Convert cursor column position to char index
+                    let char_pos = line.chars().take(self.cursor_position.1).count();
+
+                    // Check if we're at or past the end of the line (in char count)
+                    let line_char_count = line.chars().count();
+                    if char_pos >= line_char_count {
                         // If cursor is at or past end, just append
                         line.push(ch);
-                        self.cursor_position.1 = line.len();
+                        self.cursor_position.1 = line_char_count + 1;
                     } else {
-                        // Insert at cursor position
-                        line.insert(self.cursor_position.1, ch);
-                        self.cursor_position.1 += 1;
+                        // Find the byte position for the character index
+                        let byte_pos = line
+                            .char_indices()
+                            .nth(char_pos)
+                            .map(|(i, _)| i)
+                            .unwrap_or(line.len());
+
+                        // Insert at the byte position
+                        line.insert(byte_pos, ch);
+                        self.cursor_position.1 = char_pos + 1;
                     }
 
                     // Update display to show the character
@@ -851,6 +887,7 @@ impl BluelineWorld {
                         "✅ Added '{}' to text buffer in Insert mode at ({}, {})",
                         ch, self.cursor_position.0, self.cursor_position.1
                     );
+                    debug!("🔍 Text buffer after general char: {:?}", self.text_buffer);
                 }
                 _ => {
                     // No mode change for other keys
@@ -1071,6 +1108,20 @@ impl BluelineWorld {
                 "help" | "h" => {
                     debug!("Simulating 'help' command output");
                     self.current_mode = AppMode::Normal; // Return to Normal mode after command
+
+                    // Update text buffer to contain help text for simulation
+                    self.text_buffer.clear();
+                    self.text_buffer.push("Blueline Help".to_string());
+                    self.text_buffer.push(String::new());
+                    self.text_buffer.push("Commands:".to_string());
+                    self.text_buffer.push("  :q        - Quit".to_string());
+                    self.text_buffer
+                        .push("  :q!       - Force quit".to_string());
+                    self.text_buffer.push("  :w        - Save".to_string());
+                    self.text_buffer
+                        .push("  :help     - Show this help".to_string());
+                    self.text_buffer
+                        .push("  :set      - Configuration".to_string());
 
                     // Move cursor to next line and display the help message
                     let mut cmd_output = Vec::new();
