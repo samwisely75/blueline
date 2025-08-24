@@ -930,72 +930,12 @@ impl BluelineWorld {
                 self.current_command.push_str(text);
             }
             AppMode::Insert | AppMode::Normal | AppMode::Visual => {
-                // Ensure we always have at least one line in the text buffer
-                if self.text_buffer.is_empty() {
-                    debug!("⚠️ Text buffer was empty, adding initial line");
-                    self.text_buffer.push("".to_string());
-                }
-
-                // Add text to current line in buffer for text editing modes
-                let line_num = self.text_buffer.len();
-
-                // WORKAROUND for issue #86: Ensure text is always added to the last line
-                // Even if last_mut() fails for some reason, we'll handle it
-                let text_added = if let Some(current_line) = self.text_buffer.last_mut() {
-                    current_line.push_str(text);
-                    debug!(
-                        "✅ Added '{}' to line {}, now: '{}'",
-                        text, line_num, current_line
-                    );
-                    true
-                } else {
-                    false
-                };
-
-                if !text_added {
-                    // This should never happen, but let's be defensive
-                    debug!("⚠️ Could not get last line from text buffer, adding new line");
-                    self.text_buffer.push(text.to_string());
-                }
-
-                // Always log text buffer state for debugging
-                debug!(
-                    "📋 TEXT BUFFER after adding '{}': {:?}",
-                    text, self.text_buffer
-                );
-
-                // Special handling for the John issue - ensure it's really there
-                if text.contains("John") {
-                    debug!("🔍 JOHN DEBUG - Just added text containing 'John'!");
-                    debug!("🔍 JOHN DEBUG - Full text buffer: {:?}", self.text_buffer);
-
-                    // Double-check that John is actually in the text buffer
-                    let has_john = self.text_buffer.iter().any(|line| line.contains("John"));
-                    if !has_john {
-                        tracing::debug!(
-                            "⚠️ JOHN DEBUG - ERROR: John not found in text buffer after adding!"
-                        );
-                        tracing::debug!(
-                            "⚠️ JOHN DEBUG - Text buffer state: {:?}",
-                            self.text_buffer
-                        );
-                        // Force add it as a failsafe
-                        if let Some(last_line) = self.text_buffer.last_mut() {
-                            if last_line.is_empty() {
-                                *last_line = text.to_string();
-                                tracing::debug!(
-                                    "⚠️ JOHN DEBUG - Forcefully added John to last line"
-                                );
-                            }
-                        }
-                    }
-                }
+                // In text editing modes, let individual key events handle buffer updates
+                // This prevents double-insertion since send_key_event will also update the buffer
+                debug!("Text will be added via individual key events, not directly to buffer");
             }
             _ => {
-                // Unknown mode - add to text buffer as fallback
-                if let Some(current_line) = self.text_buffer.last_mut() {
-                    current_line.push_str(text);
-                }
+                debug!("Unknown mode - text will be handled via individual key events");
             }
         }
 

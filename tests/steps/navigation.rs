@@ -407,13 +407,22 @@ async fn then_cursor_should_be_at_end_of_content(world: &mut BluelineWorld) {
 
     // Check if cursor is at the end of the current line
     if cursor_pos.0 < text_buffer.len() && !text_buffer.is_empty() {
-        let line_len = text_buffer[cursor_pos.0].len();
-        // Cursor should be at or near the end of the line
+        let line_char_count = text_buffer[cursor_pos.0].chars().count();
+        let line_content = &text_buffer[cursor_pos.0];
+
+        debug!(
+            "Checking cursor at end: cursor_pos=({}, {}), line_content='{}', char_count={}",
+            cursor_pos.0, cursor_pos.1, line_content, line_char_count
+        );
+
+        // Cursor should be at the end of the line (in character positions)
+        // In Insert mode, cursor can be positioned after the last character for appending
         assert!(
-            cursor_pos.1 >= line_len.saturating_sub(1),
-            "Cursor should be at end of content, but is at column {} (line length: {})",
+            cursor_pos.1 >= line_char_count.saturating_sub(1) && cursor_pos.1 <= line_char_count,
+            "Cursor should be at end of content, but is at column {} (line char count: {}), line content: '{}'",
             cursor_pos.1,
-            line_len
+            line_char_count,
+            line_content
         );
     }
 
