@@ -899,6 +899,27 @@ impl BluelineWorld {
     /// Simulate command execution output for testing
     /// This would normally be handled by the app's command processor
     pub async fn simulate_command_output(&mut self, command: &str) -> Result<()> {
+        // Handle set number commands specially to avoid borrow issues
+        match command.trim() {
+            "set number off" => {
+                debug!("Simulating 'set number off' command");
+                self.show_line_numbers = false;
+                self.current_mode = AppMode::Normal; // Return to Normal mode after command
+                // Re-render without line numbers
+                self.simulate_text_input("").await;
+                return Ok(());
+            }
+            "set number on" => {
+                debug!("Simulating 'set number on' command");
+                self.show_line_numbers = true;
+                self.current_mode = AppMode::Normal; // Return to Normal mode after command
+                // Re-render with line numbers
+                self.simulate_text_input("").await;
+                return Ok(());
+            }
+            _ => {}
+        }
+
         if let Some(monitor) = &self.render_monitor {
             let output = match command.trim() {
                 "echo hello" => {
@@ -987,8 +1008,9 @@ impl BluelineWorld {
                 // For all other modes (Insert, Normal, Visual), use the original text buffer logic
                 // This ensures existing functionality is preserved
 
-                // Clear the content area first (but not the entire screen to preserve status bar)
-                for clear_row in 1..=self.text_buffer.len() {
+                // Clear the entire content area including initial rendering
+                let max_rows = self.terminal_size.1.saturating_sub(1); // Leave status bar
+                for clear_row in 1..=max_rows {
                     let pos = format!("\x1b[{clear_row};1H");
                     text_output.extend_from_slice(pos.as_bytes());
                     text_output.extend_from_slice(b"\x1b[K"); // Clear line
@@ -1011,6 +1033,23 @@ impl BluelineWorld {
                     text_output.extend_from_slice(line.as_bytes());
 
                     debug!("Rendered line {}: '{}'", row, line);
+                }
+                
+                // Add empty line markers for remaining rows if text buffer is empty or small
+                let start_row = if self.text_buffer.is_empty() { 1 } else { self.text_buffer.len() + 1 };
+                for row in start_row..=(max_rows as usize) {
+                    let pos = format!("\x1b[{row};1H");
+                    text_output.extend_from_slice(pos.as_bytes());
+                    
+                    if self.text_buffer.is_empty() && row == 1 {
+                        // First line when buffer is empty
+                        if self.show_line_numbers {
+                            text_output.extend_from_slice(b"  1: ");
+                        }
+                    } else {
+                        // Empty line marker
+                        text_output.extend_from_slice(b"~");
+                    }
                 }
             }
 
@@ -1316,7 +1355,7 @@ impl BluelineWorld {
             self.current_command.clear(); // Clear any previous command
             debug!("✅ Entered Command mode");
         }
-        
+
         let code = match key {
             '0'..='9' | 'a'..='z' | 'A'..='Z' => KeyCode::Char(key),
             '$' => KeyCode::Char('$'),

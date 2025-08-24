@@ -41,16 +41,21 @@ async fn then_should_see_line_number(world: &mut BluelineWorld, line_num: String
 async fn then_should_not_see_line_numbers_request(world: &mut BluelineWorld) {
     debug!("Verifying line numbers are not visible in request pane");
 
+    // Debug: Print terminal content to see what's actually there
+    let content = world.get_terminal_content().await;
+    debug!("Terminal content for line number check:\n{}", content);
+
     // Check that common line number patterns are not present
     let has_line_numbers = world.terminal_contains("  1:").await
         || world.terminal_contains(" 1:").await
         || world.terminal_contains("1:").await
         || world.terminal_contains("  2:").await
-        || world.terminal_contains(" 2:").await;
+        || world.terminal_contains(" 2:").await
+        || world.terminal_contains("  1 ").await; // Also check for the format used in initial rendering
 
     assert!(
         !has_line_numbers,
-        "Line numbers should not be visible in request pane"
+        "Line numbers should not be visible in request pane. Terminal content:\n{content}"
     );
 }
 
