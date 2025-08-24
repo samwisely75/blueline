@@ -271,6 +271,8 @@ impl BluelineWorld {
 
     /// Simulate mode changes based on key input for testing
     async fn simulate_mode_change(&mut self, code: KeyCode, modifiers: KeyModifiers) {
+        let mut needs_rerender = false;
+        
         if let Some(monitor) = &self.render_monitor {
             let status_row = self.terminal_size.1;
             let mut mode_output = Vec::new();
@@ -592,14 +594,13 @@ impl BluelineWorld {
                     if !self.text_buffer.is_empty() {
                         // For simplicity, remove the last line (where cursor typically is after Escape)
                         self.text_buffer.pop();
-                        if self.text_buffer.is_empty() {
-                            self.text_buffer.push("".to_string());
-                        }
+                        // Don't add an empty line if buffer becomes empty - this represents truly empty content
                     }
 
                     debug!("✅ Simulating dd command - deleted line, returning to Normal mode");
 
-                    // Note: We'll need to re-render after this function completes to avoid borrow issues
+                    // Schedule re-rendering after the borrow ends
+                    needs_rerender = true;
                 }
                 KeyCode::Char('x') if self.current_mode == AppMode::Normal => {
                     // x command - delete character at cursor position
@@ -752,6 +753,12 @@ impl BluelineWorld {
             if !mode_output.is_empty() {
                 monitor.inject_data(&mode_output).await;
             }
+        }
+        
+        // Handle deferred re-rendering after dd command (outside of monitor borrow)
+        if needs_rerender {
+            // Re-render the text buffer after dd command
+            self.simulate_text_input("").await;
         }
     }
 
