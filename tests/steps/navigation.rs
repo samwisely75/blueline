@@ -769,9 +769,11 @@ async fn when_press_left_arrow_n_times(world: &mut BluelineWorld, count: usize) 
         world
             .send_key_event(KeyCode::Left, KeyModifiers::empty())
             .await;
-        world.tick().await.expect("Failed to tick");
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        // Small delay to let the app process the event
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
+    // Single tick after all key presses
+    world.tick().await.expect("Failed to tick");
 }
 
 #[when(regex = r#"I press the Right arrow key (\d+) times"#)]
@@ -781,9 +783,11 @@ async fn when_press_right_arrow_n_times(world: &mut BluelineWorld, count: usize)
         world
             .send_key_event(KeyCode::Right, KeyModifiers::empty())
             .await;
-        world.tick().await.expect("Failed to tick");
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        // Small delay to let the app process the event
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
+    // Single tick after all key presses
+    world.tick().await.expect("Failed to tick");
 }
 
 #[when(regex = r#"I press the Up arrow key (\d+) times"#)]
@@ -793,9 +797,11 @@ async fn when_press_up_arrow_n_times(world: &mut BluelineWorld, count: usize) {
         world
             .send_key_event(KeyCode::Up, KeyModifiers::empty())
             .await;
-        world.tick().await.expect("Failed to tick");
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        // Small delay to let the app process the event
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
+    // Single tick after all key presses
+    world.tick().await.expect("Failed to tick");
 }
 
 #[when(regex = r#"I press the Down arrow key (\d+) times"#)]
@@ -805,9 +811,11 @@ async fn when_press_down_arrow_n_times(world: &mut BluelineWorld, count: usize) 
         world
             .send_key_event(KeyCode::Down, KeyModifiers::empty())
             .await;
-        world.tick().await.expect("Failed to tick");
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        // Small delay to let the app process the event
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
+    // Single tick after all key presses
+    world.tick().await.expect("Failed to tick");
 }
 
 // Repeated key press step definitions for horizontal scrolling

@@ -1158,9 +1158,13 @@ impl BluelineWorld {
                 // Send Enter for newlines
                 self.send_key_event(KeyCode::Enter, KeyModifiers::empty())
                     .await;
+                // Give the app more time to process newlines
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
             } else {
                 self.send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
                     .await;
+                // Small delay between regular characters
+                tokio::time::sleep(std::time::Duration::from_millis(2)).await;
             }
         }
 
@@ -1414,8 +1418,8 @@ impl BluelineWorld {
     /// This allows time for the app to process events and produce output
     pub async fn tick(&mut self) -> Result<()> {
         if self.app_running {
-            // Give the app time to process events
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            // Give the app time to process events (reduced from 50ms to 20ms)
+            tokio::time::sleep(Duration::from_millis(20)).await;
 
             // Process any pending output from the render stream
             if let Some(monitor) = &self.render_monitor {
