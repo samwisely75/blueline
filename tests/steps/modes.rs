@@ -18,6 +18,7 @@ async fn given_insert_mode(world: &mut BluelineWorld) {
     world
         .send_key_event(KeyCode::Char('i'), KeyModifiers::empty())
         .await;
+    world.set_mode(AppMode::Insert); // Track mode change
     world.tick().await.expect("Failed to tick");
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     debug!("Switched to Insert mode");

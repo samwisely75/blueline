@@ -85,6 +85,10 @@ async fn then_response_pane_shows_error(world: &mut BluelineWorld) {
 async fn then_should_see_in_request_pane(world: &mut BluelineWorld, text: String) {
     debug!("Checking for '{}' in request pane", text);
 
+    // Debug: Check text buffer directly
+    let text_buffer = world.get_text_buffer();
+    debug!("Text buffer content: {:?}", text_buffer);
+
     let terminal_content = world.get_terminal_content().await;
     debug!("Full terminal content: {}", terminal_content);
 

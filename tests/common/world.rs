@@ -905,7 +905,7 @@ impl BluelineWorld {
                 debug!("Simulating 'set number off' command");
                 self.show_line_numbers = false;
                 self.current_mode = AppMode::Normal; // Return to Normal mode after command
-                // Re-render without line numbers
+                                                     // Re-render without line numbers
                 self.simulate_text_input("").await;
                 return Ok(());
             }
@@ -913,7 +913,7 @@ impl BluelineWorld {
                 debug!("Simulating 'set number on' command");
                 self.show_line_numbers = true;
                 self.current_mode = AppMode::Normal; // Return to Normal mode after command
-                // Re-render with line numbers
+                                                     // Re-render with line numbers
                 self.simulate_text_input("").await;
                 return Ok(());
             }
@@ -1034,13 +1034,17 @@ impl BluelineWorld {
 
                     debug!("Rendered line {}: '{}'", row, line);
                 }
-                
+
                 // Add empty line markers for remaining rows if text buffer is empty or small
-                let start_row = if self.text_buffer.is_empty() { 1 } else { self.text_buffer.len() + 1 };
+                let start_row = if self.text_buffer.is_empty() {
+                    1
+                } else {
+                    self.text_buffer.len() + 1
+                };
                 for row in start_row..=(max_rows as usize) {
                     let pos = format!("\x1b[{row};1H");
                     text_output.extend_from_slice(pos.as_bytes());
-                    
+
                     if self.text_buffer.is_empty() && row == 1 {
                         // First line when buffer is empty
                         if self.show_line_numbers {
@@ -1226,6 +1230,12 @@ impl BluelineWorld {
     /// Get the current text buffer for debugging
     pub fn get_text_buffer(&self) -> &Vec<String> {
         &self.text_buffer
+    }
+
+    /// Set the current mode for testing
+    pub fn set_mode(&mut self, mode: AppMode) {
+        debug!("Set mode to {:?}", mode);
+        self.current_mode = mode;
     }
 
     /// Set cursor position for testing
