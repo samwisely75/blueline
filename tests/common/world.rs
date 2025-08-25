@@ -1753,21 +1753,12 @@ impl BluelineWorld {
         // Clear our internal text buffer
         self.text_buffer.clear();
 
-        // If app is running, send commands to clear the buffer
+        // If app is running, we don't need to clear since each test starts fresh
+        // The app starts with an empty buffer by default
         if self.app_running {
-            // Go to normal mode first
+            // Just ensure we're in Normal mode
             self.press_escape().await;
-            self.tick().await.ok();
-
-            // Select all and delete
-            self.press_keys("ggVG").await;
-            self.tick().await.ok();
-            self.press_key('d').await;
-            self.tick().await.ok();
-
-            // Switch to insert mode for typing
-            self.press_key('i').await;
-            self.tick().await.ok();
+            tokio::time::sleep(Duration::from_millis(20)).await;
         }
     }
 

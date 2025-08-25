@@ -46,7 +46,6 @@ async fn then_command_line_should_be_cleared(world: &mut BluelineWorld) {
 
 // === COMMAND EXECUTION STEPS ===
 
-
 #[then("the application should exit")]
 async fn then_application_should_exit(world: &mut BluelineWorld) {
     debug!("Verifying application exit");
