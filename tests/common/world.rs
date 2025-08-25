@@ -89,7 +89,7 @@ pub struct BluelineWorld {
     text_buffer: Vec<String>,
 
     /// Track whether line numbers should be shown
-    show_line_numbers: bool,
+    pub show_line_numbers: bool,
 
     /// Track cursor position for selection
     cursor_position: (usize, usize), // (line, column)

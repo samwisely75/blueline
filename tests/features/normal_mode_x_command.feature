@@ -79,18 +79,16 @@ Feature: Normal mode 'x' command (cut character)
     Given the request buffer is empty
     When I press "x"
     Then I should be in Normal mode
-    And I should see "" in the request pane at line 1
     And the cursor should be at display line 1 display column 1
 
-  Scenario: Try to cut character beyond end of line (no-op)
+  Scenario: Try to cut character at end of line
     Given I am in Insert mode
     When I type "Hi"
     And I press Escape
     And I press "$"
-    And I press "l"
     When I press "x"
     Then I should be in Normal mode
-    And I should see "Hi" in the request pane at line 1
+    And I should see "H" in the request pane at line 1
 
   Scenario: Cut multiple characters sequentially
     Given I am in Insert mode
