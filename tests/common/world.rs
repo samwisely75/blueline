@@ -151,28 +151,44 @@ impl Default for BluelineWorld {
 impl BluelineWorld {
     /// Initialize the world for a new scenario
     pub async fn initialize(&mut self) {
-        debug!("Initializing BluelineWorld for new scenario");
+        // Generate unique scenario ID for tracking
+        let scenario_id = format!("scenario_{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis());
+        debug!("Initializing BluelineWorld for {}", scenario_id);
 
-        // Clear any previous state
-        self.cleanup().await;
+        // Ensure complete cleanup of any previous state
+        self.deep_cleanup().await;
 
-        // Reset VTE parser
+        // Reset VTE parser with fresh instance
         self.vte_parser = Arc::new(Mutex::new(VteRenderStream::with_size(self.terminal_size)));
         self.last_terminal_state = None;
 
+        // Reset all tracking state
+        self.current_command.clear();
+        self.current_mode = AppMode::Normal;
+        self.text_buffer = vec!["".to_string()];
+        self.show_line_numbers = true;
+        self.cursor_position = (0, 0);
+        self.visual_start = None;
+        self.yank_buffer = None;
+        self.yank_is_line = false;
+
         trace!(
-            "World initialized with terminal size {:?}",
+            "World {} initialized with terminal size {:?}",
+            scenario_id,
             self.terminal_size
         );
     }
 
-    /// Clean up after a scenario
-    pub async fn cleanup(&mut self) {
-        debug!("Cleaning up BluelineWorld");
+    /// Deep cleanup - ensures complete state reset
+    async fn deep_cleanup(&mut self) {
+        debug!("Performing deep cleanup of BluelineWorld");
 
-        // Shutdown the app if running
+        // Force shutdown the app if running
         if self.app_running {
-            debug!("Shutting down test app");
+            debug!("Force shutting down test app");
 
             // Send quit event to the app
             if let Some(controller) = &self.event_controller {
@@ -183,26 +199,33 @@ impl BluelineWorld {
                 debug!("Sent quit event to app");
             }
 
-            // Wait for the app thread to finish
+            // Wait for the app thread with timeout
             if let Some(thread) = self.app_thread.take() {
-                debug!("Waiting for app thread to finish...");
-                // Give it a moment to process the quit event
-                tokio::time::sleep(Duration::from_millis(200)).await;
-                // Note: We can't forcefully abort a thread, it should exit on quit event
-                // thread.join() would block, so we just drop it
+                debug!("Waiting for app thread to finish with timeout...");
+                // Give it up to 1 second to cleanly exit
+                let timeout_handle = tokio::spawn(async move {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                });
+                
+                // We can't join the thread from async context, so we just wait and drop
+                tokio::select! {
+                    _ = timeout_handle => {
+                        debug!("Timeout reached, force dropping app thread");
+                    }
+                }
                 drop(thread);
                 debug!("App thread handle dropped");
             }
 
-            // Clean up resources
+            // Force clear all resources
             self.event_controller = None;
             self.render_monitor = None;
             self.shutdown_tx = None;
             self.app_running = false;
-            debug!("Test app shut down successfully");
+            debug!("Test app force shut down complete");
         }
 
-        // Clear terminal state
+        // Clear ALL state thoroughly
         self.last_terminal_state = None;
         self.current_command.clear();
         self.current_mode = AppMode::Normal;
@@ -210,15 +233,29 @@ impl BluelineWorld {
         self.show_line_numbers = true;
         self.cursor_position = (0, 0);
         self.visual_start = None;
+        self.yank_buffer = None;
+        self.yank_is_line = false;
 
         // Clean up temporary profile if created
         if let Some(path) = &self.profile_path {
             debug!("Removing temporary profile at: {}", path);
             if let Err(e) = std::fs::remove_file(path) {
-                warn!("Failed to remove temporary profile: {}", e);
+                // Not a warning in deep cleanup - expected that it might not exist
+                trace!("Profile already removed or doesn't exist: {}", e);
             }
             self.profile_path = None;
         }
+
+        // Small delay to ensure resources are released
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    /// Clean up after a scenario
+    pub async fn cleanup(&mut self) {
+        debug!("Cleaning up BluelineWorld");
+        
+        // Use deep cleanup for thorough state reset
+        self.deep_cleanup().await;
     }
 
     /// Start the application with given arguments
