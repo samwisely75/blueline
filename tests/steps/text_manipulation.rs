@@ -201,12 +201,16 @@ async fn given_request_buffer_contains(world: &mut BluelineWorld, step: &gherkin
     for (i, line) in docstring.lines().enumerate() {
         if i > 0 {
             // Press Enter between lines
-            world.send_key_event(KeyCode::Enter, KeyModifiers::empty()).await;
+            world
+                .send_key_event(KeyCode::Enter, KeyModifiers::empty())
+                .await;
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         }
         // Type the line
         for ch in line.chars() {
-            world.send_key_event(KeyCode::Char(ch), KeyModifiers::empty()).await;
+            world
+                .send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
+                .await;
             tokio::time::sleep(std::time::Duration::from_millis(2)).await;
         }
     }
