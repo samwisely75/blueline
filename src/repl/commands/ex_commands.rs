@@ -197,6 +197,32 @@ impl ExCommand for SetExpandTabCommand {
     }
 }
 
+/// Set dcut command handler (for :set dcut on/off)
+pub struct SetDCutCommand;
+
+impl ExCommand for SetDCutCommand {
+    fn can_handle(&self, command: &str) -> bool {
+        command == "set dcut on" || command == "set dcut off"
+    }
+
+    fn execute(&self, command: &str, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        let enable = command == "set dcut on";
+
+        Ok(vec![CommandEvent::SettingChangeRequested {
+            setting: Setting::DCut,
+            value: if enable {
+                SettingValue::On
+            } else {
+                SettingValue::Off
+            },
+        }])
+    }
+
+    fn name(&self) -> &'static str {
+        "SetDCutCommand"
+    }
+}
+
 /// Type alias to reduce complexity for ex command collection
 type ExCommandCollection = Vec<Box<dyn ExCommand + Send>>;
 
@@ -245,6 +271,7 @@ impl ExCommandRegistry {
             Box::new(SetClipboardCommand),
             Box::new(SetTabstopCommand),
             Box::new(SetExpandTabCommand),
+            Box::new(SetDCutCommand),
             Box::new(ShowProfileCommand),
             Box::new(GoToLineCommand),
         ];

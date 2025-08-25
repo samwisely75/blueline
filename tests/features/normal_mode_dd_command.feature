@@ -60,7 +60,6 @@ Feature: Normal mode dd command for cutting entire lines
     And I should be in Normal mode
     And the cursor should be at line 0, column 0
 
-  @skip
   Scenario: Paste cut line after dd command
     Given I have started the application
     When I press "i" to enter Insert mode
@@ -77,7 +76,6 @@ Feature: Normal mode dd command for cutting entire lines
       line to cut
       """
 
-  @skip
   Scenario: dd command maintains yank buffer type
     Given I have started the application
     When I press "i" to enter Insert mode

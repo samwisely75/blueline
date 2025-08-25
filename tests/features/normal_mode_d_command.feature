@@ -21,9 +21,8 @@ Feature: Normal mode 'D' command (cut to end of line)
     Then I should be in Normal mode
     And I should see "Hello " in the request pane at line 1
     And the cursor should be at display line 1 display column 6
-    # Skipping paste test - D doesn't properly yank yet
-    # When I press "p"
-    # Then I should see "Hello World" in the request pane at line 1
+    When I press "p"
+    Then I should see "Hello World" in the request pane at line 1
 
   Scenario: Cut from beginning of line to end (whole line)
     Given I am in Insert mode
@@ -34,9 +33,8 @@ Feature: Normal mode 'D' command (cut to end of line)
     Then I should be in Normal mode
     And I should see "" in the request pane at line 1
     And the cursor should be at display line 1 display column 1
-    # Skipping paste test - D doesn't properly yank yet
-    # When I press "p"
-    # Then I should see "Complete line" in the request pane at line 1
+    When I press "p"
+    Then I should see "Complete line" in the request pane at line 1
 
   Scenario: Cut from end of line (no-op)
     Given I am in Insert mode
@@ -63,9 +61,8 @@ Feature: Normal mode 'D' command (cut to end of line)
     Then I should be in Normal mode
     And I should see "こんにちは" in the request pane at line 1
     And the cursor should be at display line 1 display column 6
-    # Skipping paste test - D doesn't properly yank yet
-    # When I press "p"
-    # Then I should see "こんにちは World" in the request pane at line 1
+    When I press "p"
+    Then I should see "こんにちは World" in the request pane at line 1
 
   Scenario: Cut from empty line (no-op)
     Given the request buffer is empty
@@ -116,9 +113,8 @@ Feature: Normal mode 'D' command (cut to end of line)
     And I press "l"
     When I press "D"
     Then I should see "Hel" in the request pane at line 1
-    # Skipping paste test - D doesn't properly yank yet
-    # When I press "p"
-    # Then I should see "Hello   " in the request pane at line 1
+    When I press "p"
+    Then I should see "Hello   " in the request pane at line 1
 
   Scenario: Cut and paste preserves yank buffer
     Given I am in Insert mode
@@ -136,6 +132,5 @@ Feature: Normal mode 'D' command (cut to end of line)
     When I press "o"
     And I type "Second line"
     And I press Escape
-    # Skipping paste test - D doesn't properly yank yet
-    # When I press "p"
-    # Then I should see "line" in the request pane at line 2
+    When I press "p"
+    Then I should see "line" in the request pane at line 2

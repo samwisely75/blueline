@@ -22,6 +22,8 @@ pub enum Setting {
     TabStop,
     /// Expand tab setting (insert spaces instead of tab)
     ExpandTab,
+    /// Cut mode for d/dd/D commands (yank to clipboard)
+    DCut,
 }
 
 /// Values for settings

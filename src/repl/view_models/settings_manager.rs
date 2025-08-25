@@ -58,6 +58,11 @@ impl ViewModel {
                 }
                 Ok(())
             }
+            Setting::DCut => {
+                let enable = value == SettingValue::On;
+                self.set_dcut_enabled(enable);
+                Ok(())
+            }
         }
     }
 }

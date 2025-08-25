@@ -55,7 +55,6 @@ Feature: Yank and paste operations
     # We'll test this by checking mode doesn't change
     Then I should be in Normal mode
 
-  @skip
   Scenario: Yank and paste after cursor
     Given the request buffer contains:
       """
@@ -75,7 +74,6 @@ Feature: Yank and paste operations
     And I press "p"
     Then I should see "Hello HelloWorld" in the request pane
 
-  @skip
   Scenario: Yank and paste before cursor
     Given the request buffer contains:
       """
@@ -116,7 +114,6 @@ Feature: Yank and paste operations
     Then I should be in Normal mode
     And the status message should contain "1 line yanked"
 
-  @skip
   Scenario: Yank current line and paste after
     Given the request buffer contains:
       """
@@ -136,7 +133,6 @@ Feature: Yank and paste operations
       Third line
       """
 
-  @skip
   Scenario: Yank current line and paste before
     Given the request buffer contains:
       """
@@ -156,7 +152,6 @@ Feature: Yank and paste operations
       Third line
       """
 
-  @skip
   Scenario: Yank single line file with yy command
     Given the request buffer contains:
       """
@@ -172,7 +167,6 @@ Feature: Yank and paste operations
       Only line
       """
 
-  @skip
   Scenario: Yank current line with yy at end of file
     Given the request buffer contains:
       """

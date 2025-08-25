@@ -364,8 +364,10 @@ impl ViewModel {
 
         // Delete the character and get it back for yanking
         if let Some(deleted_char) = self.pane_manager.cut_char_at_cursor() {
-            // Yank the deleted character to the buffer
-            self.yank_to_buffer_with_type(deleted_char, YankType::Character)?;
+            // Only yank if dcut is enabled
+            if self.is_dcut_enabled() {
+                self.yank_to_buffer_with_type(deleted_char, YankType::Character)?;
+            }
 
             // Emit view events for display update
             self.emit_view_event(vec![
@@ -387,8 +389,10 @@ impl ViewModel {
 
         // Delete from cursor to end of line and get the text for yanking
         if let Some(cut_text) = self.pane_manager.cut_to_end_of_line() {
-            // Yank the cut text to the buffer as character type
-            self.yank_to_buffer_with_type(cut_text, YankType::Character)?;
+            // Only yank if dcut is enabled
+            if self.is_dcut_enabled() {
+                self.yank_to_buffer_with_type(cut_text, YankType::Character)?;
+            }
 
             // Emit view events for display update
             self.emit_view_event(vec![
@@ -412,8 +416,10 @@ impl ViewModel {
 
         // Delete entire current line and get the text for yanking
         if let Some(cut_text) = self.pane_manager.cut_current_line() {
-            // Yank the cut text to the buffer as line type (includes newline)
-            self.yank_to_buffer_with_type(cut_text, YankType::Line)?;
+            // Only yank if dcut is enabled
+            if self.is_dcut_enabled() {
+                self.yank_to_buffer_with_type(cut_text, YankType::Line)?;
+            }
 
             // Emit view events for display update
             self.emit_view_event(vec![
