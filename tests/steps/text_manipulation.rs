@@ -420,41 +420,27 @@ async fn when_press_key_followed_by_key(
 ) {
     info!("Pressing '{}' followed by '{}'", first_key, second_key);
 
-    // Press the first key
-    match first_key.as_str() {
-        "d" => {
-            world
-                .send_key_event(KeyCode::Char('d'), KeyModifiers::empty())
-                .await;
-        }
-        "g" => {
-            world
-                .send_key_event(KeyCode::Char('g'), KeyModifiers::empty())
-                .await;
-        }
-        _ => {
-            panic!("Unsupported first key in 'followed by' pattern: {first_key}");
-        }
+    // Press the first key - support any single character
+    if first_key.len() == 1 {
+        let ch = first_key.chars().next().unwrap();
+        world
+            .send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
+            .await;
+    } else {
+        panic!("Unsupported first key in 'followed by' pattern: {first_key}");
     }
 
     world.tick().await.expect("Failed to tick after first key");
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-    // Press the second key
-    match second_key.as_str() {
-        "d" => {
-            world
-                .send_key_event(KeyCode::Char('d'), KeyModifiers::empty())
-                .await;
-        }
-        "g" => {
-            world
-                .send_key_event(KeyCode::Char('g'), KeyModifiers::empty())
-                .await;
-        }
-        _ => {
-            panic!("Unsupported second key in 'followed by' pattern: {second_key}");
-        }
+    // Press the second key - support any single character
+    if second_key.len() == 1 {
+        let ch = second_key.chars().next().unwrap();
+        world
+            .send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
+            .await;
+    } else {
+        panic!("Unsupported second key in 'followed by' pattern: {second_key}");
     }
 
     world.tick().await.expect("Failed to tick after second key");
