@@ -44,6 +44,22 @@ async fn then_command_line_should_be_cleared(world: &mut BluelineWorld) {
     let _ = contains; // Acknowledge the variable
 }
 
+// === DEBUG STEPS ===
+
+#[then("the terminal should display the current state")]
+async fn then_display_terminal_state(world: &mut BluelineWorld) {
+    let terminal_content = world.get_terminal_content().await;
+    info!("=== TERMINAL STATE ===");
+    for (i, line) in terminal_content.lines().enumerate() {
+        info!("{:2}: '{}'", i + 1, line);
+    }
+    info!("=== END TERMINAL STATE ===");
+
+    // Also check what's in the text buffer
+    let text_buffer = world.get_text_buffer();
+    info!("Text buffer content: {:?}", text_buffer);
+}
+
 // === COMMAND EXECUTION STEPS ===
 
 #[then("the application should exit")]

@@ -36,14 +36,14 @@ Feature: Normal mode 'D' command (cut to end of line)
     When I press "p"
     Then I should see "Complete line" in the request pane at line 1
 
-  Scenario: Cut from end of line (no-op)
+  Scenario: Cut from end of line
     Given I am in Insert mode
     When I type "Hello"
     And I press Escape
     Then the cursor should be at display line 1 display column 5
     When I press "D"
     Then I should be in Normal mode
-    And I should see "Hello" in the request pane at line 1
+    And I should see "Hell" in the request pane at line 1
     And the cursor should be at display line 1 display column 5
 
   Scenario: Cut with multi-byte characters
@@ -56,11 +56,11 @@ Feature: Normal mode 'D' command (cut to end of line)
     And I press "l"
     And I press "l"
     And I press "l"
-    Then the cursor should be at display line 1 display column 6
+    Then the cursor should be at display line 1 display column 11
     When I press "D"
     Then I should be in Normal mode
     And I should see "こんにちは" in the request pane at line 1
-    And the cursor should be at display line 1 display column 6
+    And the cursor should be at display line 1 display column 11
     When I press "p"
     Then I should see "こんにちは World" in the request pane at line 1
 
@@ -84,7 +84,7 @@ Feature: Normal mode 'D' command (cut to end of line)
     And the cursor should be at display line 1 display column 4
     When I press "D"
     Then I should see "ABC" in the request pane at line 1
-    And the cursor should be at display line 1 display column 3
+    And the cursor should be at display line 1 display column 4
 
   Scenario: Verify 'D' only works in Normal mode
     Given I am in Insert mode

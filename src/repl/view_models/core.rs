@@ -64,6 +64,9 @@ pub struct ViewModel {
     // Whether clipboard integration is enabled
     pub(super) clipboard_enabled: bool,
 
+    // Whether d/dd/D commands should cut (yank) instead of just delete
+    pub(super) dcut_enabled: bool,
+
     // Visual Block Insert state - tracks cursor positions for multi-cursor editing
     pub(super) visual_block_insert_cursors: Vec<LogicalPosition>,
     // Original Visual Block Insert start positions - used to prevent backspace beyond boundaries
@@ -100,6 +103,7 @@ impl ViewModel {
             pending_model_events: Vec::new(),
             yank_buffer: Box::new(MemoryYankBuffer::new()),
             clipboard_enabled: false,
+            dcut_enabled: true, // Default to true for cut behavior
             visual_block_insert_cursors: Vec::new(),
             visual_block_insert_start_columns: Vec::new(),
             current_screen_buffer: ScreenBuffer::new(
@@ -215,6 +219,17 @@ impl ViewModel {
         }
 
         Ok(())
+    }
+
+    /// Enable or disable cut behavior for d/dd/D commands
+    pub fn set_dcut_enabled(&mut self, enabled: bool) {
+        self.dcut_enabled = enabled;
+        tracing::info!("DCut mode set to: {}", if enabled { "on" } else { "off" });
+    }
+
+    /// Get whether cut behavior is enabled for d/dd/D commands
+    pub fn is_dcut_enabled(&self) -> bool {
+        self.dcut_enabled
     }
 
     /// Update terminal size and resize screen buffers

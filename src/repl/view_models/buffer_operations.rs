@@ -18,10 +18,32 @@ use crate::repl::view_models::core::ViewModel;
 use crate::repl::view_models::{YankEntry, YankType};
 use anyhow::Result;
 
+/// Type alias for selection text with its yank type
+type SelectionWithType = (String, YankType);
+
 impl ViewModel {
     /// Get selected text from current pane
     pub fn get_selected_text(&self) -> Option<String> {
         self.pane_manager.get_selected_text()
+    }
+
+    /// Get selected text and determine YankType based on current visual mode
+    pub fn get_selection_text_and_type(&self) -> Result<Option<SelectionWithType>> {
+        // Get the selected text
+        let text = match self.get_selected_text() {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Determine yank type based on current mode
+        let yank_type = match self.mode() {
+            EditorMode::Visual => YankType::Character,
+            EditorMode::VisualLine => YankType::Line,
+            EditorMode::VisualBlock => YankType::Block,
+            _ => YankType::Character, // Default fallback
+        };
+
+        Ok(Some((text, yank_type)))
     }
 
     /// Delete selected text from current pane
@@ -364,8 +386,10 @@ impl ViewModel {
 
         // Delete the character and get it back for yanking
         if let Some(deleted_char) = self.pane_manager.cut_char_at_cursor() {
-            // Yank the deleted character to the buffer
-            self.yank_to_buffer_with_type(deleted_char, YankType::Character)?;
+            // Only yank if dcut is enabled
+            if self.is_dcut_enabled() {
+                self.yank_to_buffer_with_type(deleted_char, YankType::Character)?;
+            }
 
             // Emit view events for display update
             self.emit_view_event(vec![
@@ -387,8 +411,10 @@ impl ViewModel {
 
         // Delete from cursor to end of line and get the text for yanking
         if let Some(cut_text) = self.pane_manager.cut_to_end_of_line() {
-            // Yank the cut text to the buffer as character type
-            self.yank_to_buffer_with_type(cut_text, YankType::Character)?;
+            // Only yank if dcut is enabled
+            if self.is_dcut_enabled() {
+                self.yank_to_buffer_with_type(cut_text, YankType::Character)?;
+            }
 
             // Emit view events for display update
             self.emit_view_event(vec![
@@ -412,8 +438,10 @@ impl ViewModel {
 
         // Delete entire current line and get the text for yanking
         if let Some(cut_text) = self.pane_manager.cut_current_line() {
-            // Yank the cut text to the buffer as line type (includes newline)
-            self.yank_to_buffer_with_type(cut_text, YankType::Line)?;
+            // Only yank if dcut is enabled
+            if self.is_dcut_enabled() {
+                self.yank_to_buffer_with_type(cut_text, YankType::Line)?;
+            }
 
             // Emit view events for display update
             self.emit_view_event(vec![
