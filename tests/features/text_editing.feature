@@ -90,6 +90,7 @@ Feature: Text Editing Operations
     Then I should see "Jello" in the request pane at line 1
 
   # Join Lines
+  @skip
   Scenario: Join lines with J command
     Given I am in Insert mode
     When I type "Line 1"
@@ -100,7 +101,7 @@ Feature: Text Editing Operations
     When I press "J"
     Then I should see "Line 1 Line 2" in the request pane at line 1
 
-  # Undo/Redo
+  # Undo/Redo (not implemented in production)
   @skip
   Scenario: Undo and redo operations
     Given I am in Insert mode

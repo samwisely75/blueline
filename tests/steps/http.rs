@@ -88,7 +88,7 @@ async fn then_response_pane_shows_error(world: &mut BluelineWorld) {
 
 // === REQUEST/RESPONSE CONTENT ===
 
-#[then(regex = r#"I should see "([^"]+)" in the request pane"#)]
+#[then(regex = r#"I should see "([^"]+)" in the request pane$"#)]
 async fn then_should_see_in_request_pane(world: &mut BluelineWorld, text: String) {
     debug!("Checking for '{}' in request pane", text);
 

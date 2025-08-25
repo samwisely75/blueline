@@ -94,6 +94,46 @@ async fn then_should_see_highlighted(world: &mut BluelineWorld, text: String) {
     // Additional verification would check for ANSI color codes or selection markers
 }
 
+// Step definition for checking text at specific line
+#[then(regex = r#"I should see "([^"]+)" in the request pane at line (\d+)"#)]
+async fn then_should_see_text_at_line(world: &mut BluelineWorld, text: String, line: usize) {
+    debug!("Checking for text '{}' at line {}", text, line);
+
+    // Get terminal state and check for the text at the specified line
+    world.tick().await.expect("Failed to tick");
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    let state = world.get_terminal_state().await;
+
+    // Line numbers in features are 1-based, terminal lines are 0-based
+    let line_index = line - 1;
+
+    if let Some(line_content) = state.get_line(line_index) {
+        // Strip line numbers if present (format: "  1 content" or " 10 content")
+        let content_without_line_num = if line_content.starts_with(' ') {
+            // Find the first non-space character after the line number
+            if let Some(pos) = line_content.find(|c: char| c.is_ascii_digit()) {
+                if let Some(space_after_num) = line_content[pos..].find(' ') {
+                    line_content[pos + space_after_num + 1..].to_string()
+                } else {
+                    line_content.clone()
+                }
+            } else {
+                line_content.clone()
+            }
+        } else {
+            line_content.clone()
+        };
+
+        assert!(
+            content_without_line_num.contains(&text),
+            "Expected to see '{text}' at line {line}, but found: '{content_without_line_num}' (original: '{line_content}')"
+        );
+    } else {
+        panic!("Line {line} does not exist in terminal output");
+    }
+}
+
 // === TEXT DELETION STEP DEFINITIONS ===
 
 #[given(regex = r#"I have text "([^"]+)" in the request pane"#)]

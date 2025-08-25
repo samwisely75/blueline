@@ -4,7 +4,7 @@ Feature: Tab handling and expandtab configuration
   So that I can control whether tabs are inserted as spaces or tab characters
 
   Background:
-    Given the application is running
+    Given the application is started with default settings
     And I am in the Request pane
     And I am in Normal mode
 

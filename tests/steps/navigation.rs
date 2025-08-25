@@ -121,35 +121,82 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
                 .send_key_event(KeyCode::Char('0'), KeyModifiers::empty())
                 .await
         }
-        // Deletion/editing keys
+        "gg" => {
+            info!("Pressing 'gg' to go to top of document");
+            // Send two 'g' keys in sequence for gg command
+            world
+                .send_key_event(KeyCode::Char('g'), KeyModifiers::empty())
+                .await;
+            world.tick().await.expect("Failed to tick");
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            world
+                .send_key_event(KeyCode::Char('g'), KeyModifiers::empty())
+                .await
+        }
+        "G" => {
+            info!("Pressing 'G' to go to bottom of document");
+            world
+                .send_key_event(KeyCode::Char('G'), KeyModifiers::empty())
+                .await
+        }
+        "x" => {
+            info!("Pressing 'x' to delete character");
+            world
+                .send_key_event(KeyCode::Char('x'), KeyModifiers::empty())
+                .await
+        }
+        "X" => {
+            info!("Pressing 'X' to delete character before cursor");
+            world
+                .send_key_event(KeyCode::Char('X'), KeyModifiers::empty())
+                .await
+        }
         "d" => {
-            info!("Pressing 'd' key for delete command");
+            info!("Pressing 'd' (for dd or other d commands)");
             world
                 .send_key_event(KeyCode::Char('d'), KeyModifiers::empty())
                 .await
         }
         "D" => {
-            info!("Pressing 'D' key for cut to end of line command");
+            info!("Pressing 'D' to delete to end of line");
             world
                 .send_key_event(KeyCode::Char('D'), KeyModifiers::empty())
                 .await
         }
-        "x" => {
-            info!("Pressing 'x' key for cut command");
-            world
-                .send_key_event(KeyCode::Char('x'), KeyModifiers::empty())
-                .await
-        }
         "y" => {
-            info!("Pressing 'y' key for yank command");
+            info!("Pressing 'y' (for yank commands)");
             world
                 .send_key_event(KeyCode::Char('y'), KeyModifiers::empty())
+                .await
+        }
+        "Y" => {
+            info!("Pressing 'Y' to yank line");
+            world
+                .send_key_event(KeyCode::Char('Y'), KeyModifiers::empty())
                 .await
         }
         "p" => {
             info!("Pressing 'p' key for paste after cursor");
             world
                 .send_key_event(KeyCode::Char('p'), KeyModifiers::empty())
+                .await
+        }
+        "r" => {
+            info!("Pressing 'r' to enter replace mode");
+            world
+                .send_key_event(KeyCode::Char('r'), KeyModifiers::empty())
+                .await
+        }
+        "J" => {
+            info!("Pressing 'J' (Shift+j) to join lines");
+            world
+                .send_key_event(KeyCode::Char('J'), KeyModifiers::SHIFT)
+                .await
+        }
+        "Escape" => {
+            info!("Pressing Escape key");
+            world
+                .send_key_event(KeyCode::Esc, KeyModifiers::empty())
                 .await
         }
         "P" => {
@@ -191,7 +238,95 @@ async fn when_press_key(world: &mut BluelineWorld, key: String) {
                 .send_key_event(KeyCode::Enter, KeyModifiers::empty())
                 .await
         }
-        _ => panic!("Unsupported key: {key}"),
+        "Backspace" => {
+            info!("Pressing Backspace key");
+            world
+                .send_key_event(KeyCode::Backspace, KeyModifiers::empty())
+                .await
+        }
+        "Tab" => {
+            info!("Pressing Tab key");
+            world
+                .send_key_event(KeyCode::Tab, KeyModifiers::empty())
+                .await
+        }
+        "R" => {
+            info!("Pressing 'R' key for replace mode");
+            world
+                .send_key_event(KeyCode::Char('R'), KeyModifiers::empty())
+                .await
+        }
+        "u" => {
+            info!("Pressing 'u' key for undo");
+            world
+                .send_key_event(KeyCode::Char('u'), KeyModifiers::empty())
+                .await
+        }
+        "Ctrl+r" => {
+            info!("Pressing Ctrl+r for redo");
+            world
+                .send_key_event(KeyCode::Char('r'), KeyModifiers::CONTROL)
+                .await
+        }
+        "Ctrl+w" => {
+            info!("Pressing Ctrl+w to delete word in Insert mode");
+            world
+                .send_key_event(KeyCode::Char('w'), KeyModifiers::CONTROL)
+                .await
+        }
+        "I" => {
+            info!("Pressing 'I' key to insert at beginning of line");
+            world
+                .send_key_event(KeyCode::Char('I'), KeyModifiers::empty())
+                .await
+        }
+        "O" => {
+            info!("Pressing 'O' key to open new line above");
+            world
+                .send_key_event(KeyCode::Char('O'), KeyModifiers::empty())
+                .await
+        }
+        "Home" => {
+            info!("Pressing Home key");
+            world
+                .send_key_event(KeyCode::Home, KeyModifiers::empty())
+                .await
+        }
+        "End" => {
+            info!("Pressing End key");
+            world
+                .send_key_event(KeyCode::End, KeyModifiers::empty())
+                .await
+        }
+        "Ctrl+f" => {
+            info!("Pressing Ctrl+f for page down");
+            world
+                .send_key_event(KeyCode::Char('f'), KeyModifiers::CONTROL)
+                .await
+        }
+        "Ctrl+b" => {
+            info!("Pressing Ctrl+b for page up");
+            world
+                .send_key_event(KeyCode::Char('b'), KeyModifiers::CONTROL)
+                .await
+        }
+        _ => {
+            // Handle repeated character keys like "lllll" (5 l presses)
+            if key.chars().all(|c| c == key.chars().next().unwrap()) && key.len() > 1 {
+                let ch = key.chars().next().unwrap();
+                let count = key.len();
+                info!("Pressing '{}' key {} times", ch, count);
+                for _ in 0..count {
+                    world
+                        .send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
+                        .await;
+                    world.tick().await.expect("Failed to tick");
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            } else {
+                panic!("Unsupported key: {key}")
+            }
+        }
     }
     world.tick().await.expect("Failed to tick");
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;

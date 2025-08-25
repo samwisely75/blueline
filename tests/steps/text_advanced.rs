@@ -12,12 +12,8 @@ use tracing::{debug, info};
 
 // === UNDO/REDO OPERATIONS ===
 
-#[when("I press \"u\"")]
-async fn when_press_u_for_undo(world: &mut BluelineWorld) {
-    info!("Pressing 'u' for undo");
-    world.press_key('u').await;
-    world.tick().await.expect("Failed to tick");
-}
+// Note: "u" key handling moved to navigation.rs to avoid ambiguity
+// The generic pattern there handles "u" along with other single keys
 
 #[when("I press \"u\" for undo")]
 async fn when_press_u_for_undo_explicit(world: &mut BluelineWorld) {

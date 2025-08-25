@@ -152,10 +152,13 @@ impl BluelineWorld {
     /// Initialize the world for a new scenario
     pub async fn initialize(&mut self) {
         // Generate unique scenario ID for tracking
-        let scenario_id = format!("scenario_{}", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis());
+        let scenario_id = format!(
+            "scenario_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+        );
         debug!("Initializing BluelineWorld for {}", scenario_id);
 
         // Ensure complete cleanup of any previous state
@@ -206,7 +209,7 @@ impl BluelineWorld {
                 let timeout_handle = tokio::spawn(async move {
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 });
-                
+
                 // We can't join the thread from async context, so we just wait and drop
                 tokio::select! {
                     _ = timeout_handle => {
@@ -253,7 +256,7 @@ impl BluelineWorld {
     /// Clean up after a scenario
     pub async fn cleanup(&mut self) {
         debug!("Cleaning up BluelineWorld");
-        
+
         // Use deep cleanup for thorough state reset
         self.deep_cleanup().await;
     }
