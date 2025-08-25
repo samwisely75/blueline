@@ -786,11 +786,38 @@ async fn given_cursor_at_display_position(world: &mut BluelineWorld, line: usize
         line, column
     );
 
-    // Set cursor position in our test simulation (0-indexed internally)
+    // Move cursor to beginning of document first
+    world.send_key_event(KeyCode::Char('g'), KeyModifiers::empty()).await;
+    world.tick().await.expect("Failed to tick");
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    world.send_key_event(KeyCode::Char('g'), KeyModifiers::empty()).await;
+    world.tick().await.expect("Failed to tick");
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    
+    // Move down to the target line (1-indexed, so line 1 = no movement)
+    for _ in 1..line {
+        world.send_key_event(KeyCode::Char('j'), KeyModifiers::empty()).await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    
+    // Move to beginning of line
+    world.send_key_event(KeyCode::Char('0'), KeyModifiers::empty()).await;
+    world.tick().await.expect("Failed to tick");
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    
+    // Move right to target column (1-indexed, so column 1 = no movement)
+    for _ in 1..column {
+        world.send_key_event(KeyCode::Char('l'), KeyModifiers::empty()).await;
+        world.tick().await.expect("Failed to tick");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+
+    // Also set internal cursor tracking
     world.set_cursor_position(line.saturating_sub(1), column.saturating_sub(1));
 
     debug!(
-        "Cursor set to display position ({}, {}) (placeholder implementation)",
+        "Cursor positioned at display line {} column {}",
         line, column
     );
 }
