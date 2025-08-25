@@ -19,10 +19,10 @@ Feature: Normal mode 'x' command (cut character)
     Then the cursor should be at display line 1 display column 6
     When I press "x"
     Then I should be in Normal mode
-    And I should see "Hello orld" in the request pane at line 1
+    And I should see "HelloWorld" in the request pane at line 1
     And the cursor should be at display line 1 display column 6
     When I press "p"
-    Then I should see "Hello Woorld" in the request pane at line 1
+    Then I should see "HelloW orld" in the request pane at line 1
 
   Scenario: Cut character at beginning of line
     Given I am in Insert mode  
@@ -46,7 +46,7 @@ Feature: Normal mode 'x' command (cut character)
     And I should see "Hell" in the request pane at line 1
     And the cursor should be at display line 1 display column 4
     When I press "p"
-    Then I should see "Helo" in the request pane at line 1
+    Then I should see "Hello" in the request pane at line 1
 
   Scenario: Cut character with multi-byte characters
     Given I am in Insert mode
@@ -55,11 +55,11 @@ Feature: Normal mode 'x' command (cut character)
     And I press "0"
     And I press "l"
     And I press "l"
-    Then the cursor should be at display line 1 display column 3
+    Then the cursor should be at display line 1 display column 5
     When I press "x" 
     Then I should be in Normal mode
     And I should see "こんちは" in the request pane at line 1
-    And the cursor should be at display line 1 display column 3
+    And the cursor should be at display line 1 display column 5
     When I press "p"
     Then I should see "こんにちは" in the request pane at line 1
 
@@ -67,7 +67,7 @@ Feature: Normal mode 'x' command (cut character)
     Given I am in Insert mode
     When I type "abc漢字"
     And I press Escape
-    Then the cursor should be at display line 1 display column 5
+    Then the cursor should be at display line 1 display column 6
     When I press "x"
     Then I should see "abc漢" in the request pane at line 1
     And the cursor should be at display line 1 display column 4
