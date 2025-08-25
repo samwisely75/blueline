@@ -271,6 +271,36 @@ impl Command for YankCurrentLineCommand {
     }
 }
 
+/// Cancel DPrefix or YPrefix mode on any non-matching key
+pub struct CancelPrefixModeCommand;
+
+impl Command for CancelPrefixModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        // In DPrefix mode, cancel on any key except 'd'
+        if context.state.current_mode == EditorMode::DPrefix {
+            return !matches!(event.code, KeyCode::Char('d'))
+                && context.state.current_pane == Pane::Request;
+        }
+
+        // In YPrefix mode, cancel on any key except 'y'
+        if context.state.current_mode == EditorMode::YPrefix {
+            return !matches!(event.code, KeyCode::Char('y'))
+                && context.state.current_pane == Pane::Request;
+        }
+
+        false
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Return to Normal mode
+        Ok(vec![CommandEvent::mode_change(EditorMode::Normal)])
+    }
+
+    fn name(&self) -> &'static str {
+        "CancelPrefixMode"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

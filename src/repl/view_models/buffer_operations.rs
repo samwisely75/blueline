@@ -18,10 +18,32 @@ use crate::repl::view_models::core::ViewModel;
 use crate::repl::view_models::{YankEntry, YankType};
 use anyhow::Result;
 
+/// Type alias for selection text with its yank type
+type SelectionWithType = (String, YankType);
+
 impl ViewModel {
     /// Get selected text from current pane
     pub fn get_selected_text(&self) -> Option<String> {
         self.pane_manager.get_selected_text()
+    }
+
+    /// Get selected text and determine YankType based on current visual mode
+    pub fn get_selection_text_and_type(&self) -> Result<Option<SelectionWithType>> {
+        // Get the selected text
+        let text = match self.get_selected_text() {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Determine yank type based on current mode
+        let yank_type = match self.mode() {
+            EditorMode::Visual => YankType::Character,
+            EditorMode::VisualLine => YankType::Line,
+            EditorMode::VisualBlock => YankType::Block,
+            _ => YankType::Character, // Default fallback
+        };
+
+        Ok(Some((text, yank_type)))
     }
 
     /// Delete selected text from current pane

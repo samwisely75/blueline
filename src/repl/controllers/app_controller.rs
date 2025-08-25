@@ -965,6 +965,16 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
     /// Handle deleting selected text
     fn handle_delete_selection(&mut self) -> Result<()> {
+        // First, get the selection info for yanking if dcut is enabled
+        if self.view_model.is_dcut_enabled() {
+            // Get selection text and type before deleting
+            if let Some((text, yank_type)) = self.view_model.get_selection_text_and_type()? {
+                // Store in YankService
+                self.services.yank.yank(text.clone(), yank_type)?;
+                tracing::info!("Yanked selection to buffer before delete");
+            }
+        }
+
         // Delete the selected text - the method now returns the deleted text directly
         if let Some(deleted_text) = self.view_model.delete_selected_text()? {
             // Switch to Normal mode (automatically clears visual selection)
