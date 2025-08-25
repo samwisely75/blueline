@@ -552,11 +552,7 @@ async fn then_cursor_location_should_be_at(
 }
 
 #[then(regex = r#"the cursor should be at display line (\d+) display column (\d+)"#)]
-async fn then_cursor_at_display_position(
-    world: &mut BluelineWorld,
-    line: String,
-    column: String,
-) {
+async fn then_cursor_at_display_position(world: &mut BluelineWorld, line: String, column: String) {
     let state = world.get_terminal_state().await;
     let current_row = state.cursor_position.1;
     let current_col = state.cursor_position.0;
@@ -564,9 +560,9 @@ async fn then_cursor_at_display_position(
     // Display coordinates are content-relative (column 1 = first character of content)
     // The actual terminal position includes line number offset
     let line_number_offset = if world.show_line_numbers { 4 } else { 0 };
-    
+
     let expected_row: u16 = line.parse::<u16>().unwrap() - 1; // Convert to 0-indexed
-    // Display column 1 = first content position, add line number offset for terminal position
+                                                              // Display column 1 = first content position, add line number offset for terminal position
     let expected_col: u16 = (column.parse::<u16>().unwrap() - 1) + line_number_offset;
 
     debug!(
@@ -583,12 +579,15 @@ async fn then_cursor_at_display_position(
     );
 
     assert_eq!(
-        current_row, expected_row,
+        current_row,
+        expected_row,
         "Cursor row mismatch: expected display line {}, found {}",
-        line, current_row + 1
+        line,
+        current_row + 1
     );
     assert_eq!(
-        current_col, expected_col,
+        current_col,
+        expected_col,
         "Cursor column mismatch: expected display column {} ({}), found {} ({})",
         column,
         expected_col,
