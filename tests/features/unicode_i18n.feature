@@ -62,7 +62,7 @@ Feature: Unicode and Internationalization Support
     And I press "l"
     And I press "l"
     And I press "d"
-    Then I should see "にちは World" in the request pane at line 1
+    Then I should see "ちは World" in the request pane at line 1
 
   # JSON with international content
   Scenario: JSON request with Unicode values

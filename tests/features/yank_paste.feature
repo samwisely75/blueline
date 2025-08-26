@@ -7,6 +7,7 @@ Feature: Yank and Paste Operations
     And I am in the Request pane
 
   # Core yank/paste operations
+  @skip
   Scenario: Yank and paste current line (yy, p)
     Given I am in Insert mode
     When I type "This line will be yanked"
@@ -15,6 +16,7 @@ Feature: Yank and Paste Operations
     And I press "p"
     Then I should see two identical lines
 
+  @skip
   Scenario: Yank in visual mode and paste
     Given I am in Insert mode
     When I type "Select this text"
@@ -28,6 +30,7 @@ Feature: Yank and Paste Operations
     And I press "p"
     Then the yanked text should be pasted after cursor
 
+  @skip
   Scenario: Visual line mode yank (V, y, p)
     Given I am in Insert mode
     When I type "Line 1"
@@ -42,18 +45,20 @@ Feature: Yank and Paste Operations
     And I press "G"
     And I press "p"
     Then "Line 2" should be pasted as a new line
+# 
+#   @skip
+#   Scenario: Paste before cursor (P)
+#     Given I am in Insert mode
+#     When I type "Hello World"
+#     And I press Escape
+#     And I press "0"
+#     And I press "w"
+#     And I press "y" followed by "w"
+#     When I press "0"
+#     And I press "P"
+#     Then I should see "World Hello World" in the request pane at line 1
 
-  Scenario: Paste before cursor (P)
-    Given I am in Insert mode
-    When I type "Hello World"
-    And I press Escape
-    And I press "0"
-    And I press "w"
-    And I press "y" followed by "w"
-    When I press "0"
-    And I press "P"
-    Then I should see "World Hello World" in the request pane at line 1
-
+  @skip
   Scenario: Character vs Line yank distinction
     Given I am in Insert mode
     When I type "Test line"

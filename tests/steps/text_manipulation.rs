@@ -110,13 +110,23 @@ async fn then_should_see_text_at_line(world: &mut BluelineWorld, text: String, l
 
     if let Some(line_content) = state.get_line(line_index) {
         // Strip line numbers if present (format: "  1 content" or " 10 content")
-        let content_without_line_num = if line_content.starts_with(' ') {
-            // Find the first non-space character after the line number
-            if let Some(pos) = line_content.find(|c: char| c.is_ascii_digit()) {
-                if let Some(space_after_num) = line_content[pos..].find(' ') {
-                    line_content[pos + space_after_num + 1..].to_string()
+        let content_without_line_num = if line_content.len() >= 4
+            && line_content.chars().take(4).any(|c| c.is_ascii_digit())
+        {
+            // Check if this looks like a line number format
+            let first_four = &line_content[..4];
+            if first_four.chars().nth(3) == Some(' ')
+                && first_four[..3]
+                    .trim()
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == ' ')
+            {
+                // This looks like a line number, skip the first 4 characters
+                if line_content.len() > 4 {
+                    line_content[4..].to_string()
                 } else {
-                    line_content.clone()
+                    // Line only contains the line number, no content
+                    String::new()
                 }
             } else {
                 line_content.clone()

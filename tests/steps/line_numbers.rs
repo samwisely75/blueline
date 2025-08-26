@@ -56,21 +56,39 @@ async fn then_should_not_see_line_numbers_request(world: &mut BluelineWorld) {
     // Line numbers appear at the beginning of lines, not in the status line
 
     // Get the lines excluding the status line (last line)
-    let lines: Vec<String> = content
+    // Note: Not used in this function but keeping for consistency
+    let _lines: Vec<String> = content
         .lines()
         .filter(|line| !line.contains("REQUEST |") && !line.contains("RESPONSE |"))
         .map(|s| s.to_string())
         .collect();
 
-    let content_without_status = lines.join("\n");
-
     // Now check for line numbers only in the actual content
-    let check1 = content_without_status.contains("  1:");
-    let check2 = content_without_status.contains(" 1:");
-    let check3 = content_without_status.contains("1:");
-    let check4 = content_without_status.contains("  2:");
-    let check5 = content_without_status.contains(" 2:");
-    let check6 = content_without_status.contains("  1 ");
+    // Line numbers in blueline are formatted as "  1 " (3 chars right-aligned, then space)
+    // We need to check the actual terminal content, not the filtered lines
+    // because filtering might remove important context
+
+    // Check if the raw content has line number patterns at line starts
+    let has_line_numbers = content.lines().any(|line| {
+        // Skip status line
+        if line.contains("REQUEST") || line.contains("RESPONSE") || line.contains("INSERT") {
+            return false;
+        }
+        // Check if line starts with line number format
+        // Examples: "  1 text", " 10 text", "123 text"
+        if line.len() >= 4 {
+            let start = &line[..4];
+            // Must be 3 chars (possibly spaces) + a digit + a space
+            let has_digit = start[..3]
+                .trim_start()
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_digit());
+            let ends_with_space = start.chars().nth(3) == Some(' ');
+            return has_digit && ends_with_space;
+        }
+        false
+    });
 
     // Write debug info to file
     use std::io::Write;
@@ -80,16 +98,12 @@ async fn then_should_not_see_line_numbers_request(world: &mut BluelineWorld) {
         .open("/tmp/line_number_debug.log")
     {
         writeln!(file, "\n=== Line number checks ===").ok();
-        writeln!(file, "  '  1:' found: {check1}").ok();
-        writeln!(file, "  ' 1:' found: {check2}").ok();
-        writeln!(file, "  '1:' found: {check3}").ok();
-        writeln!(file, "  '  2:' found: {check4}").ok();
-        writeln!(file, "  ' 2:' found: {check5}").ok();
-        writeln!(file, "  '  1 ' found: {check6}").ok();
-        writeln!(file, "Full terminal content:\n{content}").ok();
+        writeln!(file, "  Has line numbers: {has_line_numbers}").ok();
+        writeln!(file, "Lines in content:").ok();
+        for line in content.lines() {
+            writeln!(file, "  '{line}'").ok();
+        }
     }
-
-    let has_line_numbers = check1 || check2 || check3 || check4 || check5 || check6;
 
     assert!(
         !has_line_numbers,
@@ -204,12 +218,26 @@ async fn then_full_width_available(world: &mut BluelineWorld) {
     // (no leading spaces for line numbers)
     let lines: Vec<&str> = content.lines().collect();
     for line in lines {
-        if !line.is_empty() && !line.starts_with('~') {
-            // Content lines should not have leading spaces when line numbers are hidden
-            assert!(
-                !line.starts_with("   ") && !line.starts_with("  "),
-                "Content should start at beginning of line when line numbers are hidden"
-            );
+        if !line.is_empty()
+            && !line.starts_with('~')
+            && !line.contains("REQUEST")
+            && !line.contains("RESPONSE")
+        {
+            // Content lines should not have line number format (3 spaces + digit)
+            // But may have other spaces for indentation etc
+            if line.len() >= 4 {
+                let first_four = &line[..4];
+                let looks_like_line_num = first_four.chars().nth(3) == Some(' ')
+                    && first_four[..3]
+                        .trim()
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || c == ' ')
+                    && first_four[..3].trim().chars().any(|c| c.is_ascii_digit());
+                assert!(
+                    !looks_like_line_num,
+                    "Line numbers should not be visible when hidden: '{line}'"
+                );
+            }
         }
     }
 }

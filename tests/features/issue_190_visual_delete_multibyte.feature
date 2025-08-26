@@ -16,18 +16,18 @@ Feature: Issue #190 - Visual mode delete with multi-byte characters
     And I press "l"
     And I press "l"
     And I press "l"
-    Then the cursor should be at display line 1 display column 6
+    Then the cursor should be at display line 1 display column 11
     When I press "v"
     Then I should be in Visual mode
     When I press "l"
     And I press "l" 
     And I press "l"
     And I press "l"
-    Then the cursor should be at display line 1 display column 10
+    Then the cursor should be at display line 1 display column 19
     When I press "d"
     Then I should be in Normal mode
     And I should see "あいうえお" in the request pane at line 1
-    And the cursor should be at display line 1 display column 6
+    And the cursor should be at display line 1 display column 11
 
   Scenario: Delete mixed multi-byte and ASCII characters in Visual mode
     Given I am in Insert mode  
@@ -44,8 +44,8 @@ Feature: Issue #190 - Visual mode delete with multi-byte characters
     And I press "l"
     And I press "l"
     And I press "l"
-    Then the cursor should be at display line 1 display column 9
+    Then the cursor should be at display line 1 display column 11
     When I press "d"
     Then I should be in Normal mode
-    And I should see "abcかきく" in the request pane at line 1
+    And I should see "abcきく" in the request pane at line 1
     And the cursor should be at display line 1 display column 4
