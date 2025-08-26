@@ -1,5 +1,111 @@
 # Session Notes
 
+## [2025-08-26] MVVM Architecture Pivot - Correcting Fundamental Misunderstanding
+
+### User Request Summary
+- Initially requested restarting refactoring with third-generation command system
+- Goal was to slim down AppController (1500+ lines) by moving business logic to commands
+- During implementation, discovered fundamental architecture naming issue
+- Pivoted to proper MVVM pattern after recognizing misunderstanding
+
+### What We Discovered - Critical Architecture Insight
+
+#### The Naming Problem
+1. **What we called "ViewModel"** is actually just the **Model** (pure state)
+   - Contains only data: buffer state, cursor positions, modes
+   - No business logic, just getters/setters
+   - Should be renamed to AppState
+
+2. **What we called "AppController"** is actually the **ViewModel**
+   - Contains business logic and state management
+   - Coordinates between Model and View
+   - Should be renamed to AppViewModel
+
+3. **ViewRenderer** is correctly the **View**
+   - Handles rendering and display
+   - Should not contain business logic
+
+#### Why This Matters
+- The confusion led us down wrong path with 3G commands
+- Event-based (1G) commands are actually correct for MVVM
+- Commands should emit events, not directly manipulate state
+- ViewModel interprets events and updates Model accordingly
+
+### Decisions Made
+
+1. **Abandon Third-Generation Command System**
+   - Direct execution violates MVVM principles
+   - Commands shouldn't know about state structure
+   - Event emission is the correct approach
+
+2. **Revert to Event-Based (1G) Commands**
+   - Commands emit semantic events (WHAT happened)
+   - ViewModel interprets events (HOW to update state)
+   - Maintains proper separation of concerns
+
+3. **New Architecture Plan**
+   - Phase 1: Reorganize models into subdirectories
+   - Phase 2: Revert 3G commands back to 1G
+   - Phase 3: Create Services for http and visual_block
+   - Phase 4: Move screen buffers to ViewRenderer
+   - Phase 5: Merge AppController + ViewModel → AppViewModel
+   - Phase 6: Split AppViewModel into partial implementations
+   - Phase 7: Clean up obsolete code
+
+### Work Completed
+
+1. **Third-Gen Implementation (Later Reverted)**
+   - Modified Command trait to use execute() with direct state manipulation
+   - Converted YankSelectionCommand and HttpExecuteCommand
+   - Updated registry and integration
+   - This work was educational but will be discarded
+
+2. **Cleanup Phase**
+   - Deleted GitHub issues #197-203 (old refactoring plan)
+   - Removed feature/third-gen-command-system branch
+   - Created new REFACTORING_PLAN.md with proper MVVM vision
+   - Updated SESSION_NOTES.md with architecture decisions
+
+### Key Technical Learnings
+
+1. **MVVM Pattern Clarity**
+   ```
+   View (ViewRenderer) ← ViewModel (AppViewModel) ← Model (AppState)
+                               ↓
+                          Services (stateful)
+                               ↓
+                          Commands (event-based)
+   ```
+
+2. **Command Pattern in MVVM**
+   - Commands are lightweight intention carriers
+   - They check relevance and emit events
+   - They don't directly manipulate state
+   - ViewModel is the orchestrator
+
+3. **State Consolidation Needed**
+   - Current state is scattered between AppController and ViewModel
+   - Need to consolidate into single AppViewModel
+   - AppState should be pure data only
+
+### Next Steps / TODO
+- Create new GitHub issues for revised refactoring phases
+- Start fresh on new base branch with proper understanding
+- Begin Phase 1: Model reorganization
+- Focus on incremental, stable migration
+
+### Architecture Vision
+The refactoring will transform the codebase from confused layers to proper MVVM:
+- AppViewModel: ~500 lines (from 1500+)
+- Clear separation of Model, ViewModel, View
+- Event-driven command system
+- Services for complex business logic
+- No functional regressions
+
+This pivot represents a fundamental shift in understanding. What seemed like progress (3G commands) was actually moving away from proper architecture. The event-based approach we initially had was correct; we just misnamed the components.
+
+---
+
 ## [2025-01-26] Major Test Infrastructure Migration Complete
 
 ### User Request Summary
