@@ -84,9 +84,10 @@ pub use navigation::{
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
 pub use yank::{
-    ChangeSelectionCommand, CutCharacterCommand, CutCurrentLineCommand, CutSelectionCommand,
-    CutToEndOfLineCommand, DeleteSelectionCommand, EnterDPrefixCommand, EnterYPrefixCommand,
-    PasteAfterCommand, PasteAtCursorCommand, YankCommand, YankCurrentLineCommand,
+    CancelPrefixModeCommand, ChangeSelectionCommand, CutCharacterCommand, CutCurrentLineCommand,
+    CutSelectionCommand, CutToEndOfLineCommand, DeleteSelectionCommand, EnterDPrefixCommand,
+    EnterYPrefixCommand, PasteAfterCommand, PasteAtCursorCommand, YankCommand,
+    YankCurrentLineCommand,
 };
 
 /// Type alias for command collection to reduce complexity
@@ -162,6 +163,7 @@ impl CommandRegistry {
             Box::new(CutCurrentLineCommand),
             Box::new(EnterYPrefixCommand),
             Box::new(YankCurrentLineCommand),
+            Box::new(CancelPrefixModeCommand),
             Box::new(ChangeSelectionCommand),
             Box::new(PasteAfterCommand),
             Box::new(PasteAtCursorCommand),

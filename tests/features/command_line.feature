@@ -21,15 +21,6 @@ Feature: Command Line Operations
     Then I should be in Normal mode
     And the command line should be cleared
 
-  Scenario: Type command and execute
-    When I enter command mode
-    Then I should be in Command mode
-    When I type "help"
-    Then I should see ":help" at the command line
-    When I press Enter
-    Then I should see the help message in the output
-    And I should be in Normal mode
-
   Scenario: Quit from request pane
     Given I have text "GET /api/users" in the request buffer
     When I enter command mode

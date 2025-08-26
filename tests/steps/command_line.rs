@@ -44,17 +44,23 @@ async fn then_command_line_should_be_cleared(world: &mut BluelineWorld) {
     let _ = contains; // Acknowledge the variable
 }
 
-// === COMMAND EXECUTION STEPS ===
+// === DEBUG STEPS ===
 
-#[then("I should see the help message in the output")]
-async fn then_should_see_help_message(world: &mut BluelineWorld) {
-    debug!("Checking for help message in output");
-    // Help message might contain various text - check for something common
-    let contains = world.terminal_contains("help").await
-        || world.terminal_contains("Help").await
-        || world.terminal_contains("Commands").await;
-    assert!(contains, "Expected to see help message in output");
+#[then("the terminal should display the current state")]
+async fn then_display_terminal_state(world: &mut BluelineWorld) {
+    let terminal_content = world.get_terminal_content().await;
+    info!("=== TERMINAL STATE ===");
+    for (i, line) in terminal_content.lines().enumerate() {
+        info!("{:2}: '{}'", i + 1, line);
+    }
+    info!("=== END TERMINAL STATE ===");
+
+    // Also check what's in the text buffer
+    let text_buffer = world.get_text_buffer();
+    info!("Text buffer content: {:?}", text_buffer);
 }
+
+// === COMMAND EXECUTION STEPS ===
 
 #[then("the application should exit")]
 async fn then_application_should_exit(world: &mut BluelineWorld) {

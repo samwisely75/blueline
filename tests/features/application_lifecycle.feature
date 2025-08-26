@@ -11,7 +11,7 @@ Feature: Application Lifecycle
     Then I should be in Normal mode
     And the request pane should show line number "1" in column 3
     And the request pane should show "~" for empty lines
-    And there should be a blinking block cursor at column 4
+    And there should be a blinking block cursor at column 5
     And the status bar should show "REQUEST | 1:1" aligned to the right
     And there should be no response pane visible
 

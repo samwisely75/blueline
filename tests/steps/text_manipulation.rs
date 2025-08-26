@@ -16,6 +16,8 @@ async fn when_press_enter(world: &mut BluelineWorld) {
     world.press_enter().await;
     world.tick().await.expect("Failed to tick");
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    // Extra tick for command processing
+    world.tick().await.expect("Failed to tick after sleep");
 }
 
 #[when(regex = r#"I type "([^"]+)""#)]
@@ -90,6 +92,56 @@ async fn then_should_see_highlighted(world: &mut BluelineWorld, text: String) {
     );
     // TODO: Implement highlighting detection from terminal state
     // Additional verification would check for ANSI color codes or selection markers
+}
+
+// Step definition for checking text at specific line
+#[then(regex = r#"I should see "([^"]+)" in the request pane at line (\d+)"#)]
+async fn then_should_see_text_at_line(world: &mut BluelineWorld, text: String, line: usize) {
+    debug!("Checking for text '{}' at line {}", text, line);
+
+    // Get terminal state and check for the text at the specified line
+    world.tick().await.expect("Failed to tick");
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    let state = world.get_terminal_state().await;
+
+    // Line numbers in features are 1-based, terminal lines are 0-based
+    let line_index = line - 1;
+
+    if let Some(line_content) = state.get_line(line_index) {
+        // Strip line numbers if present (format: "  1 content" or " 10 content")
+        let content_without_line_num = if line_content.len() >= 4
+            && line_content.chars().take(4).any(|c| c.is_ascii_digit())
+        {
+            // Check if this looks like a line number format
+            let first_four = &line_content[..4];
+            if first_four.chars().nth(3) == Some(' ')
+                && first_four[..3]
+                    .trim()
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == ' ')
+            {
+                // This looks like a line number, skip the first 4 characters
+                if line_content.len() > 4 {
+                    line_content[4..].to_string()
+                } else {
+                    // Line only contains the line number, no content
+                    String::new()
+                }
+            } else {
+                line_content.clone()
+            }
+        } else {
+            line_content.clone()
+        };
+
+        assert!(
+            content_without_line_num.contains(&text),
+            "Expected to see '{text}' at line {line}, but found: '{content_without_line_num}' (original: '{line_content}')"
+        );
+    } else {
+        panic!("Line {line} does not exist in terminal output");
+    }
 }
 
 // === TEXT DELETION STEP DEFINITIONS ===
@@ -188,8 +240,34 @@ async fn given_request_buffer_contains(world: &mut BluelineWorld, step: &gherkin
 
     // Clear any existing text first
     world.clear_request_buffer().await;
-    // Type the multiline text
-    world.type_text(docstring).await;
+
+    // Enter Insert mode to type the text
+    world
+        .send_key_event(KeyCode::Char('i'), KeyModifiers::empty())
+        .await;
+    world.tick().await.expect("Failed to tick");
+
+    // Type the multiline text line by line with proper delays
+    for (i, line) in docstring.lines().enumerate() {
+        if i > 0 {
+            // Press Enter between lines
+            world
+                .send_key_event(KeyCode::Enter, KeyModifiers::empty())
+                .await;
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        // Type the line
+        for ch in line.chars() {
+            world
+                .send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
+                .await;
+            tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        }
+    }
+    world.tick().await.expect("Failed to tick");
+
+    // Return to Normal mode after typing text
+    world.press_escape().await;
     world.tick().await.expect("Failed to tick");
 
     // Debug: show terminal content after insertion
@@ -352,41 +430,27 @@ async fn when_press_key_followed_by_key(
 ) {
     info!("Pressing '{}' followed by '{}'", first_key, second_key);
 
-    // Press the first key
-    match first_key.as_str() {
-        "d" => {
-            world
-                .send_key_event(KeyCode::Char('d'), KeyModifiers::empty())
-                .await;
-        }
-        "g" => {
-            world
-                .send_key_event(KeyCode::Char('g'), KeyModifiers::empty())
-                .await;
-        }
-        _ => {
-            panic!("Unsupported first key in 'followed by' pattern: {first_key}");
-        }
+    // Press the first key - support any single character
+    if first_key.len() == 1 {
+        let ch = first_key.chars().next().unwrap();
+        world
+            .send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
+            .await;
+    } else {
+        panic!("Unsupported first key in 'followed by' pattern: {first_key}");
     }
 
     world.tick().await.expect("Failed to tick after first key");
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-    // Press the second key
-    match second_key.as_str() {
-        "d" => {
-            world
-                .send_key_event(KeyCode::Char('d'), KeyModifiers::empty())
-                .await;
-        }
-        "g" => {
-            world
-                .send_key_event(KeyCode::Char('g'), KeyModifiers::empty())
-                .await;
-        }
-        _ => {
-            panic!("Unsupported second key in 'followed by' pattern: {second_key}");
-        }
+    // Press the second key - support any single character
+    if second_key.len() == 1 {
+        let ch = second_key.chars().next().unwrap();
+        world
+            .send_key_event(KeyCode::Char(ch), KeyModifiers::empty())
+            .await;
+    } else {
+        panic!("Unsupported second key in 'followed by' pattern: {second_key}");
     }
 
     world.tick().await.expect("Failed to tick after second key");
@@ -462,13 +526,22 @@ async fn then_request_content_should_be_empty(world: &mut BluelineWorld) {
         terminal_content
     );
 
-    // TODO: Implement proper request buffer empty check
-    // For now, we'll check that there's minimal content (just UI elements)
+    // Check that there's minimal content (just UI elements and empty line markers)
     let lines: Vec<&str> = terminal_content.lines().collect();
     let non_empty_lines: Vec<&str> = lines
         .iter()
         .filter(|line| {
-            !line.trim().is_empty() && !line.contains("Request") && !line.contains("Response")
+            let trimmed = line.trim();
+            // Filter out:
+            // - Empty lines
+            // - UI elements (Request/Response status)
+            // - Empty line markers (~)
+            // - Line numbers without content (e.g., "  1:" with nothing after)
+            !trimmed.is_empty()
+                && !line.contains("REQUEST")
+                && !line.contains("Response")
+                && trimmed != "~"
+                && !trimmed.matches(':').count() == 1 // Line number with no content
         })
         .copied()
         .collect();

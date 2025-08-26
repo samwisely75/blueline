@@ -40,6 +40,13 @@ async fn given_executed_request(world: &mut BluelineWorld) {
 
     // Give more time for the mock request to be processed
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    // Ensure we're back in Normal mode after request execution
+    // Press Escape to make sure we're not in Insert mode
+    world
+        .send_key_event(KeyCode::Esc, KeyModifiers::empty())
+        .await;
+    world.tick().await.expect("Failed to tick after Escape");
 }
 
 // === PANE VISIBILITY ===
@@ -81,9 +88,13 @@ async fn then_response_pane_shows_error(world: &mut BluelineWorld) {
 
 // === REQUEST/RESPONSE CONTENT ===
 
-#[then(regex = r#"I should see "([^"]+)" in the request pane"#)]
+#[then(regex = r#"I should see "([^"]+)" in the request pane$"#)]
 async fn then_should_see_in_request_pane(world: &mut BluelineWorld, text: String) {
     debug!("Checking for '{}' in request pane", text);
+
+    // Debug: Check text buffer directly
+    let text_buffer = world.get_text_buffer();
+    debug!("Text buffer content: {:?}", text_buffer);
 
     let terminal_content = world.get_terminal_content().await;
     debug!("Full terminal content: {}", terminal_content);

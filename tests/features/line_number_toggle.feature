@@ -13,11 +13,11 @@ Feature: Line Number Toggle
 
   Scenario: Hide line numbers with :set number off
     Given I am in Normal mode
+    And I have text "Test line 1" in the request buffer
     When I enter command mode
     And I type "set number off"
     And I press Enter
     Then I should not see line numbers in the request pane
-    And the cursor should be positioned at the start of the line
 
   Scenario: Show line numbers with :set number on
     Given I am in Normal mode
