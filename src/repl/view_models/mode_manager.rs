@@ -42,7 +42,13 @@ impl ViewModel {
         // and also pull back horizontal scrolling if needed
         let mut mode_change_events = Vec::new();
         if old_mode == EditorMode::Insert
-            && (mode == EditorMode::Normal || mode == EditorMode::Visual)
+            && matches!(
+                mode,
+                EditorMode::Normal
+                    | EditorMode::Visual
+                    | EditorMode::VisualLine
+                    | EditorMode::VisualBlock
+            )
         {
             // Check if cursor needs to be pulled back
             let current_cursor_pos = self.pane_manager.get_current_display_cursor();
@@ -102,13 +108,26 @@ impl ViewModel {
 
         // Handle visual mode selection state using PaneManager
         let mut events = mode_change_events; // Start with any cursor pullback events
-        if mode == EditorMode::Visual && old_mode != EditorMode::Visual {
-            // Entering visual mode
-            events.extend(self.pane_manager.start_visual_selection());
-        } else if old_mode == EditorMode::Visual && mode != EditorMode::Visual {
-            // Exiting visual mode
+        let entering_visual_mode = matches!(
+            mode,
+            EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+        );
+        let exiting_visual_mode = matches!(
+            old_mode,
+            EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+        );
+
+        if entering_visual_mode && !exiting_visual_mode {
+            // Entering any visual mode from non-visual mode
+            // Only start a new selection if one doesn't already exist (e.g., not restoring via 'gv')
+            if !self.pane_manager.has_visual_selection() {
+                events.extend(self.pane_manager.start_visual_selection());
+            }
+        } else if exiting_visual_mode && !entering_visual_mode {
+            // Exiting visual mode to non-visual mode
             events.extend(self.pane_manager.end_visual_selection());
         }
+        // Note: switching between visual modes (v ↔ V ↔ Ctrl+V) maintains selection
 
         // Add standard mode change events
         events.extend([
@@ -131,8 +150,30 @@ impl ViewModel {
         self.pane_manager.get_visual_selection()
     }
 
+    /// Check if there's an active visual selection
+    pub fn has_visual_selection(&self) -> bool {
+        self.pane_manager.has_visual_selection()
+    }
+
+    /// Start a new visual selection at current cursor
+    pub fn start_visual_selection(&mut self) -> Vec<ViewEvent> {
+        self.pane_manager.start_visual_selection()
+    }
+
+    /// Update visual selection to new position
+    pub fn update_visual_selection(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
+        self.pane_manager.update_visual_selection(position)
+    }
+
     /// Check if a position is within visual selection
     pub fn is_position_selected(&self, position: LogicalPosition, pane: Pane) -> bool {
         self.pane_manager.is_position_selected(position, pane)
+    }
+
+    /// Clear visual selection (used by yank/delete operations)
+    pub fn clear_visual_selection(&mut self) -> Result<()> {
+        let events = self.pane_manager.end_visual_selection();
+        self.emit_view_event(events)?;
+        Ok(())
     }
 }

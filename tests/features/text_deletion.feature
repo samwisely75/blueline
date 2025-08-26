@@ -89,6 +89,16 @@ Feature: Text Deletion Operations
       {"name": "John"}
       """
 
+  Scenario: Backspace after curly brace on new line preserves structure
+    Given I am in Insert mode
+    When I type "GET _search"
+    And I press Enter
+    And I type "{"
+    And I press Backspace
+    Then I should see "GET _search" in the request pane
+    When I type "{"
+    Then I should not see "{GET _search{" in the request pane
+
   # === DELETE KEY SCENARIOS ===
 
   Scenario: Text deletion with delete key

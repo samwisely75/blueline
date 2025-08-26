@@ -36,8 +36,26 @@ pub struct DisplayChar {
 impl DisplayChar {
     /// Create a new DisplayChar from a BufferChar
     pub fn from_buffer_char(buffer_char: BufferChar, screen_position: (usize, usize)) -> Self {
+        // For backward compatibility, use default tab behavior (zero width)
+        Self::from_buffer_char_with_tab_width(buffer_char, screen_position, 0)
+    }
+
+    /// Create a new DisplayChar from a BufferChar with tab width support
+    pub fn from_buffer_char_with_tab_width(
+        buffer_char: BufferChar,
+        screen_position: (usize, usize),
+        tab_width: usize,
+    ) -> Self {
         // Calculate display width using Unicode width (terminal columns occupied)
-        let display_width = UnicodeWidthChar::width(buffer_char.ch).unwrap_or(0);
+        let display_width = match buffer_char.ch {
+            '\t' if tab_width > 0 => {
+                // Simple tab: always advance by tab_width characters
+                tab_width
+            }
+            '\t' => 0, // Backward compatibility: zero width for tabs when tab_width = 0
+            _ => UnicodeWidthChar::width(buffer_char.ch).unwrap_or(0),
+        };
+
         Self {
             buffer_char,
             highlighted: false,
@@ -225,5 +243,62 @@ mod tests {
         assert!(display_char.has_styling());
         assert_eq!(display_char.ansi_style_start(), "\x1b[1;7m");
         assert_eq!(display_char.ansi_style_end(), "\x1b[0m");
+    }
+
+    #[test]
+    fn display_char_should_handle_tab_width_correctly() {
+        use crate::repl::models::buffer_char::BufferChar;
+
+        // Create a tab character
+        let buffer_char = BufferChar::new('\t', 0, 0);
+
+        // Test tab at column 0 with tab width 4
+        let display_char = DisplayChar::from_buffer_char_with_tab_width(
+            buffer_char.clone(),
+            (0, 0), // screen position (row, col)
+            4,      // tab width
+        );
+        assert_eq!(display_char.ch(), '\t');
+        assert_eq!(display_char.display_width(), 4); // Always 4 spaces
+
+        // Test tab at column 1 with tab width 4
+        let display_char = DisplayChar::from_buffer_char_with_tab_width(
+            buffer_char.clone(),
+            (0, 1), // screen position (row, col)
+            4,      // tab width
+        );
+        assert_eq!(display_char.display_width(), 4); // Always 4 spaces
+
+        // Test tab at column 3 with tab width 4
+        let display_char = DisplayChar::from_buffer_char_with_tab_width(
+            buffer_char.clone(),
+            (0, 3), // screen position (row, col)
+            4,      // tab width
+        );
+        assert_eq!(display_char.display_width(), 4); // Always 4 spaces
+
+        // Test tab at column 4 with tab width 4
+        let display_char = DisplayChar::from_buffer_char_with_tab_width(
+            buffer_char.clone(),
+            (0, 4), // screen position (row, col)
+            4,      // tab width
+        );
+        assert_eq!(display_char.display_width(), 4); // Always 4 spaces
+
+        // Test tab with tab width 8
+        let display_char = DisplayChar::from_buffer_char_with_tab_width(
+            buffer_char.clone(),
+            (0, 0), // screen position (row, col)
+            8,      // tab width
+        );
+        assert_eq!(display_char.display_width(), 8); // Always 8 spaces
+
+        // Test backward compatibility: tab width 0 should give zero width
+        let display_char = DisplayChar::from_buffer_char_with_tab_width(
+            buffer_char.clone(),
+            (0, 0), // screen position (row, col)
+            0,      // tab width (backward compatibility mode)
+        );
+        assert_eq!(display_char.display_width(), 0); // Zero width for backward compatibility
     }
 }

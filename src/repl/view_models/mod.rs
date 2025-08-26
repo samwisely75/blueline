@@ -4,6 +4,7 @@
 //! This replaces the monolithic view_models.rs with a clean, maintainable architecture.
 
 mod buffer_operations;
+pub mod commands;
 mod core;
 mod cursor_manager;
 mod display_manager;
@@ -13,7 +14,10 @@ mod mode_manager;
 mod pane_manager;
 mod pane_state;
 mod rendering_coordinator;
-mod screen_buffer;
+// screen_buffer moved to models/
+// selection moved to models/
+mod settings_manager;
+// yank_buffer moved to models/
 
 // Re-export the main ViewModel
 pub use core::ViewModel;
@@ -22,3 +26,5 @@ pub use core::ViewModel;
 pub use core::DisplayLineData;
 pub use pane_manager::PaneManager;
 pub use pane_state::PaneState;
+// Selection and YankBuffer types now imported from models
+pub use crate::repl::models::{Selection, YankEntry, YankType};

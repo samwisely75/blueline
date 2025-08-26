@@ -17,6 +17,7 @@
 pub mod application;
 pub mod command_line;
 pub mod http;
+pub mod line_numbers;
 pub mod modes;
 pub mod navigation;
 pub mod terminal;
@@ -24,5 +25,6 @@ pub mod text_advanced;
 pub mod text_manipulation;
 pub mod visual_mode;
 pub mod window;
+pub mod wrap_mode;
 
 // Re-export all step functions

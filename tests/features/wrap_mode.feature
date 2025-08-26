@@ -1,6 +1,6 @@
 Feature: Word wrap mode toggle functionality
   As a developer
-  I want wrap mode toggle commands (:set wrap/:set nowrap) to work properly
+  I want wrap mode toggle commands (:set wrap on/:set wrap off) to work properly
   So that I can control how long lines are displayed
 
   Background:
@@ -21,7 +21,7 @@ Feature: Word wrap mode toggle functionality
     And I should see "し" in the output
     # Now enable wrap mode - horizontal scroll should be reset
     When I press ":"
-    And I type "set wrap"
+    And I type "set wrap on"
     And I press Enter
     # After wrap mode enabled, horizontal scroll should be reset
     # Line should start from beginning again
@@ -37,13 +37,13 @@ Feature: Word wrap mode toggle functionality
     And I press Escape
     # Enable wrap mode first
     When I press ":"
-    And I type "set wrap"
+    And I type "set wrap on"
     And I press Enter
     Then the line starts with "あ"
     And the cursor should be visible
     # Now toggle back to nowrap mode
     When I press ":"
-    And I type "set nowrap"  
+    And I type "set wrap off"  
     And I press Enter
     # Should work correctly in nowrap mode with horizontal scrolling
     When I press "0"
@@ -61,7 +61,7 @@ Feature: Word wrap mode toggle functionality
     Then the cursor should be visible
     # Enable wrap mode
     When I press ":"
-    And I type "set wrap"
+    And I type "set wrap on"
     And I press Enter
     # Should reset to beginning and wrap content
     Then the line starts with "Start"
@@ -78,7 +78,7 @@ Feature: Word wrap mode toggle functionality
     And I press "l" 20 times
     # Toggle wrap mode - cursor should stay at same logical position
     When I press ":"
-    And I type "set wrap"
+    And I type "set wrap on"
     And I press Enter
     Then the cursor should be visible
     # Verify by checking character navigation still works

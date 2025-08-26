@@ -40,6 +40,13 @@ async fn given_executed_request(world: &mut BluelineWorld) {
 
     // Give more time for the mock request to be processed
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    // Ensure we're back in Normal mode after request execution
+    // Press Escape to make sure we're not in Insert mode
+    world
+        .send_key_event(KeyCode::Esc, KeyModifiers::empty())
+        .await;
+    world.tick().await.expect("Failed to tick after Escape");
 }
 
 // === PANE VISIBILITY ===
@@ -81,9 +88,13 @@ async fn then_response_pane_shows_error(world: &mut BluelineWorld) {
 
 // === REQUEST/RESPONSE CONTENT ===
 
-#[then(regex = r#"I should see "([^"]+)" in the request pane"#)]
+#[then(regex = r#"I should see "([^"]+)" in the request pane$"#)]
 async fn then_should_see_in_request_pane(world: &mut BluelineWorld, text: String) {
     debug!("Checking for '{}' in request pane", text);
+
+    // Debug: Check text buffer directly
+    let text_buffer = world.get_text_buffer();
+    debug!("Text buffer content: {:?}", text_buffer);
 
     let terminal_content = world.get_terminal_content().await;
     debug!("Full terminal content: {}", terminal_content);
@@ -92,31 +103,31 @@ async fn then_should_see_in_request_pane(world: &mut BluelineWorld, text: String
 
     // Special handling for doublebyte character tests
     if !contains && text.chars().any(|c| c as u32 > 127) {
-        eprintln!("❌ Doublebyte text not found!");
-        eprintln!("Looking for: '{text}'");
-        eprintln!("Terminal content ({} chars):", terminal_content.len());
+        tracing::debug!("❌ Doublebyte text not found!");
+        tracing::debug!("Looking for: '{text}'");
+        tracing::debug!("Terminal content ({} chars):", terminal_content.len());
 
         // Check if any doublebyte characters are in the terminal at all
         let has_doublebyte = terminal_content.chars().any(|c| c as u32 > 127);
-        eprintln!("Terminal contains doublebyte characters: {has_doublebyte}");
+        tracing::debug!("Terminal contains doublebyte characters: {has_doublebyte}");
 
         if has_doublebyte {
-            eprintln!("=== TERMINAL CONTENT WITH DOUBLEBYTE ===");
+            tracing::debug!("=== TERMINAL CONTENT WITH DOUBLEBYTE ===");
             for (i, line) in terminal_content.lines().enumerate() {
-                eprintln!("{:2}: '{}'", i + 1, line);
+                tracing::debug!("{:2}: '{}'", i + 1, line);
                 // Show character codes for debugging
                 for (j, ch) in line.chars().enumerate() {
                     if ch as u32 > 127 {
-                        eprintln!("    [{:2}]: '{}' (U+{:04X})", j, ch, ch as u32);
+                        tracing::debug!("    [{:2}]: '{}' (U+{:04X})", j, ch, ch as u32);
                     }
                 }
             }
-            eprintln!("=== END TERMINAL CONTENT ===");
+            tracing::debug!("=== END TERMINAL CONTENT ===");
         } else {
-            eprintln!(
+            tracing::debug!(
                 "💡 No doublebyte characters found - possible encoding/rendering issue in test"
             );
-            eprintln!(
+            tracing::debug!(
                 "First 200 chars: '{}'",
                 &terminal_content.chars().take(200).collect::<String>()
             );
@@ -191,7 +202,9 @@ async fn then_in_response_pane(world: &mut BluelineWorld) {
         || world.terminal_contains("RESPONSE").await;
 
     if !in_response {
-        eprintln!("❌ Response pane indicators not found. Terminal content:\n{terminal_content}");
+        tracing::debug!(
+            "❌ Response pane indicators not found. Terminal content:\n{terminal_content}"
+        );
 
         // Check if this might be because there's no actual response content
         let has_response_content = world.terminal_contains("200").await
@@ -200,19 +213,19 @@ async fn then_in_response_pane(world: &mut BluelineWorld) {
             || world.terminal_contains("│").await;
 
         if !has_response_content {
-            eprintln!("💡 No response content detected - Tab navigation may not work without actual HTTP response");
+            tracing::debug!("💡 No response content detected - Tab navigation may not work without actual HTTP response");
         }
 
         // Check if we can find REQUEST pane indicator instead
         let in_request = world.terminal_contains("REQUEST").await;
-        eprintln!("🔍 Found REQUEST pane indicator: {in_request}");
+        tracing::debug!("🔍 Found REQUEST pane indicator: {in_request}");
 
         // Show terminal content line by line for debugging
-        eprintln!("=== FULL TERMINAL CONTENT ===");
+        tracing::debug!("=== FULL TERMINAL CONTENT ===");
         for (i, line) in terminal_content.lines().enumerate() {
-            eprintln!("{:2}: '{}'", i + 1, line);
+            tracing::debug!("{:2}: '{}'", i + 1, line);
         }
-        eprintln!("=== END TERMINAL CONTENT ===");
+        tracing::debug!("=== END TERMINAL CONTENT ===");
     }
 
     // In test environment, Tab navigation might not work without actual HTTP response

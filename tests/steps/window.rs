@@ -117,8 +117,8 @@ async fn then_request_pane_highlighted(world: &mut BluelineWorld) {
             "Terminal content for focus check: {}",
             terminal_content.replace('\n', "\\n")
         );
-        eprintln!("💡 No specific focus indicator found - checking for basic pane presence");
-        eprintln!(
+        tracing::debug!("💡 No specific focus indicator found - checking for basic pane presence");
+        tracing::debug!(
             "Terminal content: '{}'",
             terminal_content
                 .lines()
@@ -149,8 +149,8 @@ async fn then_response_pane_highlighted(world: &mut BluelineWorld) {
             "Terminal content for Response focus check: {}",
             terminal_content.replace('\n', "\\n")
         );
-        eprintln!("💡 No specific Response focus indicator found");
-        eprintln!(
+        tracing::debug!("💡 No specific Response focus indicator found");
+        tracing::debug!(
             "Terminal content: '{}'",
             terminal_content
                 .lines()
@@ -167,7 +167,7 @@ async fn then_response_pane_highlighted(world: &mut BluelineWorld) {
             || world.terminal_contains("│").await;
 
         if !has_response_content {
-            eprintln!("💡 No response content detected - Response pane focus may not work without actual HTTP response");
+            tracing::debug!("💡 No response content detected - Response pane focus may not work without actual HTTP response");
             // For test environment, just verify we have some pane indicator
             let has_any_pane = world.terminal_contains("REQUEST").await
                 || world.terminal_contains("RESPONSE").await;
@@ -198,8 +198,8 @@ async fn then_request_pane_not_highlighted(world: &mut BluelineWorld) {
             "Terminal content for Request unfocus check: {}",
             terminal_content.replace('\n', "\\n")
         );
-        eprintln!("💡 No Response focus indicator found after Tab navigation");
-        eprintln!(
+        tracing::debug!("💡 No Response focus indicator found after Tab navigation");
+        tracing::debug!(
             "Terminal content: '{}'",
             terminal_content
                 .lines()
@@ -216,7 +216,7 @@ async fn then_request_pane_not_highlighted(world: &mut BluelineWorld) {
             || world.terminal_contains("│").await;
 
         if !has_response_content {
-            eprintln!("💡 No response content detected - Response pane focus may not work without actual HTTP response");
+            tracing::debug!("💡 No response content detected - Response pane focus may not work without actual HTTP response");
             // For test environment, just verify we have some pane indicator and Tab was processed
             let has_any_pane = world.terminal_contains("REQUEST").await
                 || world.terminal_contains("RESPONSE").await;
@@ -228,7 +228,7 @@ async fn then_request_pane_not_highlighted(world: &mut BluelineWorld) {
         }
 
         // If we have response content but no focus indicator, be more lenient
-        eprintln!("💡 Response content exists but focus indicator not detected - test environment limitation");
+        tracing::debug!("💡 Response content exists but focus indicator not detected - test environment limitation");
         let has_any_pane =
             world.terminal_contains("REQUEST").await || world.terminal_contains("RESPONSE").await;
         assert!(has_any_pane, "Should have some pane indicator");

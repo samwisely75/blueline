@@ -9,18 +9,30 @@ pub mod buffer_char;
 pub mod buffer_model;
 pub mod display_cache;
 pub mod display_char;
+pub mod display_line;
+pub mod geometry;
+pub mod logical_position;
 pub mod request_model;
 pub mod response_model;
+pub mod screen_buffer;
+pub mod selection;
 pub mod status_line;
+pub mod yank_buffer;
 
 // Re-export all models for easy access
 pub use buffer_char::{BufferChar, BufferLine, CharacterBuffer};
 pub use buffer_model::{BufferContent, BufferModel};
-pub use display_cache::{build_display_cache, DisplayCache, DisplayLine, DisplayPosition};
+pub use display_cache::{build_display_cache, DisplayCache, DisplayPosition};
 pub use display_char::DisplayChar;
+pub use display_line::DisplayLine;
+pub use geometry::{Dimensions, Position};
+pub use logical_position::{LogicalPosition, LogicalRange};
 pub use request_model::{HttpHeaders, RequestModel};
 pub use response_model::ResponseModel;
+pub use screen_buffer::{BufferCell, ScreenBuffer};
+pub use selection::Selection;
 pub use status_line::{HttpStatus, StatusLine};
+pub use yank_buffer::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType};
 
 #[cfg(test)]
 mod tests {

@@ -17,7 +17,7 @@ pub use event_bus::{EventBus, ModelEventHandler, SimpleEventBus, ViewEventHandle
 pub use event_source::EventSource;
 pub use model_events::ModelEvent;
 pub use terminal_event_source::TerminalEventSource;
-pub use types::{EditorMode, LogicalPosition, LogicalRange, Pane};
+pub use types::{EditorMode, LogicalPosition, LogicalRange, Pane, PaneCapabilities};
 pub use view_events::{InputEvent, ViewEvent};
 
 #[cfg(test)]

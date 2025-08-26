@@ -74,7 +74,7 @@ async fn cucumber_integration_tests() {
 
     // Configure and run Cucumber tests
     BluelineWorld::cucumber()
-        .max_concurrent_scenarios(1) // Run scenarios sequentially to avoid state conflicts
+        .max_concurrent_scenarios(8) // Run 8 scenarios in parallel for maximum speed
         .before(|_feature, _rule, scenario, world| {
             Box::pin(async move {
                 tracing::debug!("Starting scenario: {}", scenario.name);

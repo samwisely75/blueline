@@ -12,12 +12,8 @@ use tracing::{debug, info};
 
 // === UNDO/REDO OPERATIONS ===
 
-#[when("I press \"u\"")]
-async fn when_press_u_for_undo(world: &mut BluelineWorld) {
-    info!("Pressing 'u' for undo");
-    world.press_key('u').await;
-    world.tick().await.expect("Failed to tick");
-}
+// Note: "u" key handling moved to navigation.rs to avoid ambiguity
+// The generic pattern there handles "u" along with other single keys
 
 #[when("I press \"u\" for undo")]
 async fn when_press_u_for_undo_explicit(world: &mut BluelineWorld) {
@@ -28,24 +24,10 @@ async fn when_press_u_for_undo_explicit(world: &mut BluelineWorld) {
 
 // === COPY/PASTE OPERATIONS ===
 
-#[when("I press \"y\"")]
-async fn when_press_y_for_yank(world: &mut BluelineWorld) {
-    info!("Pressing 'y' to yank/copy");
-    world.press_key('y').await;
-    world.tick().await.expect("Failed to tick");
-}
-
 #[when("I copy it with \"y\"")]
 async fn when_copy_with_y(world: &mut BluelineWorld) {
     info!("Copying selected text with 'y'");
     world.press_key('y').await;
-    world.tick().await.expect("Failed to tick");
-}
-
-#[when("I press \"p\"")]
-async fn when_press_p_for_paste(world: &mut BluelineWorld) {
-    info!("Pressing 'p' to paste");
-    world.press_key('p').await;
     world.tick().await.expect("Failed to tick");
 }
 

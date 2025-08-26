@@ -4,7 +4,7 @@
 //! This module coordinates between logical content and display representation.
 
 use crate::repl::events::{Pane, ViewEvent};
-use crate::repl::geometry::Position;
+use crate::repl::models::geometry::Position;
 use crate::repl::models::DisplayCache;
 use crate::repl::view_models::core::{DisplayLineData, ViewModel};
 

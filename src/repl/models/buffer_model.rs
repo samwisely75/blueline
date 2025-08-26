@@ -117,27 +117,39 @@ impl BufferContent {
         }
 
         // Use CharacterBuffer's character-aware deletion
-        // For now, implement a simple character-by-character deletion
-        // This ensures proper handling of multi-byte characters
-        let mut current_pos = range.end;
-        while current_pos != range.start {
-            // Move backwards through the range
-            if current_pos.column > 0 {
-                current_pos.column -= 1;
-                self.buffer
-                    .delete_char(current_pos.line, current_pos.column);
-            } else if current_pos.line > range.start.line {
-                // Move to end of previous line
-                current_pos.line -= 1;
-                if let Some(line) = self.buffer.get_line(current_pos.line) {
-                    current_pos.column = line.char_count();
-                    if current_pos.line + 1 < self.buffer.line_count() {
-                        // Delete the newline (join lines)
-                        self.buffer.delete_char(current_pos.line + 1, 0);
+        // Delete character by character from end to start of range
+
+        // Handle single-line deletion separately to avoid incorrect line joining
+        if range.start.line == range.end.line {
+            // Deletion within a single line
+            let mut pos = range.end.column;
+            while pos > range.start.column {
+                pos -= 1;
+                self.buffer.delete_char(range.start.line, pos);
+            }
+        } else {
+            // Multi-line deletion
+            let mut current_pos = range.end;
+            while current_pos != range.start {
+                // Move backwards through the range
+                if current_pos.column > 0 {
+                    current_pos.column -= 1;
+                    self.buffer
+                        .delete_char(current_pos.line, current_pos.column);
+                } else if current_pos.line > range.start.line {
+                    // Move to end of previous line
+                    current_pos.line -= 1;
+                    if let Some(line) = self.buffer.get_line(current_pos.line) {
+                        current_pos.column = line.char_count();
+                        if current_pos.line + 1 < self.buffer.line_count() {
+                            // Join the current line with the next line (removes the newline)
+                            self.buffer
+                                .join_lines(current_pos.line, current_pos.line + 1);
+                        }
                     }
+                } else {
+                    break;
                 }
-            } else {
-                break;
             }
         }
 
@@ -227,6 +239,11 @@ impl BufferModel {
     /// Get mutable buffer content
     pub fn content_mut(&mut self) -> &mut BufferContent {
         &mut self.content
+    }
+
+    /// Get the pane this buffer belongs to
+    pub fn pane(&self) -> Pane {
+        self.pane
     }
 
     /// Get current cursor position
@@ -337,7 +354,7 @@ impl BufferModel {
         let current = self.cursor;
 
         if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
-            if let Some(next_pos) = buffer_line.find_next_word_boundary(current.column) {
+            if let Some(next_pos) = buffer_line.find_next_word_start(current.column) {
                 return self.set_cursor(LogicalPosition::new(current.line, next_pos));
             }
         }
@@ -355,7 +372,7 @@ impl BufferModel {
         let current = self.cursor;
 
         if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
-            if let Some(prev_pos) = buffer_line.find_previous_word_boundary(current.column) {
+            if let Some(prev_pos) = buffer_line.find_previous_word_start(current.column) {
                 return self.set_cursor(LogicalPosition::new(current.line, prev_pos));
             }
         }
@@ -375,7 +392,7 @@ impl BufferModel {
         let current = self.cursor;
 
         if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
-            if let Some(end_pos) = buffer_line.find_end_of_word(current.column) {
+            if let Some(end_pos) = buffer_line.find_next_word_end(current.column) {
                 return self.set_cursor(LogicalPosition::new(current.line, end_pos));
             }
         }
@@ -747,7 +764,7 @@ mod tests {
     }
 
     #[test]
-    fn buffer_model_should_find_end_of_word() {
+    fn buffer_model_should_find_next_word_end() {
         let mut buffer = BufferModel::new(Pane::Request);
         buffer.insert_text("hello こんにちは world");
         buffer.set_cursor(LogicalPosition::new(0, 0));
@@ -762,5 +779,33 @@ mod tests {
         let event = buffer.move_cursor_to_end_of_word();
         assert!(event.is_some());
         assert_eq!(buffer.cursor(), LogicalPosition::new(0, 10)); // End of "こんにちは"
+    }
+
+    #[test]
+    fn buffer_model_cursor_position_after_tab_insertion() {
+        let mut buffer = BufferModel::new(Pane::Request);
+
+        // Insert "TEST"
+        buffer.insert_text("TEST");
+        let cursor_after_test = buffer.cursor();
+        println!("Cursor after 'TEST': {cursor_after_test:?}");
+        assert_eq!(cursor_after_test, LogicalPosition::new(0, 4));
+
+        // Insert tab
+        buffer.insert_text("\t");
+        let cursor_after_tab = buffer.cursor();
+        println!("Cursor after tab: {cursor_after_tab:?}");
+        assert_eq!(cursor_after_tab, LogicalPosition::new(0, 5));
+
+        // Insert "TEST"
+        buffer.insert_text("TEST");
+        let cursor_after_second_test = buffer.cursor();
+        println!("Cursor after second 'TEST': {cursor_after_second_test:?}");
+        assert_eq!(cursor_after_second_test, LogicalPosition::new(0, 9));
+
+        // Check buffer content
+        let content = buffer.content().get_text();
+        println!("Buffer content: '{content}'");
+        assert_eq!(content, "TEST\tTEST");
     }
 }

@@ -9,6 +9,34 @@ use crate::repl::events::{EditorMode, LogicalPosition, Pane};
 /// Type alias for HTTP headers to reduce complexity
 pub type HttpHeaders = Vec<(String, String)>;
 
+/// Available settings that can be changed
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Setting {
+    /// Line wrapping setting
+    Wrap,
+    /// Line numbers display setting
+    LineNumbers,
+    /// System clipboard integration
+    Clipboard,
+    /// Tab stop width
+    TabStop,
+    /// Expand tab setting (insert spaces instead of tab)
+    ExpandTab,
+    /// Cut mode for d/dd/D commands (yank to clipboard)
+    DCut,
+}
+
+/// Values for settings
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingValue {
+    /// Enable the setting
+    On,
+    /// Disable the setting
+    Off,
+    /// Numeric value for the setting
+    Number(usize),
+}
+
 /// Events that commands can produce to request changes
 #[derive(Debug, Clone, PartialEq)]
 pub enum CommandEvent {
@@ -69,6 +97,54 @@ pub enum CommandEvent {
     /// Request to show profile information in status bar
     ShowProfileRequested,
 
+    /// Request to change a setting (wrap, line numbers, etc.)
+    SettingChangeRequested {
+        setting: Setting,
+        value: SettingValue,
+    },
+
+    /// Request to yank (copy) selected text to yank buffer
+    YankSelectionRequested,
+
+    /// Request to delete selected text
+    DeleteSelectionRequested,
+
+    /// Request to cut (delete + yank) selected text
+    CutSelectionRequested,
+
+    /// Request to cut (delete + yank) character at cursor
+    CutCharacterRequested,
+
+    /// Request to cut (delete + yank) from cursor to end of line
+    CutToEndOfLineRequested,
+
+    /// Request to cut (delete + yank) entire current line
+    CutCurrentLineRequested,
+
+    /// Request to yank (copy) entire current line without deleting
+    YankCurrentLineRequested,
+
+    /// Request to paste yanked text after cursor
+    PasteAfterRequested,
+
+    /// Request to paste yanked text at current cursor position
+    PasteAtCursorRequested,
+
+    /// Request to change (delete and enter insert mode) selected text in visual block mode
+    ChangeSelectionRequested,
+
+    /// Request to enter Visual Block Insert mode at beginning of block
+    VisualBlockInsertRequested,
+
+    /// Request to enter Visual Block Insert mode at end of block  
+    VisualBlockAppendRequested,
+
+    /// Request to exit Visual Block Insert mode with text replication
+    ExitVisualBlockInsertRequested,
+
+    /// Request to repeat the last visual selection (gv command)
+    RepeatVisualSelectionRequested,
+
     /// No action needed (for commands that only query state)
     NoAction,
 }
@@ -90,6 +166,14 @@ pub enum MovementDirection {
     WordEnd,
     ScrollLeft,
     ScrollRight,
+    /// Full page down (Ctrl+f)
+    PageDown,
+    /// Full page up (Ctrl+b)
+    PageUp,
+    /// Half page down (Ctrl+d)
+    HalfPageDown,
+    /// Half page up (Ctrl+u)
+    HalfPageUp,
     /// Move to a specific line number (1-based)
     LineNumber(usize),
 }
@@ -151,6 +235,76 @@ impl CommandEvent {
             headers,
             body,
         }
+    }
+
+    /// Create a yank selection event
+    pub fn yank_selection() -> Self {
+        Self::YankSelectionRequested
+    }
+
+    /// Create a delete selection event
+    pub fn delete_selection() -> Self {
+        Self::DeleteSelectionRequested
+    }
+
+    /// Create a cut selection event
+    pub fn cut_selection() -> Self {
+        Self::CutSelectionRequested
+    }
+
+    /// Create a cut character event
+    pub fn cut_character() -> Self {
+        Self::CutCharacterRequested
+    }
+
+    /// Create a cut to end of line event
+    pub fn cut_to_end_of_line() -> Self {
+        Self::CutToEndOfLineRequested
+    }
+
+    /// Create a cut current line event
+    pub fn cut_current_line() -> Self {
+        Self::CutCurrentLineRequested
+    }
+
+    /// Create a yank current line event
+    pub fn yank_current_line() -> Self {
+        Self::YankCurrentLineRequested
+    }
+
+    /// Create a paste after event
+    pub fn paste_after() -> Self {
+        Self::PasteAfterRequested
+    }
+
+    /// Create a paste at cursor event
+    pub fn paste_at_cursor() -> Self {
+        Self::PasteAtCursorRequested
+    }
+
+    /// Create a change selection event
+    pub fn change_selection() -> Self {
+        Self::ChangeSelectionRequested
+    }
+
+    /// Create a visual block insert event
+    pub fn visual_block_insert() -> Self {
+        Self::VisualBlockInsertRequested
+    }
+
+    /// Create a visual block append event
+    pub fn visual_block_append() -> Self {
+        Self::VisualBlockAppendRequested
+    }
+
+    /// Create an exit visual block insert event
+    pub fn exit_visual_block_insert() -> Self {
+        Self::ExitVisualBlockInsertRequested
+    }
+
+    /// Create a repeat visual selection event
+    pub fn repeat_visual_selection() -> Self {
+        Self::RepeatVisualSelectionRequested
     }
 }
 

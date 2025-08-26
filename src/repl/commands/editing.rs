@@ -18,7 +18,10 @@ impl Command for InsertCharCommand {
             KeyCode::Char(ch) => {
                 !event.modifiers.contains(KeyModifiers::CONTROL)
                     && !ch.is_control()
-                    && context.state.current_mode == EditorMode::Insert
+                    && matches!(
+                        context.state.current_mode,
+                        EditorMode::Insert | EditorMode::VisualBlockInsert
+                    )
                     && context.state.current_pane == Pane::Request
             }
             _ => false,
@@ -46,7 +49,10 @@ pub struct InsertNewLineCommand;
 impl Command for InsertNewLineCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Enter)
-            && context.state.current_mode == EditorMode::Insert
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
             && context.state.current_pane == Pane::Request
     }
 
@@ -60,13 +66,49 @@ impl Command for InsertNewLineCommand {
     }
 }
 
+/// Insert tab character (Tab key in insert mode)
+pub struct InsertTabCommand;
+
+impl Command for InsertTabCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Tab)
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
+            && context.state.current_pane == Pane::Request
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Check if expandtab is enabled
+        let text = if context.state.expand_tab {
+            // Insert spaces instead of tab
+            " ".repeat(context.state.tab_width)
+        } else {
+            // Insert actual tab character
+            '\t'.to_string()
+        };
+
+        let text_event = CommandEvent::text_insert(text, context.state.cursor_position);
+        Ok(vec![text_event])
+    }
+
+    fn name(&self) -> &'static str {
+        "InsertTab"
+    }
+}
+
 /// Delete character before cursor (Backspace in insert mode)
 pub struct DeleteCharCommand;
 
 impl Command for DeleteCharCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Backspace)
-            && context.state.current_mode == EditorMode::Insert
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
             && context.state.current_pane == Pane::Request
     }
 
@@ -106,7 +148,10 @@ pub struct DeleteCharAtCursorCommand;
 impl Command for DeleteCharAtCursorCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Delete)
-            && context.state.current_mode == EditorMode::Insert
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Insert | EditorMode::VisualBlockInsert
+            )
             && context.state.current_pane == Pane::Request
     }
 
@@ -145,7 +190,8 @@ mod tests {
                 request_text: String::new(),
                 response_text: String::new(),
                 terminal_dimensions: (80, 24),
-                verbose: false,
+                expand_tab: false,
+                tab_width: 4,
             },
         }
     }
@@ -266,6 +312,57 @@ mod tests {
     }
 
     #[test]
+    fn insert_tab_should_insert_tab_character_when_expandtab_off() {
+        let mut context = create_test_context();
+        context.state.expand_tab = false;
+        context.state.tab_width = 4;
+        let cmd = InsertTabCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        if let CommandEvent::TextInsertRequested { text, .. } = &result[0] {
+            assert_eq!(text, "\t");
+        } else {
+            panic!("Expected TextInsertRequested event");
+        }
+    }
+
+    #[test]
+    fn insert_tab_should_insert_spaces_when_expandtab_on() {
+        let mut context = create_test_context();
+        context.state.expand_tab = true;
+        context.state.tab_width = 4;
+        let cmd = InsertTabCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        if let CommandEvent::TextInsertRequested { text, .. } = &result[0] {
+            assert_eq!(text, "    "); // 4 spaces
+        } else {
+            panic!("Expected TextInsertRequested event");
+        }
+    }
+
+    #[test]
+    fn insert_tab_should_use_correct_tab_width() {
+        let mut context = create_test_context();
+        context.state.expand_tab = true;
+        context.state.tab_width = 2;
+        let cmd = InsertTabCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        if let CommandEvent::TextInsertRequested { text, .. } = &result[0] {
+            assert_eq!(text, "  "); // 2 spaces
+        } else {
+            panic!("Expected TextInsertRequested event");
+        }
+    }
+
+    #[test]
     fn delete_char_at_cursor_should_not_be_relevant_in_normal_mode() {
         let mut context = create_test_context();
         context.state.current_mode = EditorMode::Normal;
@@ -291,6 +388,51 @@ mod tests {
             assert_eq!(*amount, 1);
         } else {
             panic!("Expected TextDeleteRequested event");
+        }
+    }
+
+    // Tab command tests
+    #[test]
+    fn insert_tab_should_be_relevant_for_tab_key_in_insert_mode() {
+        let context = create_test_context();
+        let cmd = InsertTabCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        assert!(cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_tab_should_not_be_relevant_in_normal_mode() {
+        let mut context = create_test_context();
+        context.state.current_mode = EditorMode::Normal;
+        let cmd = InsertTabCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_tab_should_not_be_relevant_with_modifiers() {
+        let context = create_test_context();
+        let cmd = InsertTabCommand;
+        let event = KeyEvent::new(KeyCode::Tab, KeyModifiers::SHIFT);
+
+        assert!(!cmd.is_relevant(&context, &event));
+    }
+
+    #[test]
+    fn insert_tab_should_execute_tab_character_insertion() {
+        let context = create_test_context();
+        let cmd = InsertTabCommand;
+        let event = create_test_key_event(KeyCode::Tab);
+
+        let result = cmd.execute(event, &context).unwrap();
+        assert_eq!(result.len(), 1);
+        if let CommandEvent::TextInsertRequested { text, position } = &result[0] {
+            assert_eq!(text, "\t");
+            assert_eq!(*position, LogicalPosition { line: 0, column: 0 });
+        } else {
+            panic!("Expected TextInsertRequested event");
         }
     }
 }

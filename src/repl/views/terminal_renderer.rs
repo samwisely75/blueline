@@ -58,12 +58,14 @@ impl<'a> LineInfo<'a> {
             }
         } else {
             // Show tildes for empty lines
+            // Calculate correct logical line for tilde lines to prevent false selection
+            let logical_line = start_line + row_index;
             LineInfo {
                 text: "",
                 line_number: None,
                 is_continuation: false,
                 logical_start_col: 0,
-                logical_line: 0,
+                logical_line,
             }
         }
     }
@@ -131,7 +133,15 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
 
     /// Calculate visual length of text, excluding ANSI escape sequences
     /// Accounts for double-byte characters that take 2 terminal columns
+    /// For backward compatibility, uses default tab width of 0 (original behavior)
     fn visual_length(&self, text: &str) -> usize {
+        self.visual_length_with_tabs(text, 0)
+    }
+
+    /// Calculate visual length of text with proper tab expansion
+    /// Accounts for double-byte characters that take 2 terminal columns
+    /// Tabs expand to align to the next tab stop based on tab_width
+    fn visual_length_with_tabs(&self, text: &str, tab_width: usize) -> usize {
         let mut length = 0;
         let mut in_escape = false;
 
@@ -141,12 +151,25 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
             } else if in_escape && ch == 'm' {
                 in_escape = false;
             } else if !in_escape {
-                // Use unicode-width to get proper display width
-                // Most double-byte characters (CJK) have width 2
-                if let Some(w) = unicode_width::UnicodeWidthChar::width(ch) {
-                    length += w;
+                match ch {
+                    '\t' if tab_width > 0 => {
+                        // Calculate spaces to next tab stop
+                        let spaces_to_next_tab = tab_width - (length % tab_width);
+                        length += spaces_to_next_tab;
+                    }
+                    '\t' => {
+                        // Original behavior: tabs have zero width
+                        // This maintains backward compatibility
+                    }
+                    _ => {
+                        // Use unicode-width to get proper display width
+                        // Most double-byte characters (CJK) have width 2
+                        if let Some(w) = unicode_width::UnicodeWidthChar::width(ch) {
+                            length += w;
+                        }
+                        // Control characters and zero-width characters have no width
+                    }
                 }
-                // Control characters and zero-width characters have no width
             }
         }
 
@@ -175,50 +198,65 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         // Move cursor to the beginning of the line
         self.render_stream.move_cursor(0, row)?;
 
-        #[allow(unused_variables)]
-        if let Some(num) = line_info.line_number {
-            // Render line number with dimmed style and right alignment (minimum width 3)
-            write!(
-                self.render_stream,
-                "{}{num:>line_num_width$} {}",
-                ansi::DIM,
-                ansi::RESET
-            )?;
-        } else if line_info.is_continuation {
-            // Continuation line of wrapped text - show blank space
-            write!(self.render_stream, "{} ", " ".repeat(line_num_width))?;
-        } else {
-            // Show tilda for empty lines beyond content (vim-style) with darker gray color
-            write!(
-                self.render_stream,
-                "{}~{} {}",
-                ansi::DIM,
-                " ".repeat(line_num_width.saturating_sub(1)),
-                ansi::RESET
-            )?;
+        // Only render line numbers if they are visible
+        if view_model.pane_manager().is_line_numbers_visible() {
+            #[allow(unused_variables)]
+            if let Some(num) = line_info.line_number {
+                // Render line number with dimmed style and right alignment (minimum width 3)
+                write!(
+                    self.render_stream,
+                    "{}{num:>line_num_width$} {}",
+                    ansi::DIM,
+                    ansi::RESET
+                )?;
+            } else if line_info.is_continuation {
+                // Continuation line of wrapped text - show blank space
+                write!(self.render_stream, "{} ", " ".repeat(line_num_width))?;
+            } else {
+                // Show tilda for empty lines beyond content (vim-style) with darker gray color
+                write!(
+                    self.render_stream,
+                    "{}~{} {}",
+                    ansi::DIM,
+                    " ".repeat(line_num_width.saturating_sub(1)),
+                    ansi::RESET
+                )?;
+            }
         }
 
         // Calculate how much space is available for text after line number
-        let used_width = line_num_width + 1; // line number + space
+        let used_width = if view_model.pane_manager().is_line_numbers_visible() {
+            line_num_width + 1 // line number + space
+        } else {
+            0 // No space used when line numbers are hidden
+        };
         let available_width = (self.terminal_size.0 as usize).saturating_sub(used_width);
 
-        // Truncate text to fit within terminal width, accounting for double-byte characters
-        let display_text = if self.visual_length(line_info.text) > available_width {
-            let mut result = String::new();
-            let mut current_width = 0;
+        // Truncate text to fit within terminal width, accounting for double-byte characters and tabs
+        let tab_width = view_model.pane_manager().get_tab_width();
+        let display_text =
+            if self.visual_length_with_tabs(line_info.text, tab_width) > available_width {
+                let mut result = String::new();
+                let mut current_width = 0;
 
-            for ch in line_info.text.chars() {
-                let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
-                if current_width + char_width > available_width {
-                    break;
+                for ch in line_info.text.chars() {
+                    let char_width = match ch {
+                        '\t' => {
+                            // Calculate spaces to next tab stop
+                            tab_width - (current_width % tab_width)
+                        }
+                        _ => UnicodeWidthChar::width(ch).unwrap_or(0),
+                    };
+                    if current_width + char_width > available_width {
+                        break;
+                    }
+                    result.push(ch);
+                    current_width += char_width;
                 }
-                result.push(ch);
-                current_width += char_width;
-            }
-            result
-        } else {
-            line_info.text.to_string()
-        };
+                result
+            } else {
+                line_info.text.to_string()
+            };
 
         // Render text with visual selection highlighting if applicable
         self.render_text_with_selection(
@@ -251,7 +289,10 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
     ) -> Result<()> {
         // Check if we're in visual mode and have a selection
         let mode = view_model.get_mode();
-        if mode == EditorMode::Visual {
+        if matches!(
+            mode,
+            EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+        ) {
             tracing::trace!("render_text_with_selection: Visual mode detected, pane={:?}, line_number={:?}, logical_line={}, text='{}'", pane, line_number, logical_line, text);
 
             // BUGFIX: Use logical_line directly instead of relying on line_number
@@ -261,40 +302,102 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
             let chars: Vec<char> = text.chars().collect();
             let selection_state = view_model.get_visual_selection();
 
+            let tab_width = view_model.pane_manager().get_tab_width();
+
             tracing::trace!(
-                "render_text_with_selection: selection_state={:?}",
-                selection_state
+                "render_text_with_selection: selection_state={:?}, tab_width={}",
+                selection_state,
+                tab_width
             );
 
-            for (col_index, ch) in chars.iter().enumerate() {
-                // BUGFIX: Calculate correct logical column for wrapped lines
-                // For wrapped lines, logical_start_col indicates where this display line starts
-                // within the original logical line, so we add col_index to get the actual position
-                let logical_col = logical_start_col + col_index;
-                let position = crate::repl::events::LogicalPosition::new(
-                    logical_line, // Use logical_line directly (already 0-based)
-                    logical_col,
-                );
-
+            // Handle empty lines with virtual character for visual selection
+            if chars.is_empty() {
+                let position =
+                    crate::repl::events::LogicalPosition::new(logical_line, logical_start_col);
                 let is_selected = view_model.is_position_selected(position, pane);
 
                 if is_selected {
                     tracing::debug!(
-                        "render_text_with_selection: highlighting character '{}' at {:?}",
-                        ch,
+                        "render_text_with_selection: highlighting empty line with virtual character at {:?}",
                         position
                     );
-                    // Apply visual selection styling: inverse + blue
+                    // Render a highlighted space for empty lines (vim-like behavior)
                     write!(
                         self.render_stream,
-                        "{}{}{ch}{}",
+                        "{}{} {}",
                         ansi::BG_SELECTED,
                         ansi::FG_SELECTED,
                         ansi::RESET
                     )?
-                } else {
-                    // Normal character rendering
-                    write!(self.render_stream, "{ch}")?
+                }
+            } else {
+                // Normal character rendering for non-empty lines
+                for (col_index, ch) in chars.iter().enumerate() {
+                    // BUGFIX: Calculate correct logical column for wrapped lines
+                    // For wrapped lines, logical_start_col indicates where this display line starts
+                    // within the original logical line, so we add col_index to get the actual position
+                    let logical_col = logical_start_col + col_index;
+                    let position = crate::repl::events::LogicalPosition::new(
+                        logical_line, // Use logical_line directly (already 0-based)
+                        logical_col,
+                    );
+
+                    let is_selected = view_model.is_position_selected(position, pane);
+
+                    match *ch {
+                        '\t' => {
+                            // Simple tab: always render tab_width spaces
+                            let spaces_to_next_tab = if tab_width > 0 {
+                                tab_width
+                            } else {
+                                0 // No expansion if tab width is 0
+                            };
+
+                            if is_selected {
+                                tracing::debug!(
+                                    "render_text_with_selection: highlighting tab ({} spaces) at {:?}",
+                                    spaces_to_next_tab,
+                                    position
+                                );
+                                // Render highlighted spaces for the full tab expansion
+                                for _ in 0..spaces_to_next_tab {
+                                    write!(
+                                        self.render_stream,
+                                        "{}{} {}",
+                                        ansi::BG_SELECTED,
+                                        ansi::FG_SELECTED,
+                                        ansi::RESET
+                                    )?;
+                                }
+                            } else {
+                                // Render regular spaces for the full tab expansion
+                                for _ in 0..spaces_to_next_tab {
+                                    write!(self.render_stream, " ")?;
+                                }
+                            }
+                        }
+                        _ => {
+                            // Regular character handling
+                            if is_selected {
+                                tracing::debug!(
+                                    "render_text_with_selection: highlighting character '{}' at {:?}",
+                                    ch,
+                                    position
+                                );
+                                // Apply visual selection styling: inverse + blue
+                                write!(
+                                    self.render_stream,
+                                    "{}{}{ch}{}",
+                                    ansi::BG_SELECTED,
+                                    ansi::FG_SELECTED,
+                                    ansi::RESET
+                                )?
+                            } else {
+                                // Normal character rendering
+                                write!(self.render_stream, "{ch}")?
+                            }
+                        }
+                    }
                 }
             }
             return Ok(());
@@ -305,8 +408,21 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
             );
         }
 
-        // No selection or not in visual mode - render normally
-        write!(self.render_stream, "{text}")?;
+        // No selection or not in visual mode - render normally, but expand tabs
+        let tab_width = view_model.pane_manager().get_tab_width();
+        for ch in text.chars() {
+            match ch {
+                '\t' => {
+                    // Expand tabs to spaces
+                    for _ in 0..tab_width {
+                        write!(self.render_stream, " ")?;
+                    }
+                }
+                _ => {
+                    write!(self.render_stream, "{ch}")?;
+                }
+            }
+        }
         Ok(())
     }
 
@@ -361,12 +477,18 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         self.render_stream.enable_raw_mode()?;
         self.render_stream.enter_alternate_screen()?;
         self.render_stream.clear_screen()?;
-        self.render_stream.hide_cursor()?;
+
+        // Set initial cursor style to steady block (Normal mode default)
+        // This prevents flickering on first mode change
+        write!(self.render_stream, "{}", ansi::CURSOR_BLOCK_STEADY)?;
+        // Don't hide cursor initially - let render_cursor handle visibility
+        // This prevents the need to change visibility state on first mode switch
         Ok(())
     }
 
     fn render_full(&mut self, view_model: &ViewModel) -> Result<()> {
-        // Hide cursor before screen refresh to avoid flickering
+        // Temporarily hide cursor during full screen redraw to prevent flicker
+        // The cursor will be shown again at the end by render_cursor()
         self.render_stream.hide_cursor()?;
         self.render_stream.clear_screen()?;
 
@@ -408,7 +530,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
     }
 
     fn render_pane(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()> {
-        // Hide cursor before any rendering to prevent ghost cursors
+        // Temporarily hide cursor during pane rendering to prevent ghost cursors
         self.render_stream.hide_cursor()?;
 
         let (request_height, response_start, response_height) = view_model
@@ -509,6 +631,11 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             return Ok(());
         }
 
+        // Handle multi-cursor rendering for Visual Block Insert mode
+        if view_model.is_in_visual_block_insert_mode() {
+            return self.render_multi_cursors(view_model);
+        }
+
         // Get display cursor position and adjust for line numbers and pane offset
         let display_cursor = view_model.get_display_cursor_position();
         let current_pane = view_model.get_current_pane();
@@ -529,9 +656,13 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
         // Calculate screen column: display_cursor.col - horizontal_scroll + line_numbers + padding
         // When horizontally scrolled, we need to subtract the scroll offset to get the visible position
-        let screen_col = display_cursor.col
-            .saturating_sub(scroll_offset.col) // Subtract horizontal scroll offset
-            + line_num_width + 1; // Add line number width and padding
+        let screen_col = if view_model.pane_manager().is_line_numbers_visible() {
+            display_cursor.col
+                .saturating_sub(scroll_offset.col) // Subtract horizontal scroll offset
+                + line_num_width + 1 // Add line number width and padding when visible
+        } else {
+            display_cursor.col.saturating_sub(scroll_offset.col) // Just subtract horizontal scroll offset
+        };
         let screen_row = match current_pane {
             Pane::Request => viewport_relative_row,
             Pane::Response => viewport_relative_row + response_start as usize,
@@ -567,12 +698,18 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         }
 
         // Set cursor style based on editor mode using ANSI escape codes
+        // Using steady (non-blinking) cursors to prevent flickering on first mode change
         let cursor_style = match view_model.get_mode() {
-            EditorMode::Insert => ansi::CURSOR_BAR, // I-beam for insert mode
-            EditorMode::Normal => ansi::CURSOR_BLOCK, // Block for normal mode
-            EditorMode::Visual => ansi::CURSOR_BLOCK, // Block for visual mode
-            EditorMode::Command => ansi::CURSOR_BAR, // I-beam for command mode
-            EditorMode::GPrefix => ansi::CURSOR_BLOCK, // Block for g-prefix mode
+            EditorMode::Insert => ansi::CURSOR_BAR_STEADY, // Steady I-beam for insert mode
+            EditorMode::Normal => ansi::CURSOR_BLOCK_STEADY, // Steady block for normal mode
+            EditorMode::Visual => ansi::CURSOR_BLOCK_STEADY, // Steady block for visual mode
+            EditorMode::VisualLine => ansi::CURSOR_BLOCK_STEADY, // Steady block for visual line mode
+            EditorMode::VisualBlock => ansi::CURSOR_BLOCK_STEADY, // Steady block for visual block mode
+            EditorMode::VisualBlockInsert => ansi::CURSOR_BAR_STEADY, // Steady I-beam for visual block insert mode
+            EditorMode::Command => ansi::CURSOR_BAR_STEADY, // Steady I-beam for command mode
+            EditorMode::GPrefix => ansi::CURSOR_BLOCK_STEADY, // Steady block for g-prefix mode
+            EditorMode::DPrefix => ansi::CURSOR_BLOCK_STEADY, // Steady block for d-prefix mode
+            EditorMode::YPrefix => ansi::CURSOR_BLOCK_STEADY, // Steady block for y-prefix mode
         };
 
         // Position cursor, set style, and show
@@ -607,7 +744,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             #[allow(unused_variables)]
             let cursor_pos = ex_command_text.len() as u16;
             self.render_stream.move_cursor(cursor_pos, status_row)?;
-            write!(self.render_stream, "{}", ansi::CURSOR_BAR)?;
+            write!(self.render_stream, "{}", ansi::CURSOR_BAR_STEADY)?;
             self.render_stream.show_cursor()?;
         } else {
             let pane_text = match view_model.get_current_pane() {
@@ -633,6 +770,20 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                 EditorMode::Visual => {
                     left_status_text.push_str(&format!(
                         "{}-- VISUAL --{}",
+                        ansi::BOLD,
+                        ansi::RESET
+                    ));
+                }
+                EditorMode::VisualLine => {
+                    left_status_text.push_str(&format!(
+                        "{}-- VISUAL LINE --{}",
+                        ansi::BOLD,
+                        ansi::RESET
+                    ));
+                }
+                EditorMode::VisualBlock => {
+                    left_status_text.push_str(&format!(
+                        "{}-- VISUAL BLOCK --{}",
                         ansi::BOLD,
                         ansi::RESET
                     ));
@@ -913,6 +1064,72 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
     }
 }
 
+// Private implementation methods for TerminalRenderer
+impl<RS: RenderStream> TerminalRenderer<RS> {
+    /// Render multiple cursors for Visual Block Insert mode
+    fn render_multi_cursors(&mut self, view_model: &ViewModel) -> Result<()> {
+        let cursor_positions = view_model.get_visual_block_insert_cursors();
+        if cursor_positions.is_empty() {
+            return Ok(());
+        }
+
+        tracing::debug!(
+            "render_multi_cursors: rendering primary cursor for {} total positions",
+            cursor_positions.len()
+        );
+
+        // For now, just render the primary cursor at the first position
+        // This ensures the user sees the cursor where text insertion is happening
+        if let Some(first_pos) = cursor_positions.first() {
+            let current_pane = view_model.get_current_pane();
+            let line_num_width = view_model
+                .pane_manager()
+                .get_line_number_width(current_pane);
+            let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
+            let (_request_height, response_start, _response_height) = view_model
+                .pane_manager()
+                .get_pane_boundaries(view_model.get_response_status_code().is_some());
+
+            // Calculate screen position for the primary cursor
+            let viewport_relative_row = first_pos.line.saturating_sub(scroll_offset.row);
+            let screen_col = if view_model.pane_manager().is_line_numbers_visible() {
+                first_pos.column.saturating_sub(scroll_offset.col) + line_num_width + 1
+            } else {
+                first_pos.column.saturating_sub(scroll_offset.col)
+            };
+            let screen_row = match current_pane {
+                Pane::Request => viewport_relative_row,
+                Pane::Response => viewport_relative_row + response_start as usize,
+            };
+
+            let terminal_size = self.terminal_size;
+            let max_row = (terminal_size.1 as usize).saturating_sub(2);
+            let clamped_col = (screen_col).min(terminal_size.0 as usize - 1);
+            let clamped_row = screen_row.min(max_row);
+
+            tracing::debug!(
+                "render_multi_cursors: positioning primary cursor at logical ({}, {}) -> screen ({}, {})",
+                first_pos.line,
+                first_pos.column,
+                clamped_col,
+                clamped_row
+            );
+
+            // Position and show the primary cursor
+            self.render_stream
+                .move_cursor(clamped_col as u16, clamped_row as u16)?;
+            self.render_stream
+                .write_all(ansi::CURSOR_BAR_STEADY.as_bytes())?;
+            self.render_stream.show_cursor()?;
+            safe_flush!(self.render_stream)?;
+
+            tracing::debug!("render_multi_cursors: primary cursor rendered successfully");
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1114,6 +1331,39 @@ mod tests {
 
             // Test empty string
             assert_eq!(renderer.visual_length(""), 0);
+        }
+    }
+
+    #[test]
+    fn visual_length_with_tabs_should_calculate_tab_stops_correctly() {
+        let render_stream = MockRenderStream::new();
+        if let Ok(renderer) = TerminalRenderer::with_render_stream(render_stream) {
+            // Test single tab with tab width 4
+            assert_eq!(renderer.visual_length_with_tabs("\t", 4), 4);
+
+            // Test text before tab - tab should align to next 4-column boundary
+            assert_eq!(renderer.visual_length_with_tabs("a\t", 4), 4); // "a" (1) + tab to column 4 = 4
+            assert_eq!(renderer.visual_length_with_tabs("ab\t", 4), 4); // "ab" (2) + tab to column 4 = 4
+            assert_eq!(renderer.visual_length_with_tabs("abc\t", 4), 4); // "abc" (3) + tab to column 4 = 4
+            assert_eq!(renderer.visual_length_with_tabs("abcd\t", 4), 8); // "abcd" (4) + tab to column 8 = 8
+
+            // Test multiple tabs
+            assert_eq!(renderer.visual_length_with_tabs("\t\t", 4), 8); // Two tabs = 8 spaces
+            assert_eq!(renderer.visual_length_with_tabs("a\tb\t", 4), 8); // "a" + tab + "b" + tab = 8
+
+            // Test tab width 8
+            assert_eq!(renderer.visual_length_with_tabs("\t", 8), 8);
+            assert_eq!(renderer.visual_length_with_tabs("a\t", 8), 8);
+            assert_eq!(renderer.visual_length_with_tabs("abcdefg\t", 8), 8); // 7 chars + 1 space to column 8
+            assert_eq!(renderer.visual_length_with_tabs("abcdefgh\t", 8), 16); // 8 chars + 8 spaces to column 16
+
+            // Test mixed content with tabs
+            assert_eq!(renderer.visual_length_with_tabs("hello\tworld", 4), 13); // "hello" (5) + 3 spaces + "world" (5) = 13
+
+            // Test backward compatibility - tab width 0 should give zero width tabs
+            assert_eq!(renderer.visual_length_with_tabs("\t", 0), 0);
+            assert_eq!(renderer.visual_length_with_tabs("hello\tworld", 0), 10);
+            // Just "hello" + "world"
         }
     }
 }

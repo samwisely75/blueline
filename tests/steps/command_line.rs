@@ -44,17 +44,23 @@ async fn then_command_line_should_be_cleared(world: &mut BluelineWorld) {
     let _ = contains; // Acknowledge the variable
 }
 
-// === COMMAND EXECUTION STEPS ===
+// === DEBUG STEPS ===
 
-#[then("I should see the help message in the output")]
-async fn then_should_see_help_message(world: &mut BluelineWorld) {
-    debug!("Checking for help message in output");
-    // Help message might contain various text - check for something common
-    let contains = world.terminal_contains("help").await
-        || world.terminal_contains("Help").await
-        || world.terminal_contains("Commands").await;
-    assert!(contains, "Expected to see help message in output");
+#[then("the terminal should display the current state")]
+async fn then_display_terminal_state(world: &mut BluelineWorld) {
+    let terminal_content = world.get_terminal_content().await;
+    info!("=== TERMINAL STATE ===");
+    for (i, line) in terminal_content.lines().enumerate() {
+        info!("{:2}: '{}'", i + 1, line);
+    }
+    info!("=== END TERMINAL STATE ===");
+
+    // Also check what's in the text buffer
+    let text_buffer = world.get_text_buffer();
+    info!("Text buffer content: {:?}", text_buffer);
 }
+
+// === COMMAND EXECUTION STEPS ===
 
 #[then("the application should exit")]
 async fn then_application_should_exit(world: &mut BluelineWorld) {
@@ -93,10 +99,12 @@ async fn then_status_bar_is_cleared(world: &mut BluelineWorld) {
         || world.terminal_contains("error").await;
 
     if !has_default_status {
-        eprintln!("❌ Default REQUEST status not found. Terminal content:\n{terminal_content}");
+        tracing::debug!(
+            "❌ Default REQUEST status not found. Terminal content:\n{terminal_content}"
+        );
         // Check if terminal content is empty or has different format
         if terminal_content.trim().is_empty() {
-            eprintln!("💡 Terminal appears to be empty - possible test framework issue");
+            tracing::debug!("💡 Terminal appears to be empty - possible test framework issue");
         }
     }
 
@@ -163,23 +171,24 @@ async fn then_cursor_should_be_at_line_n(world: &mut BluelineWorld, line_num: us
     let found_indicator = contains_colon || contains_pipe || contains_request;
 
     if !found_indicator {
-        eprintln!("❌ Line navigation failed!");
-        eprintln!("Expected line: {line_num}");
-        eprintln!("Terminal content ({} chars):", terminal_content.len());
-        eprintln!("=== FULL TERMINAL CONTENT ===");
+        tracing::debug!("❌ Line navigation failed!");
+        tracing::debug!("Expected line: {line_num}");
+        tracing::debug!("Terminal content ({} chars):", terminal_content.len());
+        tracing::debug!("=== FULL TERMINAL CONTENT ===");
         for (i, line) in terminal_content.lines().enumerate() {
-            eprintln!("{:2}: '{}'", i + 1, line);
+            tracing::debug!("{:2}: '{}'", i + 1, line);
         }
-        eprintln!("=== END TERMINAL CONTENT ===");
-        eprintln!(
+        tracing::debug!("=== END TERMINAL CONTENT ===");
+        tracing::debug!(
             "Cursor position: ({}, {})",
-            state.cursor_position.0, state.cursor_position.1
+            state.cursor_position.0,
+            state.cursor_position.1
         );
 
         // Also check if any number appears in the terminal
         for i in 1..=10 {
             if terminal_content.contains(&i.to_string()) {
-                eprintln!("Found number '{i}' in terminal content");
+                tracing::debug!("Found number '{i}' in terminal content");
             }
         }
     }

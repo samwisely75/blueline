@@ -22,12 +22,6 @@ impl ViewModel {
         self.http_client.as_ref()
     }
 
-    /// Set verbose mode
-    pub fn set_verbose(&mut self, verbose: bool) {
-        self.http_verbose = verbose;
-        tracing::debug!("Verbose mode set to: {}", verbose);
-    }
-
     /// Get current request execution status
     pub fn is_executing_request(&self) -> bool {
         self.status_line.is_executing()
@@ -139,10 +133,5 @@ impl ViewModel {
     /// Get response text content
     pub fn get_response_text(&self) -> String {
         self.pane_manager.get_response_text()
-    }
-
-    /// Check if verbose mode is enabled
-    pub fn is_verbose(&self) -> bool {
-        self.http_verbose
     }
 }

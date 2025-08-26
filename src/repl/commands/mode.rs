@@ -45,6 +45,25 @@ impl Command for ExitInsertModeCommand {
     }
 }
 
+/// Exit Visual Block Insert mode (Escape key)
+pub struct ExitVisualBlockInsertModeCommand;
+
+impl Command for ExitVisualBlockInsertModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        matches!(event.code, KeyCode::Esc)
+            && context.state.current_mode == EditorMode::VisualBlockInsert
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        // Request special Visual Block Insert exit with text replication
+        Ok(vec![CommandEvent::exit_visual_block_insert()])
+    }
+
+    fn name(&self) -> &'static str {
+        "ExitVisualBlockInsertMode"
+    }
+}
+
 /// Enter visual mode (v key)
 pub struct EnterVisualModeCommand;
 
@@ -87,7 +106,11 @@ pub struct ExitVisualModeCommand;
 
 impl Command for ExitVisualModeCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Esc) && context.state.current_mode == EditorMode::Visual
+        matches!(event.code, KeyCode::Esc)
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
+            )
     }
 
     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
@@ -99,14 +122,103 @@ impl Command for ExitVisualModeCommand {
     }
 }
 
+/// Enter visual line mode (Shift+V)
+pub struct EnterVisualLineModeCommand;
+
+impl Command for EnterVisualLineModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        let is_uppercase_v = matches!(event.code, KeyCode::Char('V'));
+        let is_shift_v = matches!(event.code, KeyCode::Char('v'))
+            && event.modifiers.contains(KeyModifiers::SHIFT);
+        let is_shift_v_key = is_uppercase_v || is_shift_v;
+        let is_normal_mode = context.state.current_mode == EditorMode::Normal;
+        let result = is_shift_v_key && is_normal_mode;
+
+        tracing::debug!(
+            "EnterVisualLineModeCommand.is_relevant(): event={:?}, uppercase_v={}, shift_v={}, normal_mode={}, result={}",
+            event, is_uppercase_v, is_shift_v, is_normal_mode, result
+        );
+
+        result
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        tracing::debug!(
+            "EnterVisualLineModeCommand executing - creating mode change event to VisualLine"
+        );
+        Ok(vec![CommandEvent::mode_change(EditorMode::VisualLine)])
+    }
+
+    fn name(&self) -> &'static str {
+        "EnterVisualLineMode"
+    }
+}
+
+/// Enter visual block mode (Ctrl+V)
+pub struct EnterVisualBlockModeCommand;
+
+impl Command for EnterVisualBlockModeCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        let is_ctrl_v = matches!(event.code, KeyCode::Char('v'))
+            && event.modifiers.contains(KeyModifiers::CONTROL);
+        let is_normal_mode = context.state.current_mode == EditorMode::Normal;
+        let result = is_ctrl_v && is_normal_mode;
+
+        tracing::debug!(
+            "EnterVisualBlockModeCommand.is_relevant(): event={:?}, ctrl_v={}, normal_mode={}, result={}",
+            event, is_ctrl_v, is_normal_mode, result
+        );
+
+        result
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        tracing::debug!(
+            "EnterVisualBlockModeCommand executing - creating mode change event to VisualBlock"
+        );
+        Ok(vec![CommandEvent::mode_change(EditorMode::VisualBlock)])
+    }
+
+    fn name(&self) -> &'static str {
+        "EnterVisualBlockMode"
+    }
+}
+
+/// Repeat last visual selection (gv command)
+pub struct RepeatVisualSelectionCommand;
+
+impl Command for RepeatVisualSelectionCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        // This command is triggered by 'v' when in GPrefix mode (after pressing 'g')
+        matches!(event.code, KeyCode::Char('v'))
+            && context.state.current_mode == EditorMode::GPrefix
+            && event.modifiers.is_empty()
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        tracing::debug!("RepeatVisualSelectionCommand executing - restoring last visual selection");
+        // This will trigger the restoration of the last visual selection
+        Ok(vec![CommandEvent::repeat_visual_selection()])
+    }
+
+    fn name(&self) -> &'static str {
+        "RepeatVisualSelection"
+    }
+}
+
 /// Enter command mode (: key)
 pub struct EnterCommandModeCommand;
 
 impl Command for EnterCommandModeCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         matches!(event.code, KeyCode::Char(':'))
-            && (context.state.current_mode == EditorMode::Normal
-                || context.state.current_mode == EditorMode::Visual)
+            && matches!(
+                context.state.current_mode,
+                EditorMode::Normal
+                    | EditorMode::Visual
+                    | EditorMode::VisualLine
+                    | EditorMode::VisualBlock
+            )
             && event.modifiers.is_empty()
     }
 
@@ -225,6 +337,58 @@ impl Command for ExCommandModeCommand {
     }
 }
 
+/// Insert at beginning of Visual Block selection (Shift+I in Visual Block mode)
+pub struct VisualBlockInsertCommand;
+
+impl Command for VisualBlockInsertCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        context.state.current_mode == EditorMode::VisualBlock
+            && context.state.current_pane == Pane::Request
+            && (
+                // Case 1: Uppercase 'I' without modifiers
+                (matches!(event.code, KeyCode::Char('I')) && event.modifiers.is_empty())
+                // Case 2: Lowercase 'i' with SHIFT modifier
+                || (matches!(event.code, KeyCode::Char('i')) && event.modifiers.contains(KeyModifiers::SHIFT))
+                // Case 3: Uppercase 'I' with SHIFT modifier (some terminals send this)
+                || (matches!(event.code, KeyCode::Char('I')) && event.modifiers.contains(KeyModifiers::SHIFT))
+            )
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::visual_block_insert()])
+    }
+
+    fn name(&self) -> &'static str {
+        "VisualBlockInsert"
+    }
+}
+
+/// Append at end of Visual Block selection (Shift+A in Visual Block mode)
+pub struct VisualBlockAppendCommand;
+
+impl Command for VisualBlockAppendCommand {
+    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+        context.state.current_mode == EditorMode::VisualBlock
+            && context.state.current_pane == Pane::Request
+            && (
+                // Case 1: Uppercase 'A' without modifiers
+                (matches!(event.code, KeyCode::Char('A')) && event.modifiers.is_empty())
+                // Case 2: Lowercase 'a' with SHIFT modifier
+                || (matches!(event.code, KeyCode::Char('a')) && event.modifiers.contains(KeyModifiers::SHIFT))
+                // Case 3: Uppercase 'A' with SHIFT modifier (some terminals send this)
+                || (matches!(event.code, KeyCode::Char('A')) && event.modifiers.contains(KeyModifiers::SHIFT))
+            )
+    }
+
+    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+        Ok(vec![CommandEvent::visual_block_append()])
+    }
+
+    fn name(&self) -> &'static str {
+        "VisualBlockAppend"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -245,7 +409,8 @@ mod tests {
                 request_text: String::new(),
                 response_text: String::new(),
                 terminal_dimensions: (80, 24),
-                verbose: false,
+                expand_tab: false,
+                tab_width: 4,
             },
         }
     }

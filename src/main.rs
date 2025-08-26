@@ -5,6 +5,7 @@
 use anyhow::Result;
 use blueline::{
     cmd_args::CommandLineArgs,
+    config::AppConfig,
     repl::io::{TerminalEventStream, TerminalRenderStream},
     AppController,
 };
@@ -16,10 +17,11 @@ async fn main() -> Result<()> {
     init_tracing_subscriber();
 
     let cmd_args = CommandLineArgs::parse();
+    let config = AppConfig::from_args(cmd_args);
 
     // Explicit dependency injection - clear what implementations are being used
     let mut app = AppController::with_io_streams(
-        cmd_args,
+        config,
         TerminalEventStream::new(),
         TerminalRenderStream::new(),
     )?;

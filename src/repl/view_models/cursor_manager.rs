@@ -4,7 +4,7 @@
 //! This module provides high-level cursor operations that work with the current/other area abstraction.
 
 use crate::repl::events::LogicalPosition;
-use crate::repl::geometry::Position;
+use crate::repl::models::geometry::Position;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 
@@ -101,6 +101,52 @@ impl ViewModel {
     pub fn move_cursor_to_line(&mut self, line_number: usize) -> Result<()> {
         let events = self.pane_manager.move_cursor_to_line(line_number);
         self.emit_view_event(events)
+    }
+
+    /// Move cursor down one page in current area (Ctrl+f)
+    pub fn move_cursor_page_down(&mut self) -> Result<()> {
+        let events = self.pane_manager.move_cursor_page_down();
+        self.emit_view_event(events)
+    }
+
+    /// Move cursor up one page in current area (Ctrl+b)
+    pub fn move_cursor_page_up(&mut self) -> Result<()> {
+        let events = self.pane_manager.move_cursor_page_up();
+        self.emit_view_event(events)
+    }
+
+    /// Move cursor down half a page in current area (Ctrl+d)
+    pub fn move_cursor_half_page_down(&mut self) -> Result<()> {
+        let events = self.pane_manager.move_cursor_half_page_down();
+        self.emit_view_event(events)
+    }
+
+    /// Move cursor up half a page in current area (Ctrl+u)
+    pub fn move_cursor_half_page_up(&mut self) -> Result<()> {
+        let events = self.pane_manager.move_cursor_half_page_up();
+        self.emit_view_event(events)
+    }
+
+    /// Get display line count for the current pane
+    pub fn get_display_line_count(&self) -> usize {
+        if let Some(pane_state) = self.pane_manager.get_current_pane_state() {
+            pane_state.display_cache.display_line_count()
+        } else {
+            0
+        }
+    }
+
+    /// Get display line length for a specific line index in the current pane
+    pub fn get_display_line_length(&self, line_index: usize) -> usize {
+        if let Some(pane_state) = self.pane_manager.get_current_pane_state() {
+            if let Some(display_line) = pane_state.display_cache.get_display_line(line_index) {
+                display_line.display_width()
+            } else {
+                0
+            }
+        } else {
+            0
+        }
     }
 
     // Scrolling methods are implemented elsewhere - avoiding duplication

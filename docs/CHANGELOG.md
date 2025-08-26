@@ -5,6 +5,345 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.45.3] - 2025-08-23
+
+### Fixed
+
+- **HTTP Request Execution**: Fixed critical issue where HTTP requests would fail after first execution
+  - HttpService was incorrectly using `take()` on HttpClient, causing subsequent requests to fail
+  - Now properly uses Clone trait to share HttpClient across async tasks
+  - Preserves session state (cookies, auth tokens) across requests
+
+### Improved
+
+- **Error Reporting**: Enhanced HTTP error messages with detailed diagnostics
+  - Shows full error chain with root causes
+  - Categorizes errors (connection, timeout, SSL/TLS, DNS resolution)
+  - Provides helpful hints for common error types
+  - No more truncated error messages
+
+## [0.45.0] - 2025-08-20
+
+### Added
+
+- **'yy' Command for Yanking Current Line**: Implemented vim-style 'yy' command for copying entire lines
+  - Press 'y' twice to yank (copy) the current line to yank buffer
+  - Works with existing 'p' (paste after) and 'P' (paste before) commands  
+  - Includes trailing newline for proper line-wise paste behavior
+  - Shows "1 line yanked" status message for user feedback
+  - YPrefix mode support for multi-key command recognition
+  - Comprehensive integration test coverage for yy/dd/p/P interactions
+
+### Improved
+
+- **Paste Operation User Experience**: Enhanced paste command feedback
+  - Removed repetitive paste status messages ("X pasted Y-wise")
+  - Status messages now clear after successful paste operations
+  - Only "Nothing to paste" error message remains visible when needed
+  - More professional, less cluttered interface
+
+## [0.44.1] - 2025-08-20
+
+### Fixed
+
+- **dd Command Execution**: Fixed dd command not working due to DPrefix mode check issue
+  - Allow both Normal and DPrefix modes for line cutting operations
+  - dd command now properly cuts entire lines as intended
+- **Line-wise Paste Behavior**: Fixed double-newline bug in P (paste before) and p (paste after) commands
+  - Removed extra newline insertion since dd already includes trailing newline
+  - Paste behavior now matches vim's expected line-wise paste functionality
+- **Integration Test Coverage**: Added missing step definitions for dd command test scenarios
+  - Enhanced test coverage for dd, P, and p command interactions
+
+## [0.44.0] - 2025-08-19
+
+### Added
+
+- **'D' Command for Cutting to End of Line (Issue #6)**: Implemented vim-style 'D' command
+  - Cuts text from cursor position to end of line
+  - Stores cut text in yank buffer with Character type for proper paste behavior
+  - Works only in Normal mode and Request pane (vim-consistent)
+  - Handles multi-byte characters correctly using character-based indexing
+  - Proper SHIFT modifier detection for uppercase commands
+  - No-op when cursor is at end of line (vim-consistent behavior)
+  - Added comprehensive unit tests (17 tests) and integration tests (10 scenarios)
+  - Added 'D' and 'o' key mappings to test infrastructure
+
+## [0.43.1] - 2025-08-19
+
+### Fixed
+
+- **Critical Multi-Byte Character Crash (Issue #190)**: Fixed panic when deleting multi-byte characters in Visual mode
+  - Fixed `get_selected_text()` method using byte-based slicing with character-based indices
+  - Replaced with character-based approach: `line.chars().collect()` → slice → convert back to string
+  - Applied fix to all visual modes: Visual, VisualLine, and VisualBlock
+  - Added comprehensive unit tests for multi-byte character edge cases (Japanese, Chinese, Korean)
+  - Created integration test to prevent regression
+  - Now safely handles UTF-8 text deletion without crashes for international users
+
+## [0.43.0] - 2025-08-19
+
+### Added
+
+- **'x' Command Support**: Implemented Vim-style character cut command in Normal mode
+  - Added `CutCharacterCommand` that deletes character at cursor and yanks it to buffer
+  - Proper cursor positioning with multi-byte character support (Japanese/Chinese/Korean)
+  - Fixed display cursor synchronization for seamless visual feedback
+  - Comprehensive test coverage including edge cases and international text
+  - Only active in Normal mode + Request pane, preserves Insert mode behavior
+  - Integrates with existing yank buffer for paste operations
+
+- **Block-wise Paste**: Implemented proper rectangular paste behavior for Visual Block mode
+  - Added `YankType` enum to track yank operation types (Character, Line, Block)
+  - Implemented `insert_block_wise()` method for rectangular text insertion at same column on successive lines
+  - 'P' and 'p' commands now correctly paste block selections maintaining rectangular structure
+  - Fixed clipboard synchronization to preserve yank type metadata
+  - Ensures immediate visual feedback with proper display cache rebuilding
+
+## [0.42.0] - 2025-08-15
+
+### Fixed
+
+- **Visual Line Mode Deletion**: Fixed critical bug where 'd' command was deleting partial content instead of complete lines
+  - Added dedicated `delete_visual_line_selection()` method for proper line-wise deletion
+  - Visual Line deletion now works from beginning of first selected line to end of last selected line (including newlines)
+  - Properly handles edge cases when deleting the last lines in buffer
+  - Cursor positioned correctly at beginning of first deleted line after operation
+  - Fix also applies to cut ('x') and yank ('y') operations in Visual Line mode
+
+### Enhanced
+
+- **Test Framework**: Extended test framework with comprehensive Visual Line and Visual Block mode support
+  - Added `VisualLine` and `VisualBlock` modes to test AppMode enum
+  - Enhanced mode detection to recognize "-- VISUAL LINE --" and "-- VISUAL BLOCK --" status indicators
+  - Added step definitions for "V", "Ctrl-v", "x", "y" keys in navigation tests
+  - Added Visual Line and Visual Block mode assertion steps
+
+## [0.41.0] - 2025-08-15
+
+### Added
+
+- **Visual Block Commands**: Complete implementation of Visual Block mode editing commands
+  - 'I' command: Insert text at the beginning of each selected line simultaneously
+  - 'A' command: Append text after the selection on each line simultaneously
+  - 'c' command: Change (delete and enter insert mode) for rectangular selections
+  - Multi-cursor support with synchronized text input across all cursors
+  - Fixed cursor positioning bug in 'A' command to match vim behavior (cursor positioned after selection, not at selection boundary)
+
+### Enhanced
+
+- **Visual Block Mode**: Improved Visual Block mode functionality and vim compatibility
+  - Enhanced selection highlighting and status display
+  - Proper cursor visibility transitions between modes
+  - Comprehensive test coverage for all Visual Block operations
+
+## [0.40.0] - 2025-08-15
+
+### Added
+
+- **Complete PaneManager to PaneState Refactoring**: Major architectural transformation
+  - Migrated 2300+ lines of business logic from PaneManager to PaneState
+  - Decomposed monolithic pane_state.rs into 8 focused modules
+  - Implemented capability-based access control (EDITABLE, NAVIGABLE, SELECTABLE)
+  - Established pure delegation pattern for clean separation of concerns
+  
+- **Modular Architecture**: New focused modules for better organization
+  - `capabilities.rs` - Capability checking and management
+  - `content.rs` - Content management operations
+  - `cursor_basic.rs` - Basic directional cursor movement
+  - `cursor_line.rs` - Line-based cursor navigation
+  - `display.rs` - Display cache and visual management
+  - `scrolling.rs` - Page navigation and scroll operations
+  - `text_operations.rs` - Text insertion and deletion
+  - `visual_selection.rs` - Visual mode selection handling
+  - `word_navigation.rs` - Word-boundary navigation
+
+### Enhanced
+
+- **Vim Compatibility**: Improved vim-style navigation behavior
+  - Virtual column restoration for page navigation (Ctrl+F, Ctrl+B, Ctrl+D, Ctrl+U)
+  - Character boundary snapping for proper DBCS support
+  - Visual Block mode restrictions (no cross-line movement)
+  - Mode-aware cursor positioning and scrolling
+
+### Fixed
+
+- **gg and G Commands**: Reset cursor to column 0 for proper vim behavior
+  - `gg` now goes to (line 1, column 1) - beginning of document
+  - `G` now goes to (last line, column 1) - beginning of last line
+  - Both commands properly reset virtual column
+
+### Changed
+
+- **Code Organization**: Removed 240+ lines of redundant code
+- **Performance**: Reduced coupling and method call overhead
+- **Maintainability**: Logic grouped by responsibility for easier testing and extension
+
+## [0.39.0] - 2025-08-15
+
+### Added
+
+- **Visual Line/Block Operations**: Complete Phase 4 visual mode implementation
+  - Delete ('d'), cut ('x'), and yank ('y') commands for all visual modes
+  - Visual Line mode: Select and operate on entire lines 
+  - Visual Block mode: Select and operate on rectangular text regions
+  - Mode-aware text selection with proper boundary handling
+
+### Fixed
+
+- **Backspace Line-Joining Bug** (issues #148, #143): Fix critical text editing bug
+  - Backspace at line boundaries now properly joins lines instead of deleting wrong characters
+  - Added proper `join_lines` method with Unicode support
+  - Comprehensive unit tests for line joining functionality
+- **Visual Block Cursor Behavior**: Prevent cursor from crossing lines in Visual Block mode
+- **Visual Block Selection**: Fix selection expansion and column boundary handling
+
+### Changed
+
+- Improved Visual Block mode cursor constraints and navigation
+- Enhanced text deletion architecture with proper separation of concerns
+
+## [0.38.0] - 2025-01-14
+
+### Added
+
+- **Expandtab Configuration**: Add `:set expandtab on/off` command (issue #153)
+  - Configure whether Tab key inserts spaces or tab characters
+  - When enabled, Tab key inserts spaces based on current tabstop width
+  - Automatically converts existing tabs to spaces when expandtab is turned on
+  - When disabled, Tab key inserts actual tab characters (`\t`)
+  - Works seamlessly with existing `:set tabstop` command
+
+## [0.37.1] - 2025-01-14
+
+### Added
+
+- **Tab Stop Configuration**: Add `:set tabstop <number>` command (issue #152)
+  - Dynamically configure tab width through ex command interface
+  - Values can be set between 1 and 8 spaces (clamped to valid range)
+  - Display immediately refreshes when tab width changes
+  - Supports commands like `:set tabstop 2`, `:set tabstop 4`, `:set tabstop 8`
+
+## [0.37.0] - 2025-01-14
+
+### Added
+
+- **Tab Character Support**: Implement simple tab character support (issue #151)
+  - Tab key inserts tab character in Insert mode
+  - Configurable tab width via `tab_width` field (default 4)
+  - Tabs always advance cursor by fixed width regardless of column position
+  - Proper text rendering with tab expansion to spaces in all modes
+  - Visual selection correctly highlights expanded tab spaces
+  - Fixed cursor positioning to handle tab display width correctly
+
+## [0.36.0] - 2025-01-13
+
+### Added
+
+- **System Clipboard Integration**: Connect yank buffer to system clipboard (issue #135)
+  - `:set clipboard on` - Enable system clipboard integration
+  - `:set clipboard off` - Use memory-only yank buffer
+  - Bidirectional sync: yanking copies to clipboard, pasting reads from clipboard
+  - Cross-platform support for macOS, Linux, and Windows via `arboard` library
+  - Preserves yank buffer content when switching between modes
+
+## [0.35.0] - 2025-01-13
+
+### Added
+
+- **Yank and Paste Commands**: Implement vim-style yank and paste functionality (issues #2, #7, #8)
+  - `y` command in Visual mode to yank (copy) selected text to buffer
+  - `p` command in Normal mode to paste after cursor position  
+  - `P` command in Normal mode to paste at current cursor position
+  - Visual mode automatically exits after yanking text
+  - Status bar shows feedback for yank/paste operations
+  - Commands are properly separated into a new `yank.rs` module
+
+## [0.34.0] - 2025-01-12
+
+### Added
+
+- **Config File Loading**: Load settings from `~/.blueline/config` file at startup (issue #19)
+  - Config file uses ex command format (e.g., `set wrap on`, `set number on`)
+  - Supports comments (lines starting with #) and empty lines
+  - Environment variable `BLUELINE_CONFIG_PATH` can override default location
+  - Commands are applied automatically at startup before UI is shown
+  - Config errors are logged but don't crash the application
+
+### Changed
+
+- **Configuration Architecture**: Refactored to use unified `AppConfig` pattern
+  - Consolidated all configuration sources into single `AppConfig` struct
+  - Removed verbose flag from command line arguments (preparing for ex command implementation)
+  - Replaced `dirs` crate with `shellexpand` for better path expansion
+  - Cleaner separation of concerns for configuration management
+
+## [0.33.0] - 2025-01-12
+
+### Changed
+
+- **Ex Command Architecture**: Introduced Command Pattern to ex commands (issue #64)
+  - Created `ExCommand` trait and `ExCommandRegistry` for unified command handling
+  - Separated command execution logic from StatusLine for better separation of concerns
+  - Ex commands now use the same event-driven architecture as normal commands
+  - Command buffer is properly cleared after execution with return to previous mode
+  - Improved extensibility - new ex commands can be added by implementing the trait
+
+## [0.32.1] - 2025-01-12
+
+### Changed
+
+- **Wrap Command Syntax**: Improved wrap command syntax to use `:set wrap on/off` (issue #17)
+  - **Breaking Change**: Removed backward compatibility for old `:set wrap` and `:set nowrap` commands
+  - New syntax provides consistency with other settings like `:set number on/off`
+  - Updated all tests and documentation to use new syntax exclusively
+
+## [0.32.0] - 2025-01-12
+
+### Added
+
+- **Line Number Toggle**: Added `:set number on/off` commands to toggle line number visibility
+  - Line numbers are shown by default (current behavior)
+  - Setting persists during the session
+  - Provides more screen space for content when hidden
+
+## [0.31.0] - 2025-01-12
+
+### Changed
+
+- **Logging**: Replaced all `println!` and `eprintln!` statements with `tracing` calls throughout the codebase
+  - Ensures consistent logging approach as per testing guidelines
+  - Improved debugging capabilities with structured logging
+
+## [0.30.0] - 2025-01-12
+
+### Fixed
+
+- **e Command Navigation**: Fixed cursor positioning bug and modified behavior to only target alphanumeric words
+  - Fixed incorrect cursor index calculation that prevented the command from working in certain positions
+  - Changed behavior to treat punctuation as separators, only stopping at alphanumeric word boundaries
+  - Improved predictability when navigating code with punctuation
+
+## [0.29.0] - 2025-01-11
+
+### Added
+
+- **Half Page Navigation**: Complete vim-style half page scrolling commands (issue #78)
+  - Ctrl+d: Half page down with proper vim-style virtual column behavior
+  - Ctrl+u: Half page up with proper vim-style virtual column behavior
+  - DBCS character boundary snapping for multibyte character support
+  - Visual selection support during navigation
+  - Comprehensive unit testing (4 new tests)
+
+### Technical
+
+- Enhanced PaneManager with `move_cursor_half_page_down()` and `move_cursor_half_page_up()` methods using `div_ceil(2)` for proper half-page calculation
+- Added HalfPageDownCommand and HalfPageUpCommand with strict modifier key validation
+- Updated AppController to handle HalfPageDown/HalfPageUp movement directions
+- Extended CursorManager with wrapper methods for consistent API patterns
+
 ## [0.28.0] - 2025-01-12
 
 ### Refactored

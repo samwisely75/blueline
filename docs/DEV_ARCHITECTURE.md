@@ -313,7 +313,7 @@ The ViewModel is split into focused modules for better maintainability:
 
 #### Ex Command Manager (`src/repl/view_models/ex_command_manager.rs`)
 
-- Ex command buffer operations (`:q`, `:set wrap`, etc.)
+- Ex command buffer operations (`:q`, `:set wrap on`, etc.)
 - Command parsing and execution
 - Command mode state management
 

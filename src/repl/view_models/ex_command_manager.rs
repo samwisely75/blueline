@@ -27,6 +27,12 @@ impl ViewModel {
         Ok(())
     }
 
+    /// Clear the ex command buffer
+    pub fn clear_ex_command_buffer(&mut self) {
+        self.status_line.clear_command_buffer();
+        let _ = self.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
+    }
+
     /// Execute ex command and return resulting command events
     pub fn execute_ex_command(&mut self) -> Result<Vec<CommandEvent>> {
         let command = self.status_line.command_buffer().trim().to_string();
@@ -42,7 +48,7 @@ impl ViewModel {
                 // Force quit the application
                 events.push(CommandEvent::QuitRequested);
             }
-            "set wrap" => {
+            "set wrap on" => {
                 // Enable word wrap
                 self.pane_manager.set_wrap_enabled(true);
                 let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
@@ -50,9 +56,25 @@ impl ViewModel {
                 events.extend(visibility_events);
                 let _ = self.emit_view_event(events);
             }
-            "set nowrap" => {
+            "set wrap off" => {
                 // Disable word wrap
                 self.pane_manager.set_wrap_enabled(false);
+                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
+                let mut events = vec![ViewEvent::FullRedrawRequired];
+                events.extend(visibility_events);
+                let _ = self.emit_view_event(events);
+            }
+            "set number on" => {
+                // Enable line numbers
+                self.pane_manager.set_line_numbers_visible(true);
+                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
+                let mut events = vec![ViewEvent::FullRedrawRequired];
+                events.extend(visibility_events);
+                let _ = self.emit_view_event(events);
+            }
+            "set number off" => {
+                // Disable line numbers
+                self.pane_manager.set_line_numbers_visible(false);
                 let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
                 let mut events = vec![ViewEvent::FullRedrawRequired];
                 events.extend(visibility_events);

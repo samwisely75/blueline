@@ -1,6 +1,6 @@
 [package]
 name = "blueline"
-version = "0.28.0"
+version = "0.45.3"
 authors = ["Sam Wisely <samwisely75@gmail.com>"]
 description = "A lightweight, profile-based HTTP client with REPL interface"
 edition = "2021"
@@ -51,6 +51,9 @@ unicode-width = "0.1"
 unicode-segmentation = "1.11"
 cjk = "0.2"
 vte = "0.13"
+shellexpand = "3.1"
+arboard = "3.4"
+bitflags = "2.6"
 # rustyline = "12.0"
 
 [dev-dependencies]
