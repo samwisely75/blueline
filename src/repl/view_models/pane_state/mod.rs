@@ -36,6 +36,7 @@ pub mod display;
 pub mod scrolling;
 pub mod selection_methods;
 pub mod text_operations;
+pub mod visual_block_insert;
 pub mod visual_selection;
 pub mod word_navigation;
 
@@ -109,11 +110,15 @@ pub struct PaneState {
     pub last_visual_selection_start: Option<LogicalPosition>,
     pub last_visual_selection_end: Option<LogicalPosition>,
     pub last_visual_mode: Option<EditorMode>, // Track which visual mode was used
-    pub pane_dimensions: Dimensions,          // (width, height)
-    pub editor_mode: EditorMode,              // Current editor mode for this pane
-    pub line_number_width: usize,             // Width needed for line numbers display
-    pub virtual_column: usize,                // Vim-style virtual column - desired cursor position
-    pub capabilities: PaneCapabilities,       // What operations are allowed on this pane
+    // Visual Block Insert state - tracks cursor positions for multi-cursor editing
+    pub visual_block_insert_cursors: Vec<LogicalPosition>,
+    // Original Visual Block Insert start positions - used to prevent backspace beyond boundaries
+    pub visual_block_insert_start_columns: Vec<usize>,
+    pub pane_dimensions: Dimensions,    // (width, height)
+    pub editor_mode: EditorMode,        // Current editor mode for this pane
+    pub line_number_width: usize,       // Width needed for line numbers display
+    pub virtual_column: usize,          // Vim-style virtual column - desired cursor position
+    pub capabilities: PaneCapabilities, // What operations are allowed on this pane
 }
 
 impl PaneState {
@@ -135,6 +140,8 @@ impl PaneState {
             last_visual_selection_start: None,
             last_visual_selection_end: None,
             last_visual_mode: None,
+            visual_block_insert_cursors: Vec::new(),
+            visual_block_insert_start_columns: Vec::new(),
             pane_dimensions: Dimensions::new(pane_width, pane_height),
             editor_mode: EditorMode::Normal, // Start in Normal mode
             line_number_width: MIN_LINE_NUMBER_WIDTH, // Start with minimum width

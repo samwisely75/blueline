@@ -969,6 +969,43 @@ impl PaneManager {
     pub fn get_current_pane_state(&self) -> Option<&PaneState> {
         Some(&self.panes[self.current_pane])
     }
+
+    // ===== Visual Block Insert Cursor Management =====
+    // These methods delegate to the current pane's visual block insert state
+
+    /// Set Visual Block Insert cursor positions for multi-cursor editing
+    pub fn set_visual_block_insert_cursors(&mut self, positions: Vec<LogicalPosition>) {
+        self.panes[self.current_pane].set_visual_block_insert_cursors(positions);
+    }
+
+    /// Update only the cursor positions without changing boundaries
+    pub fn update_visual_block_insert_cursors(&mut self, positions: Vec<LogicalPosition>) {
+        self.panes[self.current_pane].update_visual_block_insert_cursors(positions);
+    }
+
+    /// Get Visual Block Insert cursor positions
+    pub fn get_visual_block_insert_cursors(&self) -> Vec<LogicalPosition> {
+        self.panes[self.current_pane]
+            .get_visual_block_insert_cursors()
+            .to_vec()
+    }
+
+    /// Get Visual Block Insert start column boundaries
+    pub fn get_visual_block_insert_start_columns(&self) -> Vec<usize> {
+        self.panes[self.current_pane]
+            .get_visual_block_insert_start_columns()
+            .to_vec()
+    }
+
+    /// Clear Visual Block Insert cursor positions
+    pub fn clear_visual_block_insert_cursors(&mut self) {
+        self.panes[self.current_pane].clear_visual_block_insert_cursors();
+    }
+
+    /// Check if we're in multi-cursor Visual Block Insert mode
+    pub fn is_in_visual_block_insert_mode(&self) -> bool {
+        self.panes[self.current_pane].is_in_visual_block_insert_mode()
+    }
 }
 
 #[cfg(test)]

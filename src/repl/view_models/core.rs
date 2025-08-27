@@ -65,11 +65,6 @@ pub struct ViewModel {
     // Whether d/dd/D commands should cut (yank) instead of just delete
     pub(super) dcut_enabled: bool,
 
-    // Visual Block Insert state - tracks cursor positions for multi-cursor editing
-    pub(super) visual_block_insert_cursors: Vec<LogicalPosition>,
-    // Original Visual Block Insert start positions - used to prevent backspace beyond boundaries
-    pub(super) visual_block_insert_start_columns: Vec<usize>,
-
     // Double buffering state
     pub(super) current_screen_buffer: ScreenBuffer,
     pub(super) previous_screen_buffer: ScreenBuffer,
@@ -101,8 +96,6 @@ impl ViewModel {
             yank_buffer: Box::new(MemoryYankBuffer::new()),
             clipboard_enabled: false,
             dcut_enabled: true, // Default to true for cut behavior
-            visual_block_insert_cursors: Vec::new(),
-            visual_block_insert_start_columns: Vec::new(),
             current_screen_buffer: ScreenBuffer::new(
                 terminal_dimensions.0 as usize,
                 terminal_dimensions.1 as usize,
@@ -120,63 +113,37 @@ impl ViewModel {
         tracing::debug!("Event bus set for ViewModel");
     }
 
-    /// Set Visual Block Insert cursor positions for multi-cursor editing
-    /// This also sets the initial boundary columns (only on first call)
-    pub fn set_visual_block_insert_cursors(&mut self, positions: Vec<LogicalPosition>) {
-        self.visual_block_insert_cursors = positions;
+    // Visual Block Insert cursor methods are now delegated to PaneManager
 
-        // Only set start columns if they're not already set (preserve boundaries)
-        if self.visual_block_insert_start_columns.is_empty() {
-            // Store the start columns as boundaries - extract column from each position
-            self.visual_block_insert_start_columns = self
-                .visual_block_insert_cursors
-                .iter()
-                .map(|pos| pos.column)
-                .collect();
-            tracing::debug!(
-                "Set {} Visual Block Insert cursor positions with initial start columns: {:?}",
-                self.visual_block_insert_cursors.len(),
-                self.visual_block_insert_start_columns
-            );
-        } else {
-            tracing::debug!(
-                "Updated {} Visual Block Insert cursor positions, preserving start columns: {:?}",
-                self.visual_block_insert_cursors.len(),
-                self.visual_block_insert_start_columns
-            );
-        }
+    /// Set Visual Block Insert cursor positions for multi-cursor editing
+    pub fn set_visual_block_insert_cursors(&mut self, positions: Vec<LogicalPosition>) {
+        self.pane_manager.set_visual_block_insert_cursors(positions);
     }
 
     /// Update only the cursor positions without changing boundaries
     pub fn update_visual_block_insert_cursors(&mut self, positions: Vec<LogicalPosition>) {
-        self.visual_block_insert_cursors = positions;
-        tracing::debug!(
-            "Updated {} Visual Block Insert cursor positions, preserving boundaries: {:?}",
-            self.visual_block_insert_cursors.len(),
-            self.visual_block_insert_start_columns
-        );
+        self.pane_manager
+            .update_visual_block_insert_cursors(positions);
     }
 
     /// Get Visual Block Insert cursor positions  
-    pub fn get_visual_block_insert_cursors(&self) -> &[LogicalPosition] {
-        &self.visual_block_insert_cursors
+    pub fn get_visual_block_insert_cursors(&self) -> Vec<LogicalPosition> {
+        self.pane_manager.get_visual_block_insert_cursors()
     }
 
     /// Get Visual Block Insert start column boundaries
-    pub fn get_visual_block_insert_start_columns(&self) -> &[usize] {
-        &self.visual_block_insert_start_columns
+    pub fn get_visual_block_insert_start_columns(&self) -> Vec<usize> {
+        self.pane_manager.get_visual_block_insert_start_columns()
     }
 
     /// Clear Visual Block Insert cursor positions
     pub fn clear_visual_block_insert_cursors(&mut self) {
-        self.visual_block_insert_cursors.clear();
-        self.visual_block_insert_start_columns.clear();
-        tracing::debug!("Cleared Visual Block Insert cursor positions and boundaries");
+        self.pane_manager.clear_visual_block_insert_cursors();
     }
 
     /// Check if we're in multi-cursor Visual Block Insert mode
     pub fn is_in_visual_block_insert_mode(&self) -> bool {
-        !self.visual_block_insert_cursors.is_empty()
+        self.pane_manager.is_in_visual_block_insert_mode()
     }
 
     /// Enable or disable system clipboard integration

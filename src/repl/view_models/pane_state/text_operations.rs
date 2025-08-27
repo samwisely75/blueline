@@ -1188,6 +1188,8 @@ mod tests {
             last_visual_selection_start: None,
             last_visual_selection_end: None,
             last_visual_mode: None,
+            visual_block_insert_cursors: Vec::new(),
+            visual_block_insert_start_columns: Vec::new(),
             pane_dimensions: Dimensions::new(80, 25),
             editor_mode: EditorMode::Visual,
             capabilities: PaneCapabilities::EDITABLE
