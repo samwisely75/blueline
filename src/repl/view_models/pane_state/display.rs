@@ -6,7 +6,7 @@
 //! - Display width calculations for multi-byte characters
 //! - Line number width management
 
-use crate::repl::models::geometry::Dimensions;
+use crate::repl::models::state::geometry::Dimensions;
 use crate::repl::models::{DisplayCache, DisplayLine};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -50,8 +50,8 @@ impl PaneState {
         wrap_enabled: bool,
         tab_width: usize,
     ) -> anyhow::Result<DisplayCache> {
-        use crate::repl::models::display_cache::*;
-        use crate::repl::models::display_char::DisplayChar;
+        use crate::repl::models::display::display_cache::*;
+        use crate::repl::models::display::display_char::DisplayChar;
 
         // Ensure word boundaries are calculated for all lines
         let character_buffer = self.buffer.content_mut().character_buffer_mut();
@@ -178,7 +178,7 @@ impl PaneState {
         }
 
         // Convert line to BufferChars for accurate display width calculation
-        use crate::repl::models::buffer_char::BufferLine;
+        use crate::repl::models::buffer::buffer_char::BufferLine;
         let buffer_line = BufferLine::from_string(line);
         let buffer_chars = buffer_line.chars();
 

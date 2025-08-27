@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 
-use crate::repl::models::yank_buffer::{
+use crate::repl::models::state::yank_buffer::{
     ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType,
 };
 

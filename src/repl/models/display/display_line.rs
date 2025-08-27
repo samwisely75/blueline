@@ -3,8 +3,8 @@
 //! Represents a single display line that may be part of a wrapped logical line.
 //! Handles character positioning, word navigation, and display width calculations.
 
-use crate::repl::models::buffer_char::BufferLine;
-use crate::repl::models::display_char::DisplayChar;
+use crate::repl::models::buffer::buffer_char::BufferLine;
+use super::display_char::DisplayChar;
 
 /// Type alias for character position entry in display line
 type CharPosition<'a> = (usize, &'a DisplayChar);

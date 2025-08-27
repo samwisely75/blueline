@@ -4,7 +4,7 @@
 //! Handles text storage, cursor management, and basic editing operations.
 
 use crate::repl::events::{LogicalPosition, LogicalRange, ModelEvent, Pane};
-use crate::repl::models::buffer_char::CharacterBuffer;
+use super::buffer_char::CharacterBuffer;
 
 /// Content of a text buffer with character-aware positioning
 #[derive(Debug, Clone, PartialEq)]

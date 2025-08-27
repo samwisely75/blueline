@@ -4,35 +4,44 @@
 //! This module maintains the same public API while organizing models
 //! into logical groups for better maintainability.
 
-// Import model modules
-pub mod buffer_char;
-pub mod buffer_model;
-pub mod display_cache;
-pub mod display_char;
-pub mod display_line;
-pub mod geometry;
-pub mod logical_position;
-pub mod request_model;
-pub mod response_model;
-pub mod screen_buffer;
-pub mod selection;
-pub mod status_line;
-pub mod yank_buffer;
+// Import model subdirectories
+pub mod buffer;
+pub mod display;
+pub mod state;
 
-// Re-export all models for easy access
-pub use buffer_char::{BufferChar, BufferLine, CharacterBuffer};
-pub use buffer_model::{BufferContent, BufferModel};
-pub use display_cache::{build_display_cache, DisplayCache, DisplayPosition};
-pub use display_char::DisplayChar;
-pub use display_line::DisplayLine;
-pub use geometry::{Dimensions, Position};
-pub use logical_position::{LogicalPosition, LogicalRange};
-pub use request_model::{HttpHeaders, RequestModel};
-pub use response_model::ResponseModel;
-pub use screen_buffer::{BufferCell, ScreenBuffer};
-pub use selection::Selection;
-pub use status_line::{HttpStatus, StatusLine};
-pub use yank_buffer::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType};
+// Re-export all models for easy access (maintaining backward compatibility)
+pub use buffer::buffer_char::{BufferChar, BufferLine, CharacterBuffer};
+pub use buffer::buffer_model::{BufferContent, BufferModel};
+pub use buffer::request_model::{HttpHeaders, RequestModel};
+pub use buffer::response_model::ResponseModel;
+
+pub use display::display_cache::{build_display_cache, DisplayCache};
+pub use display::display_char::DisplayChar;
+pub use display::display_line::DisplayLine;
+pub use display::screen_buffer::{BufferCell, ScreenBuffer};
+pub use display::status_line::{HttpStatus, StatusLine};
+
+pub use state::geometry::{Dimensions, Position};
+pub use state::logical_position::{LogicalPosition, LogicalRange};
+pub use state::selection::Selection;
+pub use state::yank_buffer::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType};
+
+// Re-export submodules for direct access (backward compatibility)
+pub use buffer::buffer_char;
+pub use buffer::buffer_model;
+pub use buffer::request_model;
+pub use buffer::response_model;
+
+pub use display::display_cache;
+pub use display::display_char;
+pub use display::display_line;
+pub use display::screen_buffer;
+pub use display::status_line;
+
+pub use state::geometry;
+pub use state::logical_position;
+pub use state::selection;
+pub use state::yank_buffer;
 
 #[cfg(test)]
 mod tests {

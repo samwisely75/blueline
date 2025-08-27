@@ -77,7 +77,7 @@ pub enum ModelEvent {
 }
 
 // Re-export YankType from models to avoid duplication
-pub use crate::repl::models::yank_buffer::YankType;
+pub use crate::repl::models::state::yank_buffer::YankType;
 
 #[cfg(test)]
 mod tests {

@@ -3,7 +3,7 @@
 //! Provides display-aware character representation that extends BufferChar
 //! with rendering, styling, and terminal-specific properties.
 
-use crate::repl::models::buffer_char::BufferChar;
+use crate::repl::models::buffer::buffer_char::BufferChar;
 use unicode_width::UnicodeWidthChar;
 
 /// A character with both logical (buffer) and display (rendering) properties
@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn display_char_should_handle_tab_width_correctly() {
-        use crate::repl::models::buffer_char::BufferChar;
+        use crate::repl::models::buffer::buffer_char::BufferChar;
 
         // Create a tab character
         let buffer_char = BufferChar::new('\t', 0, 0);
