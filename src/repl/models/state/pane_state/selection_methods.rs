@@ -5,8 +5,8 @@
 //! with the encapsulated Selection object.
 
 use crate::repl::events::LogicalPosition;
-use crate::repl::view_models::pane_state::PaneState;
-use crate::repl::view_models::Selection;
+use super::PaneState;
+use crate::repl::models::Selection;
 
 impl PaneState {
     /// Create a new selection starting from the cursor position

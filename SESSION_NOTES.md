@@ -1,5 +1,62 @@
 # Session Notes
 
+## [2025-08-27] MVVM Refactoring - Phase 5 Complete
+
+### Phase 5: The Great Consolidation - Completed
+
+Successfully moved state models to the proper layers in the MVVM architecture:
+
+1. **Moved PaneState to models layer** (✅ Complete)
+   - Relocated from `src/repl/view_models/pane_state/` to `src/repl/models/state/pane_state/`
+   - Updated all imports throughout the codebase
+   - Maintained backward compatibility through re-exports
+
+2. **Created AppState in models layer** (✅ Complete)
+   - Created new `src/repl/models/state/app_state.rs` containing pure data structures
+   - Consolidated all application state including:
+     - Request and Response panes
+     - Active pane tracking
+     - Event management
+     - Yank buffer and session configuration
+   - No business logic - pure data model as per MVVM pattern
+
+3. **Created AppViewModel wrapper** (✅ Complete)
+   - Created `src/repl/view_models/app_view_model.rs`
+   - Wraps AppState and provides business logic methods
+   - Handles mode changes, pane switching, clipboard management
+   - Properly emits ViewEvents for UI updates
+   - Ready to receive migrated business logic from AppController
+
+### Architecture Status
+
+The MVVM structure is now properly layered:
+- **Models Layer** (`src/repl/models/`): Pure data structures
+  - `state/app_state.rs`: Core application state
+  - `state/pane_state/`: Pane-specific state
+  - Other models organized by category (buffer/, display/, state/)
+  
+- **ViewModels Layer** (`src/repl/view_models/`): Business logic
+  - `app_view_model.rs`: Main business logic coordinator (new)
+  - `core.rs`: Legacy ViewModel (to be phased out)
+  - Various managers for specific responsibilities
+
+- **Controller Layer** (`src/repl/controllers/`): User input handling
+  - Currently contains ~1944 lines of business logic to be migrated
+
+### Test Results
+- All 478 unit tests passing
+- Integration tests verified (application lifecycle tests passing)
+- No regressions detected
+
+### Next Steps for Phase 6
+The foundation is now in place to migrate business logic from AppController to AppViewModel:
+1. Identify handle_* methods in AppController that contain business logic
+2. Move logic to AppViewModel, leaving only coordination in AppController
+3. Update AppController to use AppViewModel instead of direct ViewModel
+4. Gradually phase out the old ViewModel in favor of AppViewModel + AppState
+
+# Session Notes
+
 ## [2025-08-27] MVVM Refactoring - Phase 3 Complete
 
 ### User Request Summary

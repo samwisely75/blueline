@@ -21,8 +21,10 @@ pub use display::display_line::DisplayLine;
 pub use display::screen_buffer::{BufferCell, ScreenBuffer};
 pub use display::status_line::{HttpStatus, StatusLine};
 
+pub use state::app_state::AppState;
 pub use state::geometry::{Dimensions, Position};
 pub use state::logical_position::{LogicalPosition, LogicalRange};
+pub use state::pane_state::PaneState;
 pub use state::selection::Selection;
 pub use state::yank_buffer::{
     ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType,

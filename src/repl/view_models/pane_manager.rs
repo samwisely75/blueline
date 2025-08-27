@@ -34,7 +34,7 @@
 
 use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities, ViewEvent};
 use crate::repl::models::state::geometry::Position;
-use crate::repl::view_models::pane_state::{PaneState, VisualSelectionRestoreResult};
+use crate::repl::models::state::pane_state::{PaneState, VisualSelectionRestoreResult};
 
 /// Type alias for visual selection state to reduce complexity
 type VisualSelectionState = (

@@ -24,7 +24,7 @@
 use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities};
 use crate::repl::models::state::geometry::{Dimensions, Position};
 use crate::repl::models::{BufferModel, DisplayCache};
-use crate::repl::view_models::Selection;
+use crate::repl::models::Selection;
 use std::ops::{Index, IndexMut};
 
 // Re-export all modules
