@@ -8,6 +8,22 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::{Command, CommandContext, ExecutionContext, ModelEvent};
 
+/// Parse request text to extract method and URL
+/// This is a simple parser for the event - actual parsing happens in HttpService
+fn parse_request_basics(request_text: &str) -> (&str, &str) {
+    let trimmed = request_text.trim();
+    if trimmed.is_empty() {
+        return ("GET", "");
+    }
+    
+    let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
+    match parts.as_slice() {
+        [method, url, ..] => (*method, *url),
+        [url] => ("GET", *url),
+        _ => ("GET", ""),
+    }
+}
+
 /// Execute HTTP request command (Enter in Normal mode on Request pane)
 ///
 /// This command:
@@ -38,26 +54,28 @@ impl Command for HttpExecuteCommand {
     }
 
     fn handle(&self, context: &mut ExecutionContext) -> Result<Vec<ModelEvent>> {
-        // Check if HTTP service is available
-        let http_service = context
-            .services
-            .http
-            .as_mut()
-            .ok_or_else(|| anyhow::anyhow!("HTTP service not configured"))?;
+        // Check if HTTP service is available (read-only check)
+        if context.services.http.is_none() {
+            return Err(anyhow::anyhow!("HTTP service not configured"));
+        }
 
-        // Get request text from the view model
+        // Get request text from the view model (read-only access)
         let request_text = context.view_model.get_request_text();
 
-        // Set executing status
-        context.view_model.set_executing_request(true);
+        // Parse the request to get method and URL for the event
+        // This is a simple parse - the actual HTTP execution will be done by AppController
+        let (method, url) = parse_request_basics(&request_text);
 
-        // Execute the HTTP request asynchronously through the service
-        http_service.execute_async(request_text);
-
-        // Return event indicating request was initiated
-        Ok(vec![ModelEvent::StatusMessageSet {
-            message: "Executing HTTP request...".to_string(),
-        }])
+        // Return events - Commands should ONLY emit events, not execute directly
+        Ok(vec![
+            ModelEvent::HttpRequestStarted {
+                method: method.to_string(),
+                url: url.to_string(),
+            },
+            ModelEvent::StatusMessageSet {
+                message: "Executing HTTP request...".to_string(),
+            },
+        ])
     }
 
     fn name(&self) -> &'static str {

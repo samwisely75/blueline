@@ -3,8 +3,8 @@
 //! Text buffer content and buffer model for MVVM architecture.
 //! Handles text storage, cursor management, and basic editing operations.
 
-use crate::repl::events::{LogicalPosition, LogicalRange, ModelEvent, Pane};
 use super::buffer_char::CharacterBuffer;
+use crate::repl::events::{LogicalPosition, LogicalRange, ModelEvent, Pane};
 
 /// Content of a text buffer with character-aware positioning
 #[derive(Debug, Clone, PartialEq)]

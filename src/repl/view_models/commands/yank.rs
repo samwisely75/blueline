@@ -67,12 +67,11 @@ impl Command for YankSelectionCommand {
             bail!("Yank selection only works in visual modes");
         }
 
-        // Get selected text directly from ViewModel
+        // Get selected text from ViewModel (read-only access)
         let selected_text = match context.view_model.get_selected_text() {
             Some(text) => text,
             None => {
-                // Even if no text selected, still return to Normal mode (for testing)
-                context.view_model.set_mode(EditorMode::Normal);
+                // Return events indicating no selection
                 return Ok(vec![
                     ModelEvent::ModeChanged {
                         old_mode: current_mode,
@@ -88,30 +87,18 @@ impl Command for YankSelectionCommand {
         // Determine yank type based on current mode
         let yank_type = Self::determine_yank_type(current_mode);
 
-        // Store in yank buffer using YankService
-        context
-            .services
-            .yank
-            .yank(selected_text.clone(), yank_type)?;
-
-        // Clear selection directly on ViewModel
-        context.view_model.clear_visual_selection()?;
-
-        // Change mode back to Normal
-        context.view_model.set_mode(EditorMode::Normal);
-
-        // Prepare events to emit
+        // Prepare events to emit - Commands should ONLY emit events, not manipulate state
         let events = vec![
             ModelEvent::TextYanked {
                 pane: current_pane,
                 text: selected_text.clone(),
                 yank_type,
             },
+            ModelEvent::SelectionCleared { pane: current_pane },
             ModelEvent::ModeChanged {
                 old_mode: current_mode,
                 new_mode: EditorMode::Normal,
             },
-            ModelEvent::SelectionCleared { pane: current_pane },
             ModelEvent::StatusMessageSet {
                 message: format!("{} characters yanked", selected_text.len()),
             },

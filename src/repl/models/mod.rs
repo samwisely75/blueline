@@ -24,7 +24,9 @@ pub use display::status_line::{HttpStatus, StatusLine};
 pub use state::geometry::{Dimensions, Position};
 pub use state::logical_position::{LogicalPosition, LogicalRange};
 pub use state::selection::Selection;
-pub use state::yank_buffer::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType};
+pub use state::yank_buffer::{
+    ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType,
+};
 
 // Re-export submodules for direct access (backward compatibility)
 pub use buffer::buffer_char;

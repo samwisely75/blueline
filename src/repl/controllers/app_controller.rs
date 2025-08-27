@@ -1783,7 +1783,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
 
             ModelEvent::SelectionCleared { pane } => {
-                // Selection clearing happens automatically when mode changes to Normal
+                // Clear the visual selection in the ViewModel
+                self.view_model.clear_visual_selection()?;
                 tracing::debug!("Selection cleared for {:?}", pane);
             }
 
@@ -1796,8 +1797,17 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
 
             ModelEvent::HttpRequestStarted { method, url } => {
-                // Just log it - the actual execution is handled by HttpExecuteCommand
-                tracing::info!("HTTP request initiated: {method} {url}");
+                // Execute the HTTP request through the service
+                if let Some(http_service) = self.services.http.as_mut() {
+                    // Get the full request text and execute it
+                    let request_text = self.view_model.get_request_text();
+                    self.view_model.set_executing_request(true);
+                    http_service.execute_async(request_text);
+                    tracing::info!("HTTP request initiated: {method} {url}");
+                } else {
+                    tracing::error!("HTTP service not available");
+                    self.view_model.set_status_message("HTTP service not configured".to_string());
+                }
             }
 
             ModelEvent::HttpResponseReceived { status, body } => {
