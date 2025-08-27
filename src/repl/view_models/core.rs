@@ -9,7 +9,6 @@
 //! - Manages application state and business logic
 //! - Emits ViewEvents for selective rendering optimizations
 //! - Handles HTTP client operations and session state
-//! - Provides double buffering for smooth terminal rendering
 //!
 //! CORE RESPONSIBILITIES:
 //! 1. State Management: Coordinates between panes, modes, and user interactions
@@ -18,7 +17,6 @@
 //! 4. HTTP Operations: Manages request/response lifecycle with status updates
 
 use crate::repl::events::{EditorMode, EventBus, LogicalPosition, ModelEvent, Pane, ViewEvent};
-use crate::repl::models::ScreenBuffer;
 use crate::repl::models::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer};
 use crate::repl::models::{ResponseModel, StatusLine};
 use crate::repl::view_models::pane_manager::PaneManager;
@@ -64,10 +62,6 @@ pub struct ViewModel {
 
     // Whether d/dd/D commands should cut (yank) instead of just delete
     pub(super) dcut_enabled: bool,
-
-    // Double buffering state
-    pub(super) current_screen_buffer: ScreenBuffer,
-    pub(super) previous_screen_buffer: ScreenBuffer,
 }
 
 impl ViewModel {
@@ -78,7 +72,6 @@ impl ViewModel {
     /// - 80x24 terminal dimensions for initial layout calculations
     /// - Request pane as default active pane
     /// - Normal editor mode as starting state
-    /// - Double buffering system for smooth rendering
     pub fn new() -> Self {
         let response = ResponseModel::new();
 
@@ -96,14 +89,6 @@ impl ViewModel {
             yank_buffer: Box::new(MemoryYankBuffer::new()),
             clipboard_enabled: false,
             dcut_enabled: true, // Default to true for cut behavior
-            current_screen_buffer: ScreenBuffer::new(
-                terminal_dimensions.0 as usize,
-                terminal_dimensions.1 as usize,
-            ),
-            previous_screen_buffer: ScreenBuffer::new(
-                terminal_dimensions.0 as usize,
-                terminal_dimensions.1 as usize,
-            ),
         }
     }
 
@@ -201,8 +186,7 @@ impl ViewModel {
     /// HIGH-LEVEL SYNCHRONIZATION:
     /// Ensures all rendering components stay synchronized with terminal dimensions:
     /// 1. Updates PaneManager for layout calculations
-    /// 2. Resizes screen buffers for double buffering
-    /// 3. Considers response status for pane height calculations
+    /// 2. Considers response status for pane height calculations
     pub fn update_terminal_size(&mut self, width: u16, height: u16) {
         // Update PaneManager's terminal size and pane dimensions
         self.pane_manager.update_terminal_size(
@@ -210,42 +194,6 @@ impl ViewModel {
             height,
             self.response.status_code().is_some(),
         );
-
-        // Resize screen buffers
-        self.current_screen_buffer
-            .resize(width as usize, height as usize);
-        self.previous_screen_buffer
-            .resize(width as usize, height as usize);
-    }
-
-    /// Get current screen buffer dimensions
-    pub fn screen_buffer_dimensions(&self) -> (usize, usize) {
-        self.current_screen_buffer.dimensions()
-    }
-
-    /// Swap screen buffers (for double buffering)
-    pub fn swap_screen_buffers(&mut self) {
-        std::mem::swap(
-            &mut self.current_screen_buffer,
-            &mut self.previous_screen_buffer,
-        );
-        self.current_screen_buffer.clear();
-    }
-
-    /// Get changed rows between current and previous screen buffers
-    pub fn get_screen_buffer_diff(&self) -> Vec<usize> {
-        self.current_screen_buffer
-            .diff(&self.previous_screen_buffer)
-    }
-
-    /// Get reference to current screen buffer (for rendering)
-    pub fn current_screen_buffer(&self) -> &ScreenBuffer {
-        &self.current_screen_buffer
-    }
-
-    /// Get mutable reference to current screen buffer (for building)
-    pub fn current_screen_buffer_mut(&mut self) -> &mut ScreenBuffer {
-        &mut self.current_screen_buffer
     }
 
     /// Get terminal size
