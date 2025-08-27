@@ -1,27 +1,12 @@
 //! # HTTP Management
 //!
-//! Handles HTTP client configuration, request execution, and response management.
+//! Handles HTTP response management and session state.
 
 // Pane import removed - using semantic operations instead
 use crate::repl::view_models::core::ViewModel;
-use anyhow::Result;
-use bluenote::{HttpClient, HttpConnectionProfile};
 use std::collections::HashMap;
 
 impl ViewModel {
-    /// Set HTTP client from profile
-    pub fn set_http_client(&mut self, profile: &impl HttpConnectionProfile) -> Result<()> {
-        let client = HttpClient::new(profile)?;
-        self.http_client = Some(client);
-        tracing::debug!("HTTP client configured with profile");
-        Ok(())
-    }
-
-    /// Get reference to HTTP client
-    pub fn http_client(&self) -> Option<&HttpClient> {
-        self.http_client.as_ref()
-    }
-
     /// Get current request execution status
     pub fn is_executing_request(&self) -> bool {
         self.status_line.is_executing()

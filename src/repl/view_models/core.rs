@@ -23,7 +23,6 @@ use crate::repl::models::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer};
 use crate::repl::models::{ResponseModel, StatusLine};
 use crate::repl::view_models::pane_manager::PaneManager;
 // use anyhow::Result; // Currently unused
-use bluenote::HttpClient;
 use std::collections::HashMap;
 
 /// Type alias for event bus option to reduce complexity
@@ -49,8 +48,7 @@ pub struct ViewModel {
     // Status line model - encapsulates all status bar state
     pub(super) status_line: StatusLine,
 
-    // HTTP client and configuration
-    pub(super) http_client: Option<HttpClient>,
+    // HTTP session configuration
     pub(super) http_session_headers: HashMap<String, String>,
 
     // Event management
@@ -96,7 +94,6 @@ impl ViewModel {
             response,
             pane_manager: PaneManager::new(terminal_dimensions),
             status_line: StatusLine::new(),
-            http_client: None,
             http_session_headers: HashMap::new(),
             event_bus: None,
             pending_view_events: Vec::new(),

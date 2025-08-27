@@ -124,17 +124,12 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Configure view model with profile settings
     fn configure_view_model(
         view_model: &mut ViewModel,
-        profile: &impl HttpConnectionProfile,
+        _profile: &impl HttpConnectionProfile,
         profile_name: &str,
         profile_path: &str,
     ) {
-        // Set up HTTP client with the loaded profile
-        if let Err(e) = view_model.set_http_client(profile) {
-            tracing::warn!("Failed to create HTTP client with profile: {}", e);
-            // Continue with default client
-        }
-
-        // Store profile information for display
+        // HTTP client is now managed by the HttpService, not the ViewModel
+        // Just store profile information for display
         view_model.set_profile_info(profile_name.to_string(), profile_path.to_string());
 
         // Set up event bus in view model
