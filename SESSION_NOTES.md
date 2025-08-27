@@ -1,5 +1,53 @@
 # Session Notes
 
+## [2025-08-27] MVVM Refactoring - Phase 3 Complete
+
+### User Request Summary
+- Continue MVVM refactoring after completing Phase 1 and 2
+- Move commands from view_models to unified_commands (architectural fix)
+- Complete Phase 3: Service separation and state consolidation
+
+### What We Tried and Found
+- **Commands Location Issue**: User correctly identified that commands were incorrectly placed under view_models directory in MVVM architecture
+- **HTTP Client**: Successfully removed from ViewModel since it belongs in HttpService
+- **Visual Block State**: User astutely observed that visual_block_insert states were inconsistently placed in ViewModel while all other cursor states were in PaneState
+- **Selection Service**: Considered but rejected creating a SelectionService - selection logic is too tightly integrated with buffer/cursor management to separate
+
+### Decisions Made
+- **Commands are Independent**: Moved all commands to unified_commands module, separate from ViewModels
+- **Services Own Resources**: HTTP client now exclusively managed by HttpService, not stored in ViewModel
+- **Consistent State Location**: All cursor/selection states including visual_block_insert now in PaneState
+- **No SelectionService**: Selection functionality remains integrated with ViewModel/PaneState due to tight coupling with buffer operations
+
+### Completed Changes
+1. **Commands Reorganization** (Architectural Fix)
+   - Moved src/repl/view_models/commands/ to src/repl/unified_commands/
+   - Fixed all imports throughout codebase
+   - Commands now properly independent of ViewModels in MVVM
+
+2. **Phase 3: Service Separation**
+   - Removed http_client from ViewModel core
+   - HTTP operations now exclusively through HttpService
+   - Moved visual_block_insert_cursors and visual_block_insert_start_columns to PaneState
+   - Created visual_block_insert.rs module in PaneState
+   - ViewModel now delegates visual block operations through PaneManager to PaneState
+
+### Architecture Improvements
+- **ViewModel is now cleaner**: No longer owns service resources or low-level cursor states
+- **Better separation of concerns**: Services manage their own resources, PaneState manages all cursor/selection states
+- **Consistent state management**: All similar states are now co-located
+
+### Next Steps / TODO
+- Phase 4: Move screen buffers to ViewRenderer
+- Phase 5: The Great Consolidation  
+- Phase 6: Modularize AppViewModel
+- Phase 7: Clean up obsolete code
+
+### Tag Created
+- `phase3-services-complete`: Marks completion of service separation and state consolidation
+
+---
+
 ## [2025-08-26] MVVM Architecture Pivot - Correcting Fundamental Misunderstanding
 
 ### User Request Summary
