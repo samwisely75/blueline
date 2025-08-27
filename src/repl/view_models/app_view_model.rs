@@ -8,7 +8,9 @@
 //! - AppViewModel contains business logic and operations
 //! - AppController handles user input and coordinates
 
-use crate::repl::events::{EditorMode, EventBus, LogicalPosition, Pane, ViewEvent};
+use crate::repl::models::events::{EventBus, ViewEvent};
+use crate::repl::models::pane_state::{EditorMode, Pane};
+use crate::repl::models::LogicalPosition;
 use crate::repl::models::{AppState, ClipboardYankBuffer};
 
 /// Type alias for display line rendering data

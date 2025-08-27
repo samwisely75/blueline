@@ -3,7 +3,7 @@
 //! Commands for cursor movement including basic h,j,k,l navigation
 //! and arrow key support for all modes.
 
-use crate::repl::events::EditorMode;
+use crate::repl::models::pane_state::EditorMode;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -499,7 +499,7 @@ impl Command for HalfPageUpCommand {
 mod tests {
     use super::*;
     use crate::repl::commands::context::ViewModelSnapshot;
-    use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+    use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
     use crossterm::event::KeyModifiers;
 
     fn create_test_key_event(code: KeyCode) -> KeyEvent {

@@ -3,8 +3,8 @@
 //! Handles all cursor movement and positioning logic using semantic operations from PaneManager.
 //! This module provides high-level cursor operations that work with the current/other area abstraction.
 
-use crate::repl::events::LogicalPosition;
 use crate::repl::models::coordinates::geometry::Position;
+use crate::repl::models::LogicalPosition;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 

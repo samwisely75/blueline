@@ -3,8 +3,9 @@
 //! Handles display cache management, word wrapping, and display coordinate calculations.
 //! This module coordinates between logical content and display representation.
 
-use crate::repl::events::{Pane, ViewEvent};
 use crate::repl::models::coordinates::geometry::Position;
+use crate::repl::models::events::ViewEvent;
+use crate::repl::models::pane_state::Pane;
 use crate::repl::models::DisplayCache;
 use crate::repl::view_models::core::{DisplayLineData, ViewModel};
 

@@ -7,7 +7,7 @@
 use anyhow::{bail, Result};
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::repl::events::EditorMode;
+use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{
     events::{ModelEvent, YankType},
     Command, CommandContext, ExecutionContext,
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn yank_selection_command_should_be_relevant_for_y_in_visual_mode() {
-        use crate::repl::events::Pane;
+        use crate::repl::models::pane_state::Pane;
         use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
         let command = YankSelectionCommand::new();
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn yank_selection_command_should_not_be_relevant_in_wrong_conditions() {
-        use crate::repl::events::Pane;
+        use crate::repl::models::pane_state::Pane;
         use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
         let command = YankSelectionCommand::new();

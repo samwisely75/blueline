@@ -5,7 +5,7 @@
 //! with the encapsulated Selection object.
 
 use super::PaneState;
-use crate::repl::events::LogicalPosition;
+use crate::repl::models::LogicalPosition;
 use crate::repl::models::Selection;
 
 impl PaneState {
@@ -16,7 +16,7 @@ impl PaneState {
     pub fn start_selection(&mut self) -> bool {
         if !self
             .capabilities
-            .contains(crate::repl::events::PaneCapabilities::SELECTABLE)
+            .contains(crate::repl::models::pane_state::PaneCapabilities::SELECTABLE)
         {
             return false;
         }
@@ -33,7 +33,7 @@ impl PaneState {
     pub fn extend_selection_to(&mut self, position: LogicalPosition) -> bool {
         if !self
             .capabilities
-            .contains(crate::repl::events::PaneCapabilities::SELECTABLE)
+            .contains(crate::repl::models::pane_state::PaneCapabilities::SELECTABLE)
         {
             return false;
         }
@@ -93,7 +93,7 @@ impl PaneState {
     pub fn set_selection(&mut self, start: LogicalPosition, end: LogicalPosition) -> bool {
         if !self
             .capabilities
-            .contains(crate::repl::events::PaneCapabilities::SELECTABLE)
+            .contains(crate::repl::models::pane_state::PaneCapabilities::SELECTABLE)
         {
             return false;
         }
@@ -106,7 +106,7 @@ impl PaneState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::{Pane, PaneCapabilities};
+    use crate::repl::models::pane_state::{Pane, PaneCapabilities};
 
     fn create_test_pane_state() -> PaneState {
         let mut pane_state =

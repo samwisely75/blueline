@@ -4,7 +4,7 @@
 //! Commands produce these events, and the controller applies them to the ViewModel.
 //! This maintains proper separation of concerns - commands suggest, controller decides.
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
 
 /// Type alias for HTTP headers to reduce complexity
 pub type HttpHeaders = Vec<(String, String)>;

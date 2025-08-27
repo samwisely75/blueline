@@ -16,7 +16,9 @@
 //! 3. View Coordination: Emits events for efficient selective rendering
 //! 4. HTTP Operations: Manages request/response lifecycle with status updates
 
-use crate::repl::events::{EditorMode, EventBus, LogicalPosition, ModelEvent, Pane, ViewEvent};
+use crate::repl::models::events::{EventBus, ModelEvent, ViewEvent};
+use crate::repl::models::pane_state::{EditorMode, Pane};
+use crate::repl::models::LogicalPosition;
 use crate::repl::models::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer};
 use crate::repl::models::{ResponseModel, StatusLine};
 use crate::repl::view_models::pane_manager::PaneManager;
@@ -336,7 +338,7 @@ impl Default for ViewModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::EditorMode;
+    use crate::repl::models::pane_state::EditorMode;
 
     /// Test for Issue #84: Wrap mode cursor positioning bug
     ///

@@ -2,7 +2,7 @@
 //!
 //! Commands for switching between request and response panes
 
-use crate::repl::events::{EditorMode, Pane};
+use crate::repl::models::pane_state::{EditorMode, Pane};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
@@ -49,7 +49,7 @@ impl Command for SwitchPaneCommand {
 mod tests {
     use super::*;
     use crate::repl::commands::ViewModelSnapshot;
-    use crate::repl::events::LogicalPosition;
+    use crate::repl::models::LogicalPosition;
     use crossterm::event::KeyModifiers;
 
     fn create_test_key_event(code: KeyCode) -> KeyEvent {

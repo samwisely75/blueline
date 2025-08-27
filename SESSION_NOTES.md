@@ -1,5 +1,52 @@
 # Session Notes
 
+## [2025-08-27] MVVM Refactoring - Events Directory Deleted
+
+### Summary
+Successfully completed the reorganization of the models and events directories and deleted the old src/repl/events facade directory.
+
+### What We Accomplished
+
+#### Directory Structure Reorganization
+1. **Moved pane_state and app_state to models root**
+   - `src/repl/models/pane_state/` (moved from models/state/)
+   - `src/repl/models/app_state.rs` (moved from models/state/)
+
+2. **Renamed 'state' directory to 'coordinates'**
+   - `src/repl/models/coordinates/` contains geometry.rs, logical_position.rs, selection.rs
+
+3. **Moved yank_buffer to buffer directory**
+   - `src/repl/models/buffer/yank_buffer.rs` (moved from models/)
+
+4. **Reorganized events directory**
+   - Moved event_bus.rs, model_events.rs, view_events.rs to `src/repl/models/events/`
+   - Moved event_source.rs, terminal_event_source.rs to `src/repl/io/`
+   - Migrated core types (EditorMode, Pane, PaneCapabilities) directly into `src/repl/models/pane_state/mod.rs`
+
+5. **Deleted src/repl/events directory**
+   - Successfully removed the facade directory after updating all import references throughout the codebase
+
+### Technical Details
+- Fixed all import paths from `crate::repl::events::` to appropriate new locations:
+  - `crate::repl::models::events::` for EventBus, ModelEvent, ViewEvent
+  - `crate::repl::models::pane_state::` for EditorMode, Pane, PaneCapabilities  
+  - `crate::repl::models::` for LogicalPosition, LogicalRange
+  - `crate::repl::io::` for EventSource, TerminalEventSource
+
+### Testing Results
+- All 473 unit tests passing
+- Integration tests passing
+- Pre-commit checks clean (formatting, clippy)
+
+### Current State
+The codebase now has a cleaner architecture with:
+- Models layer containing pure data structures (AppState, PaneState)
+- ViewModels layer with business logic (AppViewModel)
+- Events properly organized within models
+- No more facade directories
+
+---
+
 ## [2025-08-27] MVVM Refactoring - Phase 5 Complete
 
 ### Phase 5: The Great Consolidation - Completed

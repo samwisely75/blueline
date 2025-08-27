@@ -6,8 +6,9 @@
 //! - Visual selection handling during movement
 //! - Virtual column management for Vim-style navigation
 
-use crate::repl::events::{EditorMode, LogicalPosition, PaneCapabilities, ViewEvent};
 use crate::repl::models::coordinates::geometry::Position;
+use crate::repl::models::events::ViewEvent;
+use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
 
 use super::PaneState;
 
@@ -354,7 +355,7 @@ impl PaneState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::{Pane, PaneCapabilities};
+    use crate::repl::models::pane_state::{Pane, PaneCapabilities};
 
     #[test]
     fn set_current_cursor_position_should_update_virtual_column() {

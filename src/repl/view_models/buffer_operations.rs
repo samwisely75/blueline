@@ -13,7 +13,9 @@
 //! - ViewEvents are emitted for selective rendering optimization
 //! - Character-by-character processing maintains semantic consistency
 
-use crate::repl::events::{EditorMode, LogicalPosition, ViewEvent};
+use crate::repl::models::events::ViewEvent;
+use crate::repl::models::pane_state::EditorMode;
+use crate::repl::models::LogicalPosition;
 use crate::repl::view_models::core::ViewModel;
 use crate::repl::view_models::{YankEntry, YankType};
 use anyhow::Result;
@@ -506,7 +508,7 @@ impl ViewModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::LogicalPosition;
+    use crate::repl::models::LogicalPosition;
 
     #[test]
     fn test_visual_block_insert_mode_allows_text_insertion() {

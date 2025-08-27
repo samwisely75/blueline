@@ -2,7 +2,9 @@
 //!
 //! Handles editor mode transitions, visual mode selection state, and mode-related operations.
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane, ViewEvent};
+use crate::repl::models::events::ViewEvent;
+use crate::repl::models::pane_state::{EditorMode, Pane};
+use crate::repl::models::LogicalPosition;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 

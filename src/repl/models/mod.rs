@@ -53,7 +53,7 @@ pub use coordinates::selection;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::Pane;
+    use crate::repl::models::pane_state::Pane;
 
     #[test]
     fn all_models_should_create_with_defaults() {

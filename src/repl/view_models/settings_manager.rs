@@ -3,7 +3,7 @@
 //! Handles settings changes from ex commands.
 
 use crate::repl::commands::{Setting, SettingValue};
-use crate::repl::events::ViewEvent;
+use crate::repl::models::events::ViewEvent;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 

@@ -316,7 +316,7 @@ impl Default for ExCommandRegistry {
 mod tests {
     use super::*;
     use crate::repl::commands::ViewModelSnapshot;
-    use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+    use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
 
     fn create_test_context() -> CommandContext {
         CommandContext {

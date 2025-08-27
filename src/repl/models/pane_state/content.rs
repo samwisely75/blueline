@@ -5,8 +5,9 @@
 //! - Clearing editable content
 //! - Content manipulation with capability checking
 
-use crate::repl::events::{Pane, PaneCapabilities, ViewEvent};
 use crate::repl::models::coordinates::geometry::Position;
+use crate::repl::models::events::ViewEvent;
+use crate::repl::models::pane_state::{Pane, PaneCapabilities};
 use crate::repl::models::BufferModel;
 
 use super::PaneState;

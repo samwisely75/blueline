@@ -6,7 +6,8 @@
 //! - Checking position inclusion in selections
 //! - Updating selections during cursor movement
 
-use crate::repl::events::{EditorMode, LogicalPosition, PaneCapabilities, ViewEvent};
+use crate::repl::models::events::ViewEvent;
+use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
 
 use super::PaneState;
 

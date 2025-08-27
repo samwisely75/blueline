@@ -32,9 +32,11 @@
 //! 4. Event Coordination: Aggregates ViewEvents from PaneState operations for rendering
 //! 5. Settings Management: Handles display settings (wrap, line numbers, tab width) that affect all panes
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities, ViewEvent};
 use crate::repl::models::coordinates::geometry::Position;
+use crate::repl::models::events::ViewEvent;
+use crate::repl::models::pane_state::{EditorMode, Pane, PaneCapabilities};
 use crate::repl::models::pane_state::{PaneState, VisualSelectionRestoreResult};
+use crate::repl::models::LogicalPosition;
 
 /// Type alias for visual selection state to reduce complexity
 type VisualSelectionState = (
@@ -258,7 +260,7 @@ impl PaneManager {
         {
             // Process the model event and return appropriate view events
             let view_events = match model_event {
-                crate::repl::events::ModelEvent::TextDeleted { .. } => {
+                crate::repl::models::events::ModelEvent::TextDeleted { .. } => {
                     // Rebuild display cache for the affected pane
                     let visibility_events = self.rebuild_display_caches_and_sync();
                     let mut events = vec![ViewEvent::CurrentAreaRedrawRequired];
@@ -1059,7 +1061,7 @@ mod tests {
             );
             assert!(events.iter().any(|e| matches!(
                 e,
-                crate::repl::events::ViewEvent::ActiveCursorUpdateRequired
+                crate::repl::models::events::ViewEvent::ActiveCursorUpdateRequired
             )));
 
             // Cursor should have moved down by page size (pane height)
@@ -1329,7 +1331,7 @@ mod tests {
         );
         assert!(events.iter().any(|e| matches!(
             e,
-            crate::repl::events::ViewEvent::ActiveCursorUpdateRequired
+            crate::repl::models::events::ViewEvent::ActiveCursorUpdateRequired
         )));
 
         // Cursor should have moved up by page size (pane height)

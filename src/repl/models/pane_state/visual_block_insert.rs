@@ -2,7 +2,7 @@
 //!
 //! This module contains methods for managing multi-cursor state during Visual Block Insert mode.
 
-use crate::repl::events::LogicalPosition;
+use crate::repl::models::LogicalPosition;
 
 use super::PaneState;
 

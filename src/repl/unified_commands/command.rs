@@ -7,7 +7,7 @@ use anyhow::Result;
 use crossterm::event::KeyEvent;
 
 use crate::repl::{
-    events::{EditorMode, Pane},
+    models::pane_state::{EditorMode, Pane},
     services::Services,
     unified_commands::events::ModelEvent,
     view_models::ViewModel,
@@ -147,9 +147,12 @@ mod tests {
         // Verify context captures current state
         assert_eq!(
             context.current_mode,
-            crate::repl::events::EditorMode::Normal
+            crate::repl::models::pane_state::EditorMode::Normal
         );
-        assert_eq!(context.current_pane, crate::repl::events::Pane::Request);
+        assert_eq!(
+            context.current_pane,
+            crate::repl::models::pane_state::Pane::Request
+        );
         assert!(!context.has_selection);
     }
 }

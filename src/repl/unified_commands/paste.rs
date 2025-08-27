@@ -121,7 +121,7 @@ impl Command for PasteBeforeCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::Pane;
+    use crate::repl::models::pane_state::Pane;
     use crossterm::event::KeyModifiers;
 
     #[test]

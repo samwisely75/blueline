@@ -3,7 +3,7 @@
 //! Context and service access for commands.
 //! Uses trait-based access to provide type-safe, minimal exposure to services.
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
 use crate::repl::view_models::ViewModel;
 use bluenote::HttpClient;
 

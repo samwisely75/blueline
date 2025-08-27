@@ -2,7 +2,7 @@
 //!
 //! Handles view event emission, rendering orchestration, and event collection using semantic operations.
 
-use crate::repl::events::{ModelEvent, ViewEvent};
+use crate::repl::models::events::{ModelEvent, ViewEvent};
 use crate::repl::view_models::core::ViewModel;
 
 impl ViewModel {

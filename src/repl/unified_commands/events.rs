@@ -7,7 +7,7 @@
 //! Model Events represent business logic changes and maintain the separation
 //! between business logic (Commands) and display logic (ViewRenderer).
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
 
 /// Semantic events describing state changes in the application
 ///

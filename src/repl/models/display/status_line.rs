@@ -3,7 +3,7 @@
 //! Encapsulates all state related to the status line display,
 //! providing a clean interface for status bar rendering.
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
 
 /// Type alias for display position
 type DisplayPosition = (usize, usize);

@@ -9,8 +9,10 @@ use crate::repl::{
         CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, MovementDirection,
         Setting, SettingValue, ViewModelSnapshot,
     },
-    events::{EditorMode, LogicalPosition, Pane, SimpleEventBus},
     io::{EventStream, RenderStream},
+    models::events::SimpleEventBus,
+    models::pane_state::{EditorMode, Pane},
+    models::LogicalPosition,
     services::{HttpResponseMessage, Services},
     unified_commands::{
         events::YankType as NewYankType, Command, ExecutionContext, ModelEvent,
@@ -723,9 +725,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// - Full redraw overrides all other events for simplicity
     fn process_view_events(
         &mut self,
-        view_events: Vec<crate::repl::events::ViewEvent>,
+        view_events: Vec<crate::repl::models::events::ViewEvent>,
     ) -> Result<()> {
-        use crate::repl::events::ViewEvent;
+        use crate::repl::models::events::ViewEvent;
 
         // Group events to avoid redundant renders
         let mut needs_full_redraw = false;
@@ -1832,7 +1834,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 mod tests {
     use super::*;
     use crate::cmd_args::CommandLineArgs;
-    use crate::repl::events::{EditorMode, Pane};
+    use crate::repl::models::pane_state::{EditorMode, Pane};
 
     #[test]
     fn app_controller_should_create() {

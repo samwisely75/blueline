@@ -2,7 +2,7 @@
 //!
 //! Commands for executing HTTP requests using the unified command pattern.
 
-use crate::repl::events::EditorMode;
+use crate::repl::models::pane_state::EditorMode;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -88,7 +88,7 @@ impl Default for HttpExecuteCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::Pane;
+    use crate::repl::models::pane_state::Pane;
     use crate::repl::services::Services;
     use crate::repl::view_models::ViewModel;
 

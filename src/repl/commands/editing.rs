@@ -3,7 +3,7 @@
 //! Commands for text insertion, deletion, and line operations
 //! in insert mode.
 
-use crate::repl::events::{EditorMode, Pane};
+use crate::repl::models::pane_state::{EditorMode, Pane};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -174,7 +174,7 @@ impl Command for DeleteCharAtCursorCommand {
 mod tests {
     use super::*;
     use crate::repl::commands::{CommandContext, MovementDirection, ViewModelSnapshot};
-    use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+    use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
     use crossterm::event::KeyModifiers;
 
     fn create_test_key_event(code: KeyCode) -> KeyEvent {

@@ -8,7 +8,7 @@
 //! - ViewModels contain business logic and state management
 //! - Views handle presentation and user interaction
 
-use crate::repl::events::{EventBus, ModelEvent, ViewEvent};
+use crate::repl::models::events::{EventBus, ModelEvent, ViewEvent};
 use crate::repl::models::{MemoryYankBuffer, PaneState, ResponseModel, StatusLine, YankBuffer};
 use std::collections::HashMap;
 
@@ -26,7 +26,7 @@ pub struct AppState {
     // Pane states
     pub request_pane: PaneState,
     pub response_pane: PaneState,
-    pub active_pane: crate::repl::events::Pane,
+    pub active_pane: crate::repl::models::pane_state::Pane,
 
     // Status line model
     pub status_line: StatusLine,
@@ -50,7 +50,7 @@ pub struct AppState {
 impl AppState {
     /// Create a new AppState with default values
     pub fn new() -> Self {
-        use crate::repl::events::{Pane, PaneCapabilities};
+        use crate::repl::models::pane_state::{Pane, PaneCapabilities};
 
         // Default terminal size
         let (width, height) = (80, 24);
@@ -92,32 +92,35 @@ impl AppState {
     /// Get the active pane state
     pub fn active_pane_state(&self) -> &PaneState {
         match self.active_pane {
-            crate::repl::events::Pane::Request => &self.request_pane,
-            crate::repl::events::Pane::Response => &self.response_pane,
+            crate::repl::models::pane_state::Pane::Request => &self.request_pane,
+            crate::repl::models::pane_state::Pane::Response => &self.response_pane,
         }
     }
 
     /// Get the active pane state mutably
     pub fn active_pane_state_mut(&mut self) -> &mut PaneState {
         match self.active_pane {
-            crate::repl::events::Pane::Request => &mut self.request_pane,
-            crate::repl::events::Pane::Response => &mut self.response_pane,
+            crate::repl::models::pane_state::Pane::Request => &mut self.request_pane,
+            crate::repl::models::pane_state::Pane::Response => &mut self.response_pane,
         }
     }
 
     /// Get pane state by pane type
-    pub fn get_pane_state(&self, pane: crate::repl::events::Pane) -> &PaneState {
+    pub fn get_pane_state(&self, pane: crate::repl::models::pane_state::Pane) -> &PaneState {
         match pane {
-            crate::repl::events::Pane::Request => &self.request_pane,
-            crate::repl::events::Pane::Response => &self.response_pane,
+            crate::repl::models::pane_state::Pane::Request => &self.request_pane,
+            crate::repl::models::pane_state::Pane::Response => &self.response_pane,
         }
     }
 
     /// Get pane state mutably by pane type
-    pub fn get_pane_state_mut(&mut self, pane: crate::repl::events::Pane) -> &mut PaneState {
+    pub fn get_pane_state_mut(
+        &mut self,
+        pane: crate::repl::models::pane_state::Pane,
+    ) -> &mut PaneState {
         match pane {
-            crate::repl::events::Pane::Request => &mut self.request_pane,
-            crate::repl::events::Pane::Response => &mut self.response_pane,
+            crate::repl::models::pane_state::Pane::Request => &mut self.request_pane,
+            crate::repl::models::pane_state::Pane::Response => &mut self.response_pane,
         }
     }
 }

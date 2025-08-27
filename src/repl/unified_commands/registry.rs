@@ -8,7 +8,7 @@ use crossterm::event::KeyEvent;
 use std::sync::Arc;
 
 use crate::repl::{
-    events::EditorMode,
+    models::pane_state::EditorMode,
     unified_commands::{Command, CommandContext},
 };
 
@@ -109,7 +109,7 @@ impl Default for UnifiedCommandRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::Pane;
+    use crate::repl::models::pane_state::Pane;
     use crossterm::event::{KeyCode, KeyModifiers};
 
     #[test]

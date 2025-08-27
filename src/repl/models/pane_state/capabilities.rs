@@ -5,7 +5,7 @@
 //! - Editor mode management
 //! - Virtual column management for Vim-style navigation
 
-use crate::repl::events::{EditorMode, PaneCapabilities};
+use crate::repl::models::pane_state::{EditorMode, PaneCapabilities};
 
 use super::PaneState;
 

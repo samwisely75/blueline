@@ -3,7 +3,7 @@
 //! Handles ex command buffer operations and command execution.
 
 use crate::repl::commands::{CommandEvent, MovementDirection};
-use crate::repl::events::ViewEvent;
+use crate::repl::models::events::ViewEvent;
 use crate::repl::view_models::core::ViewModel;
 use anyhow::Result;
 

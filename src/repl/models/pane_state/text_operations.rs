@@ -6,10 +6,10 @@
 //! - Line joining operations
 //! - Visual mode text manipulation
 
-use crate::repl::events::{
-    EditorMode, LogicalPosition, LogicalRange, ModelEvent, PaneCapabilities, ViewEvent,
-};
+use super::{EditorMode, PaneCapabilities};
 use crate::repl::models::coordinates::geometry::Position;
+use crate::repl::models::events::{ModelEvent, ViewEvent};
+use crate::repl::models::{LogicalPosition, LogicalRange};
 
 use super::PaneState;
 
@@ -1167,8 +1167,8 @@ impl PaneState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities};
     use crate::repl::models::coordinates::geometry::{Dimensions, Position};
+    use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane, PaneCapabilities};
     use crate::repl::models::{BufferModel, DisplayCache};
 
     fn create_test_pane_state_with_content(content: &str) -> PaneState {

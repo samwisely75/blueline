@@ -3,8 +3,9 @@
 //! Views are responsible for rendering and handling terminal display.
 //! They subscribe to view events and update the display accordingly.
 
-use crate::repl::events::{EditorMode, Pane, ViewEvent};
 use crate::repl::io::RenderStream;
+use crate::repl::models::events::ViewEvent;
+use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::view_models::ViewModel;
 use anyhow::Result;
 // Import ANSI escape codes from the separate module
@@ -313,7 +314,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
             // Handle empty lines with virtual character for visual selection
             if chars.is_empty() {
                 let position =
-                    crate::repl::events::LogicalPosition::new(logical_line, logical_start_col);
+                    crate::repl::models::LogicalPosition::new(logical_line, logical_start_col);
                 let is_selected = view_model.is_position_selected(position, pane);
 
                 if is_selected {
@@ -337,7 +338,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
                     // For wrapped lines, logical_start_col indicates where this display line starts
                     // within the original logical line, so we add col_index to get the actual position
                     let logical_col = logical_start_col + col_index;
-                    let position = crate::repl::events::LogicalPosition::new(
+                    let position = crate::repl::models::LogicalPosition::new(
                         logical_line, // Use logical_line directly (already 0-based)
                         logical_col,
                     );
@@ -984,8 +985,12 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             ViewEvent::SecondaryAreaRedrawRequired => {
                 let current_pane = view_model.get_current_pane();
                 let secondary_pane = match current_pane {
-                    crate::repl::events::Pane::Request => crate::repl::events::Pane::Response,
-                    crate::repl::events::Pane::Response => crate::repl::events::Pane::Request,
+                    crate::repl::models::pane_state::Pane::Request => {
+                        crate::repl::models::pane_state::Pane::Response
+                    }
+                    crate::repl::models::pane_state::Pane::Response => {
+                        crate::repl::models::pane_state::Pane::Request
+                    }
                 };
                 self.render_pane(view_model, secondary_pane)?;
             }
@@ -996,8 +1001,12 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             ViewEvent::SecondaryAreaPartialRedrawRequired { start_line } => {
                 let current_pane = view_model.get_current_pane();
                 let secondary_pane = match current_pane {
-                    crate::repl::events::Pane::Request => crate::repl::events::Pane::Response,
-                    crate::repl::events::Pane::Response => crate::repl::events::Pane::Request,
+                    crate::repl::models::pane_state::Pane::Request => {
+                        crate::repl::models::pane_state::Pane::Response
+                    }
+                    crate::repl::models::pane_state::Pane::Response => {
+                        crate::repl::models::pane_state::Pane::Request
+                    }
                 };
                 self.render_pane_partial(view_model, secondary_pane, *start_line)?;
             }
@@ -1019,8 +1028,12 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             ViewEvent::SecondaryAreaScrollChanged { .. } => {
                 let current_pane = view_model.get_current_pane();
                 let secondary_pane = match current_pane {
-                    crate::repl::events::Pane::Request => crate::repl::events::Pane::Response,
-                    crate::repl::events::Pane::Response => crate::repl::events::Pane::Request,
+                    crate::repl::models::pane_state::Pane::Request => {
+                        crate::repl::models::pane_state::Pane::Response
+                    }
+                    crate::repl::models::pane_state::Pane::Response => {
+                        crate::repl::models::pane_state::Pane::Request
+                    }
                 };
                 self.render_pane(view_model, secondary_pane)?;
             }
@@ -1043,13 +1056,13 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                     self.render_pane(view_model, current_pane)?;
                 } else {
                     // Always redraw response pane when content changes
-                    self.render_pane(view_model, crate::repl::events::Pane::Response)?;
+                    self.render_pane(view_model, crate::repl::models::pane_state::Pane::Response)?;
                 }
             }
             ViewEvent::AllContentAreasRedrawRequired => {
                 // Redraw both panes
-                self.render_pane(view_model, crate::repl::events::Pane::Request)?;
-                self.render_pane(view_model, crate::repl::events::Pane::Response)?;
+                self.render_pane(view_model, crate::repl::models::pane_state::Pane::Request)?;
+                self.render_pane(view_model, crate::repl::models::pane_state::Pane::Response)?;
             }
         }
         Ok(())

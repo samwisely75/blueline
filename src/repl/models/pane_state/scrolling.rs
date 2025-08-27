@@ -6,8 +6,9 @@
 //! - Cursor position synchronization
 //! - Mode-aware scrolling behavior
 
-use crate::repl::events::{EditorMode, LogicalPosition, PaneCapabilities, ViewEvent};
 use crate::repl::models::coordinates::geometry::Position;
+use crate::repl::models::events::ViewEvent;
+use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
 
 use super::{CursorMoveResult, PaneState, ScrollAdjustResult, ScrollResult};
 
@@ -191,7 +192,7 @@ impl PaneState {
                 // MODE-AWARE HORIZONTAL SCROLL: Different trigger points for Insert vs Normal mode
                 // Also check if the character at cursor position extends beyond the visible area
                 let mut should_scroll_horizontally = match self.editor_mode {
-                    crate::repl::events::EditorMode::Insert => {
+                    crate::repl::models::pane_state::EditorMode::Insert => {
                         // Insert mode: Scroll early to make room for typing next character
                         display_pos.col >= old_horizontal_offset + content_width
                     }

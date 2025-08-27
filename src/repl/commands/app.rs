@@ -29,7 +29,7 @@ impl Command for AppTerminateCommand {
 mod tests {
     use super::*;
     use crate::repl::commands::ViewModelSnapshot;
-    use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+    use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
 
     fn create_test_key_event(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
         KeyEvent::new(code, modifiers)
