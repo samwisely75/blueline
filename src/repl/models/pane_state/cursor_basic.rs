@@ -7,7 +7,7 @@
 //! - Virtual column management for Vim-style navigation
 
 use crate::repl::events::{EditorMode, LogicalPosition, PaneCapabilities, ViewEvent};
-use crate::repl::models::state::geometry::Position;
+use crate::repl::models::coordinates::geometry::Position;
 
 use super::PaneState;
 

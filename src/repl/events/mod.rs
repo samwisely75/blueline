@@ -1,24 +1,23 @@
 //! # Events Module
 //!
-//! Re-exports all event system components organized by category.
-//! This module maintains the same public API while organizing events
-//! into logical groups for better maintainability.
+//! Re-exports event system components from their new locations.
+//! This module acts as a facade to maintain backward compatibility.
 
-// Import event modules
-pub mod event_bus;
-pub mod event_source;
-pub mod model_events;
-pub mod terminal_event_source;
-pub mod types;
-pub mod view_events;
+// Re-export from models/events
+pub use crate::repl::models::events::event_bus::{
+    EventBus, ModelEventHandler, SimpleEventBus, ViewEventHandler,
+};
+pub use crate::repl::models::events::model_events::ModelEvent;
+pub use crate::repl::models::events::view_events::{InputEvent, ViewEvent};
 
-// Re-export all types for easy access
-pub use event_bus::{EventBus, ModelEventHandler, SimpleEventBus, ViewEventHandler};
-pub use event_source::EventSource;
-pub use model_events::ModelEvent;
-pub use terminal_event_source::TerminalEventSource;
-pub use types::{EditorMode, LogicalPosition, LogicalRange, Pane, PaneCapabilities};
-pub use view_events::{InputEvent, ViewEvent};
+// Re-export from io
+pub use crate::repl::io::event_source::EventSource;
+pub use crate::repl::io::terminal_event_source::TerminalEventSource;
+
+// Re-export from models/pane_state/core
+pub use crate::repl::models::pane_state::core::{
+    EditorMode, LogicalPosition, LogicalRange, Pane, PaneCapabilities,
+};
 
 #[cfg(test)]
 mod tests {

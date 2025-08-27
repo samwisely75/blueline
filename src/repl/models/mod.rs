@@ -5,9 +5,12 @@
 //! into logical groups for better maintainability.
 
 // Import model subdirectories
+pub mod app_state;
 pub mod buffer;
+pub mod coordinates;
 pub mod display;
-pub mod state;
+pub mod events;
+pub mod pane_state;
 
 // Re-export all models for easy access (maintaining backward compatibility)
 pub use buffer::buffer_char::{BufferChar, BufferLine, CharacterBuffer};
@@ -21,12 +24,12 @@ pub use display::display_line::DisplayLine;
 pub use display::screen_buffer::{BufferCell, ScreenBuffer};
 pub use display::status_line::{HttpStatus, StatusLine};
 
-pub use state::app_state::AppState;
-pub use state::geometry::{Dimensions, Position};
-pub use state::logical_position::{LogicalPosition, LogicalRange};
-pub use state::pane_state::PaneState;
-pub use state::selection::Selection;
-pub use state::yank_buffer::{
+pub use app_state::AppState;
+pub use coordinates::geometry::{Dimensions, Position};
+pub use coordinates::logical_position::{LogicalPosition, LogicalRange};
+pub use coordinates::selection::Selection;
+pub use pane_state::PaneState;
+pub use buffer::yank_buffer::{
     ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType,
 };
 
@@ -42,10 +45,10 @@ pub use display::display_line;
 pub use display::screen_buffer;
 pub use display::status_line;
 
-pub use state::geometry;
-pub use state::logical_position;
-pub use state::selection;
-pub use state::yank_buffer;
+pub use coordinates::geometry;
+pub use coordinates::logical_position;
+pub use coordinates::selection;
+pub use buffer::yank_buffer;
 
 #[cfg(test)]
 mod tests {

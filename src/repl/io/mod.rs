@@ -25,9 +25,10 @@ use crossterm::event::Event;
 use std::io::Write;
 use std::time::Duration;
 
+pub mod event_source;
 pub mod mock;
 pub mod terminal;
-
+pub mod terminal_event_source;
 pub mod test_bridge;
 
 // Re-export terminal implementations for convenience

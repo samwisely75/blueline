@@ -22,14 +22,15 @@
 //! and follows the Single Responsibility Principle.
 
 use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities};
-use crate::repl::models::state::geometry::{Dimensions, Position};
-use crate::repl::models::{BufferModel, DisplayCache};
+use crate::repl::models::coordinates::geometry::{Dimensions, Position};
 use crate::repl::models::Selection;
+use crate::repl::models::{BufferModel, DisplayCache};
 use std::ops::{Index, IndexMut};
 
 // Re-export all modules
 pub mod capabilities;
 pub mod content;
+pub mod core;
 pub mod cursor_basic;
 pub mod cursor_line;
 pub mod display;

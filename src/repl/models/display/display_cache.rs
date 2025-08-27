@@ -5,7 +5,7 @@
 
 use super::display_line::DisplayLine;
 use crate::repl::models::buffer::buffer_char::BufferLine;
-use crate::repl::models::state::geometry::Position;
+use crate::repl::models::coordinates::geometry::Position;
 use std::collections::HashMap;
 use std::time::Instant;
 

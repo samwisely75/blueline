@@ -73,7 +73,7 @@ impl EventBus for SimpleEventBus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::types::{EditorMode, LogicalPosition, Pane};
+    use crate::repl::models::pane_state::core::{EditorMode, LogicalPosition, Pane};
     use std::sync::{Arc, Mutex};
 
     #[test]

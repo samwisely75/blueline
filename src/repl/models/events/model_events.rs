@@ -3,7 +3,7 @@
 //! Events emitted when data models change state.
 //! These events notify the system of data changes for reactive updates.
 
-use super::types::{EditorMode, LogicalPosition, LogicalRange, Pane};
+use crate::repl::models::pane_state::core::{EditorMode, LogicalPosition, LogicalRange, Pane};
 
 /// Events emitted when models change
 #[derive(Debug, Clone, PartialEq)]

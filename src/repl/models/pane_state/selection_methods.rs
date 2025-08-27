@@ -4,8 +4,8 @@
 //! These methods provide buffer-aware selection operations that work
 //! with the encapsulated Selection object.
 
-use crate::repl::events::LogicalPosition;
 use super::PaneState;
+use crate::repl::events::LogicalPosition;
 use crate::repl::models::Selection;
 
 impl PaneState {

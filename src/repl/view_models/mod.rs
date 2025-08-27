@@ -29,6 +29,6 @@ pub use core::ViewModel;
 pub use app_view_model::DisplayLineData;
 pub use pane_manager::PaneManager;
 // PaneState now imported from models
-pub use crate::repl::models::state::pane_state::PaneState;
+pub use crate::repl::models::pane_state::PaneState;
 // Selection and YankBuffer types now imported from models
 pub use crate::repl::models::{Selection, YankEntry, YankType};

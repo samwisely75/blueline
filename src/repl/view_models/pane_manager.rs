@@ -33,8 +33,8 @@
 //! 5. Settings Management: Handles display settings (wrap, line numbers, tab width) that affect all panes
 
 use crate::repl::events::{EditorMode, LogicalPosition, Pane, PaneCapabilities, ViewEvent};
-use crate::repl::models::state::geometry::Position;
-use crate::repl::models::state::pane_state::{PaneState, VisualSelectionRestoreResult};
+use crate::repl::models::coordinates::geometry::Position;
+use crate::repl::models::pane_state::{PaneState, VisualSelectionRestoreResult};
 
 /// Type alias for visual selection state to reduce complexity
 type VisualSelectionState = (
