@@ -12,13 +12,11 @@ use crate::repl::{
     events::{EditorMode, LogicalPosition, Pane, SimpleEventBus},
     io::{EventStream, RenderStream},
     services::{HttpResponseMessage, Services},
-    view_models::{
-        commands::{
-            events::YankType as NewYankType, Command, ExecutionContext, ModelEvent,
-            UnifiedCommandRegistry,
-        },
-        ViewModel,
+    unified_commands::{
+        events::YankType as NewYankType, Command, ExecutionContext, ModelEvent,
+        UnifiedCommandRegistry,
     },
+    view_models::ViewModel,
     views::{TerminalRenderer, ViewRenderer},
 };
 use anyhow::Result;
@@ -275,7 +273,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Create command context from current state
         let context =
-            crate::repl::view_models::commands::CommandContext::from_view_model(&self.view_model);
+            crate::repl::unified_commands::CommandContext::from_view_model(&self.view_model);
         let current_mode = self.view_model.get_mode();
 
         // Find the first relevant command
@@ -1861,7 +1859,7 @@ mod tests {
 
     #[test]
     fn app_controller_should_execute_yank_selection_command() {
-        use crate::repl::view_models::commands::yank::YankSelectionCommand;
+        use crate::repl::unified_commands::yank::YankSelectionCommand;
 
         if crossterm::terminal::size().is_ok() {
             let cmd_args = CommandLineArgs::parse_from(["test"]);
@@ -1890,7 +1888,7 @@ mod tests {
 
     #[test]
     fn app_controller_should_process_model_events() {
-        use crate::repl::view_models::commands::{events::YankType, ModelEvent};
+        use crate::repl::unified_commands::{events::YankType, ModelEvent};
 
         if crossterm::terminal::size().is_ok() {
             let cmd_args = CommandLineArgs::parse_from(["test"]);

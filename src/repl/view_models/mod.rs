@@ -4,7 +4,6 @@
 //! This replaces the monolithic view_models.rs with a clean, maintainable architecture.
 
 mod buffer_operations;
-pub mod commands;
 mod core;
 mod cursor_manager;
 mod display_manager;

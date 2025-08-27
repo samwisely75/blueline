@@ -18,8 +18,8 @@ fn parse_request_basics(request_text: &str) -> (&str, &str) {
 
     let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
     match parts.as_slice() {
-        [method, url, ..] => (*method, *url),
-        [url] => ("GET", *url),
+        [method, url, ..] => (*method, url.trim()),
+        [url] => ("GET", url.trim()),
         _ => ("GET", ""),
     }
 }
@@ -54,11 +54,6 @@ impl Command for HttpExecuteCommand {
     }
 
     fn handle(&self, context: &mut ExecutionContext) -> Result<Vec<ModelEvent>> {
-        // Check if HTTP service is available (read-only check)
-        if context.services.http.is_none() {
-            return Err(anyhow::anyhow!("HTTP service not configured"));
-        }
-
         // Get request text from the view model (read-only access)
         let request_text = context.view_model.get_request_text();
 
@@ -67,6 +62,7 @@ impl Command for HttpExecuteCommand {
         let (method, url) = parse_request_basics(&request_text);
 
         // Return events - Commands should ONLY emit events, not execute directly
+        // The AppController will handle checking for HTTP service availability
         Ok(vec![
             ModelEvent::HttpRequestStarted {
                 method: method.to_string(),
@@ -160,20 +156,14 @@ mod tests {
         assert!(!cmd.is_relevant(event, EditorMode::Normal, &context));
     }
 
-    #[tokio::test]
-    async fn http_execute_should_parse_and_trigger_request() {
-        use bluenote::get_blank_profile;
-
+    #[test]
+    fn http_execute_should_parse_and_trigger_request() {
         let mut view_model = ViewModel::new();
-        // Set up request content through pane_manager
-        view_model
-            .pane_manager
-            .set_request_content("GET https://httpbin.org/get");
+        // Note: In real usage, request content would be set through user input
+        // For this test, we're testing that the command returns appropriate events
 
         let mut services = Services::new();
-        // Configure HTTP service for test
-        let profile = get_blank_profile();
-        let _ = services.configure_http(&profile); // May fail, but that's ok for test
+        // No need to configure HTTP service - command just emits events
 
         let mut context = ExecutionContext {
             view_model: &mut view_model,
@@ -183,42 +173,30 @@ mod tests {
         let cmd = HttpExecuteCommand::new();
         let result = cmd.handle(&mut context);
 
-        // If HTTP service is available, it should return success
-        // If not, it should return an error
-        assert!(result.is_ok() || result.is_err());
-
-        if result.is_ok() {
-            let events = result.unwrap();
-            assert_eq!(events.len(), 1);
-            assert!(matches!(events[0], ModelEvent::StatusMessageSet { .. }));
-            // Check that executing flag was set
-            assert!(view_model.is_executing_request());
-        }
+        // Should return events even with empty request
+        assert!(result.is_ok());
+        let events = result.unwrap();
+        assert_eq!(events.len(), 2); // HttpRequestStarted and StatusMessageSet
+        assert!(matches!(events[0], ModelEvent::HttpRequestStarted { .. }));
+        assert!(matches!(events[1], ModelEvent::StatusMessageSet { .. }));
     }
 
-    #[tokio::test]
-    async fn http_execute_should_handle_invalid_request() {
-        use bluenote::get_blank_profile;
-
-        let mut view_model = ViewModel::new();
-        // Set up invalid request through pane_manager
-        view_model.pane_manager.set_request_content("INVALID");
-
-        let mut services = Services::new();
-        // Configure HTTP service for test
-        let profile = get_blank_profile();
-        let _ = services.configure_http(&profile); // May fail, but that's ok for test
-
-        let mut context = ExecutionContext {
-            view_model: &mut view_model,
-            services: &mut services,
-        };
-
-        let cmd = HttpExecuteCommand::new();
-        let result = cmd.handle(&mut context);
-
-        // If HTTP service is available, it should parse and handle invalid request
-        // If not, it should return an error
-        assert!(result.is_ok() || result.is_err());
+    #[test]
+    fn http_execute_should_parse_request_basics() {
+        // Test the parse_request_basics function
+        assert_eq!(parse_request_basics(""), ("GET", ""));
+        assert_eq!(
+            parse_request_basics("https://example.com"),
+            ("GET", "https://example.com")
+        );
+        assert_eq!(
+            parse_request_basics("POST https://example.com"),
+            ("POST", "https://example.com")
+        );
+        assert_eq!(parse_request_basics("PUT /api/data"), ("PUT", "/api/data"));
+        assert_eq!(
+            parse_request_basics("  DELETE  /item  "),
+            ("DELETE", "/item")
+        );
     }
 }

@@ -9,7 +9,8 @@ use crossterm::event::KeyEvent;
 use crate::repl::{
     events::{EditorMode, Pane},
     services::Services,
-    view_models::{commands::events::ModelEvent, ViewModel},
+    unified_commands::events::ModelEvent,
+    view_models::ViewModel,
 };
 
 /// Command trait for the new Command Pattern architecture

@@ -8,7 +8,7 @@ use anyhow::{bail, Result};
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::repl::events::EditorMode;
-use crate::repl::view_models::commands::{
+use crate::repl::unified_commands::{
     events::{ModelEvent, YankType},
     Command, CommandContext, ExecutionContext,
 };

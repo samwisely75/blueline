@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::repl::{
     events::EditorMode,
-    view_models::commands::{Command, CommandContext},
+    unified_commands::{Command, CommandContext},
 };
 
 // Type alias for complex Command type
@@ -40,9 +40,7 @@ impl UnifiedCommandRegistry {
 
     /// Register all default commands
     fn register_default_commands(&mut self) {
-        use crate::repl::view_models::commands::{
-            http::HttpExecuteCommand, yank::YankSelectionCommand,
-        };
+        use crate::repl::unified_commands::{http::HttpExecuteCommand, yank::YankSelectionCommand};
 
         // Add YankSelectionCommand
         self.add_command(Arc::new(YankSelectionCommand::new()));
@@ -181,7 +179,7 @@ mod tests {
         let initial_count = registry.command_count();
 
         // Add a mock command
-        use crate::repl::view_models::commands::events::ModelEvent;
+        use crate::repl::unified_commands::events::ModelEvent;
         use anyhow::Result;
 
         #[derive(Default)]
@@ -199,7 +197,7 @@ mod tests {
 
             fn handle(
                 &self,
-                _context: &mut crate::repl::view_models::commands::ExecutionContext,
+                _context: &mut crate::repl::unified_commands::ExecutionContext,
             ) -> Result<Vec<ModelEvent>> {
                 Ok(vec![])
             }

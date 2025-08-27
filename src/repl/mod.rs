@@ -10,6 +10,7 @@ pub mod io;
 pub mod models;
 pub mod services;
 pub mod text;
+pub mod unified_commands;
 pub mod view_models;
 pub mod views;
 
