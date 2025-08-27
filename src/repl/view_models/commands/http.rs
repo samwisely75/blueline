@@ -15,7 +15,7 @@ fn parse_request_basics(request_text: &str) -> (&str, &str) {
     if trimmed.is_empty() {
         return ("GET", "");
     }
-    
+
     let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
     match parts.as_slice() {
         [method, url, ..] => (*method, *url),

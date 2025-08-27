@@ -1806,7 +1806,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                     tracing::info!("HTTP request initiated: {method} {url}");
                 } else {
                     tracing::error!("HTTP service not available");
-                    self.view_model.set_status_message("HTTP service not configured".to_string());
+                    self.view_model
+                        .set_status_message("HTTP service not configured".to_string());
                 }
             }
 
