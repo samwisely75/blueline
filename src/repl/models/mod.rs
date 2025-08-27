@@ -25,13 +25,13 @@ pub use display::screen_buffer::{BufferCell, ScreenBuffer};
 pub use display::status_line::{HttpStatus, StatusLine};
 
 pub use app_state::AppState;
+pub use buffer::yank_buffer::{
+    ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType,
+};
 pub use coordinates::geometry::{Dimensions, Position};
 pub use coordinates::logical_position::{LogicalPosition, LogicalRange};
 pub use coordinates::selection::Selection;
 pub use pane_state::PaneState;
-pub use buffer::yank_buffer::{
-    ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType,
-};
 
 // Re-export submodules for direct access (backward compatibility)
 pub use buffer::buffer_char;
@@ -45,10 +45,10 @@ pub use display::display_line;
 pub use display::screen_buffer;
 pub use display::status_line;
 
+pub use buffer::yank_buffer;
 pub use coordinates::geometry;
 pub use coordinates::logical_position;
 pub use coordinates::selection;
-pub use buffer::yank_buffer;
 
 #[cfg(test)]
 mod tests {

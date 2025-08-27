@@ -14,8 +14,8 @@ pub use crate::repl::models::events::view_events::{InputEvent, ViewEvent};
 pub use crate::repl::io::event_source::EventSource;
 pub use crate::repl::io::terminal_event_source::TerminalEventSource;
 
-// Re-export from models/pane_state/core
-pub use crate::repl::models::pane_state::core::{
+// Re-export from models/pane_state
+pub use crate::repl::models::pane_state::{
     EditorMode, LogicalPosition, LogicalRange, Pane, PaneCapabilities,
 };
 
