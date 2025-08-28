@@ -16,12 +16,12 @@
 //! 3. View Coordination: Emits events for efficient selective rendering
 //! 4. HTTP Operations: Manages request/response lifecycle with status updates
 
+use crate::repl::models::app_state::PaneManager;
 use crate::repl::models::events::{EventBus, ModelEvent, ViewEvent};
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::LogicalPosition;
 use crate::repl::models::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer};
 use crate::repl::models::{ResponseModel, StatusLine};
-use crate::repl::models::app_state::PaneManager;
 // use anyhow::Result; // Currently unused
 use std::collections::HashMap;
 
