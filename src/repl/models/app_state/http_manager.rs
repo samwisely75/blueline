@@ -3,7 +3,7 @@
 //! Handles HTTP response management and session state.
 
 // Pane import removed - using semantic operations instead
-use crate::repl::view_models::core::ViewModel;
+use crate::repl::view_models::ViewModel;
 use std::collections::HashMap;
 
 impl ViewModel {

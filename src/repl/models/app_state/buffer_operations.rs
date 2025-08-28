@@ -16,7 +16,7 @@
 use crate::repl::models::events::ViewEvent;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::models::LogicalPosition;
-use crate::repl::view_models::core::ViewModel;
+use crate::repl::view_models::ViewModel;
 use crate::repl::view_models::{YankEntry, YankType};
 use anyhow::Result;
 

@@ -5,7 +5,7 @@
 use crate::repl::models::events::ViewEvent;
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::LogicalPosition;
-use crate::repl::view_models::core::ViewModel;
+use crate::repl::view_models::ViewModel;
 use anyhow::Result;
 
 /// Type alias for visual selection state to reduce complexity

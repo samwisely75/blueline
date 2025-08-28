@@ -21,7 +21,7 @@ use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::LogicalPosition;
 use crate::repl::models::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer};
 use crate::repl::models::{ResponseModel, StatusLine};
-use crate::repl::view_models::pane_manager::PaneManager;
+use crate::repl::models::app_state::PaneManager;
 // use anyhow::Result; // Currently unused
 use std::collections::HashMap;
 
@@ -40,30 +40,30 @@ pub type DisplayLineData = (String, Option<usize>, bool, usize, usize);
 /// cross-cutting concerns like event emission and terminal synchronization.
 pub struct ViewModel {
     // Core state
-    pub(super) response: ResponseModel,
+    pub(crate) response: ResponseModel,
 
     // Pane management - encapsulates all pane-related state and operations
-    pub(super) pane_manager: PaneManager,
+    pub(crate) pane_manager: PaneManager,
 
     // Status line model - encapsulates all status bar state
-    pub(super) status_line: StatusLine,
+    pub(crate) status_line: StatusLine,
 
     // HTTP session configuration
-    pub(super) http_session_headers: HashMap<String, String>,
+    pub(crate) http_session_headers: HashMap<String, String>,
 
     // Event management
-    pub(super) event_bus: EventBusOption,
-    pub(super) pending_view_events: Vec<ViewEvent>,
-    pub(super) pending_model_events: Vec<ModelEvent>,
+    pub(crate) event_bus: EventBusOption,
+    pub(crate) pending_view_events: Vec<ViewEvent>,
+    pub(crate) pending_model_events: Vec<ModelEvent>,
 
     // Yank buffer for copy/paste operations
-    pub(super) yank_buffer: Box<dyn YankBuffer>,
+    pub(crate) yank_buffer: Box<dyn YankBuffer>,
 
     // Whether clipboard integration is enabled
-    pub(super) clipboard_enabled: bool,
+    pub(crate) clipboard_enabled: bool,
 
     // Whether d/dd/D commands should cut (yank) instead of just delete
-    pub(super) dcut_enabled: bool,
+    pub(crate) dcut_enabled: bool,
 }
 
 impl ViewModel {

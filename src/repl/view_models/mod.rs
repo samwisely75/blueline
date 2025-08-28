@@ -4,20 +4,8 @@
 //! This replaces the monolithic view_models.rs with a clean, maintainable architecture.
 
 mod app_view_model;
-mod buffer_operations;
-mod core;
-mod cursor_manager;
-mod display_manager;
-mod ex_command_manager;
-mod http_manager;
-mod mode_manager;
-mod pane_manager;
-// pane_state moved to models/state/
-mod rendering_coordinator;
-// screen_buffer moved to models/
-// selection moved to models/
-mod settings_manager;
-// yank_buffer moved to models/
+pub mod core;
+// Most business logic modules moved to models/app_state/
 
 // Re-export the new AppViewModel
 pub use app_view_model::AppViewModel;
@@ -27,7 +15,8 @@ pub use core::ViewModel;
 
 // Re-export types that other modules need
 pub use app_view_model::DisplayLineData;
-pub use pane_manager::PaneManager;
+// PaneManager now imported from models/app_state
+pub use crate::repl::models::app_state::PaneManager;
 // PaneState now imported from models
 pub use crate::repl::models::pane_state::PaneState;
 // Selection and YankBuffer types now imported from models

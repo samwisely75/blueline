@@ -5,7 +5,7 @@
 
 use crate::repl::models::coordinates::geometry::Position;
 use crate::repl::models::LogicalPosition;
-use crate::repl::view_models::core::ViewModel;
+use crate::repl::view_models::ViewModel;
 use anyhow::Result;
 
 impl ViewModel {

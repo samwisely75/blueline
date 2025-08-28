@@ -4,7 +4,7 @@
 
 use crate::repl::commands::{Setting, SettingValue};
 use crate::repl::models::events::ViewEvent;
-use crate::repl::view_models::core::ViewModel;
+use crate::repl::view_models::ViewModel;
 use anyhow::Result;
 
 impl ViewModel {
