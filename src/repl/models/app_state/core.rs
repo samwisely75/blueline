@@ -45,6 +45,11 @@ pub struct AppState {
     // Configuration flags
     pub clipboard_enabled: bool,
     pub dcut_enabled: bool,
+
+    // Terminal and UI state
+    pub terminal_dimensions: (u16, u16),
+    pub command_buffer: String,
+    pub profile_info: String,
 }
 
 impl AppState {
@@ -80,6 +85,9 @@ impl AppState {
             yank_buffer: Box::new(MemoryYankBuffer::new()),
             clipboard_enabled: false,
             dcut_enabled: true,
+            terminal_dimensions: (width as u16, height as u16),
+            command_buffer: String::new(),
+            profile_info: String::new(),
         }
     }
 

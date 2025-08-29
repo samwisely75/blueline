@@ -317,80 +317,100 @@ impl PaneManager {
 
     /// Get word wrap enabled state
     pub fn is_wrap_enabled(&self) -> bool {
-        self.wrap_enabled
+        // Use the current pane's wrap setting
+        self.panes[self.current_pane].wrap_enabled
     }
 
     /// Set word wrap enabled state
     pub fn set_wrap_enabled(&mut self, enabled: bool) {
+        let old_value = self.panes[self.current_pane].wrap_enabled;
         tracing::debug!(
             "🔧 PaneManager::set_wrap_enabled: changing from {} to {}",
-            self.wrap_enabled,
+            old_value,
             enabled
         );
-        self.wrap_enabled = enabled;
+        // Update both panes to keep them in sync
+        self.panes[Pane::Request].wrap_enabled = enabled;
+        self.panes[Pane::Response].wrap_enabled = enabled;
+        self.wrap_enabled = enabled; // Keep local copy for now during transition
         tracing::debug!(
             "✅ PaneManager::set_wrap_enabled: wrap_enabled is now {}",
-            self.wrap_enabled
+            enabled
         );
     }
 
     /// Get line number visibility state
     pub fn is_line_numbers_visible(&self) -> bool {
-        self.show_line_numbers
+        // Use the current pane's line numbers setting
+        self.panes[self.current_pane].line_numbers_visible
     }
 
     /// Set line number visibility state
     pub fn set_line_numbers_visible(&mut self, visible: bool) {
+        let old_value = self.panes[self.current_pane].line_numbers_visible;
         tracing::debug!(
             "🔧 PaneManager::set_line_numbers_visible: changing from {} to {}",
-            self.show_line_numbers,
+            old_value,
             visible
         );
-        self.show_line_numbers = visible;
+        // Update both panes to keep them in sync
+        self.panes[Pane::Request].line_numbers_visible = visible;
+        self.panes[Pane::Response].line_numbers_visible = visible;
+        self.show_line_numbers = visible; // Keep local copy for now during transition
         tracing::debug!(
             "✅ PaneManager::set_line_numbers_visible: show_line_numbers is now {}",
-            self.show_line_numbers
+            visible
         );
     }
 
     /// Get tab width (number of spaces per tab stop)
     pub fn get_tab_width(&self) -> usize {
-        self.tab_width
+        // Use the current pane's tab width setting
+        self.panes[self.current_pane].tab_width
     }
 
     /// Set tab width (number of spaces per tab stop)
     pub fn set_tab_width(&mut self, width: usize) {
         // Ensure tab width is at least 1 to prevent division by zero or infinite loops
         let tab_width = width.max(1);
+        let old_value = self.panes[self.current_pane].tab_width;
         tracing::debug!(
             "🔧 PaneManager::set_tab_width: changing from {} to {}",
-            self.tab_width,
+            old_value,
             tab_width
         );
-        self.tab_width = tab_width;
+        // Update both panes to keep them in sync
+        self.panes[Pane::Request].tab_width = tab_width;
+        self.panes[Pane::Response].tab_width = tab_width;
+        self.tab_width = tab_width; // Keep local copy for now during transition
         tracing::debug!(
             "✅ PaneManager::set_tab_width: tab_width is now {}",
-            self.tab_width
+            tab_width
         );
         // TODO: Invalidate display caches since tab width affects text layout
     }
 
     /// Get expand tab setting (whether to insert spaces instead of tab character)
     pub fn get_expand_tab(&self) -> bool {
-        self.expand_tab
+        // Use the current pane's expand tab setting
+        self.panes[self.current_pane].expand_tab
     }
 
     /// Set expand tab setting (whether to insert spaces instead of tab character)
     pub fn set_expand_tab(&mut self, expand: bool) {
+        let old_value = self.panes[self.current_pane].expand_tab;
         tracing::debug!(
             "🔧 PaneManager::set_expand_tab: changing from {} to {}",
-            self.expand_tab,
+            old_value,
             expand
         );
-        self.expand_tab = expand;
+        // Update both panes to keep them in sync
+        self.panes[Pane::Request].expand_tab = expand;
+        self.panes[Pane::Response].expand_tab = expand;
+        self.expand_tab = expand; // Keep local copy for now during transition
         tracing::debug!(
             "✅ PaneManager::set_expand_tab: expand_tab is now {}",
-            self.expand_tab
+            expand
         );
     }
 

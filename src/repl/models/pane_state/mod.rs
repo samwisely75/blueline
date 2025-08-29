@@ -213,6 +213,16 @@ pub struct PaneState {
     pub line_number_width: usize,       // Width needed for line numbers display
     pub virtual_column: usize,          // Vim-style virtual column - desired cursor position
     pub capabilities: PaneCapabilities, // What operations are allowed on this pane
+
+    // Display settings (previously in PaneManager)
+    pub line_numbers_visible: bool, // Whether to show line numbers for this pane
+    pub wrap_enabled: bool,         // Whether text wrapping is enabled for this pane
+    pub tab_width: usize,           // Number of spaces per tab stop (default 4)
+    pub expand_tab: bool,           // If true, insert spaces instead of tab character
+
+    // Viewport information - where this pane is rendered on screen
+    pub viewport_start_row: u16, // First row of this pane on terminal
+    pub viewport_height: u16,    // Height allocated to this pane
 }
 
 impl PaneState {
@@ -241,9 +251,19 @@ impl PaneState {
             line_number_width: MIN_LINE_NUMBER_WIDTH, // Start with minimum width
             virtual_column: 0,               // Start at column 0
             capabilities,                    // Set capabilities based on pane type
+
+            // Display settings with sensible defaults
+            line_numbers_visible: true, // Show line numbers by default
+            wrap_enabled,               // Use the passed-in parameter
+            tab_width: 4,               // Default tab width of 4
+            expand_tab: false,          // Use actual tabs by default
+
+            // Viewport will be set by layout manager
+            viewport_start_row: 0,               // Will be updated by layout
+            viewport_height: pane_height as u16, // Initial height
         };
-        pane_state.build_display_cache(pane_width, wrap_enabled, 4); // Default tab width, will be updated later
-                                                                     // Calculate initial line number width based on content
+        pane_state.build_display_cache(pane_width, wrap_enabled, pane_state.tab_width);
+        // Calculate initial line number width based on content
         pane_state.update_line_number_width();
         pane_state
     }

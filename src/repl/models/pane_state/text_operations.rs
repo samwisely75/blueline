@@ -1197,6 +1197,12 @@ mod tests {
                 | PaneCapabilities::SELECTABLE,
             line_number_width: 3,
             virtual_column: 0,
+            line_numbers_visible: true,
+            wrap_enabled: false,
+            tab_width: 4,
+            expand_tab: false,
+            viewport_start_row: 0,
+            viewport_height: 25,
         }
     }
 
