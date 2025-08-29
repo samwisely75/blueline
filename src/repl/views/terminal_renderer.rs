@@ -114,6 +114,56 @@ pub trait ViewRenderer {
 
     /// Cleanup terminal on exit
     fn cleanup(&mut self) -> Result<()>;
+
+    // ========== NEW APPSTATE-BASED METHODS (PHASE 2) ==========
+    // These methods will replace the ViewModel-based ones above
+    // They take ViewModel only for transition - will eventually take just AppState + merged AppViewModel
+
+    /// Render the full application state using AppState approach
+    fn render_full_from_state(&mut self, view_model: &ViewModel) -> Result<()> {
+        // Default implementation delegates to old method for backward compatibility
+        // Implementations should access view_model's AppState-like fields directly
+        self.render_full(view_model)
+    }
+
+    /// Render only specific pane using AppState approach
+    fn render_pane_from_state(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()> {
+        self.render_pane(view_model, pane)
+    }
+
+    /// Render partial pane from start_line to bottom using AppState approach
+    fn render_pane_partial_from_state(
+        &mut self,
+        view_model: &ViewModel,
+        pane: Pane,
+        start_line: usize,
+    ) -> Result<()> {
+        self.render_pane_partial(view_model, pane, start_line)
+    }
+
+    /// Update cursor position only using AppState approach
+    fn render_cursor_from_state(&mut self, view_model: &ViewModel) -> Result<()> {
+        self.render_cursor(view_model)
+    }
+
+    /// Render status bar using AppState approach
+    fn render_status_bar_from_state(&mut self, view_model: &ViewModel) -> Result<()> {
+        self.render_status_bar(view_model)
+    }
+
+    /// Render only position indicator using AppState approach
+    fn render_position_indicator_from_state(&mut self, view_model: &ViewModel) -> Result<()> {
+        self.render_position_indicator(view_model)
+    }
+
+    /// Handle view events using AppState approach
+    fn handle_view_event_from_state(
+        &mut self,
+        event: &ViewEvent,
+        view_model: &ViewModel,
+    ) -> Result<()> {
+        self.handle_view_event(event, view_model)
+    }
 }
 
 /// Terminal-based view renderer using RenderStream abstraction
