@@ -193,8 +193,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     pub async fn run(&mut self) -> Result<()> {
         // INITIALIZATION PHASE: Setup terminal and initial display
         self.view_renderer.initialize()?;
-        self.view_renderer
-            .render_full_from_state(&self.view_model)?;
+        self.view_renderer.render_full(&self.view_model)?;
 
         // MAIN EVENT LOOP: Handle user input and update display
         while !self.should_quit {
@@ -372,8 +371,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         self.view_model.update_terminal_size(width, height);
         self.view_renderer.update_size(width, height);
         // Full redraw required after resize to handle layout changes
-        self.view_renderer
-            .render_full_from_state(&self.view_model)?;
+        self.view_renderer.render_full(&self.view_model)?;
         Ok(())
     }
 
@@ -826,8 +824,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Process events in order of efficiency
         if needs_full_redraw {
-            self.view_renderer
-                .render_full_from_state(&self.view_model)?;
+            self.view_renderer.render_full(&self.view_model)?;
         } else {
             // Selective rendering - renderer handles cursor visibility
             let has_content_updates = needs_current_area_redraw
@@ -869,15 +866,13 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
 
             if needs_status_bar {
-                self.view_renderer
-                    .render_status_bar_from_state(&self.view_model)?;
+                self.view_renderer.render_status_bar(&self.view_model)?;
             }
 
             // Always render cursor after any pane redraw to prevent ghost cursors
             if needs_cursor_update || has_content_updates {
                 tracing::debug!("controller: rendering cursor after content updates");
-                self.view_renderer
-                    .render_cursor_from_state(&self.view_model)?;
+                self.view_renderer.render_cursor(&self.view_model)?;
             }
         }
 
@@ -1681,8 +1676,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 tracing::debug!("AppController: All command events applied successfully");
 
                 // Render after processing key events
-                self.view_renderer
-                    .render_full_from_state(&self.view_model)?;
+                self.view_renderer.render_full(&self.view_model)?;
             } else {
                 tracing::debug!("AppController: No command events generated");
             }

@@ -117,52 +117,81 @@ pub trait ViewRenderer {
 
     // ========== NEW APPSTATE-BASED METHODS (PHASE 2) ==========
     // These methods will replace the ViewModel-based ones above
-    // They take ViewModel only for transition - will eventually take just AppState + merged AppViewModel
+    // They take AppState directly - View should never depend on ViewModel
 
-    /// Render the full application state using AppState approach
-    fn render_full_from_state(&mut self, view_model: &ViewModel) -> Result<()> {
-        // Default implementation delegates to old method for backward compatibility
-        // Implementations should access view_model's AppState-like fields directly
-        self.render_full(view_model)
+    /// Render the full application state using AppState
+    fn render_full_from_state(
+        &mut self,
+        _app_state: &crate::repl::models::app_state::AppState,
+    ) -> Result<()> {
+        // Default implementation returns error - must be implemented
+        Err(anyhow::anyhow!(
+            "render_full_from_state not yet implemented"
+        ))
     }
 
-    /// Render only specific pane using AppState approach
-    fn render_pane_from_state(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()> {
-        self.render_pane(view_model, pane)
+    /// Render only specific pane using AppState
+    fn render_pane_from_state(
+        &mut self,
+        _app_state: &crate::repl::models::app_state::AppState,
+        _pane: Pane,
+    ) -> Result<()> {
+        Err(anyhow::anyhow!(
+            "render_pane_from_state not yet implemented"
+        ))
     }
 
-    /// Render partial pane from start_line to bottom using AppState approach
+    /// Render partial pane from start_line to bottom using AppState
     fn render_pane_partial_from_state(
         &mut self,
-        view_model: &ViewModel,
-        pane: Pane,
-        start_line: usize,
+        _app_state: &crate::repl::models::app_state::AppState,
+        _pane: Pane,
+        _start_line: usize,
     ) -> Result<()> {
-        self.render_pane_partial(view_model, pane, start_line)
+        Err(anyhow::anyhow!(
+            "render_pane_partial_from_state not yet implemented"
+        ))
     }
 
-    /// Update cursor position only using AppState approach
-    fn render_cursor_from_state(&mut self, view_model: &ViewModel) -> Result<()> {
-        self.render_cursor(view_model)
+    /// Update cursor position only using AppState
+    fn render_cursor_from_state(
+        &mut self,
+        _app_state: &crate::repl::models::app_state::AppState,
+    ) -> Result<()> {
+        Err(anyhow::anyhow!(
+            "render_cursor_from_state not yet implemented"
+        ))
     }
 
-    /// Render status bar using AppState approach
-    fn render_status_bar_from_state(&mut self, view_model: &ViewModel) -> Result<()> {
-        self.render_status_bar(view_model)
+    /// Render status bar using AppState
+    fn render_status_bar_from_state(
+        &mut self,
+        _app_state: &crate::repl::models::app_state::AppState,
+    ) -> Result<()> {
+        Err(anyhow::anyhow!(
+            "render_status_bar_from_state not yet implemented"
+        ))
     }
 
-    /// Render only position indicator using AppState approach
-    fn render_position_indicator_from_state(&mut self, view_model: &ViewModel) -> Result<()> {
-        self.render_position_indicator(view_model)
+    /// Render only position indicator using AppState
+    fn render_position_indicator_from_state(
+        &mut self,
+        _app_state: &crate::repl::models::app_state::AppState,
+    ) -> Result<()> {
+        Err(anyhow::anyhow!(
+            "render_position_indicator_from_state not yet implemented"
+        ))
     }
 
-    /// Handle view events using AppState approach
+    /// Handle view events using AppState
     fn handle_view_event_from_state(
         &mut self,
-        event: &ViewEvent,
-        view_model: &ViewModel,
+        _event: &ViewEvent,
+        _app_state: &crate::repl::models::app_state::AppState,
     ) -> Result<()> {
-        self.handle_view_event(event, view_model)
+        Err(anyhow::anyhow!(
+            "handle_view_event_from_state not yet implemented"
+        ))
     }
 }
 
