@@ -593,7 +593,16 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                             self.should_quit = true;
                         }
                         CommandEvent::ShowProfileRequested => {
-                            self.handle_show_profile();
+                            // Now handled by ShowProfileCommand
+                            use crate::repl::unified_commands::show_profile::ShowProfileCommand;
+                            let command = ShowProfileCommand::new();
+                            let mut exec_context = ExecutionContext {
+                                app_state: &mut self.app_state,
+                                services: &mut self.services,
+                            };
+                            if let Ok(view_events) = command.execute(&mut exec_context) {
+                                self.process_view_events(view_events)?;
+                            }
                         }
                         CommandEvent::SettingChangeRequested { setting, value } => {
                             // Handle setting changes from ex commands
@@ -626,7 +635,16 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 }
             }
             CommandEvent::ShowProfileRequested => {
-                self.handle_show_profile();
+                // Now handled by ShowProfileCommand
+                use crate::repl::unified_commands::show_profile::ShowProfileCommand;
+                let command = ShowProfileCommand::new();
+                let mut exec_context = ExecutionContext {
+                    app_state: &mut self.app_state,
+                    services: &mut self.services,
+                };
+                if let Ok(view_events) = command.execute(&mut exec_context) {
+                    self.process_view_events(view_events)?;
+                }
             }
             CommandEvent::SettingChangeRequested { setting, value } => {
                 self.handle_setting_change(setting, value)?;
@@ -874,13 +892,14 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
         Ok(())
     }
-    /// Handle showing profile information in status bar
-    fn handle_show_profile(&mut self) {
-        let profile_name = self.app_state.get_profile_name();
-        let profile_path = self.app_state.get_profile_path();
-        let message = format!("[{profile_name}] in {profile_path}");
-        self.app_state.set_status_message(message);
-    }
+    // Migrated to ShowProfileCommand
+    // /// Handle showing profile information in status bar
+    // fn handle_show_profile(&mut self) {
+    //     let profile_name = self.app_state.get_profile_name();
+    //     let profile_path = self.app_state.get_profile_path();
+    //     let message = format!("[{profile_name}] in {profile_path}");
+    //     self.app_state.set_status_message(message);
+    // }
 
     /// Handle setting changes from ex commands
     fn handle_setting_change(&mut self, setting: Setting, value: SettingValue) -> Result<()> {
