@@ -33,41 +33,41 @@ pub async fn send_key_event(&mut self, code: KeyCode, modifiers: KeyModifiers) {
 }
 ```
 
-### 2. Generic Step Definition
+### 2. Enhanced Existing Step Definitions
 
-Instead of separate test steps for each movement type, we now have a single generic step that handles all cursor validation:
+To avoid ambiguous step matches with existing tests, we enhanced the key cursor movement steps instead of creating a generic step:
 
 ```rust
-#[then(regex = r"^the cursor should (.+)$")]
-async fn then_cursor_should(world: &mut BluelineWorld, expectation: String) {
-    validate_cursor_movement(world, &expectation).await?;
+#[then("the cursor should move left one character")]
+async fn then_cursor_should_move_left_one_character(world: &mut BluelineWorld) {
+    // Enhanced validation: Check actual movement using VTE output
+    if let Err(e) = validate_cursor_movement(world, "left 1 character").await {
+        let history = world.get_cursor_history();
+        // ... detailed error reporting with cursor history
+    }
+    info!("✅ Cursor moved left one character successfully");
 }
 ```
 
+This approach provides the enhanced validation while maintaining compatibility with existing tests.
+
 ### 3. Rich Expectation Parsing
 
-The system supports natural language expectations:
+The enhanced step definitions now use the generic cursor validation system that supports natural language expectations:
 
-```gherkin
-# Relative movements
-Then the cursor should move left 1 character
-Then the cursor should move right 2 characters  
-Then the cursor should move up 1 line
-Then the cursor should move down 3 lines
-
-# Absolute positions
-Then the cursor should be at line 5 column 10
-
-# Text anchors
-Then the cursor should be at start of line
-Then the cursor should be at end of line
-Then the cursor should be at start of word
-Then the cursor should be at end of word
-
-# No movement
-Then the cursor should not move
-Then the cursor should remain at same position
+```rust
+// The enhanced steps call validate_cursor_movement() with expectations like:
+validate_cursor_movement(world, "left 1 character").await
+validate_cursor_movement(world, "right 1 character").await  
+validate_cursor_movement(world, "up 1 line").await
+validate_cursor_movement(world, "down 1 line").await
 ```
+
+The validation system supports many patterns:
+- Relative movements: "left 1", "right 2", "up 1", "down 3"
+- Absolute positions: "line 5 column 10"
+- Text anchors: "start of line", "end of line"
+- No movement: "not move", "remain at"
 
 ### 4. VTE-Based Validation
 
@@ -93,12 +93,13 @@ The original bug where cursor movement commands didn't return ViewEvents would h
 - Test expects cursor at column N-1, but it's still at column N
 - **Test fails with clear error message**
 
-### 2. Scalable and Maintainable
+### 2. Enhanced Validation without Breaking Compatibility
 
-- **One step definition** handles all cursor movement types
-- **Easy to add new movement patterns** without changing core logic
-- **Consistent validation** across all cursor tests
+- **Key cursor movement steps enhanced** with proper validation
+- **Reusable validation logic** through validate_cursor_movement()
+- **Consistent validation** across enhanced cursor tests
 - **Clear error messages** with cursor history for debugging
+- **No ambiguous step matches** - maintains compatibility with existing tests
 
 ### 3. Better Debugging Information
 
@@ -116,7 +117,10 @@ Cursor history: [
 
 ### 4. Future-Proof
 
-New cursor movements or navigation commands automatically get validated without additional test code.
+The cursor validation system is ready for:
+- **Additional step enhancements**: More steps can easily be enhanced with validate_cursor_movement()
+- **New movement patterns**: The parsing system supports extending with new expectation types
+- **Consistent validation**: All enhanced steps use the same reliable validation logic
 
 ## Implementation Details
 
@@ -204,11 +208,12 @@ cargo test --test integration_tests
 
 ## Conclusion
 
-This generic cursor validation system eliminates the testing gap that allowed cursor movement bugs to slip through. It provides:
+This enhanced cursor validation system eliminates the testing gap that allowed cursor movement bugs to slip through. It provides:
 
 - **Automatic detection** of missing ViewEvent emission
-- **Comprehensive validation** of actual cursor movement
-- **Scalable test patterns** that don't require new code for each movement type
+- **Comprehensive validation** of actual cursor movement via VTE parser
+- **Enhanced existing steps** without breaking compatibility
 - **Better debugging** with detailed error messages and cursor history
+- **Reusable validation logic** that can be applied to more steps as needed
 
-The system ensures that any future cursor movement implementation bugs will be caught immediately during testing, not discovered later by users.
+The system ensures that cursor movement bugs like the missing ViewEvents issue will be caught immediately during testing, not discovered later by users. The enhanced validation is currently applied to the most critical cursor movements (up/down/left/right) that would have caught the original bug.
