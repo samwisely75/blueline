@@ -64,23 +64,12 @@ impl Command for MoveRightCommand {
     }
 
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
-        // Use AppState's cursor movement business logic
-        match context.app_state.move_cursor_right() {
-            Ok(()) => {
-                tracing::debug!("Cursor moved right successfully");
-                // Return events for UI updates - the move_cursor_right() method
-                // internally handles view event emission, so we return empty here
-                // to avoid duplicate events
-                Ok(vec![])
-            }
-            Err(e) => {
-                tracing::warn!("Failed to move cursor right: {}", e);
-                context
-                    .app_state
-                    .set_status_message("Cannot move cursor right".to_string());
-                Ok(vec![ViewEvent::StatusBarUpdateRequired])
-            }
-        }
+        // Use PaneManager's cursor movement business logic that returns ViewEvents
+        let events = context.app_state.pane_manager.move_cursor_right();
+        
+        tracing::debug!("MoveRightCommand executed, generated {} events", events.len());
+        
+        Ok(events)
     }
 
     fn name(&self) -> &'static str {
