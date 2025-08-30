@@ -28,7 +28,9 @@ pub mod yank_current_line;
 
 // Re-export main types
 pub use command::{Command, CommandContext, ExecutionContext};
-pub use dynamic_registry::{register_all_commands, CommandEntry, CommandFactory, DynamicCommandRegistry};
+pub use dynamic_registry::{
+    register_all_commands, CommandEntry, CommandFactory, DynamicCommandRegistry,
+};
 pub use events::{ModelEvent, YankType};
 
 // Note: Individual command re-exports no longer needed -

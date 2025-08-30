@@ -16,8 +16,8 @@ use crate::repl::{
     models::LogicalPosition,
     services::{HttpResponseMessage, Services},
     unified_commands::{
-        events::YankType as NewYankType, Command, ExecutionContext, ModelEvent,
-        DynamicCommandRegistry,
+        events::YankType as NewYankType, Command, DynamicCommandRegistry, ExecutionContext,
+        ModelEvent,
     },
     views::{TerminalRenderer, ViewRenderer},
 };

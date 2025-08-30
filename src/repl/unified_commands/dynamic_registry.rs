@@ -32,12 +32,12 @@ inventory::collect!(CommandEntry);
 #[allow(clippy::type_complexity)]
 pub fn register_all_commands() -> Vec<Arc<dyn Command>> {
     let mut commands = Vec::new();
-    
+
     for entry in inventory::iter::<CommandEntry> {
         tracing::debug!("Auto-registering command: {}", entry.name);
         commands.push(Arc::from((entry.factory)()));
     }
-    
+
     tracing::info!("Auto-registered {} commands", commands.len());
     commands
 }
@@ -46,7 +46,7 @@ pub fn register_all_commands() -> Vec<Arc<dyn Command>> {
 ///
 /// This registry uses compile-time inventory collection to automatically discover
 /// all commands that have registered themselves with `register_command!` macro.
-/// 
+///
 /// Zero manual registration needed - commands self-register!
 pub struct DynamicCommandRegistry {
     commands: Vec<CommandArc>,
@@ -57,7 +57,7 @@ impl DynamicCommandRegistry {
     pub fn new() -> Self {
         // Auto-discover all commands using inventory
         let discovered_commands = register_all_commands();
-        
+
         tracing::info!(
             "Auto-discovered {} commands via dynamic registry",
             discovered_commands.len()
@@ -131,15 +131,27 @@ mod tests {
         let registry = DynamicCommandRegistry::new();
 
         // Should have discovered commands automatically
-        assert!(registry.command_count() >= 13, "Should discover at least 13 commands");
+        assert!(
+            registry.command_count() >= 13,
+            "Should discover at least 13 commands"
+        );
 
         // Verify some key commands are discovered
         let commands = registry.get_all_commands();
         let command_names: Vec<_> = commands.iter().map(|cmd| cmd.name()).collect();
-        
-        assert!(command_names.contains(&"YankSelectionCommand"), "Should discover YankSelectionCommand");
-        assert!(command_names.contains(&"HttpExecute"), "Should discover HttpExecuteCommand");
-        assert!(command_names.contains(&"ChangeSelectionCommand"), "Should discover ChangeSelectionCommand");
+
+        assert!(
+            command_names.contains(&"YankSelectionCommand"),
+            "Should discover YankSelectionCommand"
+        );
+        assert!(
+            command_names.contains(&"HttpExecute"),
+            "Should discover HttpExecuteCommand"
+        );
+        assert!(
+            command_names.contains(&"ChangeSelectionCommand"),
+            "Should discover ChangeSelectionCommand"
+        );
     }
 
     #[test]
@@ -178,7 +190,10 @@ mod tests {
         let irrelevant_key = crossterm::event::KeyEvent::new(KeyCode::F(99), KeyModifiers::NONE);
         let result = registry.process_key_event(irrelevant_key, EditorMode::Normal, &context);
 
-        assert!(result.is_none(), "Should find no relevant command for F99 key");
+        assert!(
+            result.is_none(),
+            "Should find no relevant command for F99 key"
+        );
     }
 
     #[test]
