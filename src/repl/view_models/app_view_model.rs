@@ -692,10 +692,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 tracing::debug!("CutCharacterRequested received via old command path - ignoring");
             }
             CommandEvent::CutToEndOfLineRequested => {
-                self.handle_cut_to_end_of_line()?;
+                // Now handled by CutToEndOfLineCommand in unified_commands
+                tracing::debug!("CutToEndOfLineRequested received via old command path - ignoring");
             }
             CommandEvent::CutCurrentLineRequested => {
-                self.handle_cut_current_line()?;
+                // Now handled by CutCurrentLineCommand in unified_commands
+                tracing::debug!("CutCurrentLineRequested received via old command path - ignoring");
             }
             CommandEvent::YankCurrentLineRequested => {
                 self.handle_yank_current_line()?;
@@ -1121,41 +1123,43 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     //     Ok(())
     // }
 
-    /// Handle cutting (delete + yank) from cursor to end of line
-    fn handle_cut_to_end_of_line(&mut self) -> Result<()> {
-        // Cut from cursor to end of line - this returns the deleted text
-        self.app_state.cut_to_end_of_line()?;
+    // /// Handle cutting (delete + yank) from cursor to end of line
+    // NOW HANDLED BY CutToEndOfLineCommand in unified_commands
+    // fn handle_cut_to_end_of_line(&mut self) -> Result<()> {
+    //     // Cut from cursor to end of line - this returns the deleted text
+    //     self.app_state.cut_to_end_of_line()?;
+    //
+    //     // If dcut is enabled, the ViewModel already yanked to its buffer
+    //     // We need to sync that with the YankService
+    //     if self.app_state.is_dcut_enabled() {
+    //         if let Some(entry) = self.app_state.get_yanked_entry() {
+    //             self.services.yank.yank(entry.text, entry.yank_type)?;
+    //         }
+    //     }
+    //
+    //     tracing::info!("Cut from cursor to end of line");
+    //
+    //     Ok(())
+    // }
 
-        // If dcut is enabled, the ViewModel already yanked to its buffer
-        // We need to sync that with the YankService
-        if self.app_state.is_dcut_enabled() {
-            if let Some(entry) = self.app_state.get_yanked_entry() {
-                self.services.yank.yank(entry.text, entry.yank_type)?;
-            }
-        }
+    // MIGRATED to CutCurrentLineCommand in unified_commands
+    // /// Handle cutting (delete + yank) entire current line
+    // fn handle_cut_current_line(&mut self) -> Result<()> {
+    //     // Cut entire current line - this returns the deleted text
+    //     self.app_state.cut_current_line()?;
 
-        tracing::info!("Cut from cursor to end of line");
+    //     // If dcut is enabled, the ViewModel already yanked to its buffer
+    //     // We need to sync that with the YankService
+    //     if self.app_state.is_dcut_enabled() {
+    //         if let Some(entry) = self.app_state.get_yanked_entry() {
+    //             self.services.yank.yank(entry.text, entry.yank_type)?;
+    //         }
+    //     }
 
-        Ok(())
-    }
+    //     tracing::info!("Cut entire current line");
 
-    /// Handle cutting (delete + yank) entire current line
-    fn handle_cut_current_line(&mut self) -> Result<()> {
-        // Cut entire current line - this returns the deleted text
-        self.app_state.cut_current_line()?;
-
-        // If dcut is enabled, the ViewModel already yanked to its buffer
-        // We need to sync that with the YankService
-        if self.app_state.is_dcut_enabled() {
-            if let Some(entry) = self.app_state.get_yanked_entry() {
-                self.services.yank.yank(entry.text, entry.yank_type)?;
-            }
-        }
-
-        tracing::info!("Cut entire current line");
-
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     /// Handle yanking (copy) entire current line without deleting
     fn handle_yank_current_line(&mut self) -> Result<()> {

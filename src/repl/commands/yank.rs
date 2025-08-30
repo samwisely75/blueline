@@ -30,33 +30,7 @@ impl Command for PasteAfterCommand {
 // DeleteSelectionCommand has been migrated to unified_commands/delete_selection.rs
 // CutSelectionCommand has been migrated to unified_commands/cut_selection.rs
 // CutCharacterCommand has been migrated to unified_commands/cut_character.rs
-
-/// Cut (delete + yank) from cursor to end of line in normal mode
-pub struct CutToEndOfLineCommand;
-
-impl Command for CutToEndOfLineCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        context.state.current_mode == EditorMode::Normal
-            && context.state.current_pane == Pane::Request
-            && (
-                // Case 1: Uppercase 'D' without modifiers
-                (matches!(event.code, KeyCode::Char('D')) && event.modifiers.is_empty())
-                // Case 2: Lowercase 'd' with SHIFT modifier
-                || (matches!(event.code, KeyCode::Char('d')) && event.modifiers.contains(KeyModifiers::SHIFT))
-                // Case 3: Uppercase 'D' with SHIFT modifier (some terminals send this)
-                || (matches!(event.code, KeyCode::Char('D')) && event.modifiers.contains(KeyModifiers::SHIFT))
-            )
-    }
-
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        // Cut from cursor to end of line (yank + delete)
-        Ok(vec![CommandEvent::cut_to_end_of_line()])
-    }
-
-    fn name(&self) -> &'static str {
-        "CutToEndOfLine"
-    }
-}
+// CutToEndOfLineCommand has been migrated to unified_commands/cut_to_end_of_line.rs
 
 /// Enter D prefix mode on first 'd' press (for dd command)
 pub struct EnterDPrefixCommand;
@@ -78,28 +52,7 @@ impl Command for EnterDPrefixCommand {
     }
 }
 
-/// Cut entire current line (dd command)
-pub struct CutCurrentLineCommand;
-
-impl Command for CutCurrentLineCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Char('d'))
-            && context.state.current_mode == EditorMode::DPrefix
-            && context.state.current_pane == Pane::Request
-            && event.modifiers.is_empty()
-    }
-
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![
-            CommandEvent::cut_current_line(),
-            CommandEvent::mode_change(EditorMode::Normal),
-        ])
-    }
-
-    fn name(&self) -> &'static str {
-        "CutCurrentLine"
-    }
-}
+// CutCurrentLineCommand has been migrated to unified_commands/cut_current_line.rs
 
 /// Paste yanked text at current cursor position
 pub struct PasteAtCursorCommand;
@@ -313,80 +266,7 @@ mod tests {
 
     // Tests for CutCharacterCommand removed - migrated to unified_commands/cut_character.rs
 
-    // Tests for CutToEndOfLineCommand
-    #[test]
-    fn cut_to_end_of_line_should_be_relevant_for_uppercase_d_in_normal_mode() {
-        let context = create_test_context(EditorMode::Normal, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::empty());
-        let command = CutToEndOfLineCommand;
-        assert!(command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_to_end_of_line_should_be_relevant_for_lowercase_d_with_shift() {
-        let context = create_test_context(EditorMode::Normal, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::SHIFT);
-        let command = CutToEndOfLineCommand;
-        assert!(command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_to_end_of_line_should_be_relevant_for_uppercase_d_with_shift() {
-        let context = create_test_context(EditorMode::Normal, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::SHIFT);
-        let command = CutToEndOfLineCommand;
-        assert!(command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_to_end_of_line_should_not_be_relevant_in_insert_mode() {
-        let context = create_test_context(EditorMode::Insert, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::empty());
-        let command = CutToEndOfLineCommand;
-        assert!(!command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_to_end_of_line_should_not_be_relevant_in_visual_mode() {
-        let context = create_test_context(EditorMode::Visual, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::empty());
-        let command = CutToEndOfLineCommand;
-        assert!(!command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_to_end_of_line_should_not_be_relevant_in_response_pane() {
-        let context = create_test_context(EditorMode::Normal, Pane::Response);
-        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::empty());
-        let command = CutToEndOfLineCommand;
-        assert!(!command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_to_end_of_line_should_not_be_relevant_with_ctrl_modifier() {
-        let context = create_test_context(EditorMode::Normal, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::CONTROL);
-        let command = CutToEndOfLineCommand;
-        assert!(!command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_to_end_of_line_should_not_be_relevant_with_alt_modifier() {
-        let context = create_test_context(EditorMode::Normal, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::ALT);
-        let command = CutToEndOfLineCommand;
-        assert!(!command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_to_end_of_line_should_execute_cut_to_end_of_line_event() {
-        let context = create_test_context(EditorMode::Normal, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('D'), KeyModifiers::empty());
-        let command = CutToEndOfLineCommand;
-        let result = command.execute(event, &context).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], CommandEvent::cut_to_end_of_line());
-    }
+    // Tests for CutToEndOfLineCommand removed - migrated to unified_commands/cut_to_end_of_line.rs
 
     // Tests for EnterDPrefixCommand
     #[test]
@@ -439,57 +319,7 @@ mod tests {
         assert_eq!(result[0], CommandEvent::mode_change(EditorMode::DPrefix));
     }
 
-    // Tests for CutCurrentLineCommand
-    #[test]
-    fn cut_current_line_should_be_relevant_for_d_in_d_prefix_mode() {
-        let context = create_test_context(EditorMode::DPrefix, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
-        let command = CutCurrentLineCommand;
-        assert!(command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_current_line_should_not_be_relevant_in_normal_mode() {
-        let context = create_test_context(EditorMode::Normal, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
-        let command = CutCurrentLineCommand;
-        assert!(!command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_current_line_should_not_be_relevant_in_insert_mode() {
-        let context = create_test_context(EditorMode::Insert, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
-        let command = CutCurrentLineCommand;
-        assert!(!command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_current_line_should_not_be_relevant_in_response_pane() {
-        let context = create_test_context(EditorMode::DPrefix, Pane::Response);
-        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
-        let command = CutCurrentLineCommand;
-        assert!(!command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_current_line_should_not_be_relevant_with_modifiers() {
-        let context = create_test_context(EditorMode::DPrefix, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
-        let command = CutCurrentLineCommand;
-        assert!(!command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn cut_current_line_should_execute_cut_and_mode_change() {
-        let context = create_test_context(EditorMode::DPrefix, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
-        let command = CutCurrentLineCommand;
-        let result = command.execute(event, &context).unwrap();
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0], CommandEvent::cut_current_line());
-        assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Normal));
-    }
+    // Tests for CutCurrentLineCommand have been migrated to unified_commands/cut_current_line.rs
 
     // Tests for EnterYPrefixCommand
     #[test]

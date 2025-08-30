@@ -11,7 +11,9 @@ pub mod registry;
 
 // Command implementations
 pub mod cut_character;
+pub mod cut_current_line;
 pub mod cut_selection;
+pub mod cut_to_end_of_line;
 pub mod delete_selection;
 pub mod http;
 pub mod setting_change;

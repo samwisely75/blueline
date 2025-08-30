@@ -41,7 +41,8 @@ impl UnifiedCommandRegistry {
     /// Register all default commands
     fn register_default_commands(&mut self) {
         use crate::repl::unified_commands::{
-            cut_character::CutCharacterCommand, cut_selection::CutSelectionCommand,
+            cut_character::CutCharacterCommand, cut_current_line::CutCurrentLineCommand,
+            cut_selection::CutSelectionCommand, cut_to_end_of_line::CutToEndOfLineCommand,
             delete_selection::DeleteSelectionCommand, http::HttpExecuteCommand,
             yank::YankSelectionCommand,
         };
@@ -57,6 +58,12 @@ impl UnifiedCommandRegistry {
 
         // Add CutCharacterCommand
         self.add_command(Arc::new(CutCharacterCommand::new()));
+
+        // Add CutToEndOfLineCommand
+        self.add_command(Arc::new(CutToEndOfLineCommand::new()));
+
+        // Add CutCurrentLineCommand
+        self.add_command(Arc::new(CutCurrentLineCommand::new()));
 
         // Add HttpExecuteCommand
         self.add_command(Arc::new(HttpExecuteCommand::new()));
