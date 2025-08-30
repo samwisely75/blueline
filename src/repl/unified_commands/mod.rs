@@ -32,7 +32,7 @@ pub mod yank_current_line;
 // Issue #231: MoveLeftCommand
 // pub mod move_left;
 // Issue #232: MoveRightCommand
-// pub mod move_right;
+pub mod move_right;
 // Issue #233: MoveUpCommand
 // pub mod move_up;
 // Issue #234: MoveDownCommand
