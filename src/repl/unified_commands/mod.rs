@@ -34,7 +34,7 @@ pub mod yank_current_line;
 // Issue #232: MoveRightCommand
 // pub mod move_right;
 // Issue #233: MoveUpCommand
-// pub mod move_up;
+pub mod move_up;
 // Issue #234: MoveDownCommand
 // pub mod move_down;
 // Issue #235: InsertCharCommand
