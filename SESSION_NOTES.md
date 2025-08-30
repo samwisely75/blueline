@@ -1,5 +1,13 @@
 # Session Notes
 
+## CRITICAL RULES - ALWAYS FOLLOW
+
+1. **NEVER commit without explicit user confirmation** - User must say "yes", "commit", "go ahead" or similar
+2. **ALWAYS work on feature branches, never on main**
+3. **ALWAYS run ./scripts/git-commit-precheck.sh before commits**
+4. **FOLLOW GitHub issue #224 migration plan strictly**
+5. **TAG commits with `#224-` prefix** (e.g., `git tag #224-show-profile-command`)
+
 ## [2025-08-30] Command System Refactoring - Repurpose 3G Framework
 
 ### User Request Summary
@@ -495,6 +503,26 @@ The foundation is now in place to migrate business logic from AppController to A
 - Start fresh on new base branch with proper understanding
 - Begin Phase 1: Model reorganization
 - Focus on incremental, stable migration
+
+## Current Migration Status (as of latest session)
+
+### Completed Migrations
+- ✅ YankSelectionCommand - fully migrated with YankService integration
+- ✅ ShowProfileCommand - migrated, handles CommandEvent::ShowProfileRequested (commit 055a08c, tag #224-show-profile-command)
+
+### Pending Migrations (per issue #224)
+- ⏳ SettingChangeCommand - next in line
+- ⏳ YankCurrentLineCommand
+- ⏳ PasteAfterCommand  
+- ⏳ PasteAtCursorCommand
+- ⏳ DeleteSelectionCommand
+- ⏳ CutSelectionCommand
+- (and 14+ more...)
+
+### Current Branch & Status
+- Working on: `feature/command-refactoring`
+- All tests passing: 474 tests
+- Latest commit: 055a08c - ShowProfileCommand migration
 
 ### Architecture Vision
 The refactoring will transform the codebase from confused layers to proper MVVM:

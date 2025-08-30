@@ -5,28 +5,7 @@ use crate::repl::models::pane_state::{EditorMode, Pane};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-/// Yank (copy) selected text in visual mode
-pub struct YankCommand;
-
-impl Command for YankCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Char('y'))
-            && matches!(
-                context.state.current_mode,
-                EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
-            )
-            && event.modifiers.is_empty()
-    }
-
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        // Return yank event - mode change handled by yank handler
-        Ok(vec![CommandEvent::yank_selection()])
-    }
-
-    fn name(&self) -> &'static str {
-        "Yank"
-    }
-}
+// YankCommand has been migrated to unified_commands/yank.rs as YankSelectionCommand
 
 /// Paste yanked text after cursor position
 pub struct PasteAfterCommand;
@@ -322,21 +301,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn yank_command_should_be_relevant_in_visual_mode() {
-        let context = create_test_context(EditorMode::Visual, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
-        let command = YankCommand;
-        assert!(command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn yank_command_should_not_be_relevant_in_normal_mode() {
-        let context = create_test_context(EditorMode::Normal, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
-        let command = YankCommand;
-        assert!(!command.is_relevant(&context, &event));
-    }
+    // YankCommand tests removed - migrated to unified_commands/yank.rs
 
     #[test]
     fn paste_after_should_be_relevant_for_p_in_normal_mode() {
@@ -456,22 +421,7 @@ mod tests {
         assert_eq!(result[0], CommandEvent::cut_selection());
     }
 
-    // Tests for enhanced YankCommand
-    #[test]
-    fn yank_command_should_be_relevant_in_visual_line_mode() {
-        let context = create_test_context(EditorMode::VisualLine, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
-        let command = YankCommand;
-        assert!(command.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn yank_command_should_be_relevant_in_visual_block_mode() {
-        let context = create_test_context(EditorMode::VisualBlock, Pane::Request);
-        let event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::empty());
-        let command = YankCommand;
-        assert!(command.is_relevant(&context, &event));
-    }
+    // Tests for enhanced YankCommand removed - migrated to unified_commands/yank.rs
 
     // Tests for ChangeSelectionCommand
     #[test]

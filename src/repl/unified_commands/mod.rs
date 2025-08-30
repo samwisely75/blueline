@@ -11,6 +11,7 @@ pub mod registry;
 
 // Command implementations
 pub mod http;
+pub mod setting_change;
 pub mod show_profile;
 pub mod yank;
 

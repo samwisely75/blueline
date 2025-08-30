@@ -7,7 +7,7 @@ use crate::config::AppConfig;
 use crate::repl::{
     commands::{
         AppStateSnapshot, CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry,
-        MovementDirection, Setting, SettingValue,
+        MovementDirection,
     },
     io::{EventStream, RenderStream},
     models::app_state::AppState,
@@ -153,7 +153,14 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                     for event in events {
                         match event {
                             CommandEvent::SettingChangeRequested { setting, value } => {
-                                if let Err(e) = self.handle_setting_change(setting, value) {
+                                // Now handled by SettingChangeCommand
+                                use crate::repl::unified_commands::setting_change::SettingChangeCommand;
+                                let command = SettingChangeCommand::new(setting, value);
+                                let mut exec_context = ExecutionContext {
+                                    app_state: &mut self.app_state,
+                                    services: &mut self.services,
+                                };
+                                if let Err(e) = command.execute(&mut exec_context) {
                                     tracing::warn!("Failed to apply setting from config: {}", e);
                                 }
                             }
@@ -605,8 +612,16 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                             }
                         }
                         CommandEvent::SettingChangeRequested { setting, value } => {
-                            // Handle setting changes from ex commands
-                            self.handle_setting_change(setting, value)?;
+                            // Now handled by SettingChangeCommand
+                            use crate::repl::unified_commands::setting_change::SettingChangeCommand;
+                            let command = SettingChangeCommand::new(setting, value);
+                            let mut exec_context = ExecutionContext {
+                                app_state: &mut self.app_state,
+                                services: &mut self.services,
+                            };
+                            if let Ok(view_events) = command.execute(&mut exec_context) {
+                                self.process_view_events(view_events)?;
+                            }
                         }
                         CommandEvent::CursorMoveRequested { direction, amount } => {
                             // BUGFIX: Handle line navigation from ex commands like `:58`
@@ -647,7 +662,16 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 }
             }
             CommandEvent::SettingChangeRequested { setting, value } => {
-                self.handle_setting_change(setting, value)?;
+                // Now handled by SettingChangeCommand
+                use crate::repl::unified_commands::setting_change::SettingChangeCommand;
+                let command = SettingChangeCommand::new(setting, value);
+                let mut exec_context = ExecutionContext {
+                    app_state: &mut self.app_state,
+                    services: &mut self.services,
+                };
+                if let Ok(view_events) = command.execute(&mut exec_context) {
+                    self.process_view_events(view_events)?;
+                }
             }
             CommandEvent::YankSelectionRequested => {
                 // Now handled by YankSelectionCommand in unified_commands
@@ -901,25 +925,26 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     //     self.app_state.set_status_message(message);
     // }
 
-    /// Handle setting changes from ex commands
-    fn handle_setting_change(&mut self, setting: Setting, value: SettingValue) -> Result<()> {
-        // Handle clipboard setting through YankService
-        if setting == Setting::Clipboard {
-            let enable = value == SettingValue::On;
-            self.services.yank.set_clipboard_enabled(enable)?;
-            // Update status message
-            let message = if enable {
-                "Clipboard integration enabled"
-            } else {
-                "Clipboard integration disabled"
-            };
-            self.app_state.set_status_message(message.to_string());
-            Ok(())
-        } else {
-            // Other settings still go through ViewModel
-            self.app_state.apply_setting(setting, value)
-        }
-    }
+    // Migrated to SettingChangeCommand
+    // /// Handle setting changes from ex commands
+    // fn handle_setting_change(&mut self, setting: Setting, value: SettingValue) -> Result<()> {
+    //     // Handle clipboard setting through YankService
+    //     if setting == Setting::Clipboard {
+    //         let enable = value == SettingValue::On;
+    //         self.services.yank.set_clipboard_enabled(enable)?;
+    //         // Update status message
+    //         let message = if enable {
+    //             "Clipboard integration enabled"
+    //         } else {
+    //             "Clipboard integration disabled"
+    //         };
+    //         self.app_state.set_status_message(message.to_string());
+    //         Ok(())
+    //     } else {
+    //         // Other settings still go through ViewModel
+    //         self.app_state.apply_setting(setting, value)
+    //     }
+    // }
 
     // MIGRATED to YankSelectionCommand in unified_commands
     #[allow(dead_code)]

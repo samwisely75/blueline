@@ -86,8 +86,7 @@ pub use request::ExecuteRequestCommand;
 pub use yank::{
     CancelPrefixModeCommand, ChangeSelectionCommand, CutCharacterCommand, CutCurrentLineCommand,
     CutSelectionCommand, CutToEndOfLineCommand, DeleteSelectionCommand, EnterDPrefixCommand,
-    EnterYPrefixCommand, PasteAfterCommand, PasteAtCursorCommand, YankCommand,
-    YankCurrentLineCommand,
+    EnterYPrefixCommand, PasteAfterCommand, PasteAtCursorCommand, YankCurrentLineCommand,
 };
 
 /// Type alias for command collection to reduce complexity
@@ -154,7 +153,7 @@ impl CommandRegistry {
             Box::new(InsertTabCommand),
             Box::new(DeleteCharCommand),
             Box::new(DeleteCharAtCursorCommand),
-            Box::new(YankCommand),
+            // YankCommand migrated to unified_commands/yank.rs as YankSelectionCommand
             Box::new(DeleteSelectionCommand),
             Box::new(CutSelectionCommand),
             Box::new(CutCharacterCommand),
