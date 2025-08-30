@@ -293,14 +293,9 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 view_events.len()
             );
 
-            // Apply ViewEvents directly to trigger UI updates
+            // Process ViewEvents directly without storing in AppState
             if !view_events.is_empty() {
-                self.app_state.emit_view_event(view_events)?;
-            }
-
-            // Render changes
-            if !self.should_quit {
-                self.render_if_needed()?;
+                self.process_view_events(view_events)?;
             }
         } else {
             tracing::debug!(
@@ -1712,9 +1707,9 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             view_events.len()
         );
 
-        // Apply ViewEvents directly to trigger UI updates
+        // Process ViewEvents directly without storing in AppState
         if !view_events.is_empty() {
-            self.app_state.emit_view_event(view_events)?;
+            self.process_view_events(view_events)?;
         }
 
         Ok(())
