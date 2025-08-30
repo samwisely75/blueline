@@ -458,7 +458,7 @@ async fn then_cursor_should_move_left_one_character(world: &mut BluelineWorld) {
 
 #[then("the cursor should move right one character")]
 async fn then_cursor_should_move_right_one_character(world: &mut BluelineWorld) {
-    // Enhanced validation: Check actual movement using VTE output  
+    // Enhanced validation: Check actual movement using VTE output
     if let Err(e) = validate_cursor_movement(world, "right 1 character").await {
         let history = world.get_cursor_history();
         if !history.is_empty() {
@@ -1173,7 +1173,7 @@ async fn then_line_starts_with(world: &mut BluelineWorld, expected_start: String
 }
 
 // ============================================================================
-// ENHANCED CURSOR MOVEMENT VALIDATION 
+// ENHANCED CURSOR MOVEMENT VALIDATION
 // ============================================================================
 // The existing specific step definitions have been enhanced with proper
 // before/after movement validation using the cursor validation system.
