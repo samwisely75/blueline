@@ -238,6 +238,7 @@ dependencies = [
  "crossterm",
  "cucumber",
  "humantime",
+ "inventory",
  "serde_json",
  "serial_test",
  "shellexpand",

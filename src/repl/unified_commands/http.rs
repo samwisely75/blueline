@@ -2,6 +2,7 @@
 //!
 //! Commands for executing HTTP requests using the unified command pattern.
 
+use crate::register_command;
 use crate::repl::models::events::view_events::ViewEvent;
 use crate::repl::models::pane_state::EditorMode;
 use anyhow::Result;
@@ -176,3 +177,6 @@ mod tests {
         assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
     }
 }
+
+// Auto-register this command using the inventory system
+register_command!(HttpExecuteCommand, "HttpExecute");

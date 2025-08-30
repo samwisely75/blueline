@@ -7,6 +7,7 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use crate::register_command;
 use crate::repl::models::events::view_events::ViewEvent;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::models::LogicalPosition;
@@ -287,3 +288,6 @@ mod tests {
         // 4. Should set multi-cursor positions at end of each line (end_col + 1)
     }
 }
+
+// Auto-register this command using the inventory system
+register_command!(VisualBlockAppendCommand, "VisualBlockAppendCommand");

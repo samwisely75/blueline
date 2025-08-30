@@ -7,6 +7,7 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
+use crate::register_command;
 use crate::repl::models::events::view_events::ViewEvent;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition};
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
@@ -281,3 +282,6 @@ mod tests {
         assert_eq!(command.name(), "ChangeSelectionCommand");
     }
 }
+
+// Auto-register this command using the inventory system
+register_command!(ChangeSelectionCommand, "ChangeSelectionCommand");
