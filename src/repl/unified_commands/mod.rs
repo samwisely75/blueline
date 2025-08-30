@@ -30,7 +30,7 @@ pub mod yank_current_line;
 // Placeholder reservations for remaining migrations (issues #231-295)
 // Agents: Replace your assigned comment line with: pub mod your_command_name;
 // Issue #231: MoveLeftCommand
-// pub mod move_left;
+pub mod move_left;
 // Issue #232: MoveRightCommand
 pub mod move_right;
 // Issue #233: MoveUpCommand
