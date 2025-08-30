@@ -202,7 +202,7 @@ impl BufferContent {
     pub fn get_line_word_boundaries(
         &mut self,
         line_index: usize,
-    ) -> Option<&crate::text::word_segmenter::WordBoundaries> {
+    ) -> Option<&crate::repl::services::word_segmenter::WordBoundaries> {
         self.buffer.get_line_word_boundaries(line_index)
     }
 }
@@ -406,7 +406,7 @@ impl BufferModel {
     pub fn get_line_word_boundaries(
         &mut self,
         line_index: usize,
-    ) -> Option<&crate::text::word_segmenter::WordBoundaries> {
+    ) -> Option<&crate::repl::services::word_segmenter::WordBoundaries> {
         self.content.get_line_word_boundaries(line_index)
     }
 

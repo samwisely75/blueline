@@ -22,10 +22,10 @@
 //! - Implements character type classification for proper navigation behavior
 //! - Provides pluggable word segmentation for different languages and scripts
 
-use crate::text::word_segmenter::{WordBoundaries, WordSegmenter, WordSegmenterFactory};
+use crate::repl::services::word_segmenter::{WordBoundaries, WordSegmenter, WordSegmenterService};
 
-/// Type alias for boxed word segmenter to improve readability
-type BoxedWordSegmenter = Option<Box<dyn WordSegmenter + Send>>;
+/// Type alias for word segmenter service to improve readability
+type WordSegmenterRef = Option<std::sync::Arc<WordSegmenterService>>;
 
 /// Check if a character is an ideographic character (CJK and similar scripts)
 pub fn is_ideographic_character(ch: char) -> bool {
@@ -335,6 +335,24 @@ impl BufferLine {
         }
     }
 
+    /// Get or calculate word boundaries for this line using WordSegmenterService
+    pub fn get_word_boundaries_with_service(
+        &mut self,
+        segmenter: &std::sync::Arc<WordSegmenterService>,
+    ) -> &WordBoundaries {
+        // Since WordSegmenterService implements WordSegmenter trait, we can use the existing method
+        self.get_word_boundaries(segmenter.as_ref())
+    }
+
+    /// Refresh word boundaries cache for this line using WordSegmenterService
+    pub fn refresh_word_boundaries_with_service(
+        &mut self,
+        segmenter: &std::sync::Arc<WordSegmenterService>,
+    ) {
+        // Since WordSegmenterService implements WordSegmenter trait, we can use the existing method
+        self.refresh_word_boundaries(segmenter.as_ref())
+    }
+
     /// Find the next word start from the current logical position
     pub fn find_next_word_start(&self, current_logical_index: usize) -> Option<usize> {
         if current_logical_index >= self.chars.len() {
@@ -481,8 +499,8 @@ impl Default for BufferLine {
 /// - Supports international text with proper Unicode normalization
 pub struct CharacterBuffer {
     lines: Vec<BufferLine>,
-    /// Cached word segmenter for performance
-    word_segmenter: BoxedWordSegmenter,
+    /// Cached word segmenter service for performance
+    word_segmenter: WordSegmenterRef,
 }
 
 impl CharacterBuffer {
@@ -490,7 +508,7 @@ impl CharacterBuffer {
     pub fn new() -> Self {
         Self {
             lines: vec![BufferLine::new()],
-            word_segmenter: Some(WordSegmenterFactory::create()),
+            word_segmenter: Some(WordSegmenterService::new()),
         }
     }
 
@@ -507,7 +525,7 @@ impl CharacterBuffer {
 
         Self {
             lines,
-            word_segmenter: Some(WordSegmenterFactory::create()),
+            word_segmenter: Some(WordSegmenterService::new()),
         }
     }
 
@@ -586,7 +604,7 @@ impl CharacterBuffer {
         if let (Some(segmenter), Some(line)) =
             (&self.word_segmenter, self.lines.get_mut(line_index))
         {
-            Some(line.get_word_boundaries(segmenter.as_ref()))
+            Some(line.get_word_boundaries_with_service(segmenter))
         } else {
             None
         }
@@ -597,7 +615,7 @@ impl CharacterBuffer {
         if let (Some(segmenter), Some(line)) =
             (&self.word_segmenter, self.lines.get_mut(line_index))
         {
-            line.refresh_word_boundaries(segmenter.as_ref());
+            line.refresh_word_boundaries_with_service(segmenter);
         }
     }
 
@@ -635,7 +653,7 @@ impl CharacterBuffer {
 
         // Invalidate word boundaries for the modified line
         if let Some(segmenter) = &self.word_segmenter {
-            self.lines[line1].refresh_word_boundaries(segmenter.as_ref());
+            self.lines[line1].refresh_word_boundaries_with_service(segmenter);
         }
 
         true
@@ -661,7 +679,7 @@ impl Clone for CharacterBuffer {
     fn clone(&self) -> Self {
         Self {
             lines: self.lines.clone(),
-            word_segmenter: Some(WordSegmenterFactory::create()),
+            word_segmenter: self.word_segmenter.clone(),
         }
     }
 }

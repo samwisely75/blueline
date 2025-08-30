@@ -1,6 +1,6 @@
-//! # Word Segmentation for International Text
+//! # Word Segmentation Service
 //!
-//! This module provides word boundary detection using unicode-segmentation crate,
+//! This service provides word boundary detection using unicode-segmentation,
 //! supporting proper international text handling (CJK, Arabic, Thai, etc.).
 //!
 //! ## Key Features
@@ -11,6 +11,7 @@
 //! - Clean abstraction allowing future segmentation backend changes
 
 use cjk;
+use std::sync::Arc;
 
 /// Word boundary flags for a character position
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -33,9 +34,6 @@ impl WordFlags {
 
 /// Type alias for segmentation results
 pub type SegmentationResult = Result<WordBoundaries, Box<dyn std::error::Error>>;
-
-/// Type alias for segmenter creation results
-pub type SegmenterResult = Result<UnicodeWordSegmenter, Box<dyn std::error::Error>>;
 
 /// Word boundary information for a segment of text
 #[derive(Debug, Clone, PartialEq)]
@@ -136,18 +134,50 @@ pub trait WordSegmenter: Send {
     fn find_word_boundaries(&self, text: &str) -> SegmentationResult;
 }
 
-/// Unicode-segmentation based word segmenter implementation
-pub struct UnicodeWordSegmenter;
+/// Character types for boundary detection
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum CharType {
+    Word,  // ASCII alphanumeric + underscore
+    Cjk,   // CJK characters (each is a separate word)
+    Other, // Whitespace, punctuation, symbols
+}
 
-impl UnicodeWordSegmenter {
-    /// Create a new unicode-segmentation word segmenter
-    pub fn new() -> SegmenterResult {
-        Ok(Self)
+/// Get the character type for boundary detection
+fn get_char_type(ch: char) -> CharType {
+    // Check CJK first since CJK chars also return true for is_alphanumeric()
+    if is_cjk_char(ch) {
+        CharType::Cjk
+    } else if is_word_char(ch) {
+        CharType::Word
+    } else {
+        CharType::Other
     }
 }
 
-impl WordSegmenter for UnicodeWordSegmenter {
-    fn find_word_boundaries(&self, text: &str) -> SegmentationResult {
+/// Check if a character is a word character (alphanumeric + underscore)
+fn is_word_char(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_'
+}
+
+/// Check if a character is from CJK (Chinese, Japanese, Korean) scripts
+fn is_cjk_char(ch: char) -> bool {
+    cjk::is_cjk_codepoint(ch)
+}
+
+/// Word segmentation service that provides word boundary detection
+#[derive(Default, Clone)]
+pub struct WordSegmenterService {
+    // Service is stateless, all methods are self-contained
+}
+
+impl WordSegmenterService {
+    /// Create a new word segmenter service
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {})
+    }
+
+    /// Find word boundaries in the given text
+    pub fn find_word_boundaries(&self, text: &str) -> SegmentationResult {
         if text.is_empty() {
             return Ok(WordBoundaries { positions: vec![0] });
         }
@@ -195,51 +225,17 @@ impl WordSegmenter for UnicodeWordSegmenter {
 
         Ok(WordBoundaries { positions })
     }
-}
 
-/// Character types for boundary detection
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum CharType {
-    Word,  // ASCII alphanumeric + underscore
-    Cjk,   // CJK characters (each is a separate word)
-    Other, // Whitespace, punctuation, symbols
-}
-
-/// Get the character type for boundary detection
-fn get_char_type(ch: char) -> CharType {
-    // Check CJK first since CJK chars also return true for is_alphanumeric()
-    if is_cjk_char(ch) {
-        CharType::Cjk
-    } else if is_word_char(ch) {
-        CharType::Word
-    } else {
-        CharType::Other
+    /// Convert word boundaries to flags for each character
+    pub fn boundaries_to_flags(&self, boundaries: &WordBoundaries, text: &str) -> Vec<WordFlags> {
+        boundaries.to_word_flags(text)
     }
 }
 
-/// Check if a character is a word character (alphanumeric + underscore)
-fn is_word_char(ch: char) -> bool {
-    ch.is_alphanumeric() || ch == '_'
-}
-
-/// Check if a character is from CJK (Chinese, Japanese, Korean) scripts
-fn is_cjk_char(ch: char) -> bool {
-    cjk::is_cjk_codepoint(ch)
-}
-
-/// Factory for creating word segmenters
-pub struct WordSegmenterFactory;
-
-impl WordSegmenterFactory {
-    /// Create the best available word segmenter
-    pub fn create() -> Box<dyn WordSegmenter> {
-        match UnicodeWordSegmenter::new() {
-            Ok(segmenter) => Box::new(segmenter),
-            Err(e) => {
-                tracing::error!("Failed to create unicode segmenter: {}", e);
-                panic!("No word segmenter available: {e}");
-            }
-        }
+// Implement the WordSegmenter trait for the service so it can be used interchangeably
+impl WordSegmenter for WordSegmenterService {
+    fn find_word_boundaries(&self, text: &str) -> SegmentationResult {
+        self.find_word_boundaries(text)
     }
 }
 
@@ -248,53 +244,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unicode_segmenter_should_create() {
-        let segmenter = UnicodeWordSegmenter::new();
-        assert!(
-            segmenter.is_ok(),
-            "Unicode segmenter should be created successfully"
-        );
+    fn service_should_create() {
+        let service = WordSegmenterService::new();
+        assert!(Arc::strong_count(&service) == 1);
     }
 
     #[test]
     fn word_boundaries_should_work_with_simple_text() {
-        let segmenter = UnicodeWordSegmenter::new().unwrap();
-        let boundaries = segmenter.find_word_boundaries("Hello World").unwrap();
-
-        // Debug: Print what we got
-        tracing::debug!("Text: 'Hello World'");
-        tracing::debug!("Boundaries: {:?}", boundaries.positions);
+        let service = WordSegmenterService::new();
+        let boundaries = service.find_word_boundaries("Hello World").unwrap();
 
         // Unicode-segmentation should give us word boundaries
         assert!(!boundaries.positions.is_empty());
         assert_eq!(boundaries.positions[0], 0); // Start of text
 
-        // Should have word start boundaries (no end position)
-        // Our vim-like segmentation provides word start boundaries only
+        // Should have word start boundaries
         assert!(boundaries.positions.contains(&6)); // Should have boundary at "World"
 
         // Test that we can convert to flags without panicking
         let flags = boundaries.to_word_flags("Hello World");
         assert_eq!(flags.len(), 11);
 
-        // Debug: Print the flags
-        for (i, flag) in flags.iter().enumerate() {
-            if flag.is_word_start || flag.is_word_end {
-                tracing::debug!("Position {i}: {flag:?}");
-            }
-        }
-
         // At least some positions should be marked as word boundaries
         let has_word_starts = flags.iter().any(|flag| flag.is_word_start);
         let has_word_ends = flags.iter().any(|flag| flag.is_word_end);
 
-        tracing::debug!("Has word starts: {has_word_starts}, Has word ends: {has_word_ends}");
+        assert!(has_word_starts || has_word_ends);
     }
 
     #[test]
     fn word_boundaries_should_handle_empty_text() {
-        let segmenter = UnicodeWordSegmenter::new().unwrap();
-        let boundaries = segmenter.find_word_boundaries("").unwrap();
+        let service = WordSegmenterService::new();
+        let boundaries = service.find_word_boundaries("").unwrap();
 
         assert_eq!(boundaries.positions, vec![0]);
 
@@ -304,8 +285,8 @@ mod tests {
 
     #[test]
     fn word_boundaries_should_handle_mixed_text() {
-        let segmenter = UnicodeWordSegmenter::new().unwrap();
-        let boundaries = segmenter
+        let service = WordSegmenterService::new();
+        let boundaries = service
             .find_word_boundaries("hello こんにちは world")
             .unwrap();
 
@@ -323,31 +304,14 @@ mod tests {
     }
 
     #[test]
-    fn factory_should_create_segmenter() {
-        let segmenter = WordSegmenterFactory::create();
-        let boundaries = segmenter.find_word_boundaries("test").unwrap();
-
-        assert!(!boundaries.positions.is_empty());
-    }
-
-    #[test]
     fn test_byte_based_boundaries() {
-        let segmenter = UnicodeWordSegmenter::new().unwrap();
+        let service = WordSegmenterService::new();
 
         // Test with multibyte characters
         let text = "hello こんにちは world";
-        let boundaries = segmenter.find_word_boundaries(text).unwrap();
+        let boundaries = service.find_word_boundaries(text).unwrap();
 
         // Expected: [0, 6, 9, 12, 15, 18, 22] (byte positions without end)
-        // 0: start of "hello"
-        // 6: start of "こ" (first CJK character)
-        // 9: start of "ん" (each CJK character is a separate word)
-        // 12: start of "に"
-        // 15: start of "ち"
-        // 18: start of "は"
-        // 22: start of "world"
-        // Note: Each CJK character is treated as a separate word for vim navigation
-
         assert_eq!(boundaries.positions, vec![0, 6, 9, 12, 15, 18, 22]);
         assert_eq!(text.len(), 27); // Verify total byte count
 
@@ -362,7 +326,7 @@ mod tests {
 
     #[test]
     fn test_multibyte_single_byte_transitions() {
-        let segmenter = UnicodeWordSegmenter::new().unwrap();
+        let service = WordSegmenterService::new();
 
         // Test cases where multibyte and single-byte characters are adjacent
         let test_cases = vec![
@@ -379,20 +343,18 @@ mod tests {
         ];
 
         for (text, description) in test_cases {
-            tracing::debug!("\n=== {description} ===");
-            tracing::debug!("Text: '{text}'");
-
-            let boundaries = segmenter.find_word_boundaries(text).unwrap();
-            tracing::debug!("Boundaries: {:?}", boundaries.positions);
+            let boundaries = service.find_word_boundaries(text).unwrap();
 
             // Verify boundaries point to valid character starts
             for &pos in &boundaries.positions {
                 if pos < text.len() {
                     let slice = &text[pos..];
-                    let first_char = slice.chars().next().unwrap();
-                    tracing::debug!("  Byte {pos} -> '{first_char}'");
+                    let _first_char = slice.chars().next().unwrap();
                 }
             }
+
+            // Test description is captured in the iteration
+            assert!(!boundaries.positions.is_empty(), "{}", description);
         }
     }
 }
