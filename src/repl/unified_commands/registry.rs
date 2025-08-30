@@ -40,10 +40,10 @@ impl UnifiedCommandRegistry {
 
     /// Register all default commands
     fn register_default_commands(&mut self) {
-        use crate::repl::unified_commands::http::HttpExecuteCommand;
+        use crate::repl::unified_commands::{http::HttpExecuteCommand, yank::YankSelectionCommand};
 
-        // TEMPORARILY DISABLED - YankSelectionCommand will be re-enabled when fully migrated
-        // self.add_command(Arc::new(YankSelectionCommand::new()));
+        // Add YankSelectionCommand
+        self.add_command(Arc::new(YankSelectionCommand::new()));
 
         // Add HttpExecuteCommand
         self.add_command(Arc::new(HttpExecuteCommand::new()));
@@ -116,12 +116,20 @@ mod tests {
     fn unified_registry_should_create_with_default_commands() {
         let registry = UnifiedCommandRegistry::new();
 
-        // Should have at least HttpExecuteCommand
-        assert!(registry.command_count() > 0);
+        // Should have at least YankSelectionCommand and HttpExecuteCommand
+        assert!(registry.command_count() >= 2);
 
-        // Verify HttpExecuteCommand is registered
+        // Verify commands are registered
         let commands = registry.get_all_commands();
+        let has_yank_command = commands
+            .iter()
+            .any(|cmd| cmd.name() == "YankSelectionCommand");
         let has_http_command = commands.iter().any(|cmd| cmd.name() == "HttpExecute");
+
+        assert!(
+            has_yank_command,
+            "Registry should contain YankSelectionCommand"
+        );
         assert!(
             has_http_command,
             "Registry should contain HttpExecuteCommand"
@@ -132,19 +140,33 @@ mod tests {
     fn unified_registry_should_find_relevant_command() {
         let registry = UnifiedCommandRegistry::new();
 
-        // Create context for normal mode on request pane
-        let context = CommandContext {
+        // Test 1: Visual mode with 'y' key - should find YankSelectionCommand
+        let visual_context = CommandContext {
+            current_mode: EditorMode::Visual,
+            current_pane: Pane::Request,
+            is_read_only: false,
+            has_selection: true,
+        };
+
+        let y_key = crossterm::event::KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
+        let result = registry.process_key_event(y_key, EditorMode::Visual, &visual_context);
+
+        assert!(result.is_some(), "Should find YankSelectionCommand");
+        let command = result.unwrap();
+        assert_eq!(command.name(), "YankSelectionCommand");
+
+        // Test 2: Normal mode with Enter key - should find HttpExecuteCommand
+        let normal_context = CommandContext {
             current_mode: EditorMode::Normal,
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
         };
 
-        // Test Enter key in normal mode - should find HttpExecuteCommand
         let enter_key = crossterm::event::KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
-        let result = registry.process_key_event(enter_key, EditorMode::Normal, &context);
+        let result = registry.process_key_event(enter_key, EditorMode::Normal, &normal_context);
 
-        assert!(result.is_some(), "Should find a relevant command");
+        assert!(result.is_some(), "Should find HttpExecuteCommand");
         let command = result.unwrap();
         assert_eq!(command.name(), "HttpExecute");
     }

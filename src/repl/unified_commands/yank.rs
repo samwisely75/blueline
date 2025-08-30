@@ -55,18 +55,62 @@ impl Command for YankSelectionCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, _context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
-        // TEMPORARILY DISABLED - Will be re-enabled when migrating yank functionality
-        // For now, just return empty events to avoid compilation errors
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+        // Get selected text from current pane
+        if let Some(text) = context.app_state.get_selected_text() {
+            // Determine yank type based on current visual mode
+            let current_mode = context.app_state.get_mode();
+            let yank_type = match current_mode {
+                EditorMode::Visual => YankType::Character,
+                EditorMode::VisualLine => YankType::Line,
+                EditorMode::VisualBlock => YankType::Block,
+                _ => YankType::Character, // Fallback for any other mode
+            };
 
-        // TODO: Implement full yank logic here:
-        // 1. Check if in visual mode
-        // 2. Get selected text from app_state
-        // 3. Yank to buffer using YankService
-        // 4. Clear selection and return to Normal mode
-        // 5. Update status message
+            // Store in yank buffer using YankService
+            context.services.yank.yank(text.clone(), yank_type)?;
 
-        Ok(vec![])
+            // Switch to Normal mode (automatically clears visual selection)
+            context.app_state.change_mode(EditorMode::Normal)?;
+
+            // Prepare status message
+            let char_count = text.chars().count();
+            let line_count = text.lines().count();
+            let message = match yank_type {
+                YankType::Character => {
+                    if line_count > 1 {
+                        format!("{line_count} lines yanked (character-wise)")
+                    } else {
+                        format!("{char_count} characters yanked")
+                    }
+                }
+                YankType::Line => format!("{line_count} lines yanked (line-wise)"),
+                YankType::Block => {
+                    format!("Block yanked ({line_count} lines, {char_count} chars)")
+                }
+            };
+            context.app_state.set_status_message(message);
+
+            tracing::info!(
+                "Yanked {} characters ({} lines) to buffer as {:?}",
+                char_count,
+                line_count,
+                yank_type
+            );
+
+            // Return view events for UI updates
+            Ok(vec![
+                ViewEvent::CurrentAreaRedrawRequired,
+                ViewEvent::StatusBarUpdateRequired,
+            ])
+        } else {
+            tracing::warn!("No text selected for yanking");
+            context
+                .app_state
+                .set_status_message("No text selected".to_string());
+
+            Ok(vec![ViewEvent::StatusBarUpdateRequired])
+        }
     }
 
     fn name(&self) -> &'static str {
@@ -180,11 +224,13 @@ mod tests {
             services: &mut services,
         };
 
-        // Currently disabled - should return empty events
+        // Should succeed but return status bar update for "No text selected"
         let result = command.execute(&mut context);
 
         assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
+        let events = result.unwrap();
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
     }
 
     #[test]

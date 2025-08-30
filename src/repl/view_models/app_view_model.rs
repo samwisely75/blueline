@@ -632,7 +632,8 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 self.handle_setting_change(setting, value)?;
             }
             CommandEvent::YankSelectionRequested => {
-                self.handle_yank_selection()?;
+                // Now handled by YankSelectionCommand in unified_commands
+                // self.handle_yank_selection()?;
             }
             CommandEvent::DeleteSelectionRequested => {
                 self.handle_delete_selection()?;
@@ -901,7 +902,8 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         }
     }
 
-    /// Handle yanking selected text to yank buffer
+    // MIGRATED to YankSelectionCommand in unified_commands
+    #[allow(dead_code)]
     fn handle_yank_selection(&mut self) -> Result<()> {
         // Get selected text from current pane
         if let Some(text) = self.app_state.get_selected_text() {
@@ -1863,14 +1865,14 @@ mod tests {
             )
             .unwrap();
 
-            // Test YankSelectionCommand in Normal mode (currently disabled, should succeed with no events)
+            // Test YankSelectionCommand in Normal mode (should succeed but with no selection message)
             let command = Box::new(YankSelectionCommand::new());
             let result = view_model.execute_command(command);
 
-            // YankSelectionCommand is temporarily disabled, should succeed but do nothing
+            // YankSelectionCommand should succeed (returns status bar update for "no selection")
             assert!(
                 result.is_ok(),
-                "Command should succeed (it's disabled and returns empty events)"
+                "Command should succeed even without selection"
             );
 
             // Verify we're still in Normal mode
