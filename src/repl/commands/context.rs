@@ -3,13 +3,13 @@
 //! Context and service access for commands.
 //! Uses trait-based access to provide type-safe, minimal exposure to services.
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane};
-use crate::repl::view_models::ViewModel;
+use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
+use crate::repl::models::AppState;
 use bluenote::HttpClient;
 
-/// Read-only snapshot of ViewModel state for commands
+/// Read-only snapshot of AppState for commands
 #[derive(Debug, Clone)]
-pub struct ViewModelSnapshot {
+pub struct AppStateSnapshot {
     pub current_mode: EditorMode,
     pub current_pane: Pane,
     pub cursor_position: LogicalPosition,
@@ -20,29 +20,29 @@ pub struct ViewModelSnapshot {
     pub tab_width: usize,
 }
 
-impl ViewModelSnapshot {
-    /// Create snapshot from current ViewModel state
-    pub fn from_view_model(view_model: &ViewModel) -> Self {
+impl AppStateSnapshot {
+    /// Create snapshot from current AppState state
+    pub fn from_app_state(app_state: &AppState) -> Self {
         Self {
-            current_mode: view_model.get_mode(),
-            current_pane: view_model.get_current_pane(),
-            cursor_position: view_model.get_cursor_position(),
-            request_text: view_model.get_request_text(),
-            response_text: view_model.get_response_text(),
-            terminal_dimensions: view_model.terminal_size(),
-            expand_tab: view_model.pane_manager().get_expand_tab(),
-            tab_width: view_model.pane_manager().get_tab_width(),
+            current_mode: app_state.get_mode(),
+            current_pane: app_state.get_current_pane(),
+            cursor_position: app_state.get_cursor_position(),
+            request_text: app_state.get_request_text(),
+            response_text: app_state.get_response_text(),
+            terminal_dimensions: app_state.terminal_size(),
+            expand_tab: app_state.pane_manager().get_expand_tab(),
+            tab_width: app_state.pane_manager().get_tab_width(),
         }
     }
 }
 
 /// Base context available to all commands
 pub struct CommandContext {
-    pub state: ViewModelSnapshot,
+    pub state: AppStateSnapshot,
 }
 
 impl CommandContext {
-    pub fn new(state: ViewModelSnapshot) -> Self {
+    pub fn new(state: AppStateSnapshot) -> Self {
         Self { state }
     }
 }
@@ -73,7 +73,7 @@ pub struct HttpCommandContext {
 }
 
 impl HttpCommandContext {
-    pub fn new(state: ViewModelSnapshot, http_client: Option<HttpClient>) -> Self {
+    pub fn new(state: AppStateSnapshot, http_client: Option<HttpClient>) -> Self {
         Self {
             base: CommandContext::new(state),
             http_client,
@@ -86,7 +86,7 @@ impl HttpCommandContext {
     }
 
     /// Get state snapshot
-    pub fn state(&self) -> &ViewModelSnapshot {
+    pub fn state(&self) -> &AppStateSnapshot {
         &self.base.state
     }
 }
@@ -125,12 +125,12 @@ impl AsRef<CommandContext> for HttpCommandContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::view_models::ViewModel;
+    use crate::repl::models::AppState;
 
     #[test]
-    fn view_model_snapshot_should_capture_state() {
-        let view_model = ViewModel::new();
-        let snapshot = ViewModelSnapshot::from_view_model(&view_model);
+    fn app_state_snapshot_should_capture_state() {
+        let app_state = AppState::new();
+        let snapshot = AppStateSnapshot::from_app_state(&app_state);
 
         assert_eq!(snapshot.current_mode, EditorMode::Normal);
         assert_eq!(snapshot.current_pane, Pane::Request);
@@ -139,8 +139,8 @@ mod tests {
 
     #[test]
     fn command_context_should_provide_state() {
-        let view_model = ViewModel::new();
-        let snapshot = ViewModelSnapshot::from_view_model(&view_model);
+        let app_state = AppState::new();
+        let snapshot = AppStateSnapshot::from_app_state(&app_state);
         let context = CommandContext::new(snapshot);
 
         assert_eq!(context.state.current_mode, EditorMode::Normal);
@@ -148,8 +148,8 @@ mod tests {
 
     #[test]
     fn http_command_context_should_provide_http_access() {
-        let view_model = ViewModel::new();
-        let snapshot = ViewModelSnapshot::from_view_model(&view_model);
+        let app_state = AppState::new();
+        let snapshot = AppStateSnapshot::from_app_state(&app_state);
         let context = HttpCommandContext::new(snapshot, None);
 
         assert!(context.http_client().is_none());
@@ -157,8 +157,8 @@ mod tests {
 
     #[test]
     fn terminal_access_should_provide_size() {
-        let view_model = ViewModel::new();
-        let snapshot = ViewModelSnapshot::from_view_model(&view_model);
+        let app_state = AppState::new();
+        let snapshot = AppStateSnapshot::from_app_state(&app_state);
         let context = CommandContext::new(snapshot);
 
         let (width, height) = context.terminal_size();

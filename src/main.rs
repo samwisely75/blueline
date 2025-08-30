@@ -7,7 +7,7 @@ use blueline::{
     cmd_args::CommandLineArgs,
     config::AppConfig,
     repl::io::{TerminalEventStream, TerminalRenderStream},
-    AppController,
+    AppViewModel,
 };
 use std::env;
 use tracing_subscriber::{fmt::time::ChronoLocal, EnvFilter};
@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
     let config = AppConfig::from_args(cmd_args);
 
     // Explicit dependency injection - clear what implementations are being used
-    let mut app = AppController::with_io_streams(
+    let mut app = AppViewModel::with_io_streams(
         config,
         TerminalEventStream::new(),
         TerminalRenderStream::new(),

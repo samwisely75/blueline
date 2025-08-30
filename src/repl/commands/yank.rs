@@ -1,7 +1,7 @@
 //! Yank and paste commands for text manipulation
 
 use super::{Command, CommandContext, CommandEvent};
-use crate::repl::events::{EditorMode, Pane};
+use crate::repl::models::pane_state::{EditorMode, Pane};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -304,12 +304,12 @@ impl Command for CancelPrefixModeCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::commands::ViewModelSnapshot;
-    use crate::repl::events::LogicalPosition;
+    use crate::repl::commands::AppStateSnapshot;
+    use crate::repl::models::LogicalPosition;
 
     fn create_test_context(mode: EditorMode, pane: Pane) -> CommandContext {
         CommandContext {
-            state: ViewModelSnapshot {
+            state: AppStateSnapshot {
                 current_mode: mode,
                 current_pane: pane,
                 cursor_position: LogicalPosition { line: 0, column: 0 },

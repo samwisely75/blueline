@@ -25,8 +25,8 @@ mod tests {
     async fn test_app_controller_creation() -> Result<()> {
         use blueline::cmd_args::CommandLineArgs;
         use blueline::config::AppConfig;
-        use blueline::repl::controllers::app_controller::AppController;
         use blueline::repl::io::test_bridge::{BridgedEventStream, BridgedRenderStream};
+        use blueline::repl::view_models::AppViewModel;
 
         tracing::info!("1. Testing bridge creation...");
         let (event_stream, _controller) = BridgedEventStream::new();
@@ -37,27 +37,27 @@ mod tests {
         let cmd_args = CommandLineArgs::parse_from(vec!["blueline".to_string()]);
         tracing::info!("✅ Command args parsed");
 
-        tracing::info!("3. Testing AppController creation...");
+        tracing::info!("3. Testing AppViewModel creation...");
         let config = AppConfig::from_args(cmd_args);
-        let app_result = AppController::with_io_streams(config, event_stream, render_stream);
+        let app_result = AppViewModel::with_io_streams(config, event_stream, render_stream);
         match app_result {
             Ok(_app) => {
-                tracing::info!("✅ AppController created successfully!");
+                tracing::info!("✅ AppViewModel created successfully!");
                 tracing::info!(
                     "4. Skipping app.run() test to avoid hanging - creation test complete!"
                 );
 
-                // For now, just test that we can create the AppController successfully
+                // For now, just test that we can create the AppViewModel successfully
                 // The app.run() method blocks indefinitely waiting for events, which is expected behavior
                 // In real usage, it would be terminated by Ctrl+C or other quit signals
             }
             Err(e) => {
-                tracing::error!("❌ AppController creation failed: {e}");
+                tracing::error!("❌ AppViewModel creation failed: {e}");
                 return Err(e);
             }
         }
 
-        tracing::info!("SUCCESS: AppController creation works!");
+        tracing::info!("SUCCESS: AppViewModel creation works!");
         Ok(())
     }
 }

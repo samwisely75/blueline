@@ -4,40 +4,56 @@
 //! This module maintains the same public API while organizing models
 //! into logical groups for better maintainability.
 
-// Import model modules
-pub mod buffer_char;
-pub mod buffer_model;
-pub mod display_cache;
-pub mod display_char;
-pub mod display_line;
-pub mod geometry;
-pub mod logical_position;
-pub mod request_model;
-pub mod response_model;
-pub mod screen_buffer;
-pub mod selection;
-pub mod status_line;
-pub mod yank_buffer;
+// Import model subdirectories
+pub mod app_state;
+pub mod buffer;
+pub mod coordinates;
+pub mod display;
+pub mod events;
+pub mod pane_state;
 
-// Re-export all models for easy access
-pub use buffer_char::{BufferChar, BufferLine, CharacterBuffer};
-pub use buffer_model::{BufferContent, BufferModel};
-pub use display_cache::{build_display_cache, DisplayCache, DisplayPosition};
-pub use display_char::DisplayChar;
-pub use display_line::DisplayLine;
-pub use geometry::{Dimensions, Position};
-pub use logical_position::{LogicalPosition, LogicalRange};
-pub use request_model::{HttpHeaders, RequestModel};
-pub use response_model::ResponseModel;
-pub use screen_buffer::{BufferCell, ScreenBuffer};
-pub use selection::Selection;
-pub use status_line::{HttpStatus, StatusLine};
-pub use yank_buffer::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType};
+// Re-export all models for easy access (maintaining backward compatibility)
+pub use buffer::buffer_char::{BufferChar, BufferLine, CharacterBuffer};
+pub use buffer::buffer_model::{BufferContent, BufferModel};
+pub use buffer::request_model::{HttpHeaders, RequestModel};
+pub use buffer::response_model::ResponseModel;
+
+pub use display::display_cache::{build_display_cache, DisplayCache};
+pub use display::display_char::DisplayChar;
+pub use display::display_line::DisplayLine;
+pub use display::screen_buffer::{BufferCell, ScreenBuffer};
+pub use display::status_line::{HttpStatus, StatusLine};
+
+pub use app_state::AppState;
+pub use buffer::yank_buffer::{
+    ClipboardYankBuffer, MemoryYankBuffer, YankBuffer, YankEntry, YankType,
+};
+pub use coordinates::geometry::{Dimensions, Position};
+pub use coordinates::logical_position::{LogicalPosition, LogicalRange};
+pub use coordinates::selection::Selection;
+pub use pane_state::PaneState;
+
+// Re-export submodules for direct access (backward compatibility)
+pub use buffer::buffer_char;
+pub use buffer::buffer_model;
+pub use buffer::request_model;
+pub use buffer::response_model;
+
+pub use display::display_cache;
+pub use display::display_char;
+pub use display::display_line;
+pub use display::screen_buffer;
+pub use display::status_line;
+
+pub use buffer::yank_buffer;
+pub use coordinates::geometry;
+pub use coordinates::logical_position;
+pub use coordinates::selection;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::Pane;
+    use crate::repl::models::pane_state::Pane;
 
     #[test]
     fn all_models_should_create_with_defaults() {

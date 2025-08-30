@@ -7,7 +7,7 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::repl::events::EditorMode;
+use crate::repl::models::pane_state::EditorMode;
 
 // Import and re-export command event types
 pub mod context;
@@ -261,7 +261,7 @@ impl Default for CommandRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+    use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
     use crossterm::event::{KeyCode, KeyModifiers};
 
     fn create_test_key_event(code: KeyCode) -> KeyEvent {
@@ -270,7 +270,7 @@ mod tests {
 
     fn create_test_context() -> CommandContext {
         CommandContext {
-            state: ViewModelSnapshot {
+            state: AppStateSnapshot {
                 current_mode: EditorMode::Normal,
                 current_pane: Pane::Request,
                 cursor_position: LogicalPosition { line: 0, column: 0 },

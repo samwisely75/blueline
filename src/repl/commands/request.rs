@@ -2,7 +2,7 @@
 //!
 //! Commands for executing HTTP requests and related operations
 
-use crate::repl::events::{EditorMode, Pane};
+use crate::repl::models::pane_state::{EditorMode, Pane};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
@@ -138,8 +138,8 @@ impl Command for ExecuteRequestCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::commands::ViewModelSnapshot;
-    use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+    use crate::repl::commands::AppStateSnapshot;
+    use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
     use crossterm::event::KeyModifiers;
 
     fn create_test_key_event(code: KeyCode) -> KeyEvent {
@@ -148,7 +148,7 @@ mod tests {
 
     fn create_test_context() -> CommandContext {
         CommandContext {
-            state: ViewModelSnapshot {
+            state: AppStateSnapshot {
                 current_mode: EditorMode::Normal,
                 current_pane: Pane::Request,
                 cursor_position: LogicalPosition { line: 0, column: 0 },
