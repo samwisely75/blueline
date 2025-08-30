@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.5] - 2025-08-30
+
+### Changed
+
+- **Word Segmentation**: Migrated word segmenter to services layer
+  - Moved all word segmentation implementation from text module to services
+  - Deleted obsolete text folder
+  - Improved alignment with MVVM architecture
+  - Maintains full backward compatibility
+
 ## [0.45.4] - 2025-08-30
 
 ### Changed
