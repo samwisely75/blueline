@@ -66,9 +66,12 @@ impl Command for MoveLeftCommand {
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
         // Use PaneManager's cursor movement business logic that returns ViewEvents
         let events = context.app_state.pane_manager.move_cursor_left();
-        
-        tracing::debug!("MoveLeftCommand executed, generated {} events", events.len());
-        
+
+        tracing::debug!(
+            "MoveLeftCommand executed, generated {} events",
+            events.len()
+        );
+
         Ok(events)
     }
 
