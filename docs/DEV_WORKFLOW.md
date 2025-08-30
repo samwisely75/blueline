@@ -13,7 +13,7 @@ Developers and Generative AI Engines like Claude Code should strictly follow thi
     ```
 
 1. Plan the implementation and todos. Ask for clarification if needed.
-1. Prune the origin and fetch the latest changes from the `develop` branch:
+1. Prune the origin and fetch the latest changes from the `develop` branch or a baseline branch explicitly specified:
 
     ```shell
     git fetch origin
@@ -21,7 +21,7 @@ Developers and Generative AI Engines like Claude Code should strictly follow thi
     git pull origin develop
     ```
 
-1. Create a new branch from the `develop` branch with a descriptive name, e.g., `feature/new-feature` or `bugfix/fix-issue-123`.
+1. Create a new branch from the baseline (default to `develop`) branch with a descriptive name, e.g., `feature/new-feature` or `bugfix/fix-issue-123`.
 1. Move the Kanban item to the `In progress` state. The command is:
 
     ```shell
@@ -58,7 +58,7 @@ Developers and Generative AI Engines like Claude Code should strictly follow thi
     ```
 
 1. Address any feedback on PR and make necessary changes.
-1. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If a bug is fixed, increment the patch version. If a breaking change is made, increment the major version.
+1. Increment the version number in `Cargo.toml`. If a new feature is added, increment the minor version. If it is a refactoring or a bug fix, increment the patch version. If a breaking change is made, increment the major version.
 1. Update the changelog in `docs/CHANGELOG.md` with a summary of the changes made.
 1. Create a git tag for the same version number with "v", e.g., `git tag v1.0.0`.
 1. Go to step 1.

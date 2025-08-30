@@ -154,7 +154,7 @@ You are working with a complex, functioning application. Your job is to make min
 
 ### Always Check for Previous Session Context
 
-When starting any conversation, IMMEDIATELY:
+When starting any conversation, or compact the conversation, IMMEDIATELY:
 
 1. Check if `SESSION_NOTES.md` exists and read it completely
 2. Review recent git commits to understand what was recently changed
