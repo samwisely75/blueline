@@ -7,6 +7,8 @@
 3. **ALWAYS run ./scripts/git-commit-precheck.sh before commits**
 4. **FOLLOW GitHub issue #224 migration plan strictly**
 5. **TAG commits with `#224-` prefix** (e.g., `git tag #224-show-profile-command`)
+6. **RUN INTEGRATION TESTS** (`cargo test --test '*'`) before claiming completion
+7. **REMOVE old commands from src/repl/commands** after successful migration
 
 ## [2025-08-30] Command System Refactoring - Repurpose 3G Framework
 
@@ -507,12 +509,13 @@ The foundation is now in place to migrate business logic from AppController to A
 ## Current Migration Status (as of latest session)
 
 ### Completed Migrations
-- ✅ YankSelectionCommand - fully migrated with YankService integration
-- ✅ ShowProfileCommand - migrated, handles CommandEvent::ShowProfileRequested (commit 055a08c, tag #224-show-profile-command)
+- ✅ YankSelectionCommand - fully migrated with YankService integration (tag #224-yank-selection)
+- ✅ ShowProfileCommand - migrated, handles CommandEvent::ShowProfileRequested (tag #224-show-profile-command)
+- ✅ SettingChangeCommand - migrated, handles all setting changes (tag #224-setting-change-command)
+- ✅ Removed old YankCommand from src/repl/commands
 
 ### Pending Migrations (per issue #224)
-- ⏳ SettingChangeCommand - next in line
-- ⏳ YankCurrentLineCommand
+- ⏳ YankCurrentLineCommand - next in line
 - ⏳ PasteAfterCommand  
 - ⏳ PasteAtCursorCommand
 - ⏳ DeleteSelectionCommand
@@ -521,8 +524,9 @@ The foundation is now in place to migrate business logic from AppController to A
 
 ### Current Branch & Status
 - Working on: `feature/command-refactoring`
-- All tests passing: 474 tests
-- Latest commit: 055a08c - ShowProfileCommand migration
+- All unit tests passing: 475 tests
+- All integration tests passing: 6 tests
+- Latest commit: 4f74994 - SettingChangeCommand migration and YankCommand cleanup
 
 ### Architecture Vision
 The refactoring will transform the codebase from confused layers to proper MVVM:

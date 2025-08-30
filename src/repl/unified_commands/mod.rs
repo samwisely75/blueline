@@ -10,6 +10,9 @@ pub mod events;
 pub mod registry;
 
 // Command implementations
+pub mod cut_character;
+pub mod cut_selection;
+pub mod delete_selection;
 pub mod http;
 pub mod setting_change;
 pub mod show_profile;

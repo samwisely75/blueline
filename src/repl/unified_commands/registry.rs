@@ -40,16 +40,28 @@ impl UnifiedCommandRegistry {
 
     /// Register all default commands
     fn register_default_commands(&mut self) {
-        use crate::repl::unified_commands::{http::HttpExecuteCommand, yank::YankSelectionCommand};
+        use crate::repl::unified_commands::{
+            cut_character::CutCharacterCommand, cut_selection::CutSelectionCommand,
+            delete_selection::DeleteSelectionCommand, http::HttpExecuteCommand,
+            yank::YankSelectionCommand,
+        };
 
         // Add YankSelectionCommand
         self.add_command(Arc::new(YankSelectionCommand::new()));
+
+        // Add DeleteSelectionCommand
+        self.add_command(Arc::new(DeleteSelectionCommand::new()));
+
+        // Add CutSelectionCommand
+        self.add_command(Arc::new(CutSelectionCommand::new()));
+
+        // Add CutCharacterCommand
+        self.add_command(Arc::new(CutCharacterCommand::new()));
 
         // Add HttpExecuteCommand
         self.add_command(Arc::new(HttpExecuteCommand::new()));
 
         // TODO: Add more commands as we create them:
-        // self.add_command(Arc::new(DeleteSelectionCommand::new()));
         // self.add_command(Arc::new(CutSelectionCommand::new()));
         // etc.
     }

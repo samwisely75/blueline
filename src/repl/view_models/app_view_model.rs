@@ -678,13 +678,18 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 // self.handle_yank_selection()?;
             }
             CommandEvent::DeleteSelectionRequested => {
-                self.handle_delete_selection()?;
+                // Now handled by DeleteSelectionCommand in unified_commands
+                tracing::debug!(
+                    "DeleteSelectionRequested received via old command path - ignoring"
+                );
             }
             CommandEvent::CutSelectionRequested => {
-                self.handle_cut_selection()?;
+                // Now handled by CutSelectionCommand in unified_commands
+                tracing::debug!("CutSelectionRequested received via old command path - ignoring");
             }
             CommandEvent::CutCharacterRequested => {
-                self.handle_cut_character()?;
+                // Now handled by CutCharacterCommand in unified_commands
+                tracing::debug!("CutCharacterRequested received via old command path - ignoring");
             }
             CommandEvent::CutToEndOfLineRequested => {
                 self.handle_cut_to_end_of_line()?;
@@ -999,119 +1004,122 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         Ok(())
     }
 
-    /// Handle deleting selected text
-    fn handle_delete_selection(&mut self) -> Result<()> {
-        // First, get the selection info for yanking if dcut is enabled
-        if self.app_state.is_dcut_enabled() {
-            // Get selection text and type before deleting
-            if let Some((text, yank_type)) = self.app_state.get_selection_text_and_type()? {
-                // Store in YankService
-                self.services.yank.yank(text.clone(), yank_type)?;
-                tracing::info!("Yanked selection to buffer before delete");
-            }
-        }
+    // Migrated to DeleteSelectionCommand
+    // /// Handle deleting selected text
+    // fn handle_delete_selection(&mut self) -> Result<()> {
+    //     // First, get the selection info for yanking if dcut is enabled
+    //     if self.app_state.is_dcut_enabled() {
+    //         // Get selection text and type before deleting
+    //         if let Some((text, yank_type)) = self.app_state.get_selection_text_and_type()? {
+    //             // Store in YankService
+    //             self.services.yank.yank(text.clone(), yank_type)?;
+    //             tracing::info!("Yanked selection to buffer before delete");
+    //         }
+    //     }
+    //
+    //     // Delete the selected text - the method now returns the deleted text directly
+    //     if let Some(deleted_text) = self.app_state.delete_selected_text()? {
+    //         // Switch to Normal mode (automatically clears visual selection)
+    //         self.app_state.change_mode(EditorMode::Normal)?;
+    //
+    //         // Show feedback in status bar
+    //         let char_count = deleted_text.chars().count();
+    //         let line_count = deleted_text.lines().count();
+    //         let message = if line_count > 1 {
+    //             format!("{line_count} lines deleted")
+    //         } else {
+    //             format!("{char_count} characters deleted")
+    //         };
+    //         self.app_state.set_status_message(message);
+    //
+    //         tracing::info!("Deleted {} characters ({} lines)", char_count, line_count);
+    //     } else {
+    //         tracing::warn!("No text selected for deletion");
+    //         self.app_state
+    //             .set_status_message("No text selected".to_string());
+    //     }
+    //
+    //     Ok(())
+    // }
 
-        // Delete the selected text - the method now returns the deleted text directly
-        if let Some(deleted_text) = self.app_state.delete_selected_text()? {
-            // Switch to Normal mode (automatically clears visual selection)
-            self.app_state.change_mode(EditorMode::Normal)?;
+    // /// Handle cutting (delete + yank) selected text
+    // NOW HANDLED BY CutSelectionCommand in unified_commands
+    // fn handle_cut_selection(&mut self) -> Result<()> {
+    //     // Cut combines yank + delete, but we need to yank first before deleting
+    //     if let Some(text) = self.app_state.get_selected_text() {
+    //         // Determine yank type based on current visual mode BEFORE any mode changes
+    //         let current_mode = self.app_state.get_mode();
+    //         let yank_type = match current_mode {
+    //             EditorMode::Visual => NewYankType::Character,
+    //             EditorMode::VisualLine => NewYankType::Line,
+    //             EditorMode::VisualBlock => NewYankType::Block,
+    //             _ => NewYankType::Character, // Fallback for any other mode
+    //         };
+    //
+    //         // First yank to buffer using YankService
+    //         self.services.yank.yank(text.clone(), yank_type)?;
+    //
+    //         // Then delete the selected text (this also returns the deleted text for verification)
+    //         if let Some(deleted_text) = self.app_state.delete_selected_text()? {
+    //             // Switch to Normal mode (automatically clears visual selection)
+    //             self.app_state.change_mode(EditorMode::Normal)?;
+    //
+    //             // Show feedback in status bar
+    //             let char_count = deleted_text.chars().count();
+    //             let line_count = deleted_text.lines().count();
+    //             let message = match yank_type {
+    //                 NewYankType::Character => {
+    //                     if line_count > 1 {
+    //                         format!("{line_count} lines cut (character-wise)")
+    //                     } else {
+    //                         format!("{char_count} characters cut")
+    //                     }
+    //                 }
+    //                 NewYankType::Line => format!("{line_count} lines cut (line-wise)"),
+    //                 NewYankType::Block => {
+    //                     format!("Block cut ({line_count} lines, {char_count} chars)")
+    //                 }
+    //             };
+    //             self.app_state.set_status_message(message);
+    //
+    //             tracing::info!(
+    //                 "Cut {} characters ({} lines) to buffer as {:?}",
+    //                 char_count,
+    //                 line_count,
+    //                 yank_type
+    //             );
+    //         } else {
+    //             tracing::warn!("Failed to delete selected text during cut operation");
+    //             self.app_state
+    //                 .set_status_message("Cut operation failed".to_string());
+    //         }
+    //     } else {
+    //         tracing::warn!("No text selected for cutting");
+    //         self.app_state
+    //             .set_status_message("No text selected".to_string());
+    //     }
+    //
+    //     Ok(())
+    // }
 
-            // Show feedback in status bar
-            let char_count = deleted_text.chars().count();
-            let line_count = deleted_text.lines().count();
-            let message = if line_count > 1 {
-                format!("{line_count} lines deleted")
-            } else {
-                format!("{char_count} characters deleted")
-            };
-            self.app_state.set_status_message(message);
-
-            tracing::info!("Deleted {} characters ({} lines)", char_count, line_count);
-        } else {
-            tracing::warn!("No text selected for deletion");
-            self.app_state
-                .set_status_message("No text selected".to_string());
-        }
-
-        Ok(())
-    }
-
-    /// Handle cutting (delete + yank) selected text
-    fn handle_cut_selection(&mut self) -> Result<()> {
-        // Cut combines yank + delete, but we need to yank first before deleting
-        if let Some(text) = self.app_state.get_selected_text() {
-            // Determine yank type based on current visual mode BEFORE any mode changes
-            let current_mode = self.app_state.get_mode();
-            let yank_type = match current_mode {
-                EditorMode::Visual => NewYankType::Character,
-                EditorMode::VisualLine => NewYankType::Line,
-                EditorMode::VisualBlock => NewYankType::Block,
-                _ => NewYankType::Character, // Fallback for any other mode
-            };
-
-            // First yank to buffer using YankService
-            self.services.yank.yank(text.clone(), yank_type)?;
-
-            // Then delete the selected text (this also returns the deleted text for verification)
-            if let Some(deleted_text) = self.app_state.delete_selected_text()? {
-                // Switch to Normal mode (automatically clears visual selection)
-                self.app_state.change_mode(EditorMode::Normal)?;
-
-                // Show feedback in status bar
-                let char_count = deleted_text.chars().count();
-                let line_count = deleted_text.lines().count();
-                let message = match yank_type {
-                    NewYankType::Character => {
-                        if line_count > 1 {
-                            format!("{line_count} lines cut (character-wise)")
-                        } else {
-                            format!("{char_count} characters cut")
-                        }
-                    }
-                    NewYankType::Line => format!("{line_count} lines cut (line-wise)"),
-                    NewYankType::Block => {
-                        format!("Block cut ({line_count} lines, {char_count} chars)")
-                    }
-                };
-                self.app_state.set_status_message(message);
-
-                tracing::info!(
-                    "Cut {} characters ({} lines) to buffer as {:?}",
-                    char_count,
-                    line_count,
-                    yank_type
-                );
-            } else {
-                tracing::warn!("Failed to delete selected text during cut operation");
-                self.app_state
-                    .set_status_message("Cut operation failed".to_string());
-            }
-        } else {
-            tracing::warn!("No text selected for cutting");
-            self.app_state
-                .set_status_message("No text selected".to_string());
-        }
-
-        Ok(())
-    }
-
-    /// Handle cutting (delete + yank) character at cursor
-    fn handle_cut_character(&mut self) -> Result<()> {
-        // Cut character at cursor position - this returns the deleted text
-        self.app_state.cut_char_at_cursor()?;
-
-        // If dcut is enabled, the ViewModel already yanked to its buffer
-        // We need to sync that with the YankService
-        if self.app_state.is_dcut_enabled() {
-            if let Some(entry) = self.app_state.get_yanked_entry() {
-                self.services.yank.yank(entry.text, entry.yank_type)?;
-            }
-        }
-
-        tracing::info!("Cut 1 character at cursor");
-
-        Ok(())
-    }
+    // /// Handle cutting (delete + yank) character at cursor
+    // NOW HANDLED BY CutCharacterCommand in unified_commands
+    // fn handle_cut_character(&mut self) -> Result<()> {
+    //     // Cut character at cursor position - this returns the deleted text
+    //     self.app_state.cut_char_at_cursor()?;
+    //
+    //     // If dcut is enabled, the ViewModel already yanked to its buffer
+    //     // We need to sync that with the YankService
+    //     if self.app_state.is_dcut_enabled() {
+    //         if let Some(entry) = self.app_state.get_yanked_entry() {
+    //             self.services.yank.yank(entry.text, entry.yank_type)?;
+    //         }
+    //     }
+    //
+    //     tracing::info!("Cut 1 character at cursor");
+    //
+    //     Ok(())
+    // }
 
     /// Handle cutting (delete + yank) from cursor to end of line
     fn handle_cut_to_end_of_line(&mut self) -> Result<()> {
