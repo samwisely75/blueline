@@ -17,7 +17,7 @@ use crate::repl::{
     services::{HttpResponseMessage, Services},
     unified_commands::{
         events::YankType as NewYankType, Command, ExecutionContext, ModelEvent,
-        UnifiedCommandRegistry,
+        DynamicCommandRegistry,
     },
     views::{TerminalRenderer, ViewRenderer},
 };
@@ -34,8 +34,8 @@ pub struct AppViewModel<ES: EventStream, RS: RenderStream> {
     // Old command system (being phased out)
     command_registry: CommandRegistry,
     ex_command_registry: ExCommandRegistry,
-    // New unified command system (checks first, falls back to old system)
-    unified_command_registry: UnifiedCommandRegistry,
+    // New dynamic command system (checks first, falls back to old system)
+    unified_command_registry: DynamicCommandRegistry,
     #[allow(dead_code)]
     event_bus: SimpleEventBus,
     event_stream: ES,
@@ -64,7 +64,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
         let command_registry = CommandRegistry::new();
         let ex_command_registry = ExCommandRegistry::new();
-        let unified_command_registry = UnifiedCommandRegistry::new();
+        let unified_command_registry = DynamicCommandRegistry::new();
         let event_bus = SimpleEventBus::new();
 
         // Synchronize view model with actual terminal size

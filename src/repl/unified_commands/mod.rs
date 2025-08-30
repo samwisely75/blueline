@@ -6,9 +6,8 @@
 
 // Core infrastructure
 pub mod command;
-pub mod command_registry; // New dynamic registry
+pub mod dynamic_registry; // Dynamic command discovery system
 pub mod events;
-pub mod registry;
 
 // Command implementations
 pub mod change_selection;
@@ -29,9 +28,8 @@ pub mod yank_current_line;
 
 // Re-export main types
 pub use command::{Command, CommandContext, ExecutionContext};
-pub use command_registry::{register_all_commands, CommandEntry, CommandFactory};
+pub use dynamic_registry::{register_all_commands, CommandEntry, CommandFactory, DynamicCommandRegistry};
 pub use events::{ModelEvent, YankType};
-pub use registry::UnifiedCommandRegistry;
 
 // Note: Individual command re-exports no longer needed -
 // commands self-register using the inventory system

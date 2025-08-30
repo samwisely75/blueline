@@ -31,5 +31,23 @@ pub mod cmd_args;
 pub mod config;
 pub mod repl;
 
+/// Macro for self-registering commands
+///
+/// Usage in command modules:
+/// ```rust
+/// register_command!(YankSelectionCommand, "YankSelectionCommand");
+/// ```
+#[macro_export]
+macro_rules! register_command {
+    ($command_type:ty, $name:literal) => {
+        inventory::submit! {
+            $crate::repl::unified_commands::CommandEntry {
+                name: $name,
+                factory: || Box::new(<$command_type>::new()),
+            }
+        }
+    };
+}
+
 // Re-export main types for easy access
 pub use repl::*;
