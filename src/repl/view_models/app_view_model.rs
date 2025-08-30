@@ -711,7 +711,10 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 );
             }
             CommandEvent::VisualBlockAppendRequested => {
-                self.handle_visual_block_append()?;
+                // Now handled by VisualBlockAppendCommand in unified_commands
+                tracing::debug!(
+                    "VisualBlockAppendRequested received via old command path - ignoring"
+                );
             }
             CommandEvent::ExitVisualBlockInsertRequested => {
                 self.handle_exit_visual_block_insert()?;
@@ -1183,74 +1186,8 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     //     // See: src/repl/unified_commands/visual_block_insert.rs
     // }
 
-    /// Handle Visual Block Append operation ('A' in Visual Block mode)
-    ///
-    /// This implements vim's Visual Block Append command:
-    /// 1. Remember the selected block coordinates
-    /// 2. Move cursor to the end of the first selected line in the block
-    /// 3. Enter special VisualBlockInsert mode
-    /// 4. Text typed appears on first line, replicated to all lines on Esc
-    fn handle_visual_block_append(&mut self) -> Result<()> {
-        // Only supported in Visual Block mode
-        let current_mode = self.app_state.get_mode();
-        if current_mode != EditorMode::VisualBlock {
-            tracing::warn!("Visual Block Append only supported in Visual Block mode, current mode: {current_mode:?}");
-            self.app_state.set_status_message(
-                "Visual Block Append only supported in Visual Block mode".to_string(),
-            );
-            return Ok(());
-        }
-
-        // Get the visual selection coordinates
-        let (start_pos, end_pos, pane) = self.app_state.get_visual_selection();
-        if let (Some(start), Some(end), Some(selected_pane)) = (start_pos, end_pos, pane) {
-            if selected_pane != self.app_state.get_current_pane() {
-                tracing::warn!("Visual selection is not in current pane");
-                return Ok(());
-            }
-
-            // Calculate the block boundaries
-            let start_line = start.line.min(end.line);
-            let end_line = start.line.max(end.line);
-            let end_col = start.column.max(end.column);
-
-            // Create cursor positions for all lines in the block (AFTER the end position for append)
-            // Visual Block 'A' should position cursor after the rightmost selected character
-            let mut cursor_positions = Vec::new();
-            for line in start_line..=end_line {
-                cursor_positions.push(LogicalPosition::new(line, end_col + 1));
-            }
-
-            // Set multi-cursor state for Visual Block Insert
-            self.app_state
-                .set_visual_block_insert_cursors(cursor_positions);
-
-            // Move primary cursor to after the end of block (one position after rightmost column)
-            self.app_state
-                .set_cursor_position(LogicalPosition::new(start_line, end_col + 1))?;
-
-            // Enter Visual Block Insert mode
-            self.app_state.change_mode(EditorMode::VisualBlockInsert)?;
-
-            // Show feedback
-            let line_count = (start.line.max(end.line) - start_line) + 1;
-            self.app_state
-                .set_status_message(format!("Visual Block Append: {line_count} lines"));
-
-            tracing::info!(
-                "Entered Visual Block Append mode at position ({}, {}), affecting {} lines",
-                start_line,
-                end_col,
-                line_count
-            );
-        } else {
-            tracing::warn!("No visual block selection found");
-            self.app_state
-                .set_status_message("No visual block selection".to_string());
-        }
-
-        Ok(())
-    }
+    // handle_visual_block_append method has been migrated to VisualBlockAppendCommand
+    // See: src/repl/unified_commands/visual_block_append.rs
 
     /// Handle exit from Visual Block Insert mode with text replication
     ///
