@@ -506,21 +506,25 @@ The foundation is now in place to migrate business logic from AppController to A
 - Begin Phase 1: Model reorganization
 - Focus on incremental, stable migration
 
-## Current Migration Status (as of latest session)
+## Current Migration Status (as of 2025-08-30)
 
 ### Completed Migrations
 - ✅ YankSelectionCommand - fully migrated with YankService integration (tag #224-yank-selection)
 - ✅ ShowProfileCommand - migrated, handles CommandEvent::ShowProfileRequested (tag #224-show-profile-command)
 - ✅ SettingChangeCommand - migrated, handles all setting changes (tag #224-setting-change-command)
-- ✅ Removed old YankCommand from src/repl/commands
+- ✅ DeleteSelectionCommand - migrated Phase 2A (tag v0.46.3)
+- ✅ CutSelectionCommand - migrated Phase 2A (tag v0.46.3)
+- ✅ CutCharacterCommand - migrated Phase 2A with integration test fix (tag v0.46.3)
+- ✅ Removed old YankCommand, DeleteSelectionCommand, CutSelectionCommand, CutCharacterCommand from src/repl/commands
 
 ### Pending Migrations (per issue #224)
-- ⏳ YankCurrentLineCommand - next in line
-- ⏳ PasteAfterCommand  
-- ⏳ PasteAtCursorCommand
-- ⏳ DeleteSelectionCommand
-- ⏳ CutSelectionCommand
-- (and 14+ more...)
+- ⏳ CutToEndOfLineCommand - Phase 2A next
+- ⏳ CutCurrentLineCommand - Phase 2A
+- ⏳ YankCurrentLineCommand - Phase 2A
+- ⏳ ChangeSelectionCommand - Phase 2A
+- ⏳ PasteAfterCommand - Phase 2C
+- ⏳ PasteAtCursorCommand - Phase 2C
+- (and more in Phase 2B, 2C, Phase 3...)
 
 ### Current Branch & Status
 - Working on: `feature/command-refactoring`

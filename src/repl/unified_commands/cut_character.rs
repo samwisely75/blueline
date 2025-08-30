@@ -35,6 +35,12 @@ impl Command for CutCharacterCommand {
     }
 
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+        // Only allow in Request pane and Normal mode (double-check)
+        if !context.app_state.is_in_request_pane() || context.app_state.mode() != EditorMode::Normal
+        {
+            return Ok(vec![]);
+        }
+
         // Cut character at cursor position - this returns the deleted text
         if let Some(deleted_char) = context.app_state.pane_manager.cut_char_at_cursor() {
             // Always yank the character (cut = yank + delete)
@@ -60,11 +66,8 @@ impl Command for CutCharacterCommand {
                 ViewEvent::StatusBarUpdateRequired,
             ])
         } else {
-            // No character to cut at cursor position
-            context
-                .app_state
-                .set_status_message("No character to cut".to_string());
-            Ok(vec![ViewEvent::StatusBarUpdateRequired])
+            // No character to cut at cursor position - don't update anything
+            Ok(vec![])
         }
     }
 
@@ -179,8 +182,7 @@ mod tests {
 
         assert!(result.is_ok());
         let events = result.unwrap();
-        assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
+        assert_eq!(events.len(), 0); // Should return empty vec when no character to cut
     }
 
     #[test]
