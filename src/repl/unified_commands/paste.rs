@@ -1,15 +1,13 @@
 //! # Paste Commands
 //!
-//! Paste commands that execute directly.
-//! Demonstrates moving all business logic into the command itself.
+//! Paste commands following the unified command pattern.
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::repl::{
-    events::EditorMode,
-    services::Services,
-    view_models::{commands::{Command, CommandContext}, ViewModel},
+    models::{events::view_events::ViewEvent, pane_state::EditorMode},
+    unified_commands::{Command, CommandContext, ExecutionContext},
 };
 
 /// Paste command - pastes text after cursor (p command)
@@ -31,17 +29,17 @@ impl Command for PasteAfterCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, view_model: &mut ViewModel, services: &mut Services) -> Result<()> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
         // Get from YankService
-        if let Some(yank_entry) = services.yank.paste() {
+        if let Some(yank_entry) = context.services.yank.paste() {
             // Paste the text after the current cursor position using type-aware paste
-            view_model.paste_after_with_type(&yank_entry)?;
+            context.app_state.paste_after_with_type(&yank_entry)?;
 
             let char_count = yank_entry.text.chars().count();
             let line_count = yank_entry.text.lines().count();
 
             // Clear any previous status message (e.g., "1 line yanked")
-            view_model.clear_status_message();
+            context.app_state.clear_status_message();
 
             tracing::info!(
                 "Pasted {} characters ({} lines) after cursor as {:?}",
@@ -50,11 +48,17 @@ impl Command for PasteAfterCommand {
                 yank_entry.yank_type
             );
         } else {
-            view_model.set_status_message("Nothing to paste".to_string());
+            context
+                .app_state
+                .set_status_message("Nothing to paste".to_string());
             tracing::warn!("No text in yank buffer to paste");
         }
 
-        Ok(())
+        // Return UI update events
+        Ok(vec![
+            ViewEvent::CurrentAreaRedrawRequired,
+            ViewEvent::StatusBarUpdateRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {
@@ -81,9 +85,9 @@ impl Command for PasteBeforeCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, view_model: &mut ViewModel, services: &mut Services) -> Result<()> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
         // Get from YankService
-        if let Some(yank_entry) = services.yank.paste() {
+        if let Some(yank_entry) = context.services.yank.paste() {
             tracing::debug!(
                 "Retrieved yank entry with type: {:?}, text length: {}",
                 yank_entry.yank_type,
@@ -91,13 +95,13 @@ impl Command for PasteBeforeCommand {
             );
 
             // Paste the text at current position (before cursor) using type-aware paste
-            view_model.paste_with_type(&yank_entry)?;
+            context.app_state.paste_with_type(&yank_entry)?;
 
             let char_count = yank_entry.text.chars().count();
             let line_count = yank_entry.text.lines().count();
 
             // Clear any previous status message (e.g., "1 line yanked")
-            view_model.clear_status_message();
+            context.app_state.clear_status_message();
 
             tracing::info!(
                 "Pasted {} characters ({} lines) at cursor as {:?}",
@@ -106,11 +110,17 @@ impl Command for PasteBeforeCommand {
                 yank_entry.yank_type
             );
         } else {
-            view_model.set_status_message("Nothing to paste".to_string());
+            context
+                .app_state
+                .set_status_message("Nothing to paste".to_string());
             tracing::warn!("No text in yank buffer to paste");
         }
 
-        Ok(())
+        // Return UI update events
+        Ok(vec![
+            ViewEvent::CurrentAreaRedrawRequired,
+            ViewEvent::StatusBarUpdateRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {
@@ -159,3 +169,8 @@ mod tests {
         assert!(!command.is_relevant(p_lower, EditorMode::Normal, &context));
     }
 }
+
+// Register both commands for dynamic discovery
+use crate::register_command;
+register_command!(PasteAfterCommand, "PasteAfterCommand");
+register_command!(PasteBeforeCommand, "PasteBeforeCommand");

@@ -117,12 +117,44 @@ mod tests {
 register_command!([CommandName], "[CommandName]");
 ```
 
-#### C. Update Module Exports (MINIMAL CONFLICT ZONE)
+#### C. Update Module Exports (ZERO CONFLICTS!)
+
+🚀 **Revolutionary Update**: We now have **TRUE ZERO CONFLICTS** through reserved placeholders!
 
 ```bash
-# Add module to src/repl/unified_commands/mod.rs
-echo "pub mod [command_name];" >> src/repl/unified_commands/mod.rs
+# Find your assigned GitHub issue number and comment line in mod.rs
+grep -n "Issue #[YOUR_ISSUE_NUMBER]" src/repl/unified_commands/mod.rs
+
+# Replace YOUR assigned comment line with the actual module declaration
+# Example: Replace "// pub mod move_left;" with "pub mod move_left;"
+sed -i 's|// pub mod [your_command_name];|pub mod [your_command_name];|' src/repl/unified_commands/mod.rs
 ```
+
+**How the Zero-Conflict System Works:**
+
+- ✅ **Pre-allocated Placeholders**: All command slots (issues #231-295) are pre-reserved as comments
+- ✅ **Assigned Replacements**: Each agent replaces only their assigned comment line
+- ✅ **No Line Additions**: No new lines added = **zero conflicts**  
+- ✅ **Comment to Code**: Simple replacement operation impossible to conflict
+- ✅ **Parallel Safety**: 100+ agents can work simultaneously without any conflicts
+
+**Example Workflow:**
+```bash
+# Your issue #235: InsertCharCommand
+# Before: // pub mod insert_char;
+# After:  pub mod insert_char;
+
+# Use sed for safe replacement
+sed -i 's|// pub mod insert_char;|pub mod insert_char;|' src/repl/unified_commands/mod.rs
+```
+
+**Verification:**
+```bash
+# Verify your change was applied correctly
+grep "pub mod [your_command_name];" src/repl/unified_commands/mod.rs
+```
+
+This is the **silver bullet** - true zero-conflict parallel development! 🎯
 
 #### D. Remove Old AppViewModel Method
 
@@ -196,41 +228,11 @@ Migrates \`handle_[method_name]\` to the new unified command system.
 🎯 This uses the new dynamic discovery system - zero merge conflicts!"
 ```
 
-## ⚡ The Revolutionary Benefits
-
-### Zero-Conflict Parallel Development
-
-**OLD WAY (Conflict-Prone):**
-```rust
-// Multiple agents modifying same registry.rs = CONFLICTS!
-self.add_command(Arc::new(CommandA::new()));  // Agent 1
-self.add_command(Arc::new(CommandB::new()));  // Agent 2  
-self.add_command(Arc::new(CommandC::new()));  // Agent 3
-```
-
-**NEW WAY (Zero Conflicts):**
-```rust
-// Each agent works in their own command file
-// Agent 1 in command_a.rs:
-register_command!(CommandA, "CommandA");  // NO CONFLICTS!
-
-// Agent 2 in command_b.rs:
-register_command!(CommandB, "CommandB");  // NO CONFLICTS!
-
-// Agent 3 in command_c.rs:
-register_command!(CommandC, "CommandC");  // NO CONFLICTS!
-```
-
-### Key Benefits
-- ✅ **Unlimited Parallel Agents**: Any number can work simultaneously
-- ✅ **Zero Registry Conflicts**: Commands self-register automatically
-- ✅ **Compile-Time Discovery**: No runtime overhead
-- ✅ **Simple Workflow**: Just add one line per command
-- ✅ **Automatic Integration**: Registry discovers all commands at build time
 
 ## 🚨 Critical Requirements
 
 ### Must-Follow Standards
+
 1. **Read Required Docs**: DEV_GUIDE.md, DEV_WORKFLOW.md, DEV_CODING.md, SESSION_NOTES.md
 2. **Use Temporary Repos**: Never work in primary repo
 3. **Follow 3G Framework**: is_relevant() + execute() + comprehensive tests
@@ -239,11 +241,13 @@ register_command!(CommandC, "CommandC");  // NO CONFLICTS!
 6. **Formatting Guidelines**: Use embedded expressions like `format!("Hello, {name}")`
 
 ### Testing Strategy
+
 - ✅ **Unit Tests**: Run locally, must pass
 - ✅ **Integration Tests**: Skip locally (Mac thread limits), run on GitHub Actions
 - ✅ **Precheck Script**: Always run before commit
 
 ### Quality Gates
+
 - All unit tests pass
 - Clippy warnings fixed
 - Code properly formatted  
@@ -253,6 +257,7 @@ register_command!(CommandC, "CommandC");  // NO CONFLICTS!
 ## 🎯 Success Criteria
 
 ### For Each Migration
+
 - [ ] Target method completely migrated to unified command
 - [ ] All business logic preserved and tested
 - [ ] Command uses `register_command!` macro (zero conflicts!)
@@ -262,6 +267,7 @@ register_command!(CommandC, "CommandC");  // NO CONFLICTS!
 - [ ] CI tests pass (integration tests run on GitHub Actions)
 
 ### For Parallel Development
+
 - [ ] Multiple agents can work simultaneously without conflicts
 - [ ] Each agent works in separate temporary repo clone
 - [ ] Registry conflicts eliminated via dynamic discovery
@@ -270,21 +276,26 @@ register_command!(CommandC, "CommandC");  // NO CONFLICTS!
 ## 📚 Reference Materials
 
 ### Essential Reading
+
 - `docs/DEV_GUIDE.md` - Architecture and patterns
 - `docs/DEV_WORKFLOW.md` - Complete development process
 - `docs/DEV_CODING.md` - Coding standards and formatting  
 - `SESSION_NOTES.md` - Current session context
 
 ### Code Examples
+
 - `src/repl/unified_commands/yank.rs` - YankSelectionCommand pattern
 - `src/repl/unified_commands/change_selection.rs` - Selection command pattern
 - `src/repl/unified_commands/visual_block_insert.rs` - Visual block pattern
 
 ### System Architecture
+
 - `src/repl/unified_commands/dynamic_registry.rs` - Dynamic discovery system
 - `src/lib.rs` - register_command! macro definition
 - `src/repl/view_models/app_view_model.rs` - Integration point
 
 ---
 
-**This guide enables unlimited parallel agent development with zero conflicts. The dynamic discovery system is the silver bullet for scaling command system refactoring! 🚀**
+## Summary
+
+This guide enables unlimited parallel agent development with zero conflicts. The dynamic discovery system is the silver bullet for scaling command system refactoring! 🚀
