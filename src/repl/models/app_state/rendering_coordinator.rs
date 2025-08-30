@@ -2,10 +2,10 @@
 //!
 //! Handles view event emission, rendering orchestration, and event collection using semantic operations.
 
+use super::AppState;
 use crate::repl::models::events::{ModelEvent, ViewEvent};
-use crate::repl::view_models::ViewModel;
 
-impl ViewModel {
+impl AppState {
     /// Emit view events (adds to pending events collection)
     /// Accepts single events, vectors, arrays, or any iterator of ViewEvent
     pub fn emit_view_event<E>(&mut self, events: E) -> Result<(), anyhow::Error>

@@ -6,10 +6,11 @@
 use crate::config::AppConfig;
 use crate::repl::{
     commands::{
-        CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry, MovementDirection,
-        Setting, SettingValue, ViewModelSnapshot,
+        AppStateSnapshot, CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry,
+        MovementDirection, Setting, SettingValue,
     },
     io::{EventStream, RenderStream},
+    models::app_state::AppState,
     models::events::SimpleEventBus,
     models::pane_state::{EditorMode, Pane},
     models::LogicalPosition,
@@ -18,7 +19,6 @@ use crate::repl::{
         events::YankType as NewYankType, Command, ExecutionContext, ModelEvent,
         UnifiedCommandRegistry,
     },
-    view_models::ViewModel,
     views::{TerminalRenderer, ViewRenderer},
 };
 use anyhow::Result;
@@ -27,7 +27,7 @@ use crossterm::event::{Event, KeyEvent};
 use std::time::Duration;
 /// The main application controller that orchestrates the MVVM pattern
 pub struct AppController<ES: EventStream, RS: RenderStream> {
-    view_model: ViewModel,
+    app_state: AppState,
     view_renderer: TerminalRenderer<RS>,
     // Services layer for business logic
     services: Services,
@@ -46,7 +46,7 @@ pub struct AppController<ES: EventStream, RS: RenderStream> {
 impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Create new application controller with injected I/O streams (dependency injection)
     pub fn with_io_streams(config: AppConfig, event_stream: ES, render_stream: RS) -> Result<Self> {
-        let mut view_model = ViewModel::new();
+        let mut app_state = AppState::new();
 
         // Pass RenderStream ownership to the View layer (TerminalRenderer)
         let view_renderer = TerminalRenderer::with_render_stream(render_stream)?;
@@ -69,14 +69,14 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Synchronize view model with actual terminal size
         let (width, height) = view_renderer.terminal_size();
-        view_model.update_terminal_size(width, height);
+        app_state.update_terminal_size(width, height);
 
         // Configure view model with profile and settings
-        Self::configure_view_model(&mut view_model, &profile, profile_name, profile_path);
+        Self::configure_app_state(&mut app_state, &profile, profile_name, profile_path);
 
         // Create the controller
         let mut controller = Self {
-            view_model,
+            app_state,
             view_renderer,
             services,
             command_registry,
@@ -124,18 +124,18 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     }
 
     /// Configure view model with profile settings
-    fn configure_view_model(
-        view_model: &mut ViewModel,
+    fn configure_app_state(
+        app_state: &mut AppState,
         _profile: &impl HttpConnectionProfile,
         profile_name: &str,
         profile_path: &str,
     ) {
         // HTTP client is now managed by the HttpService, not the ViewModel
         // Just store profile information for display
-        view_model.set_profile_info(profile_name.to_string(), profile_path.to_string());
+        app_state.set_profile_info(profile_name.to_string(), profile_path.to_string());
 
         // Set up event bus in view model
-        view_model.set_event_bus(Box::new(SimpleEventBus::new()));
+        app_state.set_event_bus(Box::new(SimpleEventBus::new()));
     }
 
     /// Apply initial ex commands from config file
@@ -144,7 +144,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             tracing::debug!("Applying config command: {}", command);
 
             // Create command context
-            let context = CommandContext::new(ViewModelSnapshot::from_view_model(&self.view_model));
+            let context = CommandContext::new(AppStateSnapshot::from_app_state(&self.app_state));
 
             // Execute the ex command
             match self.ex_command_registry.execute_command(command, &context) {
@@ -193,7 +193,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     pub async fn run(&mut self) -> Result<()> {
         // INITIALIZATION PHASE: Setup terminal and initial display
         self.view_renderer.initialize()?;
-        self.view_renderer.render_full(&self.view_model)?;
+        self.view_renderer.render_full(&self.app_state)?;
 
         // MAIN EVENT LOOP: Handle user input and update display
         while !self.should_quit {
@@ -235,7 +235,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         tracing::debug!("Received key event: {:?}", key_event);
 
         // Create command context snapshot for command processing
-        let context = CommandContext::new(ViewModelSnapshot::from_view_model(&self.view_model));
+        let context = CommandContext::new(AppStateSnapshot::from_app_state(&self.app_state));
 
         // Convert key event to command events via registry
         let Ok(events) = self.command_registry.process_event(key_event, &context) else {
@@ -270,8 +270,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Create command context from current state
         let context =
-            crate::repl::unified_commands::CommandContext::from_view_model(&self.view_model);
-        let current_mode = self.view_model.get_mode();
+            crate::repl::unified_commands::CommandContext::from_app_state(&self.app_state);
+        let current_mode = self.app_state.get_mode();
 
         // Find the first relevant command
         if let Some(command) =
@@ -282,7 +282,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
             // Execute the command with ExecutionContext
             let mut exec_context = ExecutionContext {
-                view_model: &mut self.view_model,
+                app_state: &mut self.app_state,
                 services: &mut self.services,
             };
             let events = command.handle(&mut exec_context)?;
@@ -324,8 +324,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 url,
             } => {
                 // Update response pane with the response
-                self.view_model.set_response_from_http(&response);
-                self.view_model.set_executing_request(false);
+                self.app_state.set_response_from_http(&response);
+                self.app_state.set_executing_request(false);
 
                 let status = response.status().as_u16();
                 let body = response.body().to_string();
@@ -344,8 +344,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
             HttpResponseMessage::Error { message } => {
                 // Update response with error message
-                self.view_model.set_response(0, message.clone());
-                self.view_model.set_executing_request(false);
+                self.app_state.set_response(0, message.clone());
+                self.app_state.set_executing_request(false);
 
                 tracing::error!("HTTP request failed: {}", message);
 
@@ -357,7 +357,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         self.process_model_event_internal(event)?;
 
         // Switch to response pane to show results
-        self.view_model.switch_to_response_pane();
+        self.app_state.switch_to_response_pane();
 
         // Trigger re-render to show the response
         self.render_if_needed()?;
@@ -368,10 +368,10 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Handle terminal resize events
     fn handle_resize_event(&mut self, width: u16, height: u16) -> Result<()> {
         // Synchronize both model and view with new terminal dimensions
-        self.view_model.update_terminal_size(width, height);
+        self.app_state.update_terminal_size(width, height);
         self.view_renderer.update_size(width, height);
         // Full redraw required after resize to handle layout changes
-        self.view_renderer.render_full(&self.view_model)?;
+        self.view_renderer.render_full(&self.app_state)?;
         Ok(())
     }
 
@@ -384,7 +384,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             return Ok(());
         }
 
-        let view_events = self.view_model.collect_pending_view_events();
+        let view_events = self.app_state.collect_pending_view_events();
         self.process_view_events(view_events)?;
         self.last_render_time = now;
 
@@ -408,63 +408,63 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             CommandEvent::CursorMoveRequested { direction, amount } => {
                 for _ in 0..amount {
                     match direction {
-                        MovementDirection::Left => self.view_model.move_cursor_left()?,
-                        MovementDirection::Right => self.view_model.move_cursor_right()?,
-                        MovementDirection::Up => self.view_model.move_cursor_up()?,
-                        MovementDirection::Down => self.view_model.move_cursor_down()?,
+                        MovementDirection::Left => self.app_state.move_cursor_left()?,
+                        MovementDirection::Right => self.app_state.move_cursor_right()?,
+                        MovementDirection::Up => self.app_state.move_cursor_up()?,
+                        MovementDirection::Down => self.app_state.move_cursor_down()?,
                         MovementDirection::LineEnd => {
-                            self.view_model.move_cursor_to_end_of_line()?
+                            self.app_state.move_cursor_to_end_of_line()?
                         }
                         MovementDirection::LineEndForAppend => {
-                            self.view_model.move_cursor_to_line_end_for_append()?
+                            self.app_state.move_cursor_to_line_end_for_append()?
                         }
                         MovementDirection::LineStart => {
-                            self.view_model.move_cursor_to_start_of_line()?
+                            self.app_state.move_cursor_to_start_of_line()?
                         }
                         MovementDirection::ScrollLeft => {
-                            self.view_model.scroll_horizontally(-1, amount)?
+                            self.app_state.scroll_horizontally(-1, amount)?
                         }
                         MovementDirection::ScrollRight => {
-                            self.view_model.scroll_horizontally(1, amount)?
+                            self.app_state.scroll_horizontally(1, amount)?
                         }
                         MovementDirection::DocumentStart => {
-                            self.view_model.move_cursor_to_document_start()?
+                            self.app_state.move_cursor_to_document_start()?
                         }
                         MovementDirection::DocumentEnd => {
-                            self.view_model.move_cursor_to_document_end()?
+                            self.app_state.move_cursor_to_document_end()?
                         }
                         MovementDirection::WordForward => {
-                            self.view_model.move_cursor_to_next_word()?
+                            self.app_state.move_cursor_to_next_word()?
                         }
                         MovementDirection::WordBackward => {
-                            self.view_model.move_cursor_to_previous_word()?
+                            self.app_state.move_cursor_to_previous_word()?
                         }
                         MovementDirection::WordEnd => {
-                            self.view_model.move_cursor_to_end_of_word()?
+                            self.app_state.move_cursor_to_end_of_word()?
                         }
                         MovementDirection::LineNumber(line_number) => {
-                            self.view_model.move_cursor_to_line(line_number)?
+                            self.app_state.move_cursor_to_line(line_number)?
                         }
-                        MovementDirection::PageDown => self.view_model.move_cursor_page_down()?,
-                        MovementDirection::PageUp => self.view_model.move_cursor_page_up()?,
+                        MovementDirection::PageDown => self.app_state.move_cursor_page_down()?,
+                        MovementDirection::PageUp => self.app_state.move_cursor_page_up()?,
                         MovementDirection::HalfPageDown => {
-                            self.view_model.move_cursor_half_page_down()?
+                            self.app_state.move_cursor_half_page_down()?
                         }
                         MovementDirection::HalfPageUp => {
-                            self.view_model.move_cursor_half_page_up()?
+                            self.app_state.move_cursor_half_page_up()?
                         }
                     }
                 }
             }
             CommandEvent::CursorPositionRequested { position } => {
-                self.view_model.set_cursor_position(position)?;
+                self.app_state.set_cursor_position(position)?;
             }
             CommandEvent::TextInsertRequested { text, position: _ } => {
                 // Check if we're in Visual Block Insert mode with multiple cursors
-                if self.view_model.is_in_visual_block_insert_mode() {
+                if self.app_state.is_in_visual_block_insert_mode() {
                     self.handle_multi_cursor_text_insert(&text)?;
                 } else {
-                    self.view_model.insert_text(&text)?;
+                    self.app_state.insert_text(&text)?;
                 }
             }
             CommandEvent::TextDeleteRequested {
@@ -479,7 +479,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 );
 
                 // Check if we're in Visual Block Insert mode with multiple cursors
-                if self.view_model.is_in_visual_block_insert_mode() {
+                if self.app_state.is_in_visual_block_insert_mode() {
                     self.handle_multi_cursor_text_delete(amount, direction)?;
                 } else {
                     for i in 0..amount {
@@ -489,7 +489,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                                     "🗑️  Attempting delete_char_before_cursor (iteration {})",
                                     i + 1
                                 );
-                                match self.view_model.delete_char_before_cursor() {
+                                match self.app_state.delete_char_before_cursor() {
                                     Ok(_) => {
                                         tracing::debug!("✅ delete_char_before_cursor succeeded")
                                     }
@@ -506,7 +506,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                                     "🗑️  Attempting delete_char_after_cursor (iteration {})",
                                     i + 1
                                 );
-                                match self.view_model.delete_char_after_cursor() {
+                                match self.app_state.delete_char_after_cursor() {
                                     Ok(_) => {
                                         tracing::debug!("✅ delete_char_after_cursor succeeded")
                                     }
@@ -525,7 +525,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
             CommandEvent::ModeChangeRequested { new_mode } => {
                 tracing::debug!("Applying mode change request: {:?}", new_mode);
-                match self.view_model.change_mode(new_mode) {
+                match self.app_state.change_mode(new_mode) {
                     Ok(_) => {
                         tracing::info!("Mode successfully changed to: {:?}", new_mode);
                     }
@@ -536,9 +536,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 }
             }
             CommandEvent::RestorePreviousModeRequested => {
-                let previous_mode = self.view_model.get_previous_mode();
+                let previous_mode = self.app_state.get_previous_mode();
                 tracing::debug!("Restoring previous mode: {:?}", previous_mode);
-                match self.view_model.change_mode(previous_mode) {
+                match self.app_state.change_mode(previous_mode) {
                     Ok(_) => {
                         tracing::info!("Successfully restored previous mode: {:?}", previous_mode);
                     }
@@ -553,33 +553,33 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 }
             }
             CommandEvent::PaneSwitchRequested { target_pane } => match target_pane {
-                Pane::Request => self.view_model.switch_to_request_pane(),
-                Pane::Response => self.view_model.switch_to_response_pane(),
+                Pane::Request => self.app_state.switch_to_request_pane(),
+                Pane::Response => self.app_state.switch_to_response_pane(),
             },
             CommandEvent::HttpRequestRequested { .. } => {
                 // This is now handled by HttpExecuteCommand
                 tracing::debug!("HTTP request received via old command path - ignoring");
             }
             CommandEvent::TerminalResizeRequested { width, height } => {
-                self.view_model.update_terminal_size(width, height);
+                self.app_state.update_terminal_size(width, height);
                 self.view_renderer.update_size(width, height);
             }
             CommandEvent::QuitRequested => {
                 self.should_quit = true;
             }
             CommandEvent::ExCommandCharRequested { ch } => {
-                self.view_model.add_ex_command_char(ch)?;
+                self.app_state.add_ex_command_char(ch)?;
             }
             CommandEvent::ExCommandBackspaceRequested => {
-                self.view_model.backspace_ex_command()?;
+                self.app_state.backspace_ex_command()?;
             }
             CommandEvent::ExCommandExecuteRequested => {
                 // Get the ex command string from the view model
-                let command_str = self.view_model.get_ex_command_buffer().to_string();
+                let command_str = self.app_state.get_ex_command_buffer().to_string();
 
                 // Create command context for ex command execution
                 let context =
-                    CommandContext::new(ViewModelSnapshot::from_view_model(&self.view_model));
+                    CommandContext::new(AppStateSnapshot::from_app_state(&self.app_state));
 
                 // Execute through the ex command registry
                 let events = self
@@ -587,9 +587,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                     .execute_command(&command_str, &context)?;
 
                 // Clear the command buffer and return to previous mode after successful execution
-                self.view_model.clear_ex_command_buffer();
-                let previous_mode = self.view_model.get_previous_mode();
-                self.view_model.change_mode(previous_mode)?;
+                self.app_state.clear_ex_command_buffer();
+                let previous_mode = self.app_state.get_previous_mode();
+                self.app_state.change_mode(previous_mode)?;
 
                 // Handle events directly to avoid recursion
                 for event in events {
@@ -610,7 +610,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                             for _ in 0..amount {
                                 match direction {
                                     MovementDirection::LineNumber(line_number) => {
-                                        self.view_model.move_cursor_to_line(line_number)?
+                                        self.app_state.move_cursor_to_line(line_number)?
                                     }
                                     _ => {
                                         tracing::warn!(
@@ -701,13 +701,13 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// - UI remains responsive during network operations
     ///
     /// Get reference to view model (for testing)
-    pub fn view_model(&self) -> &ViewModel {
-        &self.view_model
+    pub fn app_state(&self) -> &AppState {
+        &self.app_state
     }
 
     /// Get mutable reference to view model (for testing)
-    pub fn view_model_mut(&mut self) -> &mut ViewModel {
-        &mut self.view_model
+    pub fn app_state_mut(&mut self) -> &mut AppState {
+        &mut self.app_state
     }
 
     /// Process view events for selective rendering instead of always doing full redraws
@@ -754,7 +754,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 ViewEvent::CurrentAreaPartialRedrawRequired { start_line } => {
                     // Only add partial redraw if we're not already doing a full current area redraw
                     if !needs_current_area_redraw {
-                        let current_pane = self.view_model.get_current_pane();
+                        let current_pane = self.app_state.get_current_pane();
                         partial_redraws
                             .entry(current_pane)
                             .and_modify(|line| *line = (*line).min(start_line))
@@ -764,7 +764,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 ViewEvent::SecondaryAreaPartialRedrawRequired { start_line } => {
                     // Only add partial redraw if we're not already doing a full secondary area redraw
                     if !needs_secondary_area_redraw {
-                        let current_pane = self.view_model.get_current_pane();
+                        let current_pane = self.app_state.get_current_pane();
                         let secondary_pane = match current_pane {
                             Pane::Request => Pane::Response,
                             Pane::Response => Pane::Request,
@@ -781,7 +781,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 ViewEvent::PositionIndicatorUpdateRequired => {
                     // Handle position indicator separately for minimal flickering
                     self.view_renderer
-                        .render_position_indicator(&self.view_model)?;
+                        .render_position_indicator(&self.app_state)?;
                 }
                 ViewEvent::ActiveCursorUpdateRequired => {
                     needs_cursor_update = true;
@@ -801,7 +801,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 }
                 ViewEvent::RequestContentChanged => {
                     // Request content changed - redraw current area if we're in request pane
-                    if self.view_model.is_in_request_pane() {
+                    if self.app_state.is_in_request_pane() {
                         needs_current_area_redraw = true;
                     } else {
                         needs_secondary_area_redraw = true;
@@ -809,7 +809,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 }
                 ViewEvent::ResponseContentChanged => {
                     // Response content changed - redraw current area if we're in response pane
-                    if self.view_model.is_in_response_pane() {
+                    if self.app_state.is_in_response_pane() {
                         needs_current_area_redraw = true;
                     } else {
                         needs_secondary_area_redraw = true;
@@ -824,7 +824,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Process events in order of efficiency
         if needs_full_redraw {
-            self.view_renderer.render_full(&self.view_model)?;
+            self.view_renderer.render_full(&self.app_state)?;
         } else {
             // Selective rendering - renderer handles cursor visibility
             let has_content_updates = needs_current_area_redraw
@@ -843,36 +843,36 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
             // Render current area if needed
             if needs_current_area_redraw {
-                let current_pane = self.view_model.get_current_pane();
+                let current_pane = self.app_state.get_current_pane();
                 self.view_renderer
-                    .render_pane(&self.view_model, current_pane)?;
+                    .render_pane(&self.app_state, current_pane)?;
             }
 
             // Render secondary area if needed
             if needs_secondary_area_redraw {
-                let current_pane = self.view_model.get_current_pane();
+                let current_pane = self.app_state.get_current_pane();
                 let secondary_pane = match current_pane {
                     Pane::Request => Pane::Response,
                     Pane::Response => Pane::Request,
                 };
                 self.view_renderer
-                    .render_pane(&self.view_model, secondary_pane)?;
+                    .render_pane(&self.app_state, secondary_pane)?;
             }
 
             // Handle partial pane redraws
             for (pane, start_line) in &partial_redraws {
                 self.view_renderer
-                    .render_pane_partial(&self.view_model, *pane, *start_line)?;
+                    .render_pane_partial(&self.app_state, *pane, *start_line)?;
             }
 
             if needs_status_bar {
-                self.view_renderer.render_status_bar(&self.view_model)?;
+                self.view_renderer.render_status_bar(&self.app_state)?;
             }
 
             // Always render cursor after any pane redraw to prevent ghost cursors
             if needs_cursor_update || has_content_updates {
                 tracing::debug!("controller: rendering cursor after content updates");
-                self.view_renderer.render_cursor(&self.view_model)?;
+                self.view_renderer.render_cursor(&self.app_state)?;
             }
         }
 
@@ -880,10 +880,10 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     }
     /// Handle showing profile information in status bar
     fn handle_show_profile(&mut self) {
-        let profile_name = self.view_model.get_profile_name();
-        let profile_path = self.view_model.get_profile_path();
+        let profile_name = self.app_state.get_profile_name();
+        let profile_path = self.app_state.get_profile_path();
         let message = format!("[{profile_name}] in {profile_path}");
-        self.view_model.set_status_message(message);
+        self.app_state.set_status_message(message);
     }
 
     /// Handle setting changes from ex commands
@@ -898,20 +898,20 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             } else {
                 "Clipboard integration disabled"
             };
-            self.view_model.set_status_message(message.to_string());
+            self.app_state.set_status_message(message.to_string());
             Ok(())
         } else {
             // Other settings still go through ViewModel
-            self.view_model.apply_setting(setting, value)
+            self.app_state.apply_setting(setting, value)
         }
     }
 
     /// Handle yanking selected text to yank buffer
     fn handle_yank_selection(&mut self) -> Result<()> {
         // Get selected text from current pane
-        if let Some(text) = self.view_model.get_selected_text() {
+        if let Some(text) = self.app_state.get_selected_text() {
             // Determine yank type based on current visual mode
-            let current_mode = self.view_model.get_mode();
+            let current_mode = self.app_state.get_mode();
             let yank_type = match current_mode {
                 EditorMode::Visual => NewYankType::Character,
                 EditorMode::VisualLine => NewYankType::Line,
@@ -923,7 +923,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             self.services.yank.yank(text.clone(), yank_type)?;
 
             // Switch to Normal mode (automatically clears visual selection)
-            self.view_model.change_mode(EditorMode::Normal)?;
+            self.app_state.change_mode(EditorMode::Normal)?;
 
             // Show feedback in status bar
             let char_count = text.chars().count();
@@ -941,7 +941,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                     format!("Block yanked ({line_count} lines, {char_count} chars)")
                 }
             };
-            self.view_model.set_status_message(message);
+            self.app_state.set_status_message(message);
 
             tracing::info!(
                 "Yanked {} characters ({} lines) to buffer as {:?}",
@@ -951,7 +951,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             );
         } else {
             tracing::warn!("No text selected for yanking");
-            self.view_model
+            self.app_state
                 .set_status_message("No text selected".to_string());
         }
 
@@ -961,9 +961,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Handle deleting selected text
     fn handle_delete_selection(&mut self) -> Result<()> {
         // First, get the selection info for yanking if dcut is enabled
-        if self.view_model.is_dcut_enabled() {
+        if self.app_state.is_dcut_enabled() {
             // Get selection text and type before deleting
-            if let Some((text, yank_type)) = self.view_model.get_selection_text_and_type()? {
+            if let Some((text, yank_type)) = self.app_state.get_selection_text_and_type()? {
                 // Store in YankService
                 self.services.yank.yank(text.clone(), yank_type)?;
                 tracing::info!("Yanked selection to buffer before delete");
@@ -971,9 +971,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         }
 
         // Delete the selected text - the method now returns the deleted text directly
-        if let Some(deleted_text) = self.view_model.delete_selected_text()? {
+        if let Some(deleted_text) = self.app_state.delete_selected_text()? {
             // Switch to Normal mode (automatically clears visual selection)
-            self.view_model.change_mode(EditorMode::Normal)?;
+            self.app_state.change_mode(EditorMode::Normal)?;
 
             // Show feedback in status bar
             let char_count = deleted_text.chars().count();
@@ -983,12 +983,12 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             } else {
                 format!("{char_count} characters deleted")
             };
-            self.view_model.set_status_message(message);
+            self.app_state.set_status_message(message);
 
             tracing::info!("Deleted {} characters ({} lines)", char_count, line_count);
         } else {
             tracing::warn!("No text selected for deletion");
-            self.view_model
+            self.app_state
                 .set_status_message("No text selected".to_string());
         }
 
@@ -998,9 +998,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Handle cutting (delete + yank) selected text
     fn handle_cut_selection(&mut self) -> Result<()> {
         // Cut combines yank + delete, but we need to yank first before deleting
-        if let Some(text) = self.view_model.get_selected_text() {
+        if let Some(text) = self.app_state.get_selected_text() {
             // Determine yank type based on current visual mode BEFORE any mode changes
-            let current_mode = self.view_model.get_mode();
+            let current_mode = self.app_state.get_mode();
             let yank_type = match current_mode {
                 EditorMode::Visual => NewYankType::Character,
                 EditorMode::VisualLine => NewYankType::Line,
@@ -1012,9 +1012,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             self.services.yank.yank(text.clone(), yank_type)?;
 
             // Then delete the selected text (this also returns the deleted text for verification)
-            if let Some(deleted_text) = self.view_model.delete_selected_text()? {
+            if let Some(deleted_text) = self.app_state.delete_selected_text()? {
                 // Switch to Normal mode (automatically clears visual selection)
-                self.view_model.change_mode(EditorMode::Normal)?;
+                self.app_state.change_mode(EditorMode::Normal)?;
 
                 // Show feedback in status bar
                 let char_count = deleted_text.chars().count();
@@ -1032,7 +1032,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                         format!("Block cut ({line_count} lines, {char_count} chars)")
                     }
                 };
-                self.view_model.set_status_message(message);
+                self.app_state.set_status_message(message);
 
                 tracing::info!(
                     "Cut {} characters ({} lines) to buffer as {:?}",
@@ -1042,12 +1042,12 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 );
             } else {
                 tracing::warn!("Failed to delete selected text during cut operation");
-                self.view_model
+                self.app_state
                     .set_status_message("Cut operation failed".to_string());
             }
         } else {
             tracing::warn!("No text selected for cutting");
-            self.view_model
+            self.app_state
                 .set_status_message("No text selected".to_string());
         }
 
@@ -1057,12 +1057,12 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Handle cutting (delete + yank) character at cursor
     fn handle_cut_character(&mut self) -> Result<()> {
         // Cut character at cursor position - this returns the deleted text
-        self.view_model.cut_char_at_cursor()?;
+        self.app_state.cut_char_at_cursor()?;
 
         // If dcut is enabled, the ViewModel already yanked to its buffer
         // We need to sync that with the YankService
-        if self.view_model.is_dcut_enabled() {
-            if let Some(entry) = self.view_model.get_yanked_entry() {
+        if self.app_state.is_dcut_enabled() {
+            if let Some(entry) = self.app_state.get_yanked_entry() {
                 self.services.yank.yank(entry.text, entry.yank_type)?;
             }
         }
@@ -1075,12 +1075,12 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Handle cutting (delete + yank) from cursor to end of line
     fn handle_cut_to_end_of_line(&mut self) -> Result<()> {
         // Cut from cursor to end of line - this returns the deleted text
-        self.view_model.cut_to_end_of_line()?;
+        self.app_state.cut_to_end_of_line()?;
 
         // If dcut is enabled, the ViewModel already yanked to its buffer
         // We need to sync that with the YankService
-        if self.view_model.is_dcut_enabled() {
-            if let Some(entry) = self.view_model.get_yanked_entry() {
+        if self.app_state.is_dcut_enabled() {
+            if let Some(entry) = self.app_state.get_yanked_entry() {
                 self.services.yank.yank(entry.text, entry.yank_type)?;
             }
         }
@@ -1093,12 +1093,12 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Handle cutting (delete + yank) entire current line
     fn handle_cut_current_line(&mut self) -> Result<()> {
         // Cut entire current line - this returns the deleted text
-        self.view_model.cut_current_line()?;
+        self.app_state.cut_current_line()?;
 
         // If dcut is enabled, the ViewModel already yanked to its buffer
         // We need to sync that with the YankService
-        if self.view_model.is_dcut_enabled() {
-            if let Some(entry) = self.view_model.get_yanked_entry() {
+        if self.app_state.is_dcut_enabled() {
+            if let Some(entry) = self.app_state.get_yanked_entry() {
                 self.services.yank.yank(entry.text, entry.yank_type)?;
             }
         }
@@ -1111,15 +1111,15 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Handle yanking (copy) entire current line without deleting
     fn handle_yank_current_line(&mut self) -> Result<()> {
         // Yank entire current line to yank buffer without deleting
-        self.view_model.yank_current_line()?;
+        self.app_state.yank_current_line()?;
 
         // Sync with YankService
-        if let Some(entry) = self.view_model.get_yanked_entry() {
+        if let Some(entry) = self.app_state.get_yanked_entry() {
             self.services.yank.yank(entry.text, entry.yank_type)?;
         }
 
         // Show status message
-        self.view_model
+        self.app_state
             .set_status_message("1 line yanked".to_string());
 
         tracing::info!("Yanked entire current line to yank buffer");
@@ -1136,20 +1136,20 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// 4. When Esc is pressed, exits Visual Block Insert mode
     fn handle_change_selection(&mut self) -> Result<()> {
         // Change operation is currently only supported in Visual Block mode
-        let current_mode = self.view_model.get_mode();
+        let current_mode = self.app_state.get_mode();
         if current_mode != EditorMode::VisualBlock {
             tracing::warn!("Change selection only supported in Visual Block mode, current mode: {current_mode:?}");
-            self.view_model.set_status_message(
+            self.app_state.set_status_message(
                 "Change command only supported in Visual Block mode".to_string(),
             );
             return Ok(());
         }
 
         // Get the visual selection before deleting it
-        let (selection_start, selection_end, _pane) = self.view_model.get_visual_selection();
+        let (selection_start, selection_end, _pane) = self.app_state.get_visual_selection();
         if selection_start.is_none() || selection_end.is_none() {
             tracing::warn!("No visual selection for change operation");
-            self.view_model
+            self.app_state
                 .set_status_message("No text selected".to_string());
             return Ok(());
         }
@@ -1164,7 +1164,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         let left_col = start.column.min(end.column);
 
         // Delete the selected block text first
-        if let Some(deleted_text) = self.view_model.delete_selected_text()? {
+        if let Some(deleted_text) = self.app_state.delete_selected_text()? {
             // Create cursor positions for all lines in the deleted block range
             let mut cursor_positions = Vec::new();
             for line_num in top_line..=bottom_line {
@@ -1172,14 +1172,14 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
 
             // Set up Visual Block Insert mode with multi-cursor state
-            self.view_model
+            self.app_state
                 .set_visual_block_insert_cursors(cursor_positions.clone());
 
             // Switch to VisualBlockInsert mode (not regular Insert)
-            self.view_model.change_mode(EditorMode::VisualBlockInsert)?;
+            self.app_state.change_mode(EditorMode::VisualBlockInsert)?;
 
             // Position the main cursor at the first line of the block
-            self.view_model.set_cursor_position(cursor_positions[0])?;
+            self.app_state.set_cursor_position(cursor_positions[0])?;
 
             // Show feedback in status bar
             let char_count = deleted_text.chars().count();
@@ -1189,7 +1189,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             } else {
                 format!("Changed {char_count} characters, Visual Block Insert mode")
             };
-            self.view_model.set_status_message(message);
+            self.app_state.set_status_message(message);
 
             tracing::info!(
                 "Changed {} characters ({} lines), entered Visual Block Insert mode with {} cursors",
@@ -1199,7 +1199,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             );
         } else {
             tracing::warn!("No text selected for changing");
-            self.view_model
+            self.app_state
                 .set_status_message("No text selected".to_string());
         }
 
@@ -1215,19 +1215,19 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// 4. Text typed appears on first line, replicated to all lines on Esc
     fn handle_visual_block_insert(&mut self) -> Result<()> {
         // Only supported in Visual Block mode
-        let current_mode = self.view_model.get_mode();
+        let current_mode = self.app_state.get_mode();
         if current_mode != EditorMode::VisualBlock {
             tracing::warn!("Visual Block Insert only supported in Visual Block mode, current mode: {current_mode:?}");
-            self.view_model.set_status_message(
+            self.app_state.set_status_message(
                 "Visual Block Insert only supported in Visual Block mode".to_string(),
             );
             return Ok(());
         }
 
         // Get the visual selection coordinates
-        let (start_pos, end_pos, pane) = self.view_model.get_visual_selection();
+        let (start_pos, end_pos, pane) = self.app_state.get_visual_selection();
         if let (Some(start), Some(end), Some(selected_pane)) = (start_pos, end_pos, pane) {
-            if selected_pane != self.view_model.get_current_pane() {
+            if selected_pane != self.app_state.get_current_pane() {
                 tracing::warn!("Visual selection is not in current pane");
                 return Ok(());
             }
@@ -1244,19 +1244,19 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
 
             // Set multi-cursor state for Visual Block Insert
-            self.view_model
+            self.app_state
                 .set_visual_block_insert_cursors(cursor_positions);
 
             // Move primary cursor to start of block (beginning of leftmost column on first line)
-            self.view_model
+            self.app_state
                 .set_cursor_position(LogicalPosition::new(start_line, start_col))?;
 
             // Enter Visual Block Insert mode
-            self.view_model.change_mode(EditorMode::VisualBlockInsert)?;
+            self.app_state.change_mode(EditorMode::VisualBlockInsert)?;
 
             // Show feedback
             let line_count = (start.line.max(end.line) - start_line) + 1;
-            self.view_model
+            self.app_state
                 .set_status_message(format!("Visual Block Insert: {line_count} lines"));
 
             tracing::info!(
@@ -1267,7 +1267,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             );
         } else {
             tracing::warn!("No visual block selection found");
-            self.view_model
+            self.app_state
                 .set_status_message("No visual block selection".to_string());
         }
 
@@ -1283,19 +1283,19 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// 4. Text typed appears on first line, replicated to all lines on Esc
     fn handle_visual_block_append(&mut self) -> Result<()> {
         // Only supported in Visual Block mode
-        let current_mode = self.view_model.get_mode();
+        let current_mode = self.app_state.get_mode();
         if current_mode != EditorMode::VisualBlock {
             tracing::warn!("Visual Block Append only supported in Visual Block mode, current mode: {current_mode:?}");
-            self.view_model.set_status_message(
+            self.app_state.set_status_message(
                 "Visual Block Append only supported in Visual Block mode".to_string(),
             );
             return Ok(());
         }
 
         // Get the visual selection coordinates
-        let (start_pos, end_pos, pane) = self.view_model.get_visual_selection();
+        let (start_pos, end_pos, pane) = self.app_state.get_visual_selection();
         if let (Some(start), Some(end), Some(selected_pane)) = (start_pos, end_pos, pane) {
-            if selected_pane != self.view_model.get_current_pane() {
+            if selected_pane != self.app_state.get_current_pane() {
                 tracing::warn!("Visual selection is not in current pane");
                 return Ok(());
             }
@@ -1313,19 +1313,19 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
 
             // Set multi-cursor state for Visual Block Insert
-            self.view_model
+            self.app_state
                 .set_visual_block_insert_cursors(cursor_positions);
 
             // Move primary cursor to after the end of block (one position after rightmost column)
-            self.view_model
+            self.app_state
                 .set_cursor_position(LogicalPosition::new(start_line, end_col + 1))?;
 
             // Enter Visual Block Insert mode
-            self.view_model.change_mode(EditorMode::VisualBlockInsert)?;
+            self.app_state.change_mode(EditorMode::VisualBlockInsert)?;
 
             // Show feedback
             let line_count = (start.line.max(end.line) - start_line) + 1;
-            self.view_model
+            self.app_state
                 .set_status_message(format!("Visual Block Append: {line_count} lines"));
 
             tracing::info!(
@@ -1336,7 +1336,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             );
         } else {
             tracing::warn!("No visual block selection found");
-            self.view_model
+            self.app_state
                 .set_status_message("No visual block selection".to_string());
         }
 
@@ -1354,27 +1354,27 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Preserve cursor position at the first multi-cursor position
         let cursor_to_preserve = self
-            .view_model
+            .app_state
             .get_visual_block_insert_cursors()
             .first()
             .copied(); // Get first cursor position before clearing
 
         // Clear multi-cursor state
-        self.view_model.clear_visual_block_insert_cursors();
+        self.app_state.clear_visual_block_insert_cursors();
 
         // Clear visual selection that was active when we entered Visual Block Insert
-        self.view_model.clear_visual_selection()?;
+        self.app_state.clear_visual_selection()?;
 
         // Restore cursor position to where typing was happening (first cursor)
         if let Some(preserved_cursor) = cursor_to_preserve {
-            self.view_model.set_cursor_position(preserved_cursor)?;
+            self.app_state.set_cursor_position(preserved_cursor)?;
             tracing::debug!("Preserved cursor position at {:?}", preserved_cursor);
         }
 
-        self.view_model.change_mode(EditorMode::Normal)?;
+        self.app_state.change_mode(EditorMode::Normal)?;
 
         // Clear any previous status messages when exiting Visual Block Insert
-        self.view_model.clear_status_message();
+        self.app_state.clear_status_message();
 
         Ok(())
     }
@@ -1389,14 +1389,14 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         tracing::info!("Handling repeat visual selection (gv command)");
 
         // First, return to Normal mode to exit GPrefix mode
-        self.view_model.change_mode(EditorMode::Normal)?;
+        self.app_state.change_mode(EditorMode::Normal)?;
 
         // Try to restore the last visual selection
-        match self.view_model.restore_last_visual_selection()? {
+        match self.app_state.restore_last_visual_selection()? {
             Some(mode) => {
                 tracing::info!("Restored last visual selection with mode {:?}", mode);
                 // Change to the restored visual mode
-                self.view_model.change_mode(mode)?;
+                self.app_state.change_mode(mode)?;
             }
             None => {
                 tracing::info!("No previous visual selection to restore");
@@ -1412,11 +1412,11 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Inserts the same text at all cursor positions simultaneously,
     /// providing live feedback across all selected lines.
     fn handle_multi_cursor_text_insert(&mut self, text: &str) -> Result<()> {
-        let cursor_positions = self.view_model.get_visual_block_insert_cursors().to_vec();
+        let cursor_positions = self.app_state.get_visual_block_insert_cursors().to_vec();
 
         if cursor_positions.is_empty() {
             // Fallback to regular insert if no cursors are set
-            return self.view_model.insert_text(text);
+            return self.app_state.insert_text(text);
         }
 
         tracing::debug!(
@@ -1429,8 +1429,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         // We need to process in reverse order to maintain position validity
         for position in cursor_positions.iter().rev() {
             // Temporarily set cursor to this position and insert text
-            self.view_model.set_cursor_position(*position)?;
-            self.view_model.insert_text(text)?;
+            self.app_state.set_cursor_position(*position)?;
+            self.app_state.insert_text(text)?;
         }
 
         // Update all cursor positions to reflect the inserted text
@@ -1442,10 +1442,10 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Set the primary cursor to the first position before updating positions
         if let Some(first_pos) = updated_positions.first() {
-            self.view_model.set_cursor_position(*first_pos)?;
+            self.app_state.set_cursor_position(*first_pos)?;
         }
 
-        self.view_model
+        self.app_state
             .update_visual_block_insert_cursors(updated_positions);
 
         tracing::debug!("Multi-cursor text insert completed, updated cursor positions");
@@ -1458,9 +1458,9 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         amount: usize,
         direction: MovementDirection,
     ) -> Result<()> {
-        let cursor_positions = self.view_model.get_visual_block_insert_cursors().to_vec();
+        let cursor_positions = self.app_state.get_visual_block_insert_cursors().to_vec();
         let start_columns = self
-            .view_model
+            .app_state
             .get_visual_block_insert_start_columns()
             .to_vec();
 
@@ -1469,10 +1469,10 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             for _ in 0..amount {
                 match direction {
                     MovementDirection::Left => {
-                        self.view_model.delete_char_before_cursor()?;
+                        self.app_state.delete_char_before_cursor()?;
                     }
                     MovementDirection::Right => {
-                        self.view_model.delete_char_after_cursor()?;
+                        self.app_state.delete_char_after_cursor()?;
                     }
                     _ => {
                         tracing::warn!("Unsupported delete direction: {:?}", direction);
@@ -1496,7 +1496,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             let start_column = start_columns.get(i).copied().unwrap_or(0);
 
             // Temporarily set cursor to this position
-            self.view_model.set_cursor_position(*position)?;
+            self.app_state.set_cursor_position(*position)?;
 
             // For left deletion (backspace), respect the Visual Block start boundary
             let effective_amount = if direction == MovementDirection::Left {
@@ -1516,10 +1516,10 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             for _ in 0..effective_amount {
                 match direction {
                     MovementDirection::Left => {
-                        self.view_model.delete_char_before_cursor()?;
+                        self.app_state.delete_char_before_cursor()?;
                     }
                     MovementDirection::Right => {
-                        self.view_model.delete_char_after_cursor()?;
+                        self.app_state.delete_char_after_cursor()?;
                     }
                     _ => {
                         tracing::warn!("Unsupported delete direction: {:?}", direction);
@@ -1563,10 +1563,10 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Set the primary cursor to the first position before updating positions
         if let Some(first_pos) = updated_positions.first() {
-            self.view_model.set_cursor_position(*first_pos)?;
+            self.app_state.set_cursor_position(*first_pos)?;
         }
 
-        self.view_model
+        self.app_state
             .update_visual_block_insert_cursors(updated_positions);
 
         tracing::debug!("Multi-cursor text delete completed, updated cursor positions");
@@ -1575,16 +1575,16 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
     /// Handle pasting yanked text after cursor
     fn handle_paste_after(&mut self) -> Result<()> {
-        // Get from YankService, not the old view_model buffer!
+        // Get from YankService, not the old app_state buffer!
         if let Some(yank_entry) = self.services.yank.paste() {
             // Paste the text after the current cursor position using type-aware paste
-            self.view_model.paste_after_with_type(&yank_entry)?;
+            self.app_state.paste_after_with_type(&yank_entry)?;
 
             let char_count = yank_entry.text.chars().count();
             let line_count = yank_entry.text.lines().count();
 
             // Clear any previous status message (e.g., "1 line yanked")
-            self.view_model.clear_status_message();
+            self.app_state.clear_status_message();
 
             tracing::info!(
                 "Pasted {} characters ({} lines) after cursor as {:?}",
@@ -1593,7 +1593,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 yank_entry.yank_type
             );
         } else {
-            self.view_model
+            self.app_state
                 .set_status_message("Nothing to paste".to_string());
             tracing::warn!("No text in yank buffer to paste");
         }
@@ -1603,7 +1603,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
     /// Handle pasting yanked text at current cursor position
     fn handle_paste_at_cursor(&mut self) -> Result<()> {
-        // Get from YankService, not the old view_model buffer!
+        // Get from YankService, not the old app_state buffer!
         if let Some(yank_entry) = self.services.yank.paste() {
             tracing::debug!(
                 "Retrieved yank entry with type: {:?}, text length: {}",
@@ -1612,13 +1612,13 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             );
 
             // Paste the text at current position (before cursor) using type-aware paste
-            self.view_model.paste_with_type(&yank_entry)?;
+            self.app_state.paste_with_type(&yank_entry)?;
 
             let char_count = yank_entry.text.chars().count();
             let line_count = yank_entry.text.lines().count();
 
             // Clear any previous status message (e.g., "1 line yanked")
-            self.view_model.clear_status_message();
+            self.app_state.clear_status_message();
 
             tracing::info!(
                 "Pasted {} characters ({} lines) at cursor as {:?}",
@@ -1627,7 +1627,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 yank_entry.yank_type
             );
         } else {
-            self.view_model
+            self.app_state
                 .set_status_message("Nothing to paste".to_string());
             tracing::warn!("No text in yank buffer to paste");
         }
@@ -1642,7 +1642,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
         // Create command context from current state
         tracing::debug!("AppController: Creating command context");
-        let context = CommandContext::new(ViewModelSnapshot::from_view_model(&self.view_model));
+        let context = CommandContext::new(AppStateSnapshot::from_app_state(&self.app_state));
         tracing::debug!("AppController: Command context created");
 
         // Process through command registry
@@ -1676,7 +1676,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 tracing::debug!("AppController: All command events applied successfully");
 
                 // Render after processing key events
-                self.view_renderer.render_full(&self.view_model)?;
+                self.view_renderer.render_full(&self.app_state)?;
             } else {
                 tracing::debug!("AppController: No command events generated");
             }
@@ -1701,7 +1701,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         tracing::debug!("Executing command: {}", command.name());
 
         let mut exec_context = ExecutionContext {
-            view_model: &mut self.view_model,
+            app_state: &mut self.app_state,
             services: &mut self.services,
         };
         let events = command.handle(&mut exec_context)?;
@@ -1761,7 +1761,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                     }
                 };
 
-                self.view_model.set_status_message(message);
+                self.app_state.set_status_message(message);
 
                 tracing::info!(
                     "Yanked {} characters ({} lines) to buffer as {:?} from {:?}",
@@ -1773,51 +1773,51 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
             }
 
             ModelEvent::ModeChanged { old_mode, new_mode } => {
-                self.view_model.change_mode(new_mode)?;
+                self.app_state.change_mode(new_mode)?;
                 tracing::debug!("Mode changed from {:?} to {:?}", old_mode, new_mode);
             }
 
             ModelEvent::SelectionCleared { pane } => {
                 // Clear the visual selection in the ViewModel
-                self.view_model.clear_visual_selection()?;
+                self.app_state.clear_visual_selection()?;
                 tracing::debug!("Selection cleared for {:?}", pane);
             }
 
             ModelEvent::StatusMessageSet { message } => {
-                self.view_model.set_status_message(message);
+                self.app_state.set_status_message(message);
             }
 
             ModelEvent::StatusMessageCleared => {
-                self.view_model.set_status_message(String::new());
+                self.app_state.set_status_message(String::new());
             }
 
             ModelEvent::HttpRequestStarted { method, url } => {
                 // Execute the HTTP request through the service
                 if let Some(http_service) = self.services.http.as_mut() {
                     // Get the full request text and execute it
-                    let request_text = self.view_model.get_request_text();
-                    self.view_model.set_executing_request(true);
+                    let request_text = self.app_state.get_request_text();
+                    self.app_state.set_executing_request(true);
                     http_service.execute_async(request_text);
                     tracing::info!("HTTP request initiated: {method} {url}");
                 } else {
                     tracing::error!("HTTP service not available");
-                    self.view_model
+                    self.app_state
                         .set_status_message("HTTP service not configured".to_string());
                 }
             }
 
             ModelEvent::HttpResponseReceived { status, body } => {
                 // Update response pane with received data
-                self.view_model.set_response(status, body);
-                self.view_model.set_executing_request(false);
-                self.view_model.switch_to_response_pane();
+                self.app_state.set_response(status, body);
+                self.app_state.set_executing_request(false);
+                self.app_state.switch_to_response_pane();
 
                 let status_msg = if (200..300).contains(&status) {
                     format!("Request completed: {status}")
                 } else {
                     format!("Request failed: {status}")
                 };
-                self.view_model.set_status_message(status_msg);
+                self.app_state.set_status_message(status_msg);
             }
 
             // Handle other events as we implement them
@@ -1849,8 +1849,8 @@ mod tests {
             assert!(controller.is_ok());
 
             let controller = controller.unwrap();
-            assert_eq!(controller.view_model().get_mode(), EditorMode::Normal);
-            assert_eq!(controller.view_model().get_current_pane(), Pane::Request);
+            assert_eq!(controller.app_state().get_mode(), EditorMode::Normal);
+            assert_eq!(controller.app_state().get_current_pane(), Pane::Request);
         }
     }
 
@@ -1879,7 +1879,7 @@ mod tests {
             );
 
             // Verify we're still in Normal mode
-            assert_eq!(controller.view_model().get_mode(), EditorMode::Normal);
+            assert_eq!(controller.app_state().get_mode(), EditorMode::Normal);
         }
     }
 
@@ -1940,7 +1940,7 @@ mod tests {
             );
 
             // Verify old system handled it (y in Normal mode goes to YPrefix mode)
-            assert_eq!(controller.view_model().get_mode(), EditorMode::YPrefix);
+            assert_eq!(controller.app_state().get_mode(), EditorMode::YPrefix);
         }
     }
 }

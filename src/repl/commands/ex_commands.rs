@@ -315,12 +315,12 @@ impl Default for ExCommandRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::commands::ViewModelSnapshot;
+    use crate::repl::commands::AppStateSnapshot;
     use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
 
     fn create_test_context() -> CommandContext {
         CommandContext {
-            state: ViewModelSnapshot {
+            state: AppStateSnapshot {
                 current_mode: EditorMode::Normal,
                 current_pane: Pane::Request,
                 cursor_position: LogicalPosition::zero(),

@@ -2,10 +2,10 @@
 //!
 //! Handles editor mode transitions, visual mode selection state, and mode-related operations.
 
+use super::AppState;
 use crate::repl::models::events::ViewEvent;
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::LogicalPosition;
-use crate::repl::view_models::ViewModel;
 use anyhow::Result;
 
 /// Type alias for visual selection state to reduce complexity
@@ -15,7 +15,7 @@ type VisualSelectionState = (
     Option<Pane>,
 );
 
-impl ViewModel {
+impl AppState {
     /// Get current editor mode
     pub fn get_mode(&self) -> EditorMode {
         self.mode()

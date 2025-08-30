@@ -3,10 +3,10 @@
 //! Handles HTTP response management and session state.
 
 // Pane import removed - using semantic operations instead
-use crate::repl::view_models::ViewModel;
+use super::AppState;
 use std::collections::HashMap;
 
-impl ViewModel {
+impl AppState {
     /// Get current request execution status
     pub fn is_executing_request(&self) -> bool {
         self.status_line.is_executing()

@@ -2,12 +2,12 @@
 //!
 //! Handles ex command buffer operations and command execution.
 
+use super::AppState;
 use crate::repl::commands::{CommandEvent, MovementDirection};
 use crate::repl::models::events::ViewEvent;
-use crate::repl::view_models::ViewModel;
 use anyhow::Result;
 
-impl ViewModel {
+impl AppState {
     /// Get ex command buffer
     pub fn get_ex_command_buffer(&self) -> &str {
         self.status_line.command_buffer()

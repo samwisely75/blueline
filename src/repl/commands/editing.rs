@@ -173,7 +173,7 @@ impl Command for DeleteCharAtCursorCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::commands::{CommandContext, MovementDirection, ViewModelSnapshot};
+    use crate::repl::commands::{AppStateSnapshot, CommandContext, MovementDirection};
     use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
     use crossterm::event::KeyModifiers;
 
@@ -183,7 +183,7 @@ mod tests {
 
     fn create_test_context() -> CommandContext {
         CommandContext {
-            state: ViewModelSnapshot {
+            state: AppStateSnapshot {
                 current_mode: EditorMode::Insert,
                 current_pane: Pane::Request,
                 cursor_position: LogicalPosition { line: 0, column: 0 },

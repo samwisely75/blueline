@@ -392,7 +392,7 @@ impl Command for VisualBlockAppendCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::commands::ViewModelSnapshot;
+    use crate::repl::commands::AppStateSnapshot;
     use crate::repl::models::LogicalPosition;
     use crossterm::event::KeyModifiers;
 
@@ -402,7 +402,7 @@ mod tests {
 
     fn create_test_context() -> CommandContext {
         CommandContext {
-            state: ViewModelSnapshot {
+            state: AppStateSnapshot {
                 current_mode: EditorMode::Normal,
                 current_pane: Pane::Request,
                 cursor_position: LogicalPosition { line: 0, column: 0 },

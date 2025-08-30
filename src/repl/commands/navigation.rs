@@ -498,7 +498,7 @@ impl Command for HalfPageUpCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::commands::context::ViewModelSnapshot;
+    use crate::repl::commands::context::AppStateSnapshot;
     use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
     use crossterm::event::KeyModifiers;
 
@@ -507,7 +507,7 @@ mod tests {
     }
 
     fn create_test_context(mode: EditorMode) -> CommandContext {
-        let snapshot = ViewModelSnapshot {
+        let snapshot = AppStateSnapshot {
             current_mode: mode,
             current_pane: Pane::Request,
             cursor_position: LogicalPosition::zero(),

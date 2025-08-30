@@ -6,7 +6,7 @@
 use crate::repl::io::RenderStream;
 use crate::repl::models::events::ViewEvent;
 use crate::repl::models::pane_state::{EditorMode, Pane};
-use crate::repl::view_models::ViewModel;
+use crate::repl::models::AppState;
 use anyhow::Result;
 // Import ANSI escape codes from the separate module
 use super::ansi_escape_codes as ansi;
@@ -87,37 +87,37 @@ pub trait ViewRenderer {
     fn initialize(&mut self) -> Result<()>;
 
     /// Render the full application state
-    fn render_full(&mut self, view_model: &ViewModel) -> Result<()>;
+    fn render_full(&mut self, view_model: &AppState) -> Result<()>;
 
     /// Render only specific pane
-    fn render_pane(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()>;
+    fn render_pane(&mut self, app_state: &AppState, pane: Pane) -> Result<()>;
 
     /// Render partial pane from start_line to bottom of visible area
     fn render_pane_partial(
         &mut self,
-        view_model: &ViewModel,
+        view_model: &AppState,
         pane: Pane,
         start_line: usize,
     ) -> Result<()>;
 
     /// Update cursor position only
-    fn render_cursor(&mut self, view_model: &ViewModel) -> Result<()>;
+    fn render_cursor(&mut self, view_model: &AppState) -> Result<()>;
 
     /// Render status bar
-    fn render_status_bar(&mut self, view_model: &ViewModel) -> Result<()>;
+    fn render_status_bar(&mut self, view_model: &AppState) -> Result<()>;
 
     /// Render only position indicator in status bar (for reduced flickering)
-    fn render_position_indicator(&mut self, view_model: &ViewModel) -> Result<()>;
+    fn render_position_indicator(&mut self, view_model: &AppState) -> Result<()>;
 
     /// Handle view events
-    fn handle_view_event(&mut self, event: &ViewEvent, view_model: &ViewModel) -> Result<()>;
+    fn handle_view_event(&mut self, event: &ViewEvent, view_model: &AppState) -> Result<()>;
 
     /// Cleanup terminal on exit
     fn cleanup(&mut self) -> Result<()>;
 
     // ========== NEW APPSTATE-BASED METHODS (PHASE 2) ==========
-    // These methods will replace the ViewModel-based ones above
-    // They take AppState directly - View should never depend on ViewModel
+    // These methods will replace the AppState-based ones above
+    // They take AppState directly - View should never depend on AppState
 
     /// Render the full application state using AppState
     fn render_full_from_state(
@@ -269,7 +269,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
     /// Render a single line of text at position with line number, with visual selection support
     fn render_line_with_number(
         &mut self,
-        view_model: &ViewModel,
+        view_model: &AppState,
         pane: Pane,
         row: u16,
         line_info: &LineInfo,
@@ -360,7 +360,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
     /// Render text with visual selection highlighting
     fn render_text_with_selection(
         &mut self,
-        view_model: &ViewModel,
+        view_model: &AppState,
         pane: Pane,
         line_number: Option<usize>,
         text: &str,
@@ -509,12 +509,12 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
     /// Render buffer content in a pane area using display lines
     fn render_buffer_content(
         &mut self,
-        view_model: &ViewModel,
+        view_model: &AppState,
         pane: Pane,
         start_row: u16,
         height: u16,
     ) -> Result<()> {
-        // Get display lines for rendering from ViewModel
+        // Get display lines for rendering from AppState
         let display_lines = view_model.get_display_lines_for_rendering(pane, 0, height as usize);
         let line_num_width = view_model.pane_manager().get_line_number_width(pane);
 
@@ -566,7 +566,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn render_full(&mut self, view_model: &ViewModel) -> Result<()> {
+    fn render_full(&mut self, view_model: &AppState) -> Result<()> {
         // Temporarily hide cursor during full screen redraw to prevent flicker
         // The cursor will be shown again at the end by render_cursor()
         self.render_stream.hide_cursor()?;
@@ -609,7 +609,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn render_pane(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()> {
+    fn render_pane(&mut self, view_model: &AppState, pane: Pane) -> Result<()> {
         // Temporarily hide cursor during pane rendering to prevent ghost cursors
         self.render_stream.hide_cursor()?;
 
@@ -641,7 +641,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
     fn render_pane_partial(
         &mut self,
-        view_model: &ViewModel,
+        view_model: &AppState,
         pane: Pane,
         start_line: usize,
     ) -> Result<()> {
@@ -694,7 +694,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn render_cursor(&mut self, view_model: &ViewModel) -> Result<()> {
+    fn render_cursor(&mut self, view_model: &AppState) -> Result<()> {
         // Cursor should be visible in normal editing modes
         // Only hide cursor in command mode when showing command line cursor
         let should_hide_cursor = view_model.get_mode() == EditorMode::Command;
@@ -803,7 +803,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn render_status_bar(&mut self, view_model: &ViewModel) -> Result<()> {
+    fn render_status_bar(&mut self, view_model: &AppState) -> Result<()> {
         let status_row = self.terminal_size.1 - 1;
 
         // Clear the status bar first
@@ -960,7 +960,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn render_position_indicator(&mut self, view_model: &ViewModel) -> Result<()> {
+    fn render_position_indicator(&mut self, view_model: &AppState) -> Result<()> {
         let status_row = self.terminal_size.1 - 1;
         let cursor = view_model.get_cursor_position();
 
@@ -1052,7 +1052,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn handle_view_event(&mut self, event: &ViewEvent, view_model: &ViewModel) -> Result<()> {
+    fn handle_view_event(&mut self, event: &ViewEvent, view_model: &AppState) -> Result<()> {
         match event {
             ViewEvent::FullRedrawRequired => {
                 self.render_full(view_model)?;
@@ -1159,7 +1159,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 // Private implementation methods for TerminalRenderer
 impl<RS: RenderStream> TerminalRenderer<RS> {
     /// Render multiple cursors for Visual Block Insert mode
-    fn render_multi_cursors(&mut self, view_model: &ViewModel) -> Result<()> {
+    fn render_multi_cursors(&mut self, view_model: &AppState) -> Result<()> {
         let cursor_positions = view_model.get_visual_block_insert_cursors();
         if cursor_positions.is_empty() {
             return Ok(());
@@ -1226,7 +1226,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
 mod tests {
     use super::*;
     use crate::repl::io::mock::MockRenderStream;
-    use crate::repl::view_models::ViewModel;
+    use crate::repl::models::AppState;
 
     // Note: Testing terminal rendering is complex and typically done with integration tests
     // Here we just test that the renderer can be created
@@ -1385,7 +1385,7 @@ mod tests {
         let render_stream = MockRenderStream::with_size((80, 40));
         if let Ok(mut renderer) = TerminalRenderer::with_render_stream(render_stream) {
             renderer.update_size(80, 40); // 40 line terminal
-            let mut view_model = ViewModel::new();
+            let mut view_model = AppState::new();
             view_model.update_terminal_size(80, 40);
 
             // Set a response so the response pane appears

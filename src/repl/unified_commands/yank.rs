@@ -56,8 +56,8 @@ impl Command for YankSelectionCommand {
     }
 
     fn handle(&self, context: &mut ExecutionContext) -> Result<Vec<ModelEvent>> {
-        let current_pane = context.view_model.get_current_pane();
-        let current_mode = context.view_model.get_mode();
+        let current_pane = context.app_state.get_current_pane();
+        let current_mode = context.app_state.get_mode();
 
         // Check if we're in a visual mode
         if !matches!(
@@ -68,7 +68,7 @@ impl Command for YankSelectionCommand {
         }
 
         // Get selected text from ViewModel (read-only access)
-        let selected_text = match context.view_model.get_selected_text() {
+        let selected_text = match context.app_state.get_selected_text() {
             Some(text) => text,
             None => {
                 // Return events indicating no selection
@@ -207,14 +207,14 @@ mod tests {
 
     #[test]
     fn yank_selection_command_should_fail_gracefully_in_normal_mode() {
+        use crate::repl::models::AppState;
         use crate::repl::services::Services;
-        use crate::repl::view_models::ViewModel;
 
         let command = YankSelectionCommand::new();
-        let mut view_model = ViewModel::new();
+        let mut app_state = AppState::new();
         let mut services = Services::new();
         let mut context = ExecutionContext {
-            view_model: &mut view_model,
+            app_state: &mut app_state,
             services: &mut services,
         };
 
@@ -227,14 +227,14 @@ mod tests {
 
     #[test]
     fn yank_selection_command_should_emit_events_for_empty_selection() {
-        use crate::repl::view_models::ViewModel;
+        use crate::repl::models::AppState;
 
         let _command = YankSelectionCommand::new();
-        let _view_model = ViewModel::new();
+        let _app_state = AppState::new();
 
         // TODO: Set up visual mode and empty selection when we have the methods
         // For now, this test documents the expected behavior
 
-        // This test will be completed when we integrate with the actual ViewModel methods
+        // This test will be completed when we integrate with the actual AppState methods
     }
 }

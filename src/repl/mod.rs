@@ -15,7 +15,6 @@ pub mod views;
 
 // Re-export core types
 pub use controllers::AppController;
-pub use view_models::*;
 pub use views::*;
 
 // Re-export event types from their new locations
@@ -26,7 +25,7 @@ pub use models::pane_state::{EditorMode, Pane, PaneCapabilities};
 pub use models::{LogicalPosition, LogicalRange};
 
 // Re-export specific items from commands to avoid conflicts
-pub use commands::{Command, CommandContext, CommandEvent, CommandRegistry, ViewModelSnapshot};
+pub use commands::{AppStateSnapshot, Command, CommandContext, CommandEvent, CommandRegistry};
 
 // Re-export specific items from models to avoid conflicts
 pub use models::{BufferModel, HttpHeaders, RequestModel, ResponseModel};

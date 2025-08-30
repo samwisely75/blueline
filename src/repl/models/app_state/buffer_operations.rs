@@ -13,17 +13,17 @@
 //! - ViewEvents are emitted for selective rendering optimization
 //! - Character-by-character processing maintains semantic consistency
 
+use super::AppState;
+use crate::repl::models::buffer::{YankEntry, YankType};
 use crate::repl::models::events::ViewEvent;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::models::LogicalPosition;
-use crate::repl::view_models::ViewModel;
-use crate::repl::view_models::{YankEntry, YankType};
 use anyhow::Result;
 
 /// Type alias for selection text with its yank type
 type SelectionWithType = (String, YankType);
 
-impl ViewModel {
+impl AppState {
     /// Get selected text from current pane
     pub fn get_selected_text(&self) -> Option<String> {
         self.pane_manager.get_selected_text()
@@ -512,7 +512,7 @@ mod tests {
 
     #[test]
     fn test_visual_block_insert_mode_allows_text_insertion() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Normal mode and insert some test content
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -536,7 +536,7 @@ mod tests {
 
     #[test]
     fn test_visual_block_insert_mode_allows_char_insertion() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Normal mode and insert some test content
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -560,7 +560,7 @@ mod tests {
 
     #[test]
     fn test_visual_block_insert_mode_allows_backspace() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Normal mode and insert some test content
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -584,7 +584,7 @@ mod tests {
 
     #[test]
     fn test_visual_block_insert_mode_allows_delete() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Normal mode and insert some test content
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -608,7 +608,7 @@ mod tests {
 
     #[test]
     fn test_visual_selection_cleared_after_visual_block_insert() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Normal mode and insert some test content
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -637,7 +637,7 @@ mod tests {
 
     #[test]
     fn test_cut_to_end_of_line_in_normal_mode() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Insert mode and add test content
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -673,7 +673,7 @@ mod tests {
 
     #[test]
     fn test_cut_to_end_of_line_at_end_of_line() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Insert mode and add test content
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -698,7 +698,7 @@ mod tests {
 
     #[test]
     fn test_cut_to_end_of_line_whole_line() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Insert mode and add test content
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -728,7 +728,7 @@ mod tests {
 
     #[test]
     fn test_cut_to_end_of_line_blocked_in_insert_mode() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Insert mode and add test content
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -753,7 +753,7 @@ mod tests {
 
     #[test]
     fn test_cut_to_end_of_line_with_multibyte_characters() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Insert mode and add content with multibyte characters
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -786,7 +786,7 @@ mod tests {
 
     #[test]
     fn test_cut_current_line_in_normal_mode() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Insert mode and add multiple lines
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -830,7 +830,7 @@ mod tests {
 
     #[test]
     fn test_cut_current_line_last_line() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Insert mode and add multiple lines
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -871,7 +871,7 @@ mod tests {
 
     #[test]
     fn test_cut_current_line_single_line() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Insert mode and add single line
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -915,7 +915,7 @@ mod tests {
 
     #[test]
     fn test_cut_current_line_blocked_in_insert_mode() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Insert mode and add content
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -940,7 +940,7 @@ mod tests {
 
     #[test]
     fn test_cut_current_line_with_multibyte_characters() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Insert mode and add content with multibyte characters
         vm.change_mode(EditorMode::Insert).unwrap();
@@ -984,7 +984,7 @@ mod tests {
 
     #[test]
     fn test_cut_current_line_yank_type_is_line() {
-        let mut vm = ViewModel::new();
+        let mut vm = AppState::new();
 
         // Start in Insert mode and add content
         vm.change_mode(EditorMode::Insert).unwrap();

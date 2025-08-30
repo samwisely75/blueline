@@ -28,7 +28,7 @@ impl Command for AppTerminateCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::commands::ViewModelSnapshot;
+    use crate::repl::commands::AppStateSnapshot;
     use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
 
     fn create_test_key_event(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
@@ -36,7 +36,7 @@ mod tests {
     }
 
     fn create_test_context() -> CommandContext {
-        let snapshot = ViewModelSnapshot {
+        let snapshot = AppStateSnapshot {
             current_mode: EditorMode::Normal,
             current_pane: Pane::Request,
             cursor_position: LogicalPosition::zero(),

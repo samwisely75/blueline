@@ -1,22 +1,22 @@
 //! # Command Pattern Infrastructure
 //!
 //! Command Pattern where Commands use Services for business logic and emit ModelEvents.
-//! Commands receive both ViewModel and Services through an ExecutionContext.
+//! Commands receive both AppState and Services through an ExecutionContext.
 
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
 use crate::repl::{
     models::pane_state::{EditorMode, Pane},
+    models::AppState,
     services::Services,
     unified_commands::events::ModelEvent,
-    view_models::ViewModel,
 };
 
 /// Command trait for the new Command Pattern architecture
 ///
 /// Commands use Services for business logic and emit ModelEvents describing
-/// what state changes occurred. Commands receive both ViewModel and Services
+/// what state changes occurred. Commands receive both AppState and Services
 /// through an ExecutionContext.
 pub trait Command: Send + Sync {
     /// Check if this command should handle the given key event
@@ -29,7 +29,7 @@ pub trait Command: Send + Sync {
     /// Only one command should return true for any given input.
     fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool;
 
-    /// Execute the command with access to ViewModel and Services
+    /// Execute the command with access to AppState and Services
     ///
     /// Commands should use Services for business logic and return ModelEvents
     /// describing what state changes occurred. The events are semantic
@@ -40,13 +40,13 @@ pub trait Command: Send + Sync {
     fn name(&self) -> &'static str;
 }
 
-/// Execution context for Commands containing ViewModel and Services
+/// Execution context for Commands containing AppState and Services
 ///
-/// This provides Commands with access to both state (ViewModel) and
+/// This provides Commands with access to both state (AppState) and
 /// business logic services for performing operations.
 pub struct ExecutionContext<'a> {
-    /// Mutable access to the ViewModel for state management
-    pub view_model: &'a mut ViewModel,
+    /// Mutable access to the AppState for state management
+    pub app_state: &'a mut AppState,
     /// Mutable access to Services for business operations
     pub services: &'a mut Services,
 }
@@ -68,13 +68,13 @@ pub struct CommandContext {
 }
 
 impl CommandContext {
-    /// Create CommandContext from current ViewModel state
-    pub fn from_view_model(view_model: &ViewModel) -> Self {
+    /// Create CommandContext from current AppState state
+    pub fn from_app_state(app_state: &AppState) -> Self {
         Self {
-            current_mode: view_model.get_mode(),
-            current_pane: view_model.get_current_pane(),
-            is_read_only: view_model.is_in_response_pane(), // Response pane is read-only
-            has_selection: view_model.get_selected_text().is_some(),
+            current_mode: app_state.get_mode(),
+            current_pane: app_state.get_current_pane(),
+            is_read_only: app_state.is_in_response_pane(), // Response pane is read-only
+            has_selection: app_state.get_selected_text().is_some(),
         }
     }
 }
@@ -82,7 +82,7 @@ impl CommandContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::view_models::ViewModel;
+    use crate::repl::models::AppState;
 
     /// Mock command for testing the Command trait
     struct MockCommand {
@@ -129,10 +129,10 @@ mod tests {
         assert_eq!(command.name(), "TestCommand");
 
         // Create minimal context for testing
-        let mut view_model = ViewModel::new();
+        let mut app_state = AppState::new();
         let mut services = crate::repl::services::Services::new();
         let mut context = ExecutionContext {
-            view_model: &mut view_model,
+            app_state: &mut app_state,
             services: &mut services,
         };
         let result = command.handle(&mut context).unwrap();
@@ -140,9 +140,9 @@ mod tests {
     }
 
     #[test]
-    fn command_context_should_capture_view_model_state() {
-        let view_model = ViewModel::new();
-        let context = CommandContext::from_view_model(&view_model);
+    fn command_context_should_capture_app_state() {
+        let app_state = AppState::new();
+        let context = CommandContext::from_app_state(&app_state);
 
         // Verify context captures current state
         assert_eq!(

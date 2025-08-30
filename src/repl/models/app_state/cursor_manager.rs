@@ -3,12 +3,12 @@
 //! Handles all cursor movement and positioning logic using semantic operations from PaneManager.
 //! This module provides high-level cursor operations that work with the current/other area abstraction.
 
+use super::AppState;
 use crate::repl::models::coordinates::geometry::Position;
 use crate::repl::models::LogicalPosition;
-use crate::repl::view_models::ViewModel;
 use anyhow::Result;
 
-impl ViewModel {
+impl AppState {
     /// Get current logical cursor position for the active area
     pub fn get_cursor_position(&self) -> LogicalPosition {
         self.pane_manager.get_current_cursor_position()

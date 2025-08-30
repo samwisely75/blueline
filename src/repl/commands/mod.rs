@@ -270,7 +270,7 @@ mod tests {
 
     fn create_test_context() -> CommandContext {
         CommandContext {
-            state: ViewModelSnapshot {
+            state: AppStateSnapshot {
                 current_mode: EditorMode::Normal,
                 current_pane: Pane::Request,
                 cursor_position: LogicalPosition { line: 0, column: 0 },

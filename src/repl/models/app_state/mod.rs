@@ -6,7 +6,7 @@
 
 // Core data structure
 mod core;
-pub use core::AppState;
+pub use core::{AppState, DisplayLineData};
 
 // Business logic modules
 mod buffer_operations;

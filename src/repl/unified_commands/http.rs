@@ -54,8 +54,8 @@ impl Command for HttpExecuteCommand {
     }
 
     fn handle(&self, context: &mut ExecutionContext) -> Result<Vec<ModelEvent>> {
-        // Get request text from the view model (read-only access)
-        let request_text = context.view_model.get_request_text();
+        // Get request text from the app state (read-only access)
+        let request_text = context.app_state.get_request_text();
 
         // Parse the request to get method and URL for the event
         // This is a simple parse - the actual HTTP execution will be done by AppController
@@ -89,8 +89,8 @@ impl Default for HttpExecuteCommand {
 mod tests {
     use super::*;
     use crate::repl::models::pane_state::Pane;
+    use crate::repl::models::AppState;
     use crate::repl::services::Services;
-    use crate::repl::view_models::ViewModel;
 
     fn create_test_key_event(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn http_execute_should_parse_and_trigger_request() {
-        let mut view_model = ViewModel::new();
+        let mut app_state = AppState::new();
         // Note: In real usage, request content would be set through user input
         // For this test, we're testing that the command returns appropriate events
 
@@ -166,7 +166,7 @@ mod tests {
         // No need to configure HTTP service - command just emits events
 
         let mut context = ExecutionContext {
-            view_model: &mut view_model,
+            app_state: &mut app_state,
             services: &mut services,
         };
 

@@ -2,12 +2,12 @@
 //!
 //! Handles settings changes from ex commands.
 
+use super::AppState;
 use crate::repl::commands::{Setting, SettingValue};
 use crate::repl::models::events::ViewEvent;
-use crate::repl::view_models::ViewModel;
 use anyhow::Result;
 
-impl ViewModel {
+impl AppState {
     /// Apply a setting change from an ex command
     pub fn apply_setting(&mut self, setting: Setting, value: SettingValue) -> Result<()> {
         match setting {
