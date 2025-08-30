@@ -5,6 +5,7 @@
 //! - Cursor position verification
 //! - Movement boundary checks
 
+use crate::common::cursor_validation::validate_cursor_movement;
 use crate::common::world::BluelineWorld;
 use crossterm::event::{KeyCode, KeyModifiers};
 use cucumber::{gherkin, given, then, when};
@@ -1157,4 +1158,34 @@ async fn then_line_starts_with(world: &mut BluelineWorld, expected_start: String
     );
 
     info!("✅ Found line content starting with '{}'", expected_start);
+}
+
+// ============================================================================
+// GENERIC CURSOR MOVEMENT VALIDATION
+// ============================================================================
+// This replaces all the specific cursor movement validation steps with a single
+// flexible step that can handle any type of cursor movement validation.
+
+#[then(regex = r"^the cursor should (.+)$")]
+async fn then_cursor_should(world: &mut BluelineWorld, expectation: String) {
+    info!("🎯 Validating cursor movement: '{}'", expectation);
+
+    match validate_cursor_movement(world, &expectation).await {
+        Ok(_) => {
+            info!("✅ Cursor movement validation passed");
+        }
+        Err(e) => {
+            // Include cursor history in error for debugging
+            let history = world.get_cursor_history();
+            if !history.is_empty() {
+                let last_action = &history[history.len() - 1];
+                panic!(
+                    "Cursor movement validation failed: {}\nLast action: {} at {:?}\nCursor history: {:?}",
+                    e, last_action.trigger, last_action.position, history
+                );
+            } else {
+                panic!("Cursor movement validation failed: {e}\nNo cursor history available");
+            }
+        }
+    }
 }

@@ -5,6 +5,7 @@
 //! - Terminal state parsing
 //! - Test helpers and assertions
 
+pub mod cursor_validation;
 pub mod debug_test;
 pub mod terminal_state;
 pub mod world;
