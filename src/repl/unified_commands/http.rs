@@ -58,11 +58,11 @@ impl Command for HttpExecuteCommand {
         let request_text = context.app_state.get_request_text();
 
         // Parse the request to get method and URL for the event
-        // This is a simple parse - the actual HTTP execution will be done by AppController
+        // This is a simple parse - the actual HTTP execution will be done by AppViewModel
         let (method, url) = parse_request_basics(&request_text);
 
         // Return events - Commands should ONLY emit events, not execute directly
-        // The AppController will handle checking for HTTP service availability
+        // The AppViewModel will handle checking for HTTP service availability
         Ok(vec![
             ModelEvent::HttpRequestStarted {
                 method: method.to_string(),

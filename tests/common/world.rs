@@ -12,7 +12,7 @@ use blueline::{
     cmd_args::CommandLineArgs,
     config::AppConfig,
     repl::{
-        controllers::app_controller::AppController,
+        view_models::AppViewModel,
         io::{
             test_bridge::{
                 BridgedEventStream, BridgedRenderStream, EventStreamController, RenderStreamMonitor,
@@ -108,7 +108,7 @@ impl std::fmt::Debug for BluelineWorld {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BluelineWorld")
             .field("terminal_size", &self.terminal_size)
-            .field("has_app", &"<AppController>")
+            .field("has_app", &"<AppViewModel>")
             .field("has_profile_path", &self.profile_path.is_some())
             .finish()
     }
@@ -293,13 +293,13 @@ impl BluelineWorld {
         let (shutdown_tx, _shutdown_rx) = mpsc::channel::<()>(1);
         self.shutdown_tx = Some(shutdown_tx);
 
-        debug!("Creating AppController with bridged streams");
+        debug!("Creating AppViewModel with bridged streams");
 
-        // Actually run the AppController in a spawned task
-        debug!("Creating and running AppController with event loop...");
+        // Actually run the AppViewModel in a spawned task
+        debug!("Creating and running AppViewModel with event loop...");
         let config = AppConfig::from_args(cmd_args);
-        let mut app = AppController::with_io_streams(config, event_stream, render_stream)?;
-        debug!("✅ AppController created successfully");
+        let mut app = AppViewModel::with_io_streams(config, event_stream, render_stream)?;
+        debug!("✅ AppViewModel created successfully");
 
         // Spawn the app.run() in a separate runtime to avoid deadlock with cucumber
         // This is necessary because cucumber-rs and tokio::spawn can deadlock
@@ -308,14 +308,14 @@ impl BluelineWorld {
             // Create a new runtime for the app
             let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
             rt.block_on(async move {
-                tracing::info!("🚀 Starting AppController event loop in separate runtime");
+                tracing::info!("🚀 Starting AppViewModel event loop in separate runtime");
                 match app.run().await {
                     Ok(()) => {
-                        tracing::info!("✅ AppController exited normally");
+                        tracing::info!("✅ AppViewModel exited normally");
                         Ok(())
                     }
                     Err(e) => {
-                        tracing::error!("❌ AppController error: {}", e);
+                        tracing::error!("❌ AppViewModel error: {}", e);
                         Err(e)
                     }
                 }
@@ -353,7 +353,7 @@ impl BluelineWorld {
             if let Err(e) = controller.send_event(event) {
                 error!("❌ Failed to send key event: {}", e);
             } else {
-                info!("✅ Key event {:?} sent successfully to AppController", code);
+                info!("✅ Key event {:?} sent successfully to AppViewModel", code);
                 // Give the app time to process the event
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }

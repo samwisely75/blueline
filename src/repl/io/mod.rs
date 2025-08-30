@@ -13,10 +13,10 @@
 //! ## Architecture
 //!
 //! ```text
-//! Production:  AppController ──▶ TerminalEventStream ──▶ crossterm::event::read()
+//! Production:  AppViewModel ──▶ TerminalEventStream ──▶ crossterm::event::read()
 //!                            ──▶ TerminalRenderStream ──▶ crossterm::execute!()
 //!
-//! Testing:     AppController ──▶ MockEventStream     ──▶ VecDeque<Event>
+//! Testing:     AppViewModel ──▶ MockEventStream     ──▶ VecDeque<Event>
 //!                            ──▶ MockRenderStream    ──▶ Vec<RenderCommand>
 //! ```
 

@@ -16,7 +16,7 @@
 //! The EventSource trait abstracts the event input mechanism:
 //!
 //! ```text
-//! Production:   AppController ──▶ TerminalEventSource ──▶ crossterm::event::read()
+//! Production:   AppViewModel ──▶ TerminalEventSource ──▶ crossterm::event::read()
 //! ```
 //!
 //! ## Key Benefits
@@ -30,14 +30,14 @@
 //! ## Usage Pattern
 //!
 //! ```rust,no_run
-//! use blueline::AppController;
+//! use blueline::AppViewModel;
 //! use blueline::cmd_args::CommandLineArgs;
 //! use blueline::repl::io::{TerminalEventStream, TerminalRenderStream};
 //!
 //! let cmd_args = CommandLineArgs::parse_from(["blueline"]);
 //! let event_stream = TerminalEventStream::new();
 //! let render_stream = TerminalRenderStream::new();
-//! let app_controller = AppController::with_io_streams(cmd_args, event_stream, render_stream).unwrap();
+//! let app_view_model = AppViewModel::with_io_streams(cmd_args, event_stream, render_stream).unwrap();
 //! ```
 //!
 //! This abstraction enables comprehensive integration testing while maintaining

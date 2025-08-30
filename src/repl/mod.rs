@@ -4,7 +4,6 @@
 //! All components are designed with clear separation of concerns and testability.
 
 pub mod commands;
-pub mod controllers;
 pub mod io;
 pub mod models;
 pub mod services;
@@ -14,7 +13,7 @@ pub mod view_models;
 pub mod views;
 
 // Re-export core types
-pub use controllers::AppController;
+pub use view_models::AppViewModel;
 pub use views::*;
 
 // Re-export event types from their new locations

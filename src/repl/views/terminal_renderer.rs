@@ -87,7 +87,7 @@ pub trait ViewRenderer {
     fn initialize(&mut self) -> Result<()>;
 
     /// Render the full application state
-    fn render_full(&mut self, view_model: &AppState) -> Result<()>;
+    fn render_full(&mut self, app_state: &AppState) -> Result<()>;
 
     /// Render only specific pane
     fn render_pane(&mut self, app_state: &AppState, pane: Pane) -> Result<()>;
@@ -95,22 +95,22 @@ pub trait ViewRenderer {
     /// Render partial pane from start_line to bottom of visible area
     fn render_pane_partial(
         &mut self,
-        view_model: &AppState,
+        app_state: &AppState,
         pane: Pane,
         start_line: usize,
     ) -> Result<()>;
 
     /// Update cursor position only
-    fn render_cursor(&mut self, view_model: &AppState) -> Result<()>;
+    fn render_cursor(&mut self, app_state: &AppState) -> Result<()>;
 
     /// Render status bar
-    fn render_status_bar(&mut self, view_model: &AppState) -> Result<()>;
+    fn render_status_bar(&mut self, app_state: &AppState) -> Result<()>;
 
     /// Render only position indicator in status bar (for reduced flickering)
-    fn render_position_indicator(&mut self, view_model: &AppState) -> Result<()>;
+    fn render_position_indicator(&mut self, app_state: &AppState) -> Result<()>;
 
     /// Handle view events
-    fn handle_view_event(&mut self, event: &ViewEvent, view_model: &AppState) -> Result<()>;
+    fn handle_view_event(&mut self, event: &ViewEvent, app_state: &AppState) -> Result<()>;
 
     /// Cleanup terminal on exit
     fn cleanup(&mut self) -> Result<()>;
@@ -269,7 +269,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
     /// Render a single line of text at position with line number, with visual selection support
     fn render_line_with_number(
         &mut self,
-        view_model: &AppState,
+        app_state: &AppState,
         pane: Pane,
         row: u16,
         line_info: &LineInfo,
@@ -279,7 +279,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         self.render_stream.move_cursor(0, row)?;
 
         // Only render line numbers if they are visible
-        if view_model.pane_manager().is_line_numbers_visible() {
+        if app_state.pane_manager().is_line_numbers_visible() {
             #[allow(unused_variables)]
             if let Some(num) = line_info.line_number {
                 // Render line number with dimmed style and right alignment (minimum width 3)
@@ -305,7 +305,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         }
 
         // Calculate how much space is available for text after line number
-        let used_width = if view_model.pane_manager().is_line_numbers_visible() {
+        let used_width = if app_state.pane_manager().is_line_numbers_visible() {
             line_num_width + 1 // line number + space
         } else {
             0 // No space used when line numbers are hidden
@@ -313,7 +313,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         let available_width = (self.terminal_size.0 as usize).saturating_sub(used_width);
 
         // Truncate text to fit within terminal width, accounting for double-byte characters and tabs
-        let tab_width = view_model.pane_manager().get_tab_width();
+        let tab_width = app_state.pane_manager().get_tab_width();
         let display_text =
             if self.visual_length_with_tabs(line_info.text, tab_width) > available_width {
                 let mut result = String::new();
@@ -340,7 +340,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
 
         // Render text with visual selection highlighting if applicable
         self.render_text_with_selection(
-            view_model,
+            app_state,
             pane,
             line_info.line_number,
             &display_text,
@@ -360,7 +360,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
     /// Render text with visual selection highlighting
     fn render_text_with_selection(
         &mut self,
-        view_model: &AppState,
+        app_state: &AppState,
         pane: Pane,
         line_number: Option<usize>,
         text: &str,
@@ -368,7 +368,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         logical_line: usize,
     ) -> Result<()> {
         // Check if we're in visual mode and have a selection
-        let mode = view_model.get_mode();
+        let mode = app_state.get_mode();
         if matches!(
             mode,
             EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
@@ -380,9 +380,9 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
             // to render visual selection. The logical_line parameter always contains the correct
             // logical line number regardless of whether this is a continuation or not.
             let chars: Vec<char> = text.chars().collect();
-            let selection_state = view_model.get_visual_selection();
+            let selection_state = app_state.get_visual_selection();
 
-            let tab_width = view_model.pane_manager().get_tab_width();
+            let tab_width = app_state.pane_manager().get_tab_width();
 
             tracing::trace!(
                 "render_text_with_selection: selection_state={:?}, tab_width={}",
@@ -394,7 +394,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
             if chars.is_empty() {
                 let position =
                     crate::repl::models::LogicalPosition::new(logical_line, logical_start_col);
-                let is_selected = view_model.is_position_selected(position, pane);
+                let is_selected = app_state.is_position_selected(position, pane);
 
                 if is_selected {
                     tracing::debug!(
@@ -422,7 +422,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
                         logical_col,
                     );
 
-                    let is_selected = view_model.is_position_selected(position, pane);
+                    let is_selected = app_state.is_position_selected(position, pane);
 
                     match *ch {
                         '\t' => {
@@ -489,7 +489,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         }
 
         // No selection or not in visual mode - render normally, but expand tabs
-        let tab_width = view_model.pane_manager().get_tab_width();
+        let tab_width = app_state.pane_manager().get_tab_width();
         for ch in text.chars() {
             match ch {
                 '\t' => {
@@ -509,21 +509,21 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
     /// Render buffer content in a pane area using display lines
     fn render_buffer_content(
         &mut self,
-        view_model: &AppState,
+        app_state: &AppState,
         pane: Pane,
         start_row: u16,
         height: u16,
     ) -> Result<()> {
         // Get display lines for rendering from AppState
-        let display_lines = view_model.get_display_lines_for_rendering(pane, 0, height as usize);
-        let line_num_width = view_model.pane_manager().get_line_number_width(pane);
+        let display_lines = app_state.get_display_lines_for_rendering(pane, 0, height as usize);
+        let line_num_width = app_state.pane_manager().get_line_number_width(pane);
 
         for (row, display_data) in display_lines.iter().enumerate() {
             let terminal_row = start_row + row as u16;
             let line_info = LineInfo::from_display_data_string(display_data, pane, row, 0);
 
             self.render_line_with_number(
-                view_model,
+                app_state,
                 pane,
                 terminal_row,
                 &line_info,
@@ -566,21 +566,21 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn render_full(&mut self, view_model: &AppState) -> Result<()> {
+    fn render_full(&mut self, app_state: &AppState) -> Result<()> {
         // Temporarily hide cursor during full screen redraw to prevent flicker
         // The cursor will be shown again at the end by render_cursor()
         self.render_stream.hide_cursor()?;
         self.render_stream.clear_screen()?;
 
-        let (request_height, response_start, response_height) = view_model
+        let (request_height, response_start, response_height) = app_state
             .pane_manager()
-            .get_pane_boundaries(view_model.get_response_status_code().is_some());
+            .get_pane_boundaries(app_state.get_response_status_code().is_some());
 
         // Render request pane
-        self.render_buffer_content(view_model, Pane::Request, 0, request_height)?;
+        self.render_buffer_content(app_state, Pane::Request, 0, request_height)?;
 
         // Only render separator and response pane if there's an HTTP response
-        let has_response = view_model.get_response_status_code().is_some();
+        let has_response = app_state.get_response_status_code().is_some();
         tracing::debug!(
             "render_full: has_response = {}, rendering response pane = {}",
             has_response,
@@ -592,7 +592,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
             // Render response pane
             self.render_buffer_content(
-                view_model,
+                app_state,
                 Pane::Response,
                 response_start,
                 response_height,
@@ -600,32 +600,32 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         }
 
         // Render status bar
-        self.render_status_bar(view_model)?;
+        self.render_status_bar(app_state)?;
 
         // Render cursor (this will show cursor in correct position)
-        self.render_cursor(view_model)?;
+        self.render_cursor(app_state)?;
         safe_flush!(self.render_stream)?;
 
         Ok(())
     }
 
-    fn render_pane(&mut self, view_model: &AppState, pane: Pane) -> Result<()> {
+    fn render_pane(&mut self, app_state: &AppState, pane: Pane) -> Result<()> {
         // Temporarily hide cursor during pane rendering to prevent ghost cursors
         self.render_stream.hide_cursor()?;
 
-        let (request_height, response_start, response_height) = view_model
+        let (request_height, response_start, response_height) = app_state
             .pane_manager()
-            .get_pane_boundaries(view_model.get_response_status_code().is_some());
+            .get_pane_boundaries(app_state.get_response_status_code().is_some());
 
         match pane {
             Pane::Request => {
-                self.render_buffer_content(view_model, Pane::Request, 0, request_height)?;
+                self.render_buffer_content(app_state, Pane::Request, 0, request_height)?;
             }
             Pane::Response => {
                 // Only render response pane if there's an HTTP response
-                if view_model.get_response_status_code().is_some() {
+                if app_state.get_response_status_code().is_some() {
                     self.render_buffer_content(
-                        view_model,
+                        app_state,
                         Pane::Response,
                         response_start,
                         response_height,
@@ -641,19 +641,19 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
     fn render_pane_partial(
         &mut self,
-        view_model: &AppState,
+        app_state: &AppState,
         pane: Pane,
         start_line: usize,
     ) -> Result<()> {
         // Hide cursor before any rendering to prevent ghost cursors
         self.render_stream.hide_cursor()?;
 
-        let (request_height, response_start, response_height) = view_model
+        let (request_height, response_start, response_height) = app_state
             .pane_manager()
-            .get_pane_boundaries(view_model.get_response_status_code().is_some());
+            .get_pane_boundaries(app_state.get_response_status_code().is_some());
 
         // Early return for response pane without content
-        if pane == Pane::Response && view_model.get_response_status_code().is_none() {
+        if pane == Pane::Response && app_state.get_response_status_code().is_none() {
             return Ok(());
         }
 
@@ -666,8 +666,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         // Calculate the height for partial redraw
         // BUGFIX: Use saturating_sub to prevent integer underflow panic
         let height = pane_height.saturating_sub(start_line);
-        let display_lines = view_model.get_display_lines_for_rendering(pane, start_line, height);
-        let line_num_width = view_model.pane_manager().get_line_number_width(pane);
+        let display_lines = app_state.get_display_lines_for_rendering(pane, start_line, height);
+        let line_num_width = app_state.pane_manager().get_line_number_width(pane);
 
         // Render each line
         for (idx, display_data) in display_lines.iter().enumerate() {
@@ -681,7 +681,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             let line_info = LineInfo::from_display_data_string(display_data, pane, idx, start_line);
 
             self.render_line_with_number(
-                view_model,
+                app_state,
                 pane,
                 terminal_row,
                 &line_info,
@@ -694,13 +694,13 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn render_cursor(&mut self, view_model: &AppState) -> Result<()> {
+    fn render_cursor(&mut self, app_state: &AppState) -> Result<()> {
         // Cursor should be visible in normal editing modes
         // Only hide cursor in command mode when showing command line cursor
-        let should_hide_cursor = view_model.get_mode() == EditorMode::Command;
+        let should_hide_cursor = app_state.get_mode() == EditorMode::Command;
         tracing::debug!(
             "render_cursor: mode = {:?}, should_hide_cursor = {}",
-            view_model.get_mode(),
+            app_state.get_mode(),
             should_hide_cursor
         );
 
@@ -712,31 +712,31 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         }
 
         // Handle multi-cursor rendering for Visual Block Insert mode
-        if view_model.is_in_visual_block_insert_mode() {
-            return self.render_multi_cursors(view_model);
+        if app_state.is_in_visual_block_insert_mode() {
+            return self.render_multi_cursors(app_state);
         }
 
         // Get display cursor position and adjust for line numbers and pane offset
-        let display_cursor = view_model.get_display_cursor_position();
-        let current_pane = view_model.get_current_pane();
-        let line_num_width = view_model
+        let display_cursor = app_state.get_display_cursor_position();
+        let current_pane = app_state.get_current_pane();
+        let line_num_width = app_state
             .pane_manager()
             .get_line_number_width(current_pane);
 
         // Get scroll offset to calculate viewport-relative position
-        let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
+        let scroll_offset = app_state.pane_manager().get_current_scroll_offset();
 
         // Get pane boundaries to calculate response pane offset
-        let (_request_height, response_start, _response_height) = view_model
+        let (_request_height, response_start, _response_height) = app_state
             .pane_manager()
-            .get_pane_boundaries(view_model.get_response_status_code().is_some());
+            .get_pane_boundaries(app_state.get_response_status_code().is_some());
 
         // Calculate viewport-relative position by subtracting scroll offset
         let viewport_relative_row = display_cursor.row.saturating_sub(scroll_offset.row);
 
         // Calculate screen column: display_cursor.col - horizontal_scroll + line_numbers + padding
         // When horizontally scrolled, we need to subtract the scroll offset to get the visible position
-        let screen_col = if view_model.pane_manager().is_line_numbers_visible() {
+        let screen_col = if app_state.pane_manager().is_line_numbers_visible() {
             display_cursor.col
                 .saturating_sub(scroll_offset.col) // Subtract horizontal scroll offset
                 + line_num_width + 1 // Add line number width and padding when visible
@@ -779,7 +779,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
         // Set cursor style based on editor mode using ANSI escape codes
         // Using steady (non-blinking) cursors to prevent flickering on first mode change
-        let cursor_style = match view_model.get_mode() {
+        let cursor_style = match app_state.get_mode() {
             EditorMode::Insert => ansi::CURSOR_BAR_STEADY, // Steady I-beam for insert mode
             EditorMode::Normal => ansi::CURSOR_BLOCK_STEADY, // Steady block for normal mode
             EditorMode::Visual => ansi::CURSOR_BLOCK_STEADY, // Steady block for visual mode
@@ -803,7 +803,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn render_status_bar(&mut self, view_model: &AppState) -> Result<()> {
+    fn render_status_bar(&mut self, app_state: &AppState) -> Result<()> {
         let status_row = self.terminal_size.1 - 1;
 
         // Clear the status bar first
@@ -815,8 +815,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         )?;
 
         // Check if we're in command mode and need to show ex command buffer
-        if view_model.get_mode() == EditorMode::Command {
-            let ex_command_text = format!(":{}", view_model.get_ex_command_buffer());
+        if app_state.get_mode() == EditorMode::Command {
+            let ex_command_text = format!(":{}", app_state.get_ex_command_buffer());
             self.render_stream.move_cursor(0, status_row)?;
             write!(self.render_stream, "{}", &ex_command_text)?;
 
@@ -827,19 +827,19 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             write!(self.render_stream, "{}", ansi::CURSOR_BAR_STEADY)?;
             self.render_stream.show_cursor()?;
         } else {
-            let pane_text = match view_model.get_current_pane() {
+            let pane_text = match app_state.get_current_pane() {
                 Pane::Request => "REQUEST",
                 Pane::Response => "RESPONSE",
             };
 
-            let cursor = view_model.get_cursor_position();
+            let cursor = app_state.get_cursor_position();
 
             // Build status parts - left side for vim mode indicators, right side for info
             let mut left_status_text = String::new();
             let mut right_status_text = String::new();
 
             // Left side: Vim-style mode indicators (highest priority)
-            match view_model.get_mode() {
+            match app_state.get_mode() {
                 EditorMode::Insert => {
                     left_status_text.push_str(&format!(
                         "{}-- INSERT --{}",
@@ -877,19 +877,19 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 
             // If no vim mode indicator and we have custom status message, show it
             if left_status_text.is_empty() {
-                if let Some(message) = view_model.get_status_message() {
+                if let Some(message) = app_state.get_status_message() {
                     left_status_text.push_str(message);
                 }
                 // Show "Executing..." when request is being processed
-                else if view_model.is_executing_request() {
+                else if app_state.is_executing_request() {
                     let bullet = ansi::STATUS_BULLET_YELLOW;
                     left_status_text.push_str(&format!("{bullet} Executing..."));
                 }
             }
 
             // Right side: HTTP response info (optional, when present)
-            if let Some(status_code) = view_model.get_response_status_code() {
-                let status_message_opt = view_model.get_response_status_message();
+            if let Some(status_code) = app_state.get_response_status_code() {
+                let status_message_opt = app_state.get_response_status_message();
                 let status_message = status_message_opt.as_deref().unwrap_or("");
                 let status_full = format!("{status_code} {status_message}");
 
@@ -903,7 +903,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                 right_status_text.push_str(&format!("{signal_icon}{status_full}"));
 
                 // TAT (ephemeral)
-                if let Some(duration_ms) = view_model.get_response_duration_ms() {
+                if let Some(duration_ms) = app_state.get_response_duration_ms() {
                     let duration = std::time::Duration::from_millis(duration_ms);
                     let duration_text = humantime::format_duration(duration).to_string();
                     right_status_text.push_str(&format!(" | {duration_text}"));
@@ -917,9 +917,9 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             right_status_text.push(' ');
 
             // Use consistent position formatting with render_position_indicator
-            let position_text = if view_model.is_display_cursor_visible() {
-                let display_cursor = view_model.get_display_cursor_position();
-                let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
+            let position_text = if app_state.is_display_cursor_visible() {
+                let display_cursor = app_state.get_display_cursor_position();
+                let scroll_offset = app_state.pane_manager().get_current_scroll_offset();
 
                 // Show viewport-relative display position for traditional page scrolling behavior
                 let viewport_relative_row = display_cursor.row.saturating_sub(scroll_offset.row);
@@ -960,17 +960,17 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn render_position_indicator(&mut self, view_model: &AppState) -> Result<()> {
+    fn render_position_indicator(&mut self, app_state: &AppState) -> Result<()> {
         let status_row = self.terminal_size.1 - 1;
-        let cursor = view_model.get_cursor_position();
+        let cursor = app_state.get_cursor_position();
 
         // Get current pane
-        let pane_text = match view_model.get_current_pane() {
+        let pane_text = match app_state.get_current_pane() {
             Pane::Request => "REQUEST",
             Pane::Response => "RESPONSE",
         };
 
-        let display_cursor = view_model.get_display_cursor_position();
+        let display_cursor = app_state.get_display_cursor_position();
         tracing::debug!(
             "render_position_indicator: logical=({}, {}), display=({}, {})",
             cursor.line,
@@ -978,8 +978,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             display_cursor.row,
             display_cursor.col
         );
-        let position_text = if view_model.is_display_cursor_visible() {
-            let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
+        let position_text = if app_state.is_display_cursor_visible() {
+            let scroll_offset = app_state.pane_manager().get_current_scroll_offset();
 
             // Show viewport-relative display position for traditional page scrolling behavior
             let viewport_relative_row = display_cursor.row.saturating_sub(scroll_offset.row);
@@ -1001,8 +1001,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         let mut right_text = String::new();
 
         // Add HTTP response info if present
-        if let Some(status_code) = view_model.get_response_status_code() {
-            let status_message_opt = view_model.get_response_status_message();
+        if let Some(status_code) = app_state.get_response_status_code() {
+            let status_message_opt = app_state.get_response_status_message();
             let status_message = status_message_opt.as_deref().unwrap_or("");
             let status_full = format!("{status_code} {status_message}");
 
@@ -1016,7 +1016,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             right_text.push_str(&format!("{signal_icon}{status_full}"));
 
             // TAT (ephemeral)
-            if let Some(duration_ms) = view_model.get_response_duration_ms() {
+            if let Some(duration_ms) = app_state.get_response_duration_ms() {
                 let duration = std::time::Duration::from_millis(duration_ms);
                 let duration_text = humantime::format_duration(duration).to_string();
                 right_text.push_str(&format!(" | {duration_text}"));
@@ -1052,17 +1052,17 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn handle_view_event(&mut self, event: &ViewEvent, view_model: &AppState) -> Result<()> {
+    fn handle_view_event(&mut self, event: &ViewEvent, app_state: &AppState) -> Result<()> {
         match event {
             ViewEvent::FullRedrawRequired => {
-                self.render_full(view_model)?;
+                self.render_full(app_state)?;
             }
             ViewEvent::CurrentAreaRedrawRequired => {
-                let current_pane = view_model.get_current_pane();
-                self.render_pane(view_model, current_pane)?;
+                let current_pane = app_state.get_current_pane();
+                self.render_pane(app_state, current_pane)?;
             }
             ViewEvent::SecondaryAreaRedrawRequired => {
-                let current_pane = view_model.get_current_pane();
+                let current_pane = app_state.get_current_pane();
                 let secondary_pane = match current_pane {
                     crate::repl::models::pane_state::Pane::Request => {
                         crate::repl::models::pane_state::Pane::Response
@@ -1071,14 +1071,14 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                         crate::repl::models::pane_state::Pane::Request
                     }
                 };
-                self.render_pane(view_model, secondary_pane)?;
+                self.render_pane(app_state, secondary_pane)?;
             }
             ViewEvent::CurrentAreaPartialRedrawRequired { start_line } => {
-                let current_pane = view_model.get_current_pane();
-                self.render_pane_partial(view_model, current_pane, *start_line)?;
+                let current_pane = app_state.get_current_pane();
+                self.render_pane_partial(app_state, current_pane, *start_line)?;
             }
             ViewEvent::SecondaryAreaPartialRedrawRequired { start_line } => {
-                let current_pane = view_model.get_current_pane();
+                let current_pane = app_state.get_current_pane();
                 let secondary_pane = match current_pane {
                     crate::repl::models::pane_state::Pane::Request => {
                         crate::repl::models::pane_state::Pane::Response
@@ -1087,25 +1087,25 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                         crate::repl::models::pane_state::Pane::Request
                     }
                 };
-                self.render_pane_partial(view_model, secondary_pane, *start_line)?;
+                self.render_pane_partial(app_state, secondary_pane, *start_line)?;
             }
             ViewEvent::StatusBarUpdateRequired => {
-                self.render_status_bar(view_model)?;
-                self.render_cursor(view_model)?;
+                self.render_status_bar(app_state)?;
+                self.render_cursor(app_state)?;
                 safe_flush!(self.render_stream)?;
             }
             ViewEvent::PositionIndicatorUpdateRequired => {
-                self.render_position_indicator(view_model)?;
+                self.render_position_indicator(app_state)?;
             }
             ViewEvent::ActiveCursorUpdateRequired => {
-                self.render_cursor(view_model)?;
+                self.render_cursor(app_state)?;
             }
             ViewEvent::CurrentAreaScrollChanged { .. } => {
-                let current_pane = view_model.get_current_pane();
-                self.render_pane(view_model, current_pane)?;
+                let current_pane = app_state.get_current_pane();
+                self.render_pane(app_state, current_pane)?;
             }
             ViewEvent::SecondaryAreaScrollChanged { .. } => {
-                let current_pane = view_model.get_current_pane();
+                let current_pane = app_state.get_current_pane();
                 let secondary_pane = match current_pane {
                     crate::repl::models::pane_state::Pane::Request => {
                         crate::repl::models::pane_state::Pane::Response
@@ -1114,34 +1114,34 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                         crate::repl::models::pane_state::Pane::Request
                     }
                 };
-                self.render_pane(view_model, secondary_pane)?;
+                self.render_pane(app_state, secondary_pane)?;
             }
             ViewEvent::FocusSwitched => {
                 // Focus switched - update cursor and status bar
-                self.render_cursor(view_model)?;
-                self.render_status_bar(view_model)?;
+                self.render_cursor(app_state)?;
+                self.render_status_bar(app_state)?;
             }
             ViewEvent::RequestContentChanged => {
                 // Request content changed - redraw if we're in request pane
-                if view_model.is_in_request_pane() {
-                    let current_pane = view_model.get_current_pane();
-                    self.render_pane(view_model, current_pane)?;
+                if app_state.is_in_request_pane() {
+                    let current_pane = app_state.get_current_pane();
+                    self.render_pane(app_state, current_pane)?;
                 }
             }
             ViewEvent::ResponseContentChanged => {
                 // Response content changed - redraw if we're in response pane
-                if view_model.is_in_response_pane() {
-                    let current_pane = view_model.get_current_pane();
-                    self.render_pane(view_model, current_pane)?;
+                if app_state.is_in_response_pane() {
+                    let current_pane = app_state.get_current_pane();
+                    self.render_pane(app_state, current_pane)?;
                 } else {
                     // Always redraw response pane when content changes
-                    self.render_pane(view_model, crate::repl::models::pane_state::Pane::Response)?;
+                    self.render_pane(app_state, crate::repl::models::pane_state::Pane::Response)?;
                 }
             }
             ViewEvent::AllContentAreasRedrawRequired => {
                 // Redraw both panes
-                self.render_pane(view_model, crate::repl::models::pane_state::Pane::Request)?;
-                self.render_pane(view_model, crate::repl::models::pane_state::Pane::Response)?;
+                self.render_pane(app_state, crate::repl::models::pane_state::Pane::Request)?;
+                self.render_pane(app_state, crate::repl::models::pane_state::Pane::Response)?;
             }
         }
         Ok(())
@@ -1159,8 +1159,8 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
 // Private implementation methods for TerminalRenderer
 impl<RS: RenderStream> TerminalRenderer<RS> {
     /// Render multiple cursors for Visual Block Insert mode
-    fn render_multi_cursors(&mut self, view_model: &AppState) -> Result<()> {
-        let cursor_positions = view_model.get_visual_block_insert_cursors();
+    fn render_multi_cursors(&mut self, app_state: &AppState) -> Result<()> {
+        let cursor_positions = app_state.get_visual_block_insert_cursors();
         if cursor_positions.is_empty() {
             return Ok(());
         }
@@ -1173,18 +1173,18 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         // For now, just render the primary cursor at the first position
         // This ensures the user sees the cursor where text insertion is happening
         if let Some(first_pos) = cursor_positions.first() {
-            let current_pane = view_model.get_current_pane();
-            let line_num_width = view_model
+            let current_pane = app_state.get_current_pane();
+            let line_num_width = app_state
                 .pane_manager()
                 .get_line_number_width(current_pane);
-            let scroll_offset = view_model.pane_manager().get_current_scroll_offset();
-            let (_request_height, response_start, _response_height) = view_model
+            let scroll_offset = app_state.pane_manager().get_current_scroll_offset();
+            let (_request_height, response_start, _response_height) = app_state
                 .pane_manager()
-                .get_pane_boundaries(view_model.get_response_status_code().is_some());
+                .get_pane_boundaries(app_state.get_response_status_code().is_some());
 
             // Calculate screen position for the primary cursor
             let viewport_relative_row = first_pos.line.saturating_sub(scroll_offset.row);
-            let screen_col = if view_model.pane_manager().is_line_numbers_visible() {
+            let screen_col = if app_state.pane_manager().is_line_numbers_visible() {
                 first_pos.column.saturating_sub(scroll_offset.col) + line_num_width + 1
             } else {
                 first_pos.column.saturating_sub(scroll_offset.col)
@@ -1385,15 +1385,15 @@ mod tests {
         let render_stream = MockRenderStream::with_size((80, 40));
         if let Ok(mut renderer) = TerminalRenderer::with_render_stream(render_stream) {
             renderer.update_size(80, 40); // 40 line terminal
-            let mut view_model = AppState::new();
-            view_model.update_terminal_size(80, 40);
+            let mut app_state = AppState::new();
+            app_state.update_terminal_size(80, 40);
 
             // Set a response so the response pane appears
-            view_model.set_response(200, "test response".to_string());
+            app_state.set_response(200, "test response".to_string());
 
-            let (request_height, response_start, response_height) = view_model
+            let (request_height, response_start, response_height) = app_state
                 .pane_manager()
-                .get_pane_boundaries(view_model.get_response_status_code().is_some());
+                .get_pane_boundaries(app_state.get_response_status_code().is_some());
 
             // With terminal height 40:
             // - request_pane_height should be 20 (height/2)

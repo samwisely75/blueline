@@ -25,8 +25,8 @@ use anyhow::Result;
 use bluenote::{get_blank_profile, HttpConnectionProfile, HttpRequestArgs, IniProfileStore};
 use crossterm::event::{Event, KeyEvent};
 use std::time::Duration;
-/// The main application controller that orchestrates the MVVM pattern
-pub struct AppController<ES: EventStream, RS: RenderStream> {
+/// The main application ViewModel that orchestrates the MVVM pattern
+pub struct AppViewModel<ES: EventStream, RS: RenderStream> {
     app_state: AppState,
     view_renderer: TerminalRenderer<RS>,
     // Services layer for business logic
@@ -43,7 +43,7 @@ pub struct AppController<ES: EventStream, RS: RenderStream> {
     last_render_time: std::time::Instant,
 }
 
-impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
+impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     /// Create new application controller with injected I/O streams (dependency injection)
     pub fn with_io_streams(config: AppConfig, event_stream: ES, render_stream: RS) -> Result<Self> {
         let mut app_state = AppState::new();
@@ -74,8 +74,8 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
         // Configure view model with profile and settings
         Self::configure_app_state(&mut app_state, &profile, profile_name, profile_path);
 
-        // Create the controller
-        let mut controller = Self {
+        // Create the ViewModel
+        let mut view_model = Self {
             app_state,
             view_renderer,
             services,
@@ -94,14 +94,14 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 "Applying {} config commands",
                 config.initial_commands().len()
             );
-            controller.apply_initial_commands(config.initial_commands())?;
+            view_model.apply_initial_commands(config.initial_commands())?;
         }
 
-        Ok(controller)
+        Ok(view_model)
     }
 }
 
-impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
+impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     /// Load profile from INI file or return blank profile if not found
     fn load_profile(profile_name: &str, profile_path: &str) -> Result<impl HttpConnectionProfile> {
         tracing::debug!("Loading profile '{}' from '{}'", profile_name, profile_path);
@@ -832,7 +832,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
                 || !partial_redraws.is_empty();
             if has_content_updates {
                 tracing::debug!(
-                    "controller: content updates - current: {}, secondary: {}, partial: {:?}",
+                    "view_model: content updates - current: {}, secondary: {}, partial: {:?}",
                     needs_current_area_redraw,
                     needs_secondary_area_redraw,
                     partial_redraws.keys().collect::<Vec<_>>()
@@ -871,7 +871,7 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
 
             // Always render cursor after any pane redraw to prevent ghost cursors
             if needs_cursor_update || has_content_updates {
-                tracing::debug!("controller: rendering cursor after content updates");
+                tracing::debug!("view_model: rendering cursor after content updates");
                 self.view_renderer.render_cursor(&self.app_state)?;
             }
         }
@@ -1638,53 +1638,53 @@ impl<ES: EventStream, RS: RenderStream> AppController<ES, RS> {
     /// Process a single key event without running the full event loop (for testing)
     pub async fn process_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         tracing::debug!("Processing key event: {:?}", key_event);
-        tracing::debug!("AppController: process_key_event called with {key_event:?}");
+        tracing::debug!("AppViewModel: process_key_event called with {key_event:?}");
 
         // Create command context from current state
-        tracing::debug!("AppController: Creating command context");
+        tracing::debug!("AppViewModel: Creating command context");
         let context = CommandContext::new(AppStateSnapshot::from_app_state(&self.app_state));
-        tracing::debug!("AppController: Command context created");
+        tracing::debug!("AppViewModel: Command context created");
 
         // Process through command registry
-        tracing::debug!("AppController: About to call command_registry.process_event");
+        tracing::debug!("AppViewModel: About to call command_registry.process_event");
         if let Ok(events) = self.command_registry.process_event(key_event, &context) {
             tracing::debug!(
-                "AppController: Command events generated: {} events",
+                "AppViewModel: Command events generated: {} events",
                 events.len()
             );
             tracing::debug!("Command events generated: {:?}", events);
             if !events.is_empty() {
                 // Apply events to view model (this will emit appropriate ViewEvents)
                 tracing::debug!(
-                    "AppController: About to apply {} command events",
+                    "AppViewModel: About to apply {} command events",
                     events.len()
                 );
                 for (i, event) in events.iter().enumerate() {
                     tracing::debug!(
-                        "AppController: Applying event {}/{}: {:?}",
+                        "AppViewModel: Applying event {}/{}: {:?}",
                         i + 1,
                         events.len(),
                         event
                     );
                     self.apply_command_event(event.clone()).await?;
                     tracing::debug!(
-                        "AppController: Applied event {}/{} successfully",
+                        "AppViewModel: Applied event {}/{} successfully",
                         i + 1,
                         events.len()
                     );
                 }
-                tracing::debug!("AppController: All command events applied successfully");
+                tracing::debug!("AppViewModel: All command events applied successfully");
 
                 // Render after processing key events
                 self.view_renderer.render_full(&self.app_state)?;
             } else {
-                tracing::debug!("AppController: No command events generated");
+                tracing::debug!("AppViewModel: No command events generated");
             }
         } else {
-            tracing::warn!("AppController: Failed to process key event: {key_event:?}");
+            tracing::warn!("AppViewModel: Failed to process key event: {key_event:?}");
         }
 
-        tracing::debug!("AppController: process_key_event completed successfully");
+        tracing::debug!("AppViewModel: process_key_event completed successfully");
         Ok(())
     }
 
@@ -1837,20 +1837,20 @@ mod tests {
     use crate::repl::models::pane_state::{EditorMode, Pane};
 
     #[test]
-    fn app_controller_should_create() {
+    fn app_view_model_should_create() {
         if crossterm::terminal::size().is_ok() {
             let cmd_args = CommandLineArgs::parse_from(["test"]);
             let config = AppConfig::from_args(cmd_args);
-            let controller = AppController::with_io_streams(
+            let view_model = AppViewModel::with_io_streams(
                 config,
                 crate::repl::io::TerminalEventStream::new(),
                 crate::repl::io::TerminalRenderStream::new(),
             );
-            assert!(controller.is_ok());
+            assert!(view_model.is_ok());
 
-            let controller = controller.unwrap();
-            assert_eq!(controller.app_state().get_mode(), EditorMode::Normal);
-            assert_eq!(controller.app_state().get_current_pane(), Pane::Request);
+            let view_model = view_model.unwrap();
+            assert_eq!(view_model.app_state().get_mode(), EditorMode::Normal);
+            assert_eq!(view_model.app_state().get_current_pane(), Pane::Request);
         }
     }
 
@@ -1861,7 +1861,7 @@ mod tests {
         if crossterm::terminal::size().is_ok() {
             let cmd_args = CommandLineArgs::parse_from(["test"]);
             let config = AppConfig::from_args(cmd_args);
-            let mut controller = AppController::with_io_streams(
+            let mut view_model = AppViewModel::with_io_streams(
                 config,
                 crate::repl::io::TerminalEventStream::new(),
                 crate::repl::io::TerminalRenderStream::new(),
@@ -1870,7 +1870,7 @@ mod tests {
 
             // Test YankSelectionCommand in Normal mode (should fail as expected)
             let command = Box::new(YankSelectionCommand::new());
-            let result = controller.execute_command(command);
+            let result = view_model.execute_command(command);
 
             // Verify the command failed as expected (not in visual mode)
             assert!(
@@ -1879,7 +1879,7 @@ mod tests {
             );
 
             // Verify we're still in Normal mode
-            assert_eq!(controller.app_state().get_mode(), EditorMode::Normal);
+            assert_eq!(view_model.app_state().get_mode(), EditorMode::Normal);
         }
     }
 
@@ -1890,7 +1890,7 @@ mod tests {
         if crossterm::terminal::size().is_ok() {
             let cmd_args = CommandLineArgs::parse_from(["test"]);
             let config = AppConfig::from_args(cmd_args);
-            let mut controller = AppController::with_io_streams(
+            let mut view_model = AppViewModel::with_io_streams(
                 config,
                 crate::repl::io::TerminalEventStream::new(),
                 crate::repl::io::TerminalRenderStream::new(),
@@ -1904,12 +1904,12 @@ mod tests {
                 yank_type: YankType::Character,
             };
 
-            let result = controller.process_model_event(event);
+            let result = view_model.process_model_event(event);
             assert!(result.is_ok(), "ModelEvent processing should succeed");
 
             // Verify yank buffer contains the text
             // NOTE: YankService now owns the yank buffer, not ViewModel
-            // We would need to check controller.services.yank instead
+            // We would need to check view_model.services.yank instead
             // For now, just verify the event was processed successfully
         }
     }
@@ -1921,7 +1921,7 @@ mod tests {
         if crossterm::terminal::size().is_ok() {
             let cmd_args = CommandLineArgs::parse_from(["test"]);
             let config = AppConfig::from_args(cmd_args);
-            let mut controller = AppController::with_io_streams(
+            let mut view_model = AppViewModel::with_io_streams(
                 config,
                 crate::repl::io::TerminalEventStream::new(),
                 crate::repl::io::TerminalRenderStream::new(),
@@ -1929,18 +1929,18 @@ mod tests {
             .unwrap();
 
             // Verify unified command registry is initialized
-            assert!(controller.unified_command_registry.command_count() > 0);
+            assert!(view_model.unified_command_registry.command_count() > 0);
 
             // Test 'y' key in Normal mode - should fall back to old system (no unified command)
             let y_key = crossterm::event::KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
-            let result = controller.handle_key_event_with_unified_first(y_key).await;
+            let result = view_model.handle_key_event_with_unified_first(y_key).await;
             assert!(
                 result.is_ok(),
                 "Unified command system should handle key events gracefully"
             );
 
             // Verify old system handled it (y in Normal mode goes to YPrefix mode)
-            assert_eq!(controller.app_state().get_mode(), EditorMode::YPrefix);
+            assert_eq!(view_model.app_state().get_mode(), EditorMode::YPrefix);
         }
     }
 }
