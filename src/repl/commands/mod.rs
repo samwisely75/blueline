@@ -84,8 +84,8 @@ pub use navigation::{
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
 pub use yank::{
-    CancelPrefixModeCommand, ChangeSelectionCommand, EnterDPrefixCommand,
-    EnterYPrefixCommand, PasteAfterCommand, PasteAtCursorCommand, YankCurrentLineCommand,
+    CancelPrefixModeCommand, ChangeSelectionCommand, EnterDPrefixCommand, EnterYPrefixCommand,
+    PasteAfterCommand, PasteAtCursorCommand, YankCurrentLineCommand,
 };
 
 /// Type alias for command collection to reduce complexity
