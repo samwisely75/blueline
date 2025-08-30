@@ -37,7 +37,8 @@ impl Command for CutCurrentLineCommand {
 
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
         // Only allow in Request pane and DPrefix mode (double-check)
-        if !context.app_state.is_in_request_pane() || context.app_state.mode() != EditorMode::DPrefix
+        if !context.app_state.is_in_request_pane()
+            || context.app_state.mode() != EditorMode::DPrefix
         {
             return Ok(vec![]);
         }
