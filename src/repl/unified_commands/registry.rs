@@ -40,14 +40,8 @@ impl UnifiedCommandRegistry {
 
     /// Register all default commands
     fn register_default_commands(&mut self) {
-        use crate::repl::unified_commands::{
-            change_selection::ChangeSelectionCommand, cut_character::CutCharacterCommand,
-            cut_current_line::CutCurrentLineCommand, cut_selection::CutSelectionCommand,
-            cut_to_end_of_line::CutToEndOfLineCommand, delete_selection::DeleteSelectionCommand,
-            http::HttpExecuteCommand, visual_block_append::VisualBlockAppendCommand,
-            visual_block_insert::VisualBlockInsertCommand, yank::YankSelectionCommand,
-            yank_current_line::YankCurrentLineCommand,
-        };
+        #[allow(clippy::wildcard_imports)]
+        use crate::repl::unified_commands::*;
 
         // Add YankSelectionCommand
         self.add_command(Arc::new(YankSelectionCommand::new()));

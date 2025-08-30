@@ -28,3 +28,15 @@ pub mod yank_current_line;
 pub use command::{Command, CommandContext, ExecutionContext};
 pub use events::{ModelEvent, YankType};
 pub use registry::UnifiedCommandRegistry;
+
+// Re-export command implementations for registry
+pub use change_selection::ChangeSelectionCommand;
+pub use cut_character::CutCharacterCommand;
+pub use cut_current_line::CutCurrentLineCommand;
+pub use cut_selection::CutSelectionCommand;
+pub use cut_to_end_of_line::CutToEndOfLineCommand;
+pub use delete_selection::DeleteSelectionCommand;
+pub use http::HttpExecuteCommand;
+pub use visual_block_insert::VisualBlockInsertCommand;
+pub use yank::YankSelectionCommand;
+pub use yank_current_line::YankCurrentLineCommand;
