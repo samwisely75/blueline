@@ -1,5 +1,86 @@
 # Session Notes
 
+## [2025-08-30] Command System Refactoring - Repurpose 3G Framework
+
+### User Request Summary
+- Migrate all handle_* methods from AppViewModel to commands
+- Enhance first-generation command system to return ViewEvents
+- Get rid of unified_commands directory ASAP
+- Ensure gradual migration with working app throughout
+
+### Key Decisions Made
+
+1. **Repurpose 3G Framework Instead of Creating New**
+   - Avoids adding a third event loop (risky based on past experience)
+   - Uses existing dual event loop infrastructure
+   - 3G framework becomes migration workspace
+
+2. **Modify 3G to Return ViewEvents**
+   - Change unified_commands to return ViewEvent instead of ModelEvent
+   - Commands will contain full business logic
+   - Direct UI updates without intermediate events
+
+3. **Gradual Migration Strategy**
+   - Migrate one command at a time
+   - Test after each migration
+   - Can disable broken commands temporarily
+   - HttpExecuteCommand as working template
+
+### Architecture Analysis
+
+#### Current State
+- **AppViewModel**: ~1700 lines with 20+ handle_* methods
+- **1st gen commands**: Return CommandEvent, stable and working
+- **3rd gen commands**: Return ModelEvent, only 2 commands implemented
+- **Dual event loop**: Already tries 3G first, falls back to 1G
+
+#### Target State
+- **AppViewModel**: ~200 lines, thin orchestration layer only
+- **Commands**: Self-contained with business logic (vertical slice)
+- **Single command system**: Enhanced 3G becomes the only system
+- **Event flow**: KeyEvent → Command → ViewEvent → UI Update
+
+### Migration Plan
+
+#### Phase 1: Setup 3G Framework (Day 1)
+1. Modify Command trait in unified_commands to return ViewEvent
+2. Update HttpExecuteCommand with ViewEvents + real logic
+3. Temporarily disable YankSelectionCommand
+4. Update AppViewModel's unified command processing
+5. Test and commit
+
+#### Phase 2: Gradual Migration (Days 2-10)
+For each handle_* method:
+1. Create command in unified_commands with business logic
+2. Add to unified registry
+3. Test specific functionality
+4. Delete handle_* method from AppViewModel
+5. Commit after each successful migration
+
+Priority order:
+- Simple: ShowProfile, Settings
+- Medium: Yank/paste commands
+- Complex: Visual block, multi-cursor
+
+#### Phase 3: Cleanup (Day 11)
+1. Rename unified_commands → commands
+2. Delete old first-gen system
+3. Remove dual event loop
+4. Final AppViewModel cleanup
+
+### Integration Test Impact
+- **Zero impact** - Tests are black-box (keyboard in, terminal out)
+- Tests provide safety net for refactoring
+- No test changes needed
+
+### Next Steps
+1. Create GitHub issue for tracking
+2. Modify 3G Command trait to return ViewEvent
+3. Update HttpExecuteCommand as template
+4. Begin gradual migration
+
+---
+
 ## [2025-08-29] MVVM Architecture Deep Dive and Refactoring Plan
 
 ### User Request Summary

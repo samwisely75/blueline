@@ -2,14 +2,16 @@
 //!
 //! Commands for executing HTTP requests using the unified command pattern.
 
+use crate::repl::models::events::view_events::ViewEvent;
 use crate::repl::models::pane_state::EditorMode;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::{Command, CommandContext, ExecutionContext, ModelEvent};
+use super::{Command, CommandContext, ExecutionContext};
 
 /// Parse request text to extract method and URL
 /// This is a simple parser for the event - actual parsing happens in HttpService
+#[allow(dead_code)]
 fn parse_request_basics(request_text: &str) -> (&str, &str) {
     let trimmed = request_text.trim();
     if trimmed.is_empty() {
@@ -53,24 +55,36 @@ impl Command for HttpExecuteCommand {
         is_enter && no_modifiers && is_normal_mode && is_request_pane
     }
 
-    fn handle(&self, context: &mut ExecutionContext) -> Result<Vec<ModelEvent>> {
-        // Get request text from the app state (read-only access)
-        let request_text = context.app_state.get_request_text();
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+        // Get request text from the app state
+        let _request_text = context.app_state.get_request_text();
 
-        // Parse the request to get method and URL for the event
-        // This is a simple parse - the actual HTTP execution will be done by AppViewModel
-        let (method, url) = parse_request_basics(&request_text);
+        // Check if HTTP service is available
+        if context.services.http.is_none() {
+            // Update status to show error
+            context
+                .app_state
+                .set_status_message("HTTP service not available");
+            return Ok(vec![ViewEvent::StatusBarUpdateRequired]);
+        }
 
-        // Return events - Commands should ONLY emit events, not execute directly
-        // The AppViewModel will handle checking for HTTP service availability
+        // For now, we just mark the request as executing and update status
+        // The actual HTTP execution happens asynchronously in the HTTP service
+        // which is polled by AppViewModel's process_next_event
+        context.app_state.set_executing_request(true);
+
+        // TODO: In the future, we should trigger the HTTP request here directly
+        // For now, the old system in AppViewModel will handle the actual execution
+
+        // Update status to show request is executing
+        context
+            .app_state
+            .set_status_message("Executing HTTP request...");
+
+        // Return view events for UI updates
         Ok(vec![
-            ModelEvent::HttpRequestStarted {
-                method: method.to_string(),
-                url: url.to_string(),
-            },
-            ModelEvent::StatusMessageSet {
-                message: "Executing HTTP request...".to_string(),
-            },
+            ViewEvent::StatusBarUpdateRequired,
+            // The response will be handled asynchronously via handle_http_response
         ])
     }
 
@@ -171,14 +185,13 @@ mod tests {
         };
 
         let cmd = HttpExecuteCommand::new();
-        let result = cmd.handle(&mut context);
+        let result = cmd.execute(&mut context);
 
-        // Should return events even with empty request
+        // Should return events even with empty request or no HTTP service
         assert!(result.is_ok());
         let events = result.unwrap();
-        assert_eq!(events.len(), 2); // HttpRequestStarted and StatusMessageSet
-        assert!(matches!(events[0], ModelEvent::HttpRequestStarted { .. }));
-        assert!(matches!(events[1], ModelEvent::StatusMessageSet { .. }));
+        assert_eq!(events.len(), 1); // StatusBarUpdateRequired
+        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
     }
 
     #[test]
