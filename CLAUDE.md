@@ -156,7 +156,7 @@ You are working with a complex, functioning application. Your job is to make min
 
 When starting any conversation, or compact the conversation, IMMEDIATELY:
 
-1. Check if `SESSION_NOTES.md` exists and read it completely
+1. Reload `SESSION_NOTES.md`, `docs/DEV_GUIDE.md` and `docs/DEV_WORKFLOW.md`.
 2. Review recent git commits to understand what was recently changed
 3. Ask user about current context if unclear from notes
 
