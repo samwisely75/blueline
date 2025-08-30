@@ -73,11 +73,21 @@ Priority order:
 - Tests provide safety net for refactoring
 - No test changes needed
 
+### Progress Update
+
+#### Phase 1: ✅ COMPLETED (2025-08-30)
+- Modified Command trait in unified_commands to return ViewEvent instead of ModelEvent
+- Updated HttpExecuteCommand to work with ViewEvents (business logic placeholder)
+- Temporarily disabled YankSelectionCommand for later migration
+- Updated AppViewModel to process ViewEvents from unified commands
+- All tests passing (472 unit tests)
+- Committed as: bf35676
+
 ### Next Steps
-1. Create GitHub issue for tracking
-2. Modify 3G Command trait to return ViewEvent
-3. Update HttpExecuteCommand as template
-4. Begin gradual migration
+1. Begin migrating handle_* methods to unified commands one by one
+2. Start with simple commands (ShowProfile, Settings)
+3. Then move to yank/paste commands
+4. Continue until all handle_* methods are migrated
 
 ---
 
