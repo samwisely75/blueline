@@ -9,23 +9,6 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::{Command, CommandContext, ExecutionContext};
 
-/// Parse request text to extract method and URL
-/// This is a simple parser for the event - actual parsing happens in HttpService
-#[allow(dead_code)]
-fn parse_request_basics(request_text: &str) -> (&str, &str) {
-    let trimmed = request_text.trim();
-    if trimmed.is_empty() {
-        return ("GET", "");
-    }
-
-    let parts: Vec<&str> = trimmed.splitn(2, ' ').collect();
-    match parts.as_slice() {
-        [method, url, ..] => (*method, url.trim()),
-        [url] => ("GET", url.trim()),
-        _ => ("GET", ""),
-    }
-}
-
 /// Execute HTTP request command (Enter in Normal mode on Request pane)
 ///
 /// This command:
@@ -57,7 +40,7 @@ impl Command for HttpExecuteCommand {
 
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
         // Get request text from the app state
-        let _request_text = context.app_state.get_request_text();
+        let request_text = context.app_state.get_request_text();
 
         // Check if HTTP service is available
         if context.services.http.is_none() {
@@ -68,13 +51,12 @@ impl Command for HttpExecuteCommand {
             return Ok(vec![ViewEvent::StatusBarUpdateRequired]);
         }
 
-        // For now, we just mark the request as executing and update status
-        // The actual HTTP execution happens asynchronously in the HTTP service
-        // which is polled by AppViewModel's process_next_event
+        // Mark request as executing
         context.app_state.set_executing_request(true);
 
-        // TODO: In the future, we should trigger the HTTP request here directly
-        // For now, the old system in AppViewModel will handle the actual execution
+        // Execute the HTTP request asynchronously
+        let http_service = context.services.http.as_mut().unwrap();
+        http_service.execute_async(request_text);
 
         // Update status to show request is executing
         context
@@ -192,24 +174,5 @@ mod tests {
         let events = result.unwrap();
         assert_eq!(events.len(), 1); // StatusBarUpdateRequired
         assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
-    }
-
-    #[test]
-    fn http_execute_should_parse_request_basics() {
-        // Test the parse_request_basics function
-        assert_eq!(parse_request_basics(""), ("GET", ""));
-        assert_eq!(
-            parse_request_basics("https://example.com"),
-            ("GET", "https://example.com")
-        );
-        assert_eq!(
-            parse_request_basics("POST https://example.com"),
-            ("POST", "https://example.com")
-        );
-        assert_eq!(parse_request_basics("PUT /api/data"), ("PUT", "/api/data"));
-        assert_eq!(
-            parse_request_basics("  DELETE  /item  "),
-            ("DELETE", "/item")
-        );
     }
 }
