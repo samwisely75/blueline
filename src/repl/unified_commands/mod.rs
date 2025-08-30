@@ -10,6 +10,7 @@ pub mod events;
 pub mod registry;
 
 // Command implementations
+pub mod change_selection;
 pub mod cut_character;
 pub mod cut_current_line;
 pub mod cut_selection;

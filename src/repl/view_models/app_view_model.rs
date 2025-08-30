@@ -704,9 +704,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                     "YankCurrentLineRequested received via old command path - ignoring"
                 );
             }
-            CommandEvent::ChangeSelectionRequested => {
-                self.handle_change_selection()?;
-            }
             CommandEvent::VisualBlockInsertRequested => {
                 self.handle_visual_block_insert()?;
             }
@@ -724,6 +721,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             }
             CommandEvent::PasteAtCursorRequested => {
                 self.handle_paste_at_cursor()?;
+            }
+            CommandEvent::ChangeSelectionRequested => {
+                // Now handled by ChangeSelectionCommand in unified commands
+                tracing::debug!(
+                    "ChangeSelectionRequested received via old command path - ignoring"
+                );
             }
             CommandEvent::NoAction => {
                 // Do nothing
@@ -1162,85 +1165,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
     //     Ok(())
     // }
-
-    /// Handle change selection operation (Visual Block mode 'c' command)
-    ///
-    /// This implements vim's Visual Block change command:
-    /// 1. Delete the selected rectangular block
-    /// 2. Enter Visual Block Insert mode for multi-cursor text replacement
-    /// 3. Shows multi-cursor feedback on all affected lines in real-time
-    /// 4. When Esc is pressed, exits Visual Block Insert mode
-    fn handle_change_selection(&mut self) -> Result<()> {
-        // Change operation is currently only supported in Visual Block mode
-        let current_mode = self.app_state.get_mode();
-        if current_mode != EditorMode::VisualBlock {
-            tracing::warn!("Change selection only supported in Visual Block mode, current mode: {current_mode:?}");
-            self.app_state.set_status_message(
-                "Change command only supported in Visual Block mode".to_string(),
-            );
-            return Ok(());
-        }
-
-        // Get the visual selection before deleting it
-        let (selection_start, selection_end, _pane) = self.app_state.get_visual_selection();
-        if selection_start.is_none() || selection_end.is_none() {
-            tracing::warn!("No visual selection for change operation");
-            self.app_state
-                .set_status_message("No text selected".to_string());
-            return Ok(());
-        }
-
-        let start = selection_start.unwrap();
-        let end = selection_end.unwrap();
-
-        // Calculate the cursor positions for Visual Block Insert mode
-        // This is similar to Visual Block Insert, but we start from the deleted block
-        let top_line = start.line.min(end.line);
-        let bottom_line = start.line.max(end.line);
-        let left_col = start.column.min(end.column);
-
-        // Delete the selected block text first
-        if let Some(deleted_text) = self.app_state.delete_selected_text()? {
-            // Create cursor positions for all lines in the deleted block range
-            let mut cursor_positions = Vec::new();
-            for line_num in top_line..=bottom_line {
-                cursor_positions.push(LogicalPosition::new(line_num, left_col));
-            }
-
-            // Set up Visual Block Insert mode with multi-cursor state
-            self.app_state
-                .set_visual_block_insert_cursors(cursor_positions.clone());
-
-            // Switch to VisualBlockInsert mode (not regular Insert)
-            self.app_state.change_mode(EditorMode::VisualBlockInsert)?;
-
-            // Position the main cursor at the first line of the block
-            self.app_state.set_cursor_position(cursor_positions[0])?;
-
-            // Show feedback in status bar
-            let char_count = deleted_text.chars().count();
-            let line_count = deleted_text.lines().count();
-            let message = if line_count > 1 {
-                format!("Changed {line_count} lines, Visual Block Insert mode")
-            } else {
-                format!("Changed {char_count} characters, Visual Block Insert mode")
-            };
-            self.app_state.set_status_message(message);
-
-            tracing::info!(
-                "Changed {} characters ({} lines), entered Visual Block Insert mode with {} cursors",
-                char_count,
-                line_count,
-                cursor_positions.len()
-            );
-        } else {
-            tracing::warn!("No text selected for changing");
-            self.app_state
-                .set_status_message("No text selected".to_string());
-        }
-
-        Ok(())
-    }
 
     /// Handle Visual Block Insert operation ('I' in Visual Block mode)
     ///
