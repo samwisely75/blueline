@@ -12,13 +12,13 @@ use blueline::{
     cmd_args::CommandLineArgs,
     config::AppConfig,
     repl::{
-        view_models::AppViewModel,
         io::{
             test_bridge::{
                 BridgedEventStream, BridgedRenderStream, EventStreamController, RenderStreamMonitor,
             },
             VteRenderStream,
         },
+        view_models::AppViewModel,
     },
 };
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};

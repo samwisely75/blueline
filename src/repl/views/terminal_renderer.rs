@@ -591,12 +591,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             self.render_separator(request_height)?;
 
             // Render response pane
-            self.render_buffer_content(
-                app_state,
-                Pane::Response,
-                response_start,
-                response_height,
-            )?;
+            self.render_buffer_content(app_state, Pane::Response, response_start, response_height)?;
         }
 
         // Render status bar
@@ -719,9 +714,7 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         // Get display cursor position and adjust for line numbers and pane offset
         let display_cursor = app_state.get_display_cursor_position();
         let current_pane = app_state.get_current_pane();
-        let line_num_width = app_state
-            .pane_manager()
-            .get_line_number_width(current_pane);
+        let line_num_width = app_state.pane_manager().get_line_number_width(current_pane);
 
         // Get scroll offset to calculate viewport-relative position
         let scroll_offset = app_state.pane_manager().get_current_scroll_offset();
@@ -1174,9 +1167,7 @@ impl<RS: RenderStream> TerminalRenderer<RS> {
         // This ensures the user sees the cursor where text insertion is happening
         if let Some(first_pos) = cursor_positions.first() {
             let current_pane = app_state.get_current_pane();
-            let line_num_width = app_state
-                .pane_manager()
-                .get_line_number_width(current_pane);
+            let line_num_width = app_state.pane_manager().get_line_number_width(current_pane);
             let scroll_offset = app_state.pane_manager().get_current_scroll_offset();
             let (_request_height, response_start, _response_height) = app_state
                 .pane_manager()

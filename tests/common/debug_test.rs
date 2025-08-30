@@ -25,8 +25,8 @@ mod tests {
     async fn test_app_controller_creation() -> Result<()> {
         use blueline::cmd_args::CommandLineArgs;
         use blueline::config::AppConfig;
-        use blueline::repl::view_models::AppViewModel;
         use blueline::repl::io::test_bridge::{BridgedEventStream, BridgedRenderStream};
+        use blueline::repl::view_models::AppViewModel;
 
         tracing::info!("1. Testing bridge creation...");
         let (event_stream, _controller) = BridgedEventStream::new();
