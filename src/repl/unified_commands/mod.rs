@@ -17,6 +17,7 @@ pub mod cut_selection;
 pub mod cut_to_end_of_line;
 pub mod delete_selection;
 pub mod http;
+pub mod navigation;
 pub mod setting_change;
 pub mod show_profile;
 pub mod visual_block_append;
@@ -28,3 +29,6 @@ pub mod yank_current_line;
 pub use command::{Command, CommandContext, ExecutionContext};
 pub use events::{ModelEvent, YankType};
 pub use registry::UnifiedCommandRegistry;
+
+// Re-export command implementations for registry
+pub use navigation::MoveCursorLeftCommand;

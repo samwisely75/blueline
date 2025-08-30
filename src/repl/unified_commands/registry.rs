@@ -44,7 +44,8 @@ impl UnifiedCommandRegistry {
             change_selection::ChangeSelectionCommand, cut_character::CutCharacterCommand,
             cut_current_line::CutCurrentLineCommand, cut_selection::CutSelectionCommand,
             cut_to_end_of_line::CutToEndOfLineCommand, delete_selection::DeleteSelectionCommand,
-            http::HttpExecuteCommand, visual_block_append::VisualBlockAppendCommand,
+            http::HttpExecuteCommand, navigation::MoveCursorLeftCommand,
+            visual_block_append::VisualBlockAppendCommand,
             visual_block_insert::VisualBlockInsertCommand, yank::YankSelectionCommand,
             yank_current_line::YankCurrentLineCommand,
         };
@@ -81,6 +82,9 @@ impl UnifiedCommandRegistry {
 
         // Add VisualBlockAppendCommand
         self.add_command(Arc::new(VisualBlockAppendCommand::new()));
+
+        // Add MoveCursorLeftCommand
+        self.add_command(Arc::new(MoveCursorLeftCommand::new()));
 
         // TODO: Add more commands as we create them:
         // self.add_command(Arc::new(CutSelectionCommand::new()));
@@ -262,5 +266,45 @@ mod tests {
         registry.add_command(Arc::new(TestCommand));
 
         assert_eq!(registry.command_count(), initial_count + 1);
+    }
+
+    #[test]
+    fn unified_registry_should_find_move_cursor_left_command_for_h_key() {
+        let registry = UnifiedCommandRegistry::new();
+        let context = CommandContext {
+            current_mode: EditorMode::Normal,
+            current_pane: Pane::Request,
+            is_read_only: false,
+            has_selection: false,
+        };
+        let key_event = KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE);
+
+        let found_command = registry.process_key_event(key_event, EditorMode::Normal, &context);
+        
+        assert!(found_command.is_some(), "Registry should find MoveCursorLeftCommand for 'h' key");
+        
+        if let Some(command) = found_command {
+            assert_eq!(command.name(), "MoveCursorLeft");
+        }
+    }
+
+    #[test]
+    fn unified_registry_should_find_move_cursor_left_command_for_left_arrow() {
+        let registry = UnifiedCommandRegistry::new();
+        let context = CommandContext {
+            current_mode: EditorMode::Normal,
+            current_pane: Pane::Request,
+            is_read_only: false,
+            has_selection: false,
+        };
+        let key_event = KeyEvent::new(KeyCode::Left, KeyModifiers::NONE);
+
+        let found_command = registry.process_key_event(key_event, EditorMode::Normal, &context);
+        
+        assert!(found_command.is_some(), "Registry should find MoveCursorLeftCommand for Left arrow");
+        
+        if let Some(command) = found_command {
+            assert_eq!(command.name(), "MoveCursorLeft");
+        }
     }
 }
