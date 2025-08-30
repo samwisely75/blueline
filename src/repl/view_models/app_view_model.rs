@@ -717,10 +717,16 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 );
             }
             CommandEvent::ExitVisualBlockInsertRequested => {
-                self.handle_exit_visual_block_insert()?;
+                // Now handled by ExitVisualBlockInsertCommand in unified commands
+                tracing::debug!(
+                    "ExitVisualBlockInsertRequested received via old command path - ignoring"
+                );
             }
             CommandEvent::RepeatVisualSelectionRequested => {
-                self.handle_repeat_visual_selection()?;
+                // Now handled by RepeatVisualSelectionCommand in unified_commands
+                tracing::debug!(
+                    "RepeatVisualSelectionRequested received via old command path - ignoring"
+                );
             }
             CommandEvent::PasteAfterRequested => {
                 self.handle_paste_after()?;
@@ -1189,69 +1195,17 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     // handle_visual_block_append method has been migrated to VisualBlockAppendCommand
     // See: src/repl/unified_commands/visual_block_append.rs
 
-    /// Handle exit from Visual Block Insert mode with text replication
-    ///
-    /// This implements the complex vim behavior where:
-    /// 1. Text typed on the first line during Visual Block Insert is captured
-    /// 2. That text is replicated to all lines that were in the original block selection  
-    /// 3. Cursor is positioned at the end of the inserted text on the first line
-    fn handle_exit_visual_block_insert(&mut self) -> Result<()> {
-        tracing::info!("Exiting Visual Block Insert mode");
-
-        // Preserve cursor position at the first multi-cursor position
-        let cursor_to_preserve = self
-            .app_state
-            .get_visual_block_insert_cursors()
-            .first()
-            .copied(); // Get first cursor position before clearing
-
-        // Clear multi-cursor state
-        self.app_state.clear_visual_block_insert_cursors();
-
-        // Clear visual selection that was active when we entered Visual Block Insert
-        self.app_state.clear_visual_selection()?;
-
-        // Restore cursor position to where typing was happening (first cursor)
-        if let Some(preserved_cursor) = cursor_to_preserve {
-            self.app_state.set_cursor_position(preserved_cursor)?;
-            tracing::debug!("Preserved cursor position at {:?}", preserved_cursor);
-        }
-
-        self.app_state.change_mode(EditorMode::Normal)?;
-
-        // Clear any previous status messages when exiting Visual Block Insert
-        self.app_state.clear_status_message();
-
-        Ok(())
-    }
-
-    /// Handle repeat visual selection (gv command)
-    ///
-    /// Restores the last visual selection including:
-    /// 1. The selection range (start and end positions)
-    /// 2. The visual mode type (character/line/block)
-    /// 3. Cursor position at end of selection
-    fn handle_repeat_visual_selection(&mut self) -> Result<()> {
-        tracing::info!("Handling repeat visual selection (gv command)");
-
-        // First, return to Normal mode to exit GPrefix mode
-        self.app_state.change_mode(EditorMode::Normal)?;
-
-        // Try to restore the last visual selection
-        match self.app_state.restore_last_visual_selection()? {
-            Some(mode) => {
-                tracing::info!("Restored last visual selection with mode {:?}", mode);
-                // Change to the restored visual mode
-                self.app_state.change_mode(mode)?;
-            }
-            None => {
-                tracing::info!("No previous visual selection to restore");
-                // Stay in Normal mode if there's no selection to restore
-            }
-        }
-
-        Ok(())
-    }
+    // MIGRATED to RepeatVisualSelectionCommand in unified_commands
+    // /// Handle repeat visual selection (gv command)
+    // ///
+    // /// Restores the last visual selection including:
+    // /// 1. The selection range (start and end positions)
+    // /// 2. The visual mode type (character/line/block)
+    // /// 3. Cursor position at end of selection
+    // fn handle_repeat_visual_selection(&mut self) -> Result<()> {
+    //     // This method has been migrated to RepeatVisualSelectionCommand
+    //     // See: src/repl/unified_commands/repeat_visual_selection.rs
+    // }
 
     /// Handle text insertion for multi-cursor Visual Block Insert mode
     ///
