@@ -46,15 +46,10 @@ impl Command for MoveLeftCommand {
         mode: EditorMode,
         _context: &CommandContext,
     ) -> bool {
-        // Check if we're in a mode that supports cursor movement
-        if !Self::is_movement_mode(mode) {
-            return false;
-        }
-
         match key_event.code {
-            // 'h' key in navigation modes without modifiers
-            KeyCode::Char('h') => key_event.modifiers.is_empty(),
-            // Left arrow key without Shift or Control (allows Alt for other purposes)
+            // 'h' key only works in navigation modes (Vim behavior)
+            KeyCode::Char('h') => Self::is_movement_mode(mode) && key_event.modifiers.is_empty(),
+            // Left arrow key works in all modes (standard editor behavior)
             KeyCode::Left => {
                 !key_event.modifiers.contains(KeyModifiers::SHIFT)
                     && !key_event.modifiers.contains(KeyModifiers::CONTROL)
@@ -172,9 +167,9 @@ mod tests {
     }
 
     #[test]
-    fn move_left_should_not_be_relevant_in_non_movement_modes() {
+    fn move_left_h_key_should_not_be_relevant_in_non_movement_modes() {
         let command = MoveLeftCommand::new();
-        let key_event = create_key_event(KeyCode::Char('h'), KeyModifiers::NONE);
+        let h_key_event = create_key_event(KeyCode::Char('h'), KeyModifiers::NONE);
         let context = CommandContext {
             current_mode: EditorMode::Insert,
             current_pane: Pane::Request,
@@ -182,10 +177,29 @@ mod tests {
             has_selection: false,
         };
 
-        // Test modes that don't support navigation
-        assert!(!command.is_relevant(key_event, EditorMode::Insert, &context));
-        assert!(!command.is_relevant(key_event, EditorMode::VisualBlockInsert, &context));
-        assert!(!command.is_relevant(key_event, EditorMode::Command, &context));
+        // 'h' key should not work in non-movement modes (Vim behavior)
+        assert!(!command.is_relevant(h_key_event, EditorMode::Insert, &context));
+        assert!(!command.is_relevant(h_key_event, EditorMode::VisualBlockInsert, &context));
+        assert!(!command.is_relevant(h_key_event, EditorMode::Command, &context));
+    }
+
+    #[test]
+    fn move_left_arrow_key_should_work_in_all_modes() {
+        let command = MoveLeftCommand::new();
+        let arrow_key_event = create_key_event(KeyCode::Left, KeyModifiers::NONE);
+        let context = CommandContext {
+            current_mode: EditorMode::Insert,
+            current_pane: Pane::Request,
+            is_read_only: false,
+            has_selection: false,
+        };
+
+        // Left arrow should work in all modes (standard editor behavior)
+        assert!(command.is_relevant(arrow_key_event, EditorMode::Insert, &context));
+        assert!(command.is_relevant(arrow_key_event, EditorMode::Normal, &context));
+        assert!(command.is_relevant(arrow_key_event, EditorMode::Visual, &context));
+        assert!(command.is_relevant(arrow_key_event, EditorMode::VisualBlockInsert, &context));
+        assert!(command.is_relevant(arrow_key_event, EditorMode::Command, &context));
     }
 
     #[test]

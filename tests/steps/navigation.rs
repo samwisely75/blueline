@@ -5,6 +5,7 @@
 //! - Cursor position verification
 //! - Movement boundary checks
 
+use crate::common::cursor_validation::validate_cursor_movement;
 use crate::common::world::BluelineWorld;
 use crossterm::event::{KeyCode, KeyModifiers};
 use cucumber::{gherkin, given, then, when};
@@ -403,62 +404,74 @@ async fn when_press_right_arrow(world: &mut BluelineWorld) {
 // Navigation verification steps
 #[then("the cursor should move up one line")]
 async fn then_cursor_should_move_up_one_line(world: &mut BluelineWorld) {
-    let state = world.get_terminal_state().await;
-    let current_row = state.cursor_position.1;
-
-    // Verify cursor is on a valid row
-    assert!(
-        current_row < 24,
-        "Cursor should be within terminal bounds after moving up"
-    );
-    debug!("Cursor successfully moved up to row {}", current_row + 1);
+    // Enhanced validation: Check actual movement using VTE output
+    if let Err(e) = validate_cursor_movement(world, "up 1 line").await {
+        let history = world.get_cursor_history();
+        if !history.is_empty() {
+            let last_action = &history[history.len() - 1];
+            panic!(
+                "Cursor up movement validation failed: {}\nLast action: {} at {:?}\nHistory: {:?}",
+                e, last_action.trigger, last_action.position, history
+            );
+        } else {
+            panic!("Cursor up movement validation failed: {e}");
+        }
+    }
+    info!("✅ Cursor moved up one line successfully");
 }
 
 #[then("the cursor should move down one line")]
 async fn then_cursor_should_move_down_one_line(world: &mut BluelineWorld) {
-    let state = world.get_terminal_state().await;
-    let current_row = state.cursor_position.1;
-
-    // Verify cursor is on a reasonable row
-    assert!(
-        current_row < 24,
-        "Cursor should be within terminal bounds after moving down"
-    );
-    debug!("Cursor successfully moved down to row {}", current_row + 1);
+    // Enhanced validation: Check actual movement using VTE output
+    if let Err(e) = validate_cursor_movement(world, "down 1 line").await {
+        let history = world.get_cursor_history();
+        if !history.is_empty() {
+            let last_action = &history[history.len() - 1];
+            panic!(
+                "Cursor down movement validation failed: {}\nLast action: {} at {:?}\nHistory: {:?}",
+                e, last_action.trigger, last_action.position, history
+            );
+        } else {
+            panic!("Cursor down movement validation failed: {e}");
+        }
+    }
+    info!("✅ Cursor moved down one line successfully");
 }
 
 #[then("the cursor should move left one character")]
 async fn then_cursor_should_move_left_one_character(world: &mut BluelineWorld) {
-    // Use our simulated cursor position instead of terminal state
-    let cursor_pos = world.get_cursor_position();
-
-    // Just verify the cursor moved (we track it in our simulation)
-    debug!(
-        "Cursor successfully moved left to position ({}, {})",
-        cursor_pos.0, cursor_pos.1
-    );
-
-    // Basic sanity check - cursor should be at a reasonable position
-    assert!(
-        cursor_pos.1 < 1000,
-        "Cursor column should be within reasonable bounds"
-    );
+    // Enhanced validation: Check actual movement using VTE output
+    if let Err(e) = validate_cursor_movement(world, "left 1 character").await {
+        let history = world.get_cursor_history();
+        if !history.is_empty() {
+            let last_action = &history[history.len() - 1];
+            panic!(
+                "Cursor left movement validation failed: {}\nLast action: {} at {:?}\nHistory: {:?}",
+                e, last_action.trigger, last_action.position, history
+            );
+        } else {
+            panic!("Cursor left movement validation failed: {e}");
+        }
+    }
+    info!("✅ Cursor moved left one character successfully");
 }
 
 #[then("the cursor should move right one character")]
 async fn then_cursor_should_move_right_one_character(world: &mut BluelineWorld) {
-    let state = world.get_terminal_state().await;
-    let current_col = state.cursor_position.0;
-
-    // Verify cursor moved to a reasonable position
-    assert!(
-        current_col < 80,
-        "Cursor should be within reasonable bounds"
-    );
-    debug!(
-        "Cursor successfully moved right to column {}",
-        current_col + 1
-    );
+    // Enhanced validation: Check actual movement using VTE output
+    if let Err(e) = validate_cursor_movement(world, "right 1 character").await {
+        let history = world.get_cursor_history();
+        if !history.is_empty() {
+            let last_action = &history[history.len() - 1];
+            panic!(
+                "Cursor right movement validation failed: {}\nLast action: {} at {:?}\nHistory: {:?}",
+                e, last_action.trigger, last_action.position, history
+            );
+        } else {
+            panic!("Cursor right movement validation failed: {e}");
+        }
+    }
+    info!("✅ Cursor moved right one character successfully");
 }
 
 #[then("the cursor should move left")]
@@ -1158,3 +1171,10 @@ async fn then_line_starts_with(world: &mut BluelineWorld, expected_start: String
 
     info!("✅ Found line content starting with '{}'", expected_start);
 }
+
+// ============================================================================
+// ENHANCED CURSOR MOVEMENT VALIDATION
+// ============================================================================
+// The existing specific step definitions have been enhanced with proper
+// before/after movement validation using the cursor validation system.
+// This avoids ambiguous step matches while providing better validation.
