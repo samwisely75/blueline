@@ -83,6 +83,27 @@ Priority order:
 - All tests passing (472 unit tests)
 - Committed as: bf35676
 
+### Architecture Guidelines for New Commands
+
+#### STRICT RULES for New Command Implementation
+1. **NEVER call `emit_view_event()` on AppState** - Commands return ViewEvents directly
+2. **NEVER access view-related methods** on AppState (rendering_coordinator methods)
+3. **Commands should only:**
+   - Read/modify AppState data (business logic)
+   - Use Services for operations (HTTP, Yank, etc.)
+   - Return ViewEvents to signal UI updates
+
+#### Migration Strategy
+- New commands follow clean architecture
+- Old handle_* methods still use emit_view_event (temporarily)
+- As we migrate, dependencies on emit_view_event will decrease
+- When all handle_* methods are migrated, we can safely remove rendering_coordinator
+
+#### Future Cleanup (After All Commands Migrated)
+- Remove `emit_view_event()` and rendering_coordinator.rs
+- Remove `pending_view_events` from AppState
+- AppState becomes pure Model with no view concerns
+
 ### Next Steps
 1. Begin migrating handle_* methods to unified commands one by one
 2. Start with simple commands (ShowProfile, Settings)
