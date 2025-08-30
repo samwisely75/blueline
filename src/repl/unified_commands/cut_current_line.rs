@@ -5,6 +5,7 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
+use crate::register_command;
 use crate::repl::models::buffer::yank_buffer::YankType;
 use crate::repl::models::events::view_events::ViewEvent;
 use crate::repl::models::pane_state::EditorMode;
@@ -234,3 +235,6 @@ mod tests {
         // (Mode change is handled internally by app_state.set_mode())
     }
 }
+
+// Auto-register this command using the inventory system
+register_command!(CutCurrentLineCommand, "CutCurrentLineCommand");

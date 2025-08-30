@@ -38,50 +38,21 @@ impl UnifiedCommandRegistry {
         registry
     }
 
-    /// Register all default commands
+    /// Register all default commands using dynamic discovery
     fn register_default_commands(&mut self) {
-        #[allow(clippy::wildcard_imports)]
-        use crate::repl::unified_commands::*;
+        use crate::repl::unified_commands::register_all_commands;
 
-        // Add YankSelectionCommand
-        self.add_command(Arc::new(YankSelectionCommand::new()));
+        // Auto-discover and register all commands
+        let discovered_commands = register_all_commands();
 
-        // Add YankCurrentLineCommand
-        self.add_command(Arc::new(YankCurrentLineCommand::new()));
+        tracing::info!(
+            "Discovered {} commands via inventory",
+            discovered_commands.len()
+        );
 
-        // Add ChangeSelectionCommand
-        self.add_command(Arc::new(ChangeSelectionCommand::new()));
-
-        // Add DeleteSelectionCommand
-        self.add_command(Arc::new(DeleteSelectionCommand::new()));
-
-        // Add CutSelectionCommand
-        self.add_command(Arc::new(CutSelectionCommand::new()));
-
-        // Add CutCharacterCommand
-        self.add_command(Arc::new(CutCharacterCommand::new()));
-
-        // Add CutToEndOfLineCommand
-        self.add_command(Arc::new(CutToEndOfLineCommand::new()));
-
-        // Add CutCurrentLineCommand
-        self.add_command(Arc::new(CutCurrentLineCommand::new()));
-
-        // Add HttpExecuteCommand
-        self.add_command(Arc::new(HttpExecuteCommand::new()));
-
-        // Add VisualBlockInsertCommand
-        self.add_command(Arc::new(VisualBlockInsertCommand::new()));
-
-        // Add VisualBlockAppendCommand
-        self.add_command(Arc::new(VisualBlockAppendCommand::new()));
-
-        // Add ExitVisualBlockInsertCommand
-        self.add_command(Arc::new(ExitVisualBlockInsertCommand::new()));
-
-        // TODO: Add more commands as we create them:
-        // self.add_command(Arc::new(CutSelectionCommand::new()));
-        // etc.
+        for command in discovered_commands {
+            self.add_command(command);
+        }
     }
 
     /// Add a command to the registry
