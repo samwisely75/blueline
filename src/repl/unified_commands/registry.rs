@@ -79,6 +79,9 @@ impl UnifiedCommandRegistry {
         // Add ExitVisualBlockInsertCommand
         self.add_command(Arc::new(ExitVisualBlockInsertCommand::new()));
 
+        // Add RepeatVisualSelectionCommand
+        self.add_command(Arc::new(RepeatVisualSelectionCommand::new()));
+
         // TODO: Add more commands as we create them:
         // self.add_command(Arc::new(CutSelectionCommand::new()));
         // etc.
