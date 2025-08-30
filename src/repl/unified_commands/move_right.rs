@@ -48,9 +48,7 @@ impl Command for MoveRightCommand {
     ) -> bool {
         match key_event.code {
             // 'l' key only works in navigation modes (Vim behavior)
-            KeyCode::Char('l') => {
-                Self::is_movement_mode(mode) && key_event.modifiers.is_empty()
-            }
+            KeyCode::Char('l') => Self::is_movement_mode(mode) && key_event.modifiers.is_empty(),
             // Right arrow key works in all modes (standard editor behavior)
             KeyCode::Right => {
                 !key_event.modifiers.contains(KeyModifiers::SHIFT)

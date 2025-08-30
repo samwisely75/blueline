@@ -48,9 +48,7 @@ impl Command for MoveLeftCommand {
     ) -> bool {
         match key_event.code {
             // 'h' key only works in navigation modes (Vim behavior)
-            KeyCode::Char('h') => {
-                Self::is_movement_mode(mode) && key_event.modifiers.is_empty()
-            }
+            KeyCode::Char('h') => Self::is_movement_mode(mode) && key_event.modifiers.is_empty(),
             // Left arrow key works in all modes (standard editor behavior)
             KeyCode::Left => {
                 !key_event.modifiers.contains(KeyModifiers::SHIFT)
