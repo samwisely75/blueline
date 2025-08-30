@@ -44,8 +44,9 @@ impl UnifiedCommandRegistry {
             change_selection::ChangeSelectionCommand, cut_character::CutCharacterCommand,
             cut_current_line::CutCurrentLineCommand, cut_selection::CutSelectionCommand,
             cut_to_end_of_line::CutToEndOfLineCommand, delete_selection::DeleteSelectionCommand,
-            http::HttpExecuteCommand, visual_block_insert::VisualBlockInsertCommand,
-            yank::YankSelectionCommand, yank_current_line::YankCurrentLineCommand,
+            http::HttpExecuteCommand, visual_block_append::VisualBlockAppendCommand,
+            visual_block_insert::VisualBlockInsertCommand, yank::YankSelectionCommand,
+            yank_current_line::YankCurrentLineCommand,
         };
 
         // Add YankSelectionCommand
@@ -77,6 +78,9 @@ impl UnifiedCommandRegistry {
 
         // Add VisualBlockInsertCommand
         self.add_command(Arc::new(VisualBlockInsertCommand::new()));
+
+        // Add VisualBlockAppendCommand
+        self.add_command(Arc::new(VisualBlockAppendCommand::new()));
 
         // TODO: Add more commands as we create them:
         // self.add_command(Arc::new(CutSelectionCommand::new()));

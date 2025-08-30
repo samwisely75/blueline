@@ -19,6 +19,7 @@ pub mod delete_selection;
 pub mod http;
 pub mod setting_change;
 pub mod show_profile;
+pub mod visual_block_append;
 pub mod visual_block_insert;
 pub mod yank;
 pub mod yank_current_line;
