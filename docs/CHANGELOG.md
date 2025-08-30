@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.4] - 2025-08-30
+
+### Changed
+
+- **Architecture**: Complete MVVM refactoring (Phases 1-7)
+  - Merged ViewModel and PaneManager into unified AppState
+  - Renamed AppController to AppViewModel to reflect true MVVM pattern
+  - Moved AppViewModel from controllers/ to view_models/ directory
+  - ViewRenderer now receives AppState directly instead of ViewModel
+  - Improved separation of concerns with proper Model-View-ViewModel layers
+  - Added comprehensive architecture documentation
+
 ## [0.45.3] - 2025-08-23
 
 ### Fixed
