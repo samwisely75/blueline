@@ -77,9 +77,8 @@ pub use mode::{
 pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
     GoToBottomCommand, GoToTopCommand, HalfPageDownCommand, HalfPageUpCommand, HomeKeyCommand,
-    MoveCursorDownCommand, MoveCursorLeftCommand, MoveCursorRightCommand, MoveCursorUpCommand,
-    NextWordCommand, PageDownCommand, PageUpCommand, PreviousWordCommand, ScrollLeftCommand,
-    ScrollRightCommand,
+    MoveCursorDownCommand, MoveCursorUpCommand, NextWordCommand, PageDownCommand, PageUpCommand,
+    PreviousWordCommand, ScrollLeftCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -118,8 +117,9 @@ impl CommandRegistry {
             Box::new(HalfPageDownCommand),
             Box::new(HalfPageUpCommand),
             // Movement commands
-            Box::new(MoveCursorLeftCommand),
-            Box::new(MoveCursorRightCommand),
+            // MoveCursorLeftCommand and MoveCursorRightCommand migrated to unified_commands
+            // Box::new(MoveCursorLeftCommand),
+            // Box::new(MoveCursorRightCommand),
             Box::new(MoveCursorUpCommand),
             Box::new(MoveCursorDownCommand),
             Box::new(NextWordCommand),
@@ -294,7 +294,9 @@ mod tests {
         let registry = CommandRegistry::new();
         let context = create_test_context();
 
-        let event = create_test_key_event(KeyCode::Left);
+        // Test with 'w' key (NextWordCommand) instead of Left arrow
+        // Left/Right arrow movement is now handled by unified_commands
+        let event = create_test_key_event(KeyCode::Char('w'));
         let events = registry.process_event(event, &context).unwrap();
 
         // Should produce a cursor move event
