@@ -700,7 +700,9 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 tracing::debug!("CutCurrentLineRequested received via old command path - ignoring");
             }
             CommandEvent::YankCurrentLineRequested => {
-                self.handle_yank_current_line()?;
+                tracing::debug!(
+                    "YankCurrentLineRequested received via old command path - ignoring"
+                );
             }
             CommandEvent::ChangeSelectionRequested => {
                 self.handle_change_selection()?;
@@ -1160,25 +1162,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
     //     Ok(())
     // }
-
-    /// Handle yanking (copy) entire current line without deleting
-    fn handle_yank_current_line(&mut self) -> Result<()> {
-        // Yank entire current line to yank buffer without deleting
-        self.app_state.yank_current_line()?;
-
-        // Sync with YankService
-        if let Some(entry) = self.app_state.get_yanked_entry() {
-            self.services.yank.yank(entry.text, entry.yank_type)?;
-        }
-
-        // Show status message
-        self.app_state
-            .set_status_message("1 line yanked".to_string());
-
-        tracing::info!("Yanked entire current line to yank buffer");
-
-        Ok(())
-    }
 
     /// Handle change selection operation (Visual Block mode 'c' command)
     ///

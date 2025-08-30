@@ -19,6 +19,7 @@ pub mod http;
 pub mod setting_change;
 pub mod show_profile;
 pub mod yank;
+pub mod yank_current_line;
 
 // Re-export main types
 pub use command::{Command, CommandContext, ExecutionContext};

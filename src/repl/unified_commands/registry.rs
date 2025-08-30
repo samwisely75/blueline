@@ -44,11 +44,14 @@ impl UnifiedCommandRegistry {
             cut_character::CutCharacterCommand, cut_current_line::CutCurrentLineCommand,
             cut_selection::CutSelectionCommand, cut_to_end_of_line::CutToEndOfLineCommand,
             delete_selection::DeleteSelectionCommand, http::HttpExecuteCommand,
-            yank::YankSelectionCommand,
+            yank::YankSelectionCommand, yank_current_line::YankCurrentLineCommand,
         };
 
         // Add YankSelectionCommand
         self.add_command(Arc::new(YankSelectionCommand::new()));
+
+        // Add YankCurrentLineCommand
+        self.add_command(Arc::new(YankCurrentLineCommand::new()));
 
         // Add DeleteSelectionCommand
         self.add_command(Arc::new(DeleteSelectionCommand::new()));
