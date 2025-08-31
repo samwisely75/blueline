@@ -6,8 +6,7 @@
 use crate::config::AppConfig;
 use crate::repl::{
     commands::{
-        AppStateSnapshot, CommandContext, CommandEvent, CommandRegistry,
-        MovementDirection,
+        AppStateSnapshot, CommandContext, CommandEvent, CommandRegistry, MovementDirection,
     },
     io::{EventStream, RenderStream},
     models::app_state::AppState,
@@ -141,7 +140,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         // via key events, so we can simply log them as unsupported for now
         for command in commands {
             tracing::warn!(
-                "Config command '{}' not supported - ex commands now handled via unified system", 
+                "Config command '{}' not supported - ex commands now handled via unified system",
                 command
             );
         }
@@ -545,7 +544,9 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             CommandEvent::ExCommandExecuteRequested => {
                 // Ex commands are now handled by the unified command system
                 // This legacy handler just clears the buffer and exits command mode
-                tracing::debug!("Legacy ex command execute request - clearing buffer and exiting command mode");
+                tracing::debug!(
+                    "Legacy ex command execute request - clearing buffer and exiting command mode"
+                );
                 self.app_state.clear_ex_command_buffer();
                 let previous_mode = self.app_state.get_previous_mode();
                 self.app_state.change_mode(previous_mode)?;
