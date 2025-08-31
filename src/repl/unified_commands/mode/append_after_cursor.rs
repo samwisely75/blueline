@@ -48,7 +48,7 @@ impl Command for AppendAfterCursorCommand {
         let cursor_events = context.app_state.pane_manager.move_cursor_right();
 
         // Then set the mode to Insert
-        let _mode_change = context.app_state.set_mode(EditorMode::Insert);
+        context.app_state.change_mode(EditorMode::Insert)?;
 
         tracing::debug!("AppendAfterCursorCommand: cursor moved right, mode changed to Insert");
 

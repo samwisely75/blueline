@@ -60,7 +60,7 @@ impl Command for InsertAtBeginningOfLineCommand {
             .move_cursor_to_start_of_line();
 
         // Then set the mode to Insert
-        let _mode_change = context.app_state.set_mode(EditorMode::Insert);
+        context.app_state.change_mode(EditorMode::Insert)?;
 
         tracing::debug!(
             "InsertAtBeginningOfLineCommand: cursor moved to line start, mode changed to Insert"

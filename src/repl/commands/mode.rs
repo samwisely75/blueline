@@ -734,7 +734,7 @@ mod tests {
 
     // MIGRATED: ExitVisualModeCommand tests moved to unified_commands/mode/exit_visual_mode.rs
     // Comprehensive unit tests now exist in the unified implementation
-    
+
     /*
     #[test]
     fn exit_visual_mode_should_be_relevant_for_escape_in_visual_mode() {

@@ -29,9 +29,14 @@ impl Default for ExitInsertModeCommand {
 }
 
 impl Command for ExitInsertModeCommand {
-    fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, _context: &CommandContext) -> bool {
+    fn is_relevant(
+        &self,
+        key_event: KeyEvent,
+        mode: EditorMode,
+        _context: &CommandContext,
+    ) -> bool {
         // Handle Escape key in Insert mode only
-        matches!(key_event.code, KeyCode::Esc) 
+        matches!(key_event.code, KeyCode::Esc)
             && mode == EditorMode::Insert
             && key_event.modifiers.is_empty()
     }
@@ -194,7 +199,7 @@ mod tests {
 
     #[test]
     fn exit_insert_mode_command_should_create_default_instance() {
-        let command = ExitInsertModeCommand::default();
+        let command = ExitInsertModeCommand;
         assert_eq!(command.name(), "ExitInsertModeCommand");
     }
 

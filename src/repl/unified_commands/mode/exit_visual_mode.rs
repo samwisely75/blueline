@@ -48,8 +48,8 @@ impl Command for ExitVisualModeCommand {
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         tracing::debug!("ExitVisualModeCommand: exiting visual mode to Normal");
 
-        // Change mode to Normal - this handles visual selection cleanup internally
-        let _mode_change = context.app_state.set_mode(EditorMode::Normal);
+        // Change mode to Normal - this properly handles visual selection cleanup via mode manager
+        context.app_state.change_mode(EditorMode::Normal)?;
 
         tracing::debug!("ExitVisualModeCommand: mode changed to Normal");
 
@@ -70,8 +70,8 @@ impl Command for ExitVisualModeCommand {
 mod tests {
     use super::*;
     use crate::repl::models::pane_state::{EditorMode, Pane};
-    use crate::repl::services::Services;
     use crate::repl::models::AppState;
+    use crate::repl::services::Services;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     fn create_test_key_event(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
@@ -170,8 +170,10 @@ mod tests {
 
         for key_code in test_keys {
             let key_event = create_test_key_event(key_code, KeyModifiers::empty());
-            assert!(!command.is_relevant(key_event, EditorMode::Visual, &context),
-                   "Command should not be relevant for {key_code:?}");
+            assert!(
+                !command.is_relevant(key_event, EditorMode::Visual, &context),
+                "Command should not be relevant for {key_code:?}"
+            );
         }
     }
 
@@ -179,7 +181,7 @@ mod tests {
     fn execute_should_change_mode_to_normal() {
         let command = ExitVisualModeCommand::new();
         let (mut app_state, mut services) = create_execution_context();
-        
+
         let mut execution_context = ExecutionContext {
             app_state: &mut app_state,
             services: &mut services,
@@ -195,10 +197,10 @@ mod tests {
     fn execute_should_clear_visual_selection() {
         let command = ExitVisualModeCommand::new();
         let (mut app_state, mut services) = create_execution_context();
-        
+
         // Start with a visual selection
         app_state.set_mode(EditorMode::Visual);
-        
+
         let mut execution_context = ExecutionContext {
             app_state: &mut app_state,
             services: &mut services,
@@ -215,7 +217,7 @@ mod tests {
     fn execute_should_return_appropriate_post_command_actions() {
         let command = ExitVisualModeCommand::new();
         let (mut app_state, mut services) = create_execution_context();
-        
+
         let mut execution_context = ExecutionContext {
             app_state: &mut app_state,
             services: &mut services,
@@ -232,9 +234,9 @@ mod tests {
 
     #[test]
     fn default_should_create_new_instance() {
-        let command1 = ExitVisualModeCommand::default();
+        let command1 = ExitVisualModeCommand;
         let command2 = ExitVisualModeCommand::new();
-        
+
         assert_eq!(command1.name(), command2.name());
     }
 
@@ -242,14 +244,14 @@ mod tests {
     fn should_handle_execution_gracefully() {
         let command = ExitVisualModeCommand::new();
         let (mut app_state, mut services) = create_execution_context();
-        
+
         let mut execution_context = ExecutionContext {
             app_state: &mut app_state,
             services: &mut services,
         };
 
         let result = command.execute(&mut execution_context);
-        
+
         // Should succeed
         assert!(result.is_ok());
         assert_eq!(execution_context.app_state.get_mode(), EditorMode::Normal);
@@ -258,7 +260,7 @@ mod tests {
     #[test]
     fn should_work_from_all_visual_modes() {
         let command = ExitVisualModeCommand::new();
-        
+
         let visual_modes = vec![
             EditorMode::Visual,
             EditorMode::VisualLine,
@@ -269,17 +271,20 @@ mod tests {
             let mut app_state = AppState::new();
             app_state.set_mode(initial_mode);
             let mut services = Services::new();
-            
+
             let mut execution_context = ExecutionContext {
                 app_state: &mut app_state,
                 services: &mut services,
             };
 
             let result = command.execute(&mut execution_context);
-            
+
             assert!(result.is_ok(), "Should succeed from mode {initial_mode:?}");
-            assert_eq!(execution_context.app_state.get_mode(), EditorMode::Normal,
-                      "Should change to Normal from mode {initial_mode:?}");
+            assert_eq!(
+                execution_context.app_state.get_mode(),
+                EditorMode::Normal,
+                "Should change to Normal from mode {initial_mode:?}"
+            );
         }
     }
 }

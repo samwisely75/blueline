@@ -46,8 +46,8 @@ impl Command for EnterVisualModeCommand {
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         tracing::debug!("EnterVisualModeCommand: entering Visual mode");
 
-        // Change mode to Visual - this handles visual selection initialization internally
-        let _mode_change = context.app_state.set_mode(EditorMode::Visual);
+        // Change mode to Visual - this properly handles visual selection initialization via mode manager
+        context.app_state.change_mode(EditorMode::Visual)?;
 
         tracing::debug!("EnterVisualModeCommand: mode changed to Visual");
 
