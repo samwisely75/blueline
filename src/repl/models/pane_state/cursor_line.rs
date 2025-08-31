@@ -225,11 +225,12 @@ impl PaneState {
         ];
 
         // Move to end of the last line (end of document)
-        let last_line_length = if let Some(display_line) = self.display_cache.get_display_line(last_line_idx) {
-            display_line.chars.len()
-        } else {
-            0
-        };
+        let last_line_length =
+            if let Some(display_line) = self.display_cache.get_display_line(last_line_idx) {
+                display_line.chars.len()
+            } else {
+                0
+            };
         let end_position = Position::new(last_line_idx, last_line_length);
         let _result = self.set_display_cursor(end_position);
 

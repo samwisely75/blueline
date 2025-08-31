@@ -59,7 +59,7 @@ impl Command for CancelGPrefixCommand {
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Save current cursor position before mode change
         let current_cursor = context.app_state.pane_manager.get_current_display_cursor();
-        
+
         tracing::debug!(
             "CancelGPrefixCommand: Saving cursor position {:?} before mode change",
             current_cursor
@@ -76,9 +76,12 @@ impl Command for CancelGPrefixCommand {
                 current_cursor,
                 new_cursor
             );
-            
+
             // Use set_current_display_cursor to restore the exact position
-            context.app_state.pane_manager.set_current_display_cursor(current_cursor.into());
+            context
+                .app_state
+                .pane_manager
+                .set_current_display_cursor(current_cursor);
         }
 
         tracing::debug!("CancelGPrefixCommand: Cancelled GPrefix mode, returned to Normal mode with cursor preserved");

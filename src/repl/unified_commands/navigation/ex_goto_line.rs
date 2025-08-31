@@ -3,6 +3,7 @@
 //! Handles `:g` and `:<number>` ex commands for navigating to specific lines.
 //! Supports both `:g N` (goto line N) and `:g` (goto last line) patterns.
 
+use crate::register_command;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 use crate::repl::view_models::post_command_actions::PostCommandAction;
@@ -11,6 +12,19 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 /// Command for handling goto line ex commands (:g, :g N, :<number>)
 pub struct ExGotoLineCommand;
+
+impl ExGotoLineCommand {
+    /// Create a new ExGotoLineCommand instance
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for ExGotoLineCommand {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ExGotoLineCommand {
     /// Parse the command buffer to extract line number, if any
@@ -102,13 +116,8 @@ impl Command for ExGotoLineCommand {
     }
 }
 
-// Register the command
-inventory::submit!(
-    crate::repl::unified_commands::dynamic_registry::CommandEntry {
-        name: "ExGotoLineCommand",
-        factory: || Box::new(ExGotoLineCommand),
-    }
-);
+// Register the command using modern macro
+register_command!(ExGotoLineCommand, "ExGotoLineCommand");
 
 #[cfg(test)]
 mod tests {

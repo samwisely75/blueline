@@ -3,6 +3,7 @@
 //! Handles `:q` and `:q!` ex commands for quitting the application.
 //! This demonstrates the unified command system approach for ex commands.
 
+use crate::register_command;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 use crate::repl::view_models::post_command_actions::PostCommandAction;
@@ -11,6 +12,19 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 /// Command for handling quit ex commands (:q, :q!)
 pub struct ExQuitCommand;
+
+impl ExQuitCommand {
+    /// Create a new ExQuitCommand instance
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for ExQuitCommand {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Command for ExQuitCommand {
     fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool {
@@ -50,10 +64,5 @@ impl Command for ExQuitCommand {
     }
 }
 
-// Register the command
-inventory::submit!(
-    crate::repl::unified_commands::dynamic_registry::CommandEntry {
-        name: "ExQuitCommand",
-        factory: || Box::new(ExQuitCommand),
-    }
-);
+// Register the command using modern macro
+register_command!(ExQuitCommand, "ExQuitCommand");
