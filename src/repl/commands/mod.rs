@@ -60,7 +60,6 @@ pub mod request;
 pub mod yank;
 
 // Re-export all commands using wildcards to prevent merge conflicts
-pub use app::*;
 pub use editing::*;
 pub use mode::*;
 pub use navigation::*;
@@ -355,8 +354,8 @@ mod tests {
         let initial_count = registry.commands.len();
 
         // Add a custom command (using an existing one for simplicity)
-        // SwitchPaneCommand migrated to unified_commands, using AppTerminateCommand instead
-        registry.add_command(Box::new(crate::repl::commands::app::AppTerminateCommand));
+        // Both SwitchPaneCommand and AppTerminateCommand migrated to unified_commands
+        registry.add_command(Box::new(crate::repl::commands::editing::InsertCharCommand));
 
         assert_eq!(registry.commands.len(), initial_count + 1);
     }
