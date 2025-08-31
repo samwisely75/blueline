@@ -6,7 +6,7 @@
 //! providing live feedback across all selected lines.
 
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
 use crate::repl::models::pane_state::EditorMode;
