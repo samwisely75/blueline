@@ -86,7 +86,7 @@ impl CommandRegistry {
             Box::new(ExecuteRequestCommand),
             // G mode commands (high priority - must be processed before regular g handling)
             // Box::new(GoToTopCommand), // Migrated to unified_commands/navigation/go_to_top.rs
-            Box::new(GoToBottomCommand),
+            // Box::new(GoToBottomCommand), // Migrated to unified_commands/navigation/go_to_bottom.rs
             Box::new(RepeatVisualSelectionCommand), // gv command
             Box::new(EnterGPrefixCommand),
             // Scroll commands (higher priority than regular movement)

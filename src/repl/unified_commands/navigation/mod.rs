@@ -9,6 +9,7 @@
 
 // Navigation command modules
 pub mod ex_goto_line;
+pub mod go_to_bottom;
 pub mod go_to_top;
 pub mod move_down;
 pub mod move_left;
@@ -19,6 +20,7 @@ pub mod scroll_right;
 
 // Re-export all command types using wildcards to prevent merge conflicts
 pub use ex_goto_line::*;
+pub use go_to_bottom::*;
 pub use go_to_top::*;
 pub use move_down::*;
 pub use move_left::*;
