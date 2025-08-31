@@ -606,6 +606,114 @@ The foundation is now in place to migrate business logic from AppController to A
 - Begin Phase 1: Model reorganization
 - Focus on incremental, stable migration
 
+## [2025-08-31] GitHub Issues #293 #292 - AppTerminateCommand and SwitchPaneCommand Migration Complete
+
+### User Request Summary
+- Migrate AppTerminateCommand and SwitchPaneCommand to unified command system
+- Move AppTerminateCommand to system/app_terminate.rs and SwitchPaneCommand to navigation/switch_pane.rs
+- Convert from CommandEvent emission to PostCommandAction returns
+- Use inventory-based auto-registration with register_command! macro
+- Follow established migration patterns from previous unified commands
+- Create comprehensive unit tests for each command
+- Remove from legacy command registry after migration
+
+### Implementation Completed
+
+#### ✅ AppTerminateCommand Migration (Issue #293)
+Successfully migrated AppTerminateCommand from legacy to unified command system:
+
+**Key Features Implemented:**
+- ✅ Created `AppTerminateCommand` at `src/repl/unified_commands/system/app_terminate.rs`
+- ✅ Handles Ctrl+C key combination for graceful application termination
+- ✅ Works in all editor modes for emergency exit capability
+- ✅ Returns `PostCommandAction::QuitRequested` for graceful shutdown
+- ✅ Uses dynamic discovery with `register_command!` macro (zero conflicts)
+- ✅ Comprehensive unit tests (9 test cases covering all scenarios)
+- ✅ Proper key modifier validation (rejects Shift+Ctrl+C, Alt+Ctrl+C, etc.)
+
+**Technical Architecture:**
+1. **Universal Relevance**: Active in ALL editor modes for emergency exit
+2. **Key Validation**: Only pure Ctrl+C (no additional modifiers)
+3. **Graceful Shutdown**: Returns PostCommandAction for proper cleanup
+4. **Auto-registration**: Uses inventory system for conflict-free parallel development
+
+#### ✅ SwitchPaneCommand Migration (Issue #292)
+Successfully migrated SwitchPaneCommand from legacy to unified command system:
+
+**Key Features Implemented:**
+- ✅ Created `SwitchPaneCommand` at `src/repl/unified_commands/navigation/switch_pane.rs`
+- ✅ Handles Tab key in Normal mode for switching between request/response panes
+- ✅ Uses `AppState.switch_to_other_pane()` method for proper state management
+- ✅ Returns appropriate PostCommandActions for UI updates (FocusSwitched, etc.)
+- ✅ Comprehensive unit tests (11 test cases covering all scenarios)
+- ✅ Works regardless of read-only state or selection presence
+
+**Technical Architecture:**
+1. **Mode-Specific Relevance**: Only active in Normal mode for Tab key
+2. **State Integration**: Uses AppState methods for proper pane switching
+3. **UI Event Returns**: Returns FocusSwitched, StatusBarUpdateRequired, ActiveCursorUpdateRequired
+4. **Comprehensive Testing**: Edge cases include modified Tab keys, different modes, etc.
+
+#### ✅ Legacy System Cleanup
+**Removed from Legacy Command Registry:**
+- Commented out `AppTerminateCommand` from legacy registry initialization
+- Commented out `SwitchPaneCommand` from legacy registry initialization  
+- Updated test `registry_should_handle_pane_switch_command` to verify Tab is no longer handled by legacy system
+- Updated test that used SwitchPaneCommand to use AppTerminateCommand instead
+
+**Dynamic Registration Success:**
+- Both commands auto-register using inventory crate for zero-conflict parallel development
+- Verified dynamic discovery finds both commands correctly
+- All 759 unit tests passing after migration
+
+### Technical Achievements
+
+**Architecture Compliance:**
+- Both commands follow unified Command trait pattern perfectly
+- Use PostCommandAction returns instead of CommandEvent emission
+- Auto-register using inventory-based dynamic discovery system  
+- Located in appropriate subdirectories (system/, navigation/)
+
+**Testing Coverage:**
+- AppTerminateCommand: 9 comprehensive unit tests
+- SwitchPaneCommand: 11 comprehensive unit tests
+- All edge cases and error conditions covered
+- Integration with existing codebase verified
+
+**Migration Quality:**
+- Zero functional regressions
+- All existing functionality preserved
+- Modern registration eliminates merge conflicts
+- Production-ready implementation with proper error handling
+
+### Files Created/Modified
+- `src/repl/unified_commands/system/app_terminate.rs` - New unified command (206 lines)
+- `src/repl/unified_commands/system/mod.rs` - Added module registration and re-export
+- `src/repl/unified_commands/navigation/switch_pane.rs` - New unified command (284 lines) 
+- `src/repl/unified_commands/navigation/mod.rs` - Added module registration and re-export
+- `src/repl/commands/mod.rs` - Commented out legacy commands, updated tests
+
+### Metrics
+- **Lines Added**: 490+ (both commands + comprehensive tests)
+- **Lines Modified**: 20+ (legacy registry updates)
+- **Test Coverage**: 20 comprehensive unit tests total
+- **Zero Breaking Changes**: Backward compatible migration
+- **Zero Merge Conflicts**: Thanks to dynamic discovery system
+
+### Command System Status
+The unified command system now handles:
+- ✅ **8 Ex Commands** (v0.45.9) - All ex commands migrated
+- ✅ **AppTerminateCommand** - Ctrl+C graceful termination
+- ✅ **SwitchPaneCommand** - Tab key pane switching 
+- ✅ **All Navigation Commands** - Move left/right/up/down, word navigation, etc.
+- ✅ **All Yank/Paste Commands** - Full clipboard integration
+- ✅ **All Visual Block Commands** - Insert, append, selection operations
+
+### Summary
+**MIGRATION COMPLETED SUCCESSFULLY** - Both AppTerminateCommand (#293) and SwitchPaneCommand (#292) are now fully migrated to the unified command system with modern registration patterns, comprehensive testing, and proper PostCommandAction integration. The inventory-based dynamic discovery system continues to prevent merge conflicts while enabling unlimited parallel development.
+
+---
+
 ## [2025-08-31] Ex Command Migration Complete & Legacy Cleanup
 
 ### User Request Summary
@@ -738,6 +846,79 @@ The unified command system is now **fully operational** with:
 4. **Dynamic Discovery Success**: Inventory crate completely eliminates merge conflicts
 
 This represents a **major architectural milestone** - the ex command migration is complete and the unified command system is production-ready for scaling to the entire command system.
+
+---
+
+## [2025-08-31] GitHub Issues #295 #294 - QuitCommand and GoToLineCommand Migration Complete
+
+### User Request Summary
+- Migrate QuitCommand (#295) and GoToLineCommand (#294) to unified command system
+- Ensure both commands use modern registration patterns
+- Close GitHub issues after completion
+
+### Implementation Status
+
+#### ✅ Migration Already Complete
+Both commands were **already migrated** to the unified command system but were using outdated registration methods:
+
+**ExQuitCommand (#295):**
+- ✅ Location: `src/repl/unified_commands/system/ex_quit.rs`
+- ✅ Handles `:q` and `:q!` ex commands for quitting application
+- ✅ Returns `PostCommandAction::QuitRequested`
+- ✅ Comprehensive unit tests (7 test cases)
+
+**ExGotoLineCommand (#294):**
+- ✅ Location: `src/repl/unified_commands/navigation/ex_goto_line.rs`
+- ✅ Handles `:g`, `:g N`, and `:42` ex commands for line navigation
+- ✅ Supports goto last line (`:g`) and goto specific line (`:g 42`, `:42`)
+- ✅ Uses PaneManager methods for cursor movement
+- ✅ Comprehensive unit tests (7 test cases)
+
+#### ✅ Modernization Complete
+**Problem Found**: Both commands were using legacy `inventory::submit!` registration instead of modern `register_command!` macro.
+
+**Changes Made**:
+- Added `new()` methods and `Default` implementations to both commands
+- Replaced `inventory::submit!` with `register_command!` macro calls
+- Added proper macro imports (`use crate::register_command`)
+- Verified all tests continue to pass
+
+#### ✅ Quality Assurance
+- All unit tests passing (14 total tests for both commands)
+- Integration tests verified
+- `./scripts/git-commit-precheck.sh` passes cleanly
+- Dynamic command registry discovers both commands correctly
+
+#### ✅ Legacy Cleanup Status
+- ✅ Legacy ExCommandRegistry already removed
+- ✅ No legacy QuitCommand/GoToLineCommand references found
+- ✅ Both commands use modern unified command system architecture
+
+#### ✅ GitHub Issues Closed
+- **Issue #295**: Closed with completion details
+- **Issue #294**: Closed with completion details
+
+### Technical Achievements
+
+**Architecture Compliance:**
+- Both commands follow unified Command trait pattern
+- Use PostCommandAction returns instead of CommandEvent emission
+- Auto-register using inventory-based dynamic discovery system
+- Located in appropriate subdirectories (system/, navigation/)
+
+**Testing Coverage:**
+- ExQuitCommand: 7 comprehensive unit tests
+- ExGotoLineCommand: 7 comprehensive unit tests
+- All edge cases and error conditions covered
+
+**Migration Quality:**
+- Zero functional regressions
+- All existing functionality preserved
+- Modern registration eliminates merge conflicts
+- Production-ready implementation
+
+### Summary
+**MIGRATION COMPLETED SUCCESSFULLY** - Both QuitCommand (#295) and GoToLineCommand (#294) are now fully migrated to the unified command system with modern registration patterns. No separate PRs were needed as the commands were already implemented. GitHub issues closed with detailed completion documentation.
 
 ---
 

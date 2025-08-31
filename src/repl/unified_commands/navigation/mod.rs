@@ -8,6 +8,7 @@
 //! for dynamic discovery by the command registry.
 
 // Navigation command modules
+pub mod cancel_g_prefix;
 pub mod end_of_word;
 pub mod ex_goto_line;
 pub mod go_to_bottom;
@@ -20,8 +21,10 @@ pub mod next_word;
 pub mod previous_word;
 pub mod scroll_left;
 pub mod scroll_right;
+pub mod switch_pane;
 
 // Re-export all command types using wildcards to prevent merge conflicts
+pub use cancel_g_prefix::*;
 pub use end_of_word::*;
 pub use ex_goto_line::*;
 pub use go_to_bottom::*;
@@ -34,3 +37,4 @@ pub use next_word::*;
 pub use previous_word::*;
 pub use scroll_left::*;
 pub use scroll_right::*;
+pub use switch_pane::*;

@@ -64,7 +64,6 @@ pub use app::*;
 pub use editing::*;
 pub use mode::*;
 pub use navigation::*;
-pub use pane::*;
 pub use request::*;
 pub use yank::*;
 
@@ -81,7 +80,7 @@ impl CommandRegistry {
     pub fn new() -> Self {
         let commands: CommandCollection = vec![
             // App control commands (highest priority - process first)
-            Box::new(AppTerminateCommand),
+            // Box::new(AppTerminateCommand), // Migrated to unified_commands
             // Request commands (high priority - must intercept Enter before other commands)
             Box::new(ExecuteRequestCommand),
             // G mode commands (high priority - must be processed before regular g handling)
@@ -117,16 +116,16 @@ impl CommandRegistry {
             Box::new(EnterVisualBlockModeCommand),
             Box::new(VisualBlockInsertCommand),
             Box::new(VisualBlockAppendCommand),
-            Box::new(AppendAfterCursorCommand),
+            // Box::new(AppendAfterCursorCommand), // Migrated to unified_commands/mode/append_after_cursor.rs
             Box::new(AppendAtEndOfLineCommand),
-            Box::new(InsertAtBeginningOfLineCommand),
+            // Box::new(InsertAtBeginningOfLineCommand), // Migrated to unified_commands/mode/insert_at_beginning_of_line.rs
             Box::new(ExitInsertModeCommand),
             Box::new(ExitVisualBlockInsertModeCommand),
             Box::new(ExitVisualModeCommand),
             Box::new(EnterCommandModeCommand),
             Box::new(ExCommandModeCommand),
             // Pane commands
-            Box::new(SwitchPaneCommand),
+            // Box::new(SwitchPaneCommand), // Migrated to unified_commands
             // Editing commands
             Box::new(InsertCharCommand),
             Box::new(InsertNewLineCommand),
@@ -309,19 +308,15 @@ mod tests {
     }
 
     #[test]
-    fn registry_should_handle_pane_switch_command() {
+    fn registry_should_not_handle_pane_switch_command_after_migration() {
         let registry = CommandRegistry::new();
         let context = create_test_context();
 
         let event = create_test_key_event(KeyCode::Tab);
         let events = registry.process_event(event, &context).unwrap();
 
-        // Should produce a pane switch event
-        assert_eq!(events.len(), 1);
-        assert!(matches!(
-            events[0],
-            CommandEvent::PaneSwitchRequested { .. }
-        ));
+        // Should not produce any events as SwitchPaneCommand is migrated to unified_commands
+        assert_eq!(events.len(), 0);
     }
 
     #[test]
@@ -359,7 +354,8 @@ mod tests {
         let initial_count = registry.commands.len();
 
         // Add a custom command (using an existing one for simplicity)
-        registry.add_command(Box::new(crate::repl::commands::pane::SwitchPaneCommand));
+        // Both SwitchPaneCommand and AppTerminateCommand migrated to unified_commands
+        registry.add_command(Box::new(crate::repl::commands::editing::InsertCharCommand));
 
         assert_eq!(registry.commands.len(), initial_count + 1);
     }
