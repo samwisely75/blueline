@@ -120,7 +120,7 @@ impl CommandRegistry {
             // Box::new(InsertAtBeginningOfLineCommand), // Migrated to unified_commands/mode/insert_at_beginning_of_line.rs
             Box::new(ExitInsertModeCommand),
             Box::new(ExitVisualBlockInsertModeCommand),
-            Box::new(ExitVisualModeCommand),
+            // Box::new(ExitVisualModeCommand), // Migrated to unified_commands
             // Box::new(EnterCommandModeCommand), // Migrated to unified_commands/mode/enter_command_mode.rs
             Box::new(ExCommandModeCommand),
             // Pane commands
