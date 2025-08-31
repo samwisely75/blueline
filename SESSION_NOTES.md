@@ -860,6 +860,39 @@ User reported that PR #316 for MoveCursorDownCommand migration (issue #259) was 
 
 ---
 
+## 2025-08-31 Session Notes - P Key Fix Complete
+
+### User Request Summary
+- User reported that 'P' key in Visual Block mode stopped working after command migration work
+- Problem was that 'P' was not working at all, regardless of text shape (character, line, or block)
+
+### Root Cause Discovered
+- Debug log revealed terminals send uppercase 'P' with different KeyModifier states
+- Some terminals send KeyCode::Char('P') with no modifiers
+- Others send KeyCode::Char('P') with KeyModifiers::SHIFT
+- PasteBeforeCommand was only accepting empty modifiers
+
+### Solution Implemented
+- Modified PasteBeforeCommand.is_relevant() to accept both modifier states:
+```rust
+matches!(key_event.code, KeyCode::Char('P'))
+    && (key_event.modifiers.is_empty() || key_event.modifiers == KeyModifiers::SHIFT)
+    && matches!(mode, EditorMode::Normal | EditorMode::VisualBlock)
+    && !context.is_read_only
+```
+
+### Fix Results
+- ✅ P key now works in Visual Block mode across all terminals
+- ✅ Added missing KeyModifiers import to prevent compilation errors
+- ✅ All paste-related tests passing
+- ✅ Application compiles successfully
+- ✅ Committed with comprehensive explanation (ef35ac5)
+
+### Technical Achievement
+**RESOLVED: P Key Visual Block Paste Issue** - Fixed terminal compatibility issue where different terminals send uppercase 'P' with different KeyModifier states. The unified PasteBeforeCommand now accepts both states for maximum compatibility.
+
+---
+
 ## Current Migration Status (as of 2025-08-31)
 
 ### Completed Migrations
