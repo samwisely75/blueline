@@ -109,7 +109,7 @@ impl CommandRegistry {
             Box::new(HomeKeyCommand),
             Box::new(EndKeyCommand),
             // Mode commands
-            Box::new(EnterInsertModeCommand),
+            // Box::new(EnterInsertModeCommand), // Migrated to unified_commands/mode/enter_insert_mode.rs
             Box::new(EnterVisualModeCommand),
             Box::new(EnterVisualLineModeCommand),
             Box::new(EnterVisualBlockModeCommand),
