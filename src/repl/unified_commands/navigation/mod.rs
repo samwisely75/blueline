@@ -8,6 +8,7 @@
 //! for dynamic discovery by the command registry.
 
 // Navigation command modules
+pub mod end_of_word;
 pub mod ex_goto_line;
 pub mod go_to_bottom;
 pub mod go_to_top;
@@ -21,6 +22,7 @@ pub mod scroll_left;
 pub mod scroll_right;
 
 // Re-export all command types using wildcards to prevent merge conflicts
+pub use end_of_word::*;
 pub use ex_goto_line::*;
 pub use go_to_bottom::*;
 pub use go_to_top::*;

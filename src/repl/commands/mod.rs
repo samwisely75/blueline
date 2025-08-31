@@ -103,9 +103,9 @@ impl CommandRegistry {
             // Box::new(MoveCursorRightCommand),
             Box::new(MoveCursorUpCommand),
             // Box::new(MoveCursorDownCommand), // Migrated to unified_commands
+            // Box::new(EndOfWordCommand), // Migrated to unified_commands
             // Box::new(NextWordCommand), // Migrated to unified_commands
             // Box::new(PreviousWordCommand), // Migrated to unified_commands
-            Box::new(EndOfWordCommand),
             Box::new(BeginningOfLineCommand),
             Box::new(EndOfLineCommand),
             Box::new(HomeKeyCommand),
