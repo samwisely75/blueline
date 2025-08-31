@@ -121,7 +121,7 @@ impl CommandRegistry {
             Box::new(ExitInsertModeCommand),
             Box::new(ExitVisualBlockInsertModeCommand),
             Box::new(ExitVisualModeCommand),
-            Box::new(EnterCommandModeCommand),
+            // Box::new(EnterCommandModeCommand), // Migrated to unified_commands/mode/enter_command_mode.rs
             Box::new(ExCommandModeCommand),
             // Pane commands
             // Box::new(SwitchPaneCommand), // Migrated to unified_commands
