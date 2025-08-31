@@ -11,7 +11,7 @@ use crate::repl::{
     io::{EventStream, RenderStream},
     models::app_state::AppState,
     models::events::SimpleEventBus,
-    models::pane_state::{EditorMode, Pane},
+    models::pane_state::Pane,
     models::LogicalPosition,
     services::{HttpResponseMessage, Services},
     unified_commands::{
@@ -136,13 +136,63 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
     /// Apply initial ex commands from config file
     fn apply_initial_commands(&mut self, commands: &[String]) -> Result<()> {
-        // Ex commands from config are now handled by the unified command system
-        // via key events, so we can simply log them as unsupported for now
+        // Process ex commands from config through the unified command system
         for command in commands {
-            tracing::warn!(
-                "Config command '{}' not supported - ex commands now handled via unified system",
-                command
-            );
+            tracing::info!("Applying config command: {}", command);
+
+            // Set the ex command buffer with the config command
+            self.app_state.set_ex_command_buffer(command.clone());
+
+            // Create command context after setting the ex command buffer
+            let context =
+                crate::repl::unified_commands::CommandContext::from_app_state(&self.app_state);
+
+            // Try to find a unified command that matches this ex command
+            if let Some(unified_command) = self.unified_command_registry.process_key_event(
+                crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Enter,
+                    crossterm::event::KeyModifiers::NONE,
+                ),
+                crate::repl::models::pane_state::EditorMode::Command,
+                &context,
+            ) {
+                tracing::info!("Executing unified command: {}", unified_command.name());
+
+                // Execute the command with ExecutionContext
+                let mut exec_context = ExecutionContext {
+                    app_state: &mut self.app_state,
+                    services: &mut self.services,
+                };
+
+                match unified_command.execute(&mut exec_context) {
+                    Ok(view_events) => {
+                        tracing::info!(
+                            "Config command '{}' executed successfully with {} view events",
+                            command,
+                            view_events.len()
+                        );
+                        // Process view events but don't render (we're in init phase)
+                        if !view_events.is_empty() {
+                            // Just collect the events for now - rendering happens after init
+                            tracing::debug!(
+                                "Config command produced view events: {:?}",
+                                view_events
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to execute config command '{}': {}", command, e);
+                    }
+                }
+            } else {
+                tracing::warn!(
+                    "Config command '{}' not recognized by unified command system",
+                    command
+                );
+            }
+
+            // Clear the ex command buffer for the next command
+            self.app_state.clear_ex_command_buffer();
         }
         Ok(())
     }
@@ -851,273 +901,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
         Ok(())
     }
-    // Migrated to ShowProfileCommand
-    // /// Handle showing profile information in status bar
-    // fn handle_show_profile(&mut self) {
-    //     let profile_name = self.app_state.get_profile_name();
-    //     let profile_path = self.app_state.get_profile_path();
-    //     let message = format!("[{profile_name}] in {profile_path}");
-    //     self.app_state.set_status_message(message);
-    // }
-
-    // Migrated to SettingChangeCommand
-    // /// Handle setting changes from ex commands
-    // fn handle_setting_change(&mut self, setting: Setting, value: SettingValue) -> Result<()> {
-    //     // Handle clipboard setting through YankService
-    //     if setting == Setting::Clipboard {
-    //         let enable = value == SettingValue::On;
-    //         self.services.yank.set_clipboard_enabled(enable)?;
-    //         // Update status message
-    //         let message = if enable {
-    //             "Clipboard integration enabled"
-    //         } else {
-    //             "Clipboard integration disabled"
-    //         };
-    //         self.app_state.set_status_message(message.to_string());
-    //         Ok(())
-    //     } else {
-    //         // Other settings still go through ViewModel
-    //         self.app_state.apply_setting(setting, value)
-    //     }
-    // }
-
-    // MIGRATED to YankSelectionCommand in unified_commands
-    #[allow(dead_code)]
-    // Migrated to YankSelectionCommand
-    // fn handle_yank_selection(&mut self) -> Result<()> {
-    //     // Get selected text from current pane
-    //     if let Some(text) = self.app_state.get_selected_text() {
-    //         // Determine yank type based on current visual mode
-    //         let current_mode = self.app_state.get_mode();
-    //         let yank_type = match current_mode {
-    //             EditorMode::Visual => NewYankType::Character,
-    //             EditorMode::VisualLine => NewYankType::Line,
-    //             EditorMode::VisualBlock => NewYankType::Block,
-    //             _ => NewYankType::Character, // Fallback for any other mode
-    //         };
-
-    //         // Store in yank buffer using YankService (not the old ViewModel method!)
-    //         self.services.yank.yank(text.clone(), yank_type)?;
-
-    //         // Switch to Normal mode (automatically clears visual selection)
-    //         self.app_state.change_mode(EditorMode::Normal)?;
-
-    //         // Show feedback in status bar
-    //         let char_count = text.chars().count();
-    //         let line_count = text.lines().count();
-    //         let message = match yank_type {
-    //             NewYankType::Character => {
-    //                 if line_count > 1 {
-    //                     format!("{line_count} lines yanked (character-wise)")
-    //                 } else {
-    //                     format!("{char_count} characters yanked")
-    //                 }
-    //             }
-    //             NewYankType::Line => format!("{line_count} lines yanked (line-wise)"),
-    //             NewYankType::Block => {
-    //                 format!("Block yanked ({line_count} lines, {char_count} chars)")
-    //             }
-    //         };
-    //         self.app_state.set_status_message(message);
-
-    //         tracing::info!(
-    //             "Yanked {} characters ({} lines) to buffer as {:?}",
-    //             char_count,
-    //             line_count,
-    //             yank_type
-    //         );
-    //     } else {
-    //         tracing::warn!("No text selected for yanking");
-    //         self.app_state
-    //             .set_status_message("No text selected".to_string());
-    //     }
-
-    //     Ok(())
-    // }
-
-    // Migrated to DeleteSelectionCommand
-    // /// Handle deleting selected text
-    // fn handle_delete_selection(&mut self) -> Result<()> {
-    //     // First, get the selection info for yanking if dcut is enabled
-    //     if self.app_state.is_dcut_enabled() {
-    //         // Get selection text and type before deleting
-    //         if let Some((text, yank_type)) = self.app_state.get_selection_text_and_type()? {
-    //             // Store in YankService
-    //             self.services.yank.yank(text.clone(), yank_type)?;
-    //             tracing::info!("Yanked selection to buffer before delete");
-    //         }
-    //     }
-    //
-    //     // Delete the selected text - the method now returns the deleted text directly
-    //     if let Some(deleted_text) = self.app_state.delete_selected_text()? {
-    //         // Switch to Normal mode (automatically clears visual selection)
-    //         self.app_state.change_mode(EditorMode::Normal)?;
-    //
-    //         // Show feedback in status bar
-    //         let char_count = deleted_text.chars().count();
-    //         let line_count = deleted_text.lines().count();
-    //         let message = if line_count > 1 {
-    //             format!("{line_count} lines deleted")
-    //         } else {
-    //             format!("{char_count} characters deleted")
-    //         };
-    //         self.app_state.set_status_message(message);
-    //
-    //         tracing::info!("Deleted {} characters ({} lines)", char_count, line_count);
-    //     } else {
-    //         tracing::warn!("No text selected for deletion");
-    //         self.app_state
-    //             .set_status_message("No text selected".to_string());
-    //     }
-    //
-    //     Ok(())
-    // }
-
-    // /// Handle cutting (delete + yank) selected text
-    // NOW HANDLED BY CutSelectionCommand in unified_commands
-    // fn handle_cut_selection(&mut self) -> Result<()> {
-    //     // Cut combines yank + delete, but we need to yank first before deleting
-    //     if let Some(text) = self.app_state.get_selected_text() {
-    //         // Determine yank type based on current visual mode BEFORE any mode changes
-    //         let current_mode = self.app_state.get_mode();
-    //         let yank_type = match current_mode {
-    //             EditorMode::Visual => NewYankType::Character,
-    //             EditorMode::VisualLine => NewYankType::Line,
-    //             EditorMode::VisualBlock => NewYankType::Block,
-    //             _ => NewYankType::Character, // Fallback for any other mode
-    //         };
-    //
-    //         // First yank to buffer using YankService
-    //         self.services.yank.yank(text.clone(), yank_type)?;
-    //
-    //         // Then delete the selected text (this also returns the deleted text for verification)
-    //         if let Some(deleted_text) = self.app_state.delete_selected_text()? {
-    //             // Switch to Normal mode (automatically clears visual selection)
-    //             self.app_state.change_mode(EditorMode::Normal)?;
-    //
-    //             // Show feedback in status bar
-    //             let char_count = deleted_text.chars().count();
-    //             let line_count = deleted_text.lines().count();
-    //             let message = match yank_type {
-    //                 NewYankType::Character => {
-    //                     if line_count > 1 {
-    //                         format!("{line_count} lines cut (character-wise)")
-    //                     } else {
-    //                         format!("{char_count} characters cut")
-    //                     }
-    //                 }
-    //                 NewYankType::Line => format!("{line_count} lines cut (line-wise)"),
-    //                 NewYankType::Block => {
-    //                     format!("Block cut ({line_count} lines, {char_count} chars)")
-    //                 }
-    //             };
-    //             self.app_state.set_status_message(message);
-    //
-    //             tracing::info!(
-    //                 "Cut {} characters ({} lines) to buffer as {:?}",
-    //                 char_count,
-    //                 line_count,
-    //                 yank_type
-    //             );
-    //         } else {
-    //             tracing::warn!("Failed to delete selected text during cut operation");
-    //             self.app_state
-    //                 .set_status_message("Cut operation failed".to_string());
-    //         }
-    //     } else {
-    //         tracing::warn!("No text selected for cutting");
-    //         self.app_state
-    //             .set_status_message("No text selected".to_string());
-    //     }
-    //
-    //     Ok(())
-    // }
-
-    // /// Handle cutting (delete + yank) character at cursor
-    // NOW HANDLED BY CutCharacterCommand in unified_commands
-    // fn handle_cut_character(&mut self) -> Result<()> {
-    //     // Cut character at cursor position - this returns the deleted text
-    //     self.app_state.cut_char_at_cursor()?;
-    //
-    //     // If dcut is enabled, the ViewModel already yanked to its buffer
-    //     // We need to sync that with the YankService
-    //     if self.app_state.is_dcut_enabled() {
-    //         if let Some(entry) = self.app_state.get_yanked_entry() {
-    //             self.services.yank.yank(entry.text, entry.yank_type)?;
-    //         }
-    //     }
-    //
-    //     tracing::info!("Cut 1 character at cursor");
-    //
-    //     Ok(())
-    // }
-
-    // /// Handle cutting (delete + yank) from cursor to end of line
-    // NOW HANDLED BY CutToEndOfLineCommand in unified_commands
-    // fn handle_cut_to_end_of_line(&mut self) -> Result<()> {
-    //     // Cut from cursor to end of line - this returns the deleted text
-    //     self.app_state.cut_to_end_of_line()?;
-    //
-    //     // If dcut is enabled, the ViewModel already yanked to its buffer
-    //     // We need to sync that with the YankService
-    //     if self.app_state.is_dcut_enabled() {
-    //         if let Some(entry) = self.app_state.get_yanked_entry() {
-    //             self.services.yank.yank(entry.text, entry.yank_type)?;
-    //         }
-    //     }
-    //
-    //     tracing::info!("Cut from cursor to end of line");
-    //
-    //     Ok(())
-    // }
-
-    // MIGRATED to CutCurrentLineCommand in unified_commands
-    // /// Handle cutting (delete + yank) entire current line
-    // fn handle_cut_current_line(&mut self) -> Result<()> {
-    //     // Cut entire current line - this returns the deleted text
-    //     self.app_state.cut_current_line()?;
-
-    //     // If dcut is enabled, the ViewModel already yanked to its buffer
-    //     // We need to sync that with the YankService
-    //     if self.app_state.is_dcut_enabled() {
-    //         if let Some(entry) = self.app_state.get_yanked_entry() {
-    //             self.services.yank.yank(entry.text, entry.yank_type)?;
-    //         }
-    //     }
-
-    //     tracing::info!("Cut entire current line");
-
-    //     Ok(())
-    // }
-
-    // MIGRATED to ChangeSelectionCommand in unified_commands
-    // /// Handle change selection operation (Visual Block mode 'c' command)
-    // fn handle_change_selection(&mut self) -> Result<()> {
-    //     // This method has been migrated to ChangeSelectionCommand
-    //     // See: src/repl/unified_commands/change_selection.rs
-    // }
-
-    // MIGRATED to VisualBlockInsertCommand in unified_commands
-    // /// Handle Visual Block Insert operation ('I' in Visual Block mode)
-    // fn handle_visual_block_insert(&mut self) -> Result<()> {
-    //     // This method has been migrated to VisualBlockInsertCommand
-    //     // See: src/repl/unified_commands/visual_block_insert.rs
-    // }
-
-    // handle_visual_block_append method has been migrated to VisualBlockAppendCommand
-    // See: src/repl/unified_commands/visual_block_append.rs
-
-    // MIGRATED to RepeatVisualSelectionCommand in unified_commands
-    // /// Handle repeat visual selection (gv command)
-    // ///
-    // /// Restores the last visual selection including:
-    // /// 1. The selection range (start and end positions)
-    // /// 2. The visual mode type (character/line/block)
-    // /// 3. Cursor position at end of selection
-    // fn handle_repeat_visual_selection(&mut self) -> Result<()> {
-    //     // This method has been migrated to RepeatVisualSelectionCommand
-    //     // See: src/repl/unified_commands/repeat_visual_selection.rs
-    // }
 
     /// Handle text insertion for multi-cursor Visual Block Insert mode
     ///
@@ -1284,70 +1067,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         tracing::debug!("Multi-cursor text delete completed, updated cursor positions");
         Ok(())
     }
-
-    // Migrated to PasteAfterCommand
-    // /// Handle pasting yanked text after cursor
-    // fn handle_paste_after(&mut self) -> Result<()> {
-    //     // Get from YankService, not the old app_state buffer!
-    //     if let Some(yank_entry) = self.services.yank.paste() {
-    //         // Paste the text after the current cursor position using type-aware paste
-    //         self.app_state.paste_after_with_type(&yank_entry)?;
-
-    //         let char_count = yank_entry.text.chars().count();
-    //         let line_count = yank_entry.text.lines().count();
-
-    //         // Clear any previous status message (e.g., "1 line yanked")
-    //         self.app_state.clear_status_message();
-
-    //         tracing::info!(
-    //             "Pasted {} characters ({} lines) after cursor as {:?}",
-    //             char_count,
-    //             line_count,
-    //             yank_entry.yank_type
-    //         );
-    //     } else {
-    //         self.app_state
-    //             .set_status_message("Nothing to paste".to_string());
-    //         tracing::warn!("No text in yank buffer to paste");
-    //     }
-
-    //     Ok(())
-    // }
-
-    // Migrated to PasteAtCursorCommand
-    // /// Handle pasting yanked text at current cursor position
-    // fn handle_paste_at_cursor(&mut self) -> Result<()> {
-    //     // Get from YankService, not the old app_state buffer!
-    //     if let Some(yank_entry) = self.services.yank.paste() {
-    //         tracing::debug!(
-    //             "Retrieved yank entry with type: {:?}, text length: {}",
-    //             yank_entry.yank_type,
-    //             yank_entry.text.len()
-    //         );
-
-    //         // Paste the text at current position (before cursor) using type-aware paste
-    //         self.app_state.paste_with_type(&yank_entry)?;
-
-    //         let char_count = yank_entry.text.chars().count();
-    //         let line_count = yank_entry.text.lines().count();
-
-    //         // Clear any previous status message (e.g., "1 line yanked")
-    //         self.app_state.clear_status_message();
-
-    //         tracing::info!(
-    //             "Pasted {} characters ({} lines) at cursor as {:?}",
-    //             char_count,
-    //             line_count,
-    //             yank_entry.yank_type
-    //         );
-    //     } else {
-    //         self.app_state
-    //             .set_status_message("Nothing to paste".to_string());
-    //         tracing::warn!("No text in yank buffer to paste");
-    //     }
-
-    //     Ok(())
-    // }
 
     /// Process a single key event without running the full event loop (for testing)
     pub async fn process_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
@@ -1597,38 +1316,6 @@ mod tests {
         }
     }
 
-    // TODO: Re-enable this test when ModelEvent is fully migrated to PostCommandAction
-    // #[test]
-    // fn app_controller_should_process_model_events() {
-    //     use crate::repl::unified_commands::{events::YankType, ModelEvent};
-
-    //     if crossterm::terminal::size().is_ok() {
-    //         let cmd_args = CommandLineArgs::parse_from(["test"]);
-    //         let config = AppConfig::from_args(cmd_args);
-    //         let mut view_model = AppViewModel::with_io_streams(
-    //             config,
-    //             crate::repl::io::TerminalEventStream::new(),
-    //             crate::repl::io::TerminalRenderStream::new(),
-    //         )
-    //         .unwrap();
-
-    //         // Test processing a TextYanked event
-    //         let event = ModelEvent::TextYanked {
-    //             pane: Pane::Request,
-    //             text: "test text".to_string(),
-    //             yank_type: YankType::Character,
-    //         };
-
-    //         let result = view_model.process_model_event(event);
-    //         assert!(result.is_ok(), "ModelEvent processing should succeed");
-
-    //         // Verify yank buffer contains the text
-    //         // NOTE: YankService now owns the yank buffer, not ViewModel
-    //         // We would need to check view_model.services.yank instead
-    //         // For now, just verify the event was processed successfully
-    //     }
-    // }
-
     #[tokio::test]
     async fn app_controller_should_use_unified_command_system() {
         use crossterm::event::{KeyCode, KeyModifiers};
@@ -1656,6 +1343,37 @@ mod tests {
 
             // Verify old system handled it (y in Normal mode goes to YPrefix mode)
             assert_eq!(view_model.app_state().get_mode(), EditorMode::YPrefix);
+        }
+    }
+
+    #[test]
+    fn app_view_model_should_apply_config_commands() {
+        if crossterm::terminal::size().is_ok() {
+            // Create a config with initial commands
+            let test_commands = vec!["set wrap on".to_string(), "set number on".to_string()];
+            let config = AppConfig::new(
+                "test".to_string(),
+                "/nonexistent/profile/path".to_string(),
+                test_commands,
+            );
+
+            let view_model = AppViewModel::with_io_streams(
+                config,
+                crate::repl::io::TerminalEventStream::new(),
+                crate::repl::io::TerminalRenderStream::new(),
+            );
+
+            assert!(
+                view_model.is_ok(),
+                "ViewModel should be created successfully"
+            );
+            let view_model = view_model.unwrap();
+
+            // Verify that wrap is enabled (this would be set by the "set wrap on" command)
+            assert!(
+                view_model.app_state().pane_manager.is_wrap_enabled(),
+                "Wrap should be enabled from config command"
+            );
         }
     }
 }

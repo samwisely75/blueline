@@ -606,39 +606,172 @@ The foundation is now in place to migrate business logic from AppController to A
 - Begin Phase 1: Model reorganization
 - Focus on incremental, stable migration
 
-## Current Migration Status (as of 2025-08-30)
+## [2025-08-31] Ex Command Migration Complete & Legacy Cleanup
+
+### User Request Summary
+- Complete ex command migration to unified command system  
+- Remove legacy ExCommandRegistry and clean up handle_* functions
+- Review GitHub issues and close completed ones
+- Update session notes for new chat
+
+### Major Accomplishments
+
+#### ✅ Ex Command Migration Complete (v0.45.9)
+Successfully migrated all 8 ex commands to unified system with auto-registration:
+
+**Migrated Ex Commands:**
+- ✅ ExSetClipboardCommand (`:set clipboard on/off/!`) - Fixed clipboard integration issue
+- ✅ ExSetDCutCommand (`:set dcut on/off/!`) 
+- ✅ ExSetExpandtabCommand (`:set expandtab on/off/!`)
+- ✅ ExSetNumberCommand (`:set number on/off/!`)
+- ✅ ExSetTabstopCommand (`:set tabstop N`) - Validates 1-8 range
+- ✅ ExSetWrapCommand (`:set wrap on/off/!`)
+- ✅ ExShowProfileCommand (`:show profile`)
+- ✅ ExGotoLineCommand (`:g N`, `:g`) - Navigation command
+
+**Key Features Implemented:**
+- Toggle functionality with `!` suffix (vim convention)
+- Comprehensive unit tests for all commands  
+- Auto-registration via inventory crate (zero conflicts)
+- Fixed clipboard integration with system clipboard
+- Dynamic command discovery (no manual registry updates needed)
+
+#### ✅ Legacy Code Cleanup Complete
+**Removed ExCommandRegistry System:**
+- Deleted `src/repl/commands/ex_commands.rs` (399 lines removed)
+- Removed ExCommandRegistry from AppViewModel
+- Simplified legacy ex command handling
+- All ex commands now use unified system exclusively
+
+**Commented Out Migrated handle_* Functions:**
+- `handle_yank_selection` → YankSelectionCommand (auto-registered)
+- `handle_paste_after` → PasteAfterCommand (handles 'p' key)  
+- `handle_paste_at_cursor` → PasteAtCursorCommand (handles 'P' key)
+- Updated call sites to ignore legacy events
+
+#### ✅ GitHub Issues Management
+**Closed Completed Issues:**
+- #304: `:set expandtab` ✅ 
+- #305: `:set tabstop` ✅
+- #306: `:set wrap` ✅  
+- #310: `:set number` ✅
+- #311: `:set clipboard` ✅ (with clipboard integration fix)
+- #312: `:set dcut` ✅
+- #313: `:show profile` ✅
+
+**Created Investigation Issues:**
+- #314: Investigate `handle_multi_cursor_text_insert` vs `VisualBlockInsertCommand`
+- #315: Investigate `handle_multi_cursor_text_delete` vs visual block delete integration
+
+### Technical Achievements
+
+#### Architecture Improvements
+- **Zero-Conflict Registration**: Ex commands use inventory crate for automatic discovery
+- **Unified Command Pattern**: All ex commands follow consistent Command trait pattern
+- **Better Error Handling**: Comprehensive input validation and user feedback
+- **Cleaner Separation**: No more legacy/unified dual systems
+
+#### Code Quality Improvements  
+- **Removed Technical Debt**: 399+ lines of legacy code eliminated
+- **Improved Maintainability**: Consistent patterns across all ex commands
+- **Enhanced Testing**: Comprehensive test coverage for all migrated commands
+- **Better Documentation**: Clear migration paths and architectural decisions
+
+#### User Experience Improvements
+- **Fixed Clipboard Integration**: System clipboard now properly syncs with yank operations
+- **Vim-Compatible Toggles**: `!` suffix toggles settings as expected
+- **Better Feedback**: Clear status messages for all ex command operations
+- **Consistent Behavior**: All ex commands follow unified patterns
+
+### Current Status
+
+#### ✅ Fully Migrated & Cleaned
+- Ex command system: 8/8 commands migrated and legacy system removed
+- Yank/Paste commands: 3/3 functions commented out and unified commands active
+- GitHub issues: 7/7 completed issues closed
+
+#### ⚠️ Under Investigation  
+- Multi-cursor functions: 2 functions need investigation (issues #314, #315 created)
+- Issues #231-234 were actually about move commands (not multi-cursor operations)
+
+#### 📊 Statistics
+- **Lines Removed**: 500+ lines of legacy code
+- **Commands Migrated**: 11 total (8 ex + 3 yank/paste)  
+- **Tests Added**: 50+ new unit tests
+- **Issues Closed**: 7 GitHub issues
+- **Version Released**: v0.45.9 with git tag
+
+### Architecture Status
+The unified command system is now **fully operational** with:
+- Dynamic command discovery via inventory crate
+- Zero manual registry conflicts  
+- Comprehensive test coverage
+- Clean separation from legacy systems
+- Production-ready auto-registration
+
+### Next Steps / TODO for Future Sessions
+1. **Investigate Multi-Cursor Functions** (Issues #314, #315)
+   - Verify `VisualBlockInsertCommand` handles multi-cursor text insertion
+   - Test visual block delete integration  
+   - Comment out if fully migrated
+
+2. **Continue Legacy Command Migration**
+   - Navigation commands (GoToTop, GoToBottom, etc.)
+   - Mode change commands (EnterInsert, ExitVisual, etc.) 
+   - Editing commands (InsertChar, DeleteChar, etc.)
+
+3. **Final Cleanup Phase**
+   - Remove remaining legacy command registries
+   - Eliminate dual command system completely
+   - Rename unified_commands → commands directory
+
+### Git Status
+- **Current Branch**: `develop` 
+- **Latest Commits**: fcb404b (handle function cleanup), af372fd (ExCommandRegistry removal), fedb6e5 (ex command migration)
+- **Tagged Version**: `v0.45.9` - Complete Ex Command Migration to Unified System
+- **All Tests**: ✅ Passing (650 unit tests)
+
+### Key Learnings
+1. **Issues #231-234 Confusion**: These were about move commands, not multi-cursor operations
+2. **PR Records**: Important to track actual implementations vs issue descriptions  
+3. **Multi-Cursor Integration**: Functionality appears integrated into VisualBlockInsertCommand
+4. **Dynamic Discovery Success**: Inventory crate completely eliminates merge conflicts
+
+This represents a **major architectural milestone** - the ex command migration is complete and the unified command system is production-ready for scaling to the entire command system.
+
+---
+
+## Current Migration Status (as of 2025-08-31)
 
 ### Completed Migrations
-- ✅ YankSelectionCommand - fully migrated with YankService integration (tag #224-yank-selection)
-- ✅ ShowProfileCommand - migrated, handles CommandEvent::ShowProfileRequested (tag #224-show-profile-command)
-- ✅ SettingChangeCommand - migrated, handles all setting changes (tag #224-setting-change-command)
-- ✅ DeleteSelectionCommand - migrated Phase 2A (tag v0.46.3)
-- ✅ CutSelectionCommand - migrated Phase 2A (tag v0.46.3)
-- ✅ CutCharacterCommand - migrated Phase 2A with integration test fix (tag v0.46.3)
+- ✅ YankSelectionCommand - fully migrated with YankService integration 
+- ✅ ShowProfileCommand - migrated, handles CommandEvent::ShowProfileRequested
+- ✅ SettingChangeCommand - migrated, handles all setting changes
+- ✅ DeleteSelectionCommand - migrated Phase 2A
+- ✅ CutSelectionCommand - migrated Phase 2A
+- ✅ CutCharacterCommand - migrated Phase 2A with integration test fix
 - ✅ CutToEndOfLineCommand - migrated Phase 2A
 - ✅ CutCurrentLineCommand - migrated Phase 2A  
 - ✅ YankCurrentLineCommand - migrated Phase 2A
-- ✅ ChangeSelectionCommand - migrated Phase 2A (PRs #243)
-- ✅ VisualBlockInsertCommand - migrated Phase 2B (PRs #242)
-- ✅ VisualBlockAppendCommand - migrated Phase 2B (PRs #244)
-- ✅ ExitVisualBlockInsertCommand - migrated Phase 2B (PRs #245)
-- ✅ RepeatVisualSelectionCommand - migrated Phase 2B (PRs #246)
-- ✅ Removed old YankCommand, DeleteSelectionCommand, CutSelectionCommand, CutCharacterCommand from src/repl/commands
+- ✅ ChangeSelectionCommand - migrated Phase 2A
+- ✅ VisualBlockInsertCommand - migrated Phase 2B
+- ✅ VisualBlockAppendCommand - migrated Phase 2B
+- ✅ ExitVisualBlockInsertCommand - migrated Phase 2B
+- ✅ RepeatVisualSelectionCommand - migrated Phase 2B
+- ✅ **All 8 Ex Commands** - migrated with auto-registration (v0.45.9)
+- ✅ **PasteAfterCommand** - migrated (handle_paste_after commented out)
+- ✅ **PasteAtCursorCommand** - migrated (handle_paste_at_cursor commented out)
+- ✅ Removed legacy ExCommandRegistry and ex_commands.rs
 
-### Pending Migrations (per issue #224)
-- ⏳ CutToEndOfLineCommand - Phase 2A next
-- ⏳ CutCurrentLineCommand - Phase 2A
-- ⏳ YankCurrentLineCommand - Phase 2A
-- ⏳ ChangeSelectionCommand - Phase 2A
-- ⏳ PasteAfterCommand - Phase 2C
-- ⏳ PasteAtCursorCommand - Phase 2C
-- (and more in Phase 2B, 2C, Phase 3...)
+### Under Investigation
+- ⚠️ Multi-cursor text insert/delete functions (issues #314, #315 created)
 
 ### Current Branch & Status
-- Working on: `develop` (dynamic discovery system now live!)
-- All unit tests passing: 530 tests
-- All integration tests passing: 6 tests
-- Latest commit: 7a58ada - Inventory-based dynamic command discovery system
+- Working on: `develop` 
+- All unit tests passing: 650+ tests
+- All integration tests passing
+- Latest version: v0.45.9 (tagged)
+- Ex command migration: **100% Complete**
 
 ### Architecture Vision
 The refactoring will transform the codebase from confused layers to proper MVVM:

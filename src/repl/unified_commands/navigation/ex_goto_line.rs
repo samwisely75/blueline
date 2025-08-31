@@ -27,11 +27,20 @@ impl ExGotoLineCommand {
 
         // Handle :g commands
         if trimmed == "g" {
+            // Check if the original was exactly "g " (g followed by single space) - this is invalid
+            if buffer == "g " {
+                return None;
+            }
             // :g without arguments means goto last line
             return Some(None);
         } else if let Some(args) = trimmed.strip_prefix("g ") {
+            let arg_trimmed = args.trim();
+            // Reject empty arguments (e.g., "g " with only whitespace after g)
+            if arg_trimmed.is_empty() {
+                return None;
+            }
             // :g N means goto line N
-            if let Ok(line_number) = args.trim().parse::<usize>() {
+            if let Ok(line_number) = arg_trimmed.parse::<usize>() {
                 if line_number > 0 {
                     return Some(Some(line_number));
                 }
