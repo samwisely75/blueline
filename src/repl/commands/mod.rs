@@ -296,14 +296,9 @@ mod tests {
         let event = create_test_key_event(KeyCode::Char('i'));
         let events = registry.process_event(event, &context).unwrap();
 
-        // Should produce a mode change event to Insert mode
-        assert_eq!(events.len(), 1);
-        assert_eq!(
-            events[0],
-            CommandEvent::ModeChangeRequested {
-                new_mode: EditorMode::Insert
-            }
-        );
+        // This command has been migrated to the unified command system
+        // The legacy registry should no longer handle it
+        assert_eq!(events.len(), 0);
     }
 
     #[test]
@@ -367,15 +362,9 @@ mod tests {
         let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
         let events = registry.process_event(event, &context).unwrap();
 
-        // Should produce a page down cursor movement event
-        assert_eq!(events.len(), 1);
-        assert!(matches!(
-            events[0],
-            CommandEvent::CursorMoveRequested {
-                direction: MovementDirection::PageDown,
-                amount: 1
-            }
-        ));
+        // This command has been migrated to the unified command system
+        // The legacy registry should no longer handle it
+        assert_eq!(events.len(), 0);
     }
 
     #[test]
