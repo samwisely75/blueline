@@ -91,7 +91,7 @@ impl CommandRegistry {
             // Box::new(ScrollLeftCommand), // Migrated to unified_commands
             // Box::new(ScrollRightCommand), // Migrated to unified_commands
             // Pagination commands (high priority - Ctrl+key combinations)
-            Box::new(PageDownCommand),
+            // Box::new(PageDownCommand), // Migrated to unified_commands/navigation/page_down.rs
             Box::new(PageUpCommand),
             Box::new(HalfPageDownCommand),
             Box::new(HalfPageUpCommand),
@@ -109,7 +109,7 @@ impl CommandRegistry {
             Box::new(HomeKeyCommand),
             Box::new(EndKeyCommand),
             // Mode commands
-            Box::new(EnterInsertModeCommand),
+            // Box::new(EnterInsertModeCommand), // Migrated to unified_commands/mode/enter_insert_mode.rs
             Box::new(EnterVisualModeCommand),
             Box::new(EnterVisualLineModeCommand),
             Box::new(EnterVisualBlockModeCommand),
@@ -120,7 +120,7 @@ impl CommandRegistry {
             // Box::new(InsertAtBeginningOfLineCommand), // Migrated to unified_commands/mode/insert_at_beginning_of_line.rs
             // Box::new(ExitInsertModeCommand), // Migrated to unified_commands/mode/exit_insert_mode.rs
             Box::new(ExitVisualBlockInsertModeCommand),
-            Box::new(ExitVisualModeCommand),
+            // Box::new(ExitVisualModeCommand), // Migrated to unified_commands
             // Box::new(EnterCommandModeCommand), // Migrated to unified_commands/mode/enter_command_mode.rs
             Box::new(ExCommandModeCommand),
             // Pane commands
