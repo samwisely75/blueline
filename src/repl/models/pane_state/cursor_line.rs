@@ -224,12 +224,18 @@ impl PaneState {
             PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
-        // Move to beginning of the last line (vim G behavior)
-        let end_position = Position::new(last_line_idx, 0);
+        // Move to end of the last line (end of document)
+        let last_line_length =
+            if let Some(display_line) = self.display_cache.get_display_line(last_line_idx) {
+                display_line.chars.len()
+            } else {
+                0
+            };
+        let end_position = Position::new(last_line_idx, last_line_length);
         let _result = self.set_display_cursor(end_position);
 
-        // Reset virtual column to 0 (vim G behavior)
-        self.virtual_column = 0;
+        // Set virtual column to match the line end position
+        self.virtual_column = last_line_length;
 
         // Update visual selection if active
         let new_cursor_pos = self.buffer.cursor();
