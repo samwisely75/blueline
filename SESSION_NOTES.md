@@ -741,6 +741,79 @@ This represents a **major architectural milestone** - the ex command migration i
 
 ---
 
+## [2025-08-31] GitHub Issues #295 #294 - QuitCommand and GoToLineCommand Migration Complete
+
+### User Request Summary
+- Migrate QuitCommand (#295) and GoToLineCommand (#294) to unified command system
+- Ensure both commands use modern registration patterns
+- Close GitHub issues after completion
+
+### Implementation Status
+
+#### ✅ Migration Already Complete
+Both commands were **already migrated** to the unified command system but were using outdated registration methods:
+
+**ExQuitCommand (#295):**
+- ✅ Location: `src/repl/unified_commands/system/ex_quit.rs`
+- ✅ Handles `:q` and `:q!` ex commands for quitting application
+- ✅ Returns `PostCommandAction::QuitRequested`
+- ✅ Comprehensive unit tests (7 test cases)
+
+**ExGotoLineCommand (#294):**
+- ✅ Location: `src/repl/unified_commands/navigation/ex_goto_line.rs`
+- ✅ Handles `:g`, `:g N`, and `:42` ex commands for line navigation
+- ✅ Supports goto last line (`:g`) and goto specific line (`:g 42`, `:42`)
+- ✅ Uses PaneManager methods for cursor movement
+- ✅ Comprehensive unit tests (7 test cases)
+
+#### ✅ Modernization Complete
+**Problem Found**: Both commands were using legacy `inventory::submit!` registration instead of modern `register_command!` macro.
+
+**Changes Made**:
+- Added `new()` methods and `Default` implementations to both commands
+- Replaced `inventory::submit!` with `register_command!` macro calls
+- Added proper macro imports (`use crate::register_command`)
+- Verified all tests continue to pass
+
+#### ✅ Quality Assurance
+- All unit tests passing (14 total tests for both commands)
+- Integration tests verified
+- `./scripts/git-commit-precheck.sh` passes cleanly
+- Dynamic command registry discovers both commands correctly
+
+#### ✅ Legacy Cleanup Status
+- ✅ Legacy ExCommandRegistry already removed
+- ✅ No legacy QuitCommand/GoToLineCommand references found
+- ✅ Both commands use modern unified command system architecture
+
+#### ✅ GitHub Issues Closed
+- **Issue #295**: Closed with completion details
+- **Issue #294**: Closed with completion details
+
+### Technical Achievements
+
+**Architecture Compliance:**
+- Both commands follow unified Command trait pattern
+- Use PostCommandAction returns instead of CommandEvent emission
+- Auto-register using inventory-based dynamic discovery system
+- Located in appropriate subdirectories (system/, navigation/)
+
+**Testing Coverage:**
+- ExQuitCommand: 7 comprehensive unit tests
+- ExGotoLineCommand: 7 comprehensive unit tests
+- All edge cases and error conditions covered
+
+**Migration Quality:**
+- Zero functional regressions
+- All existing functionality preserved
+- Modern registration eliminates merge conflicts
+- Production-ready implementation
+
+### Summary
+**MIGRATION COMPLETED SUCCESSFULLY** - Both QuitCommand (#295) and GoToLineCommand (#294) are now fully migrated to the unified command system with modern registration patterns. No separate PRs were needed as the commands were already implemented. GitHub issues closed with detailed completion documentation.
+
+---
+
 ## [2025-08-31] GitHub Issue #232 - MultiCursorTextDeleteCommand Migration Complete
 
 ### User Request Summary
