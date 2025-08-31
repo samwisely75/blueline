@@ -222,7 +222,10 @@ impl Command for GoToBottomCommand {
     }
 }
 
-/// Move to next word (w command)
+// Move to next word (w command)
+// MIGRATED: This command has been migrated to the unified command system.
+// See: src/repl/unified_commands/navigation/next_word.rs
+/*
 pub struct NextWordCommand;
 
 impl Command for NextWordCommand {
@@ -242,8 +245,12 @@ impl Command for NextWordCommand {
         "NextWord"
     }
 }
+*/
 
-/// Move to previous word (b command)
+// Move to previous word (b command)
+// MIGRATED: This command has been migrated to the unified command system.
+// See: src/repl/unified_commands/navigation/previous_word.rs
+/*
 pub struct PreviousWordCommand;
 
 impl Command for PreviousWordCommand {
@@ -263,6 +270,7 @@ impl Command for PreviousWordCommand {
         "PreviousWord"
     }
 }
+*/
 
 // Move to end of word (e command) - Migrated to unified_commands
 // pub struct EndOfWordCommand;
@@ -678,7 +686,8 @@ mod tests {
         );
     }
 
-    // Tests for NextWordCommand (w)
+    // Tests for NextWordCommand (w) - MIGRATED to unified_commands
+    /*
     #[test]
     fn next_word_should_be_relevant_for_w_in_normal_mode() {
         let context = create_test_context(EditorMode::Normal);
@@ -746,8 +755,10 @@ mod tests {
             CommandEvent::cursor_move(MovementDirection::WordForward)
         );
     }
+    */
 
-    // Tests for PreviousWordCommand (b)
+    // Tests for PreviousWordCommand (b) - MIGRATED to unified_commands
+    /*
     #[test]
     fn previous_word_should_be_relevant_for_b_in_normal_mode() {
         let context = create_test_context(EditorMode::Normal);
@@ -788,6 +799,7 @@ mod tests {
             CommandEvent::cursor_move(MovementDirection::WordBackward)
         );
     }
+    */
 
     // Tests for EndOfWordCommand (e) - Migrated to unified_commands
     // #[test]
@@ -991,6 +1003,7 @@ mod tests {
         assert!(cmd.is_relevant(&context, &event));
     }
 
+    /*
     #[test]
     fn next_word_should_be_relevant_for_w_in_visual_mode() {
         let context = create_test_context(EditorMode::Visual);
@@ -999,7 +1012,9 @@ mod tests {
 
         assert!(cmd.is_relevant(&context, &event));
     }
+    */
 
+    /*
     #[test]
     fn previous_word_should_be_relevant_for_b_in_visual_mode() {
         let context = create_test_context(EditorMode::Visual);
@@ -1008,6 +1023,7 @@ mod tests {
 
         assert!(cmd.is_relevant(&context, &event));
     }
+    */
 
     // #[test]
     // fn end_of_word_should_be_relevant_for_e_in_visual_mode() {

@@ -16,6 +16,8 @@ pub mod move_down;
 pub mod move_left;
 pub mod move_right;
 pub mod move_up;
+pub mod next_word;
+pub mod previous_word;
 pub mod scroll_left;
 pub mod scroll_right;
 
@@ -28,5 +30,7 @@ pub use move_down::*;
 pub use move_left::*;
 pub use move_right::*;
 pub use move_up::*;
+pub use next_word::*;
+pub use previous_word::*;
 pub use scroll_left::*;
 pub use scroll_right::*;
