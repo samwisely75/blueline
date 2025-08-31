@@ -37,7 +37,12 @@ impl CancelGPrefixCommand {
 }
 
 impl Command for CancelGPrefixCommand {
-    fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, _context: &CommandContext) -> bool {
+    fn is_relevant(
+        &self,
+        key_event: KeyEvent,
+        mode: EditorMode,
+        _context: &CommandContext,
+    ) -> bool {
         // Only relevant in GPrefix mode
         if mode != EditorMode::GPrefix {
             return false;
@@ -52,14 +57,36 @@ impl Command for CancelGPrefixCommand {
     }
 
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+        // Save current cursor position before mode change
+        let current_cursor = context.app_state.pane_manager.get_current_display_cursor();
+        
+        tracing::debug!(
+            "CancelGPrefixCommand: Saving cursor position {:?} before mode change",
+            current_cursor
+        );
+
         // Return to Normal mode from GPrefix mode
         context.app_state.change_mode(EditorMode::Normal)?;
 
-        tracing::debug!("CancelGPrefixCommand: Cancelled GPrefix mode, returned to Normal mode");
+        // Restore cursor position if it changed during mode transition
+        let new_cursor = context.app_state.pane_manager.get_current_display_cursor();
+        if new_cursor != current_cursor {
+            tracing::debug!(
+                "CancelGPrefixCommand: Cursor moved from {:?} to {:?}, restoring original position",
+                current_cursor,
+                new_cursor
+            );
+            
+            // Use set_current_display_cursor to restore the exact position
+            context.app_state.pane_manager.set_current_display_cursor(current_cursor.into());
+        }
+
+        tracing::debug!("CancelGPrefixCommand: Cancelled GPrefix mode, returned to Normal mode with cursor preserved");
 
         // Return appropriate PostCommandActions
         Ok(vec![
             PostCommandAction::StatusBarUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired, // Ensure cursor position is updated
         ])
     }
 
@@ -112,8 +139,7 @@ mod tests {
         for key_event in unknown_keys {
             assert!(
                 command.is_relevant(key_event, EditorMode::GPrefix, &context),
-                "Key {:?} should be relevant for canceling GPrefix mode",
-                key_event
+                "Key {key_event:?} should be relevant for canceling GPrefix mode"
             );
         }
     }
@@ -138,8 +164,7 @@ mod tests {
         for key_event in known_keys {
             assert!(
                 !command.is_relevant(key_event, EditorMode::GPrefix, &context),
-                "Key {:?} should NOT be relevant (handled by specific command)",
-                key_event
+                "Key {key_event:?} should NOT be relevant (handled by specific command)"
             );
         }
     }
@@ -180,7 +205,7 @@ mod tests {
         };
 
         let key_event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE);
-        
+
         // Should be relevant even in read-only panes for cancellation
         assert!(command.is_relevant(key_event, EditorMode::GPrefix, &context));
     }
@@ -205,10 +230,12 @@ mod tests {
 
         assert!(result.is_ok());
         let events = result.unwrap();
-        
+
         // Should return status bar update event
         assert!(!events.is_empty());
-        assert!(events.iter().any(|e| matches!(e, PostCommandAction::StatusBarUpdateRequired)));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, PostCommandAction::StatusBarUpdateRequired)));
 
         // Should have changed mode to Normal
         assert_eq!(context.app_state.get_mode(), EditorMode::Normal);
@@ -236,15 +263,14 @@ mod tests {
         for key_event in modified_keys {
             assert!(
                 command.is_relevant(key_event, EditorMode::GPrefix, &context),
-                "Modified key {:?} should be relevant for canceling GPrefix mode",
-                key_event
+                "Modified key {key_event:?} should be relevant for canceling GPrefix mode"
             );
         }
     }
 
     #[test]
     fn default_should_create_new_instance() {
-        let command = CancelGPrefixCommand::default();
+        let command = CancelGPrefixCommand;
         assert_eq!(command.name(), "CancelGPrefixCommand");
     }
 }
