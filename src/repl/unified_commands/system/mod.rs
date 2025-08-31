@@ -4,6 +4,8 @@
 //! functionality such as HTTP requests, profile management, and settings configuration.
 
 // System command implementations
+pub mod ex_quit;
+pub mod ex_quit_test;
 pub mod http;
 pub mod setting_change;
 pub mod show_profile;

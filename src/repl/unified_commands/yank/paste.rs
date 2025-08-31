@@ -142,6 +142,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let p_key = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE);
@@ -159,6 +160,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let p_key = KeyEvent::new(KeyCode::Char('P'), KeyModifiers::NONE);

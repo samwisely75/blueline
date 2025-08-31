@@ -156,6 +156,10 @@ mod tests {
             command_names.contains(&"MoveLeftCommand"),
             "Should discover MoveLeftCommand"
         );
+        assert!(
+            command_names.contains(&"ExQuitCommand"),
+            "Should discover ExQuitCommand"
+        );
     }
 
     #[test]
@@ -168,6 +172,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: true,
+            ex_command_buffer: String::new(),
         };
 
         let y_key = crossterm::event::KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
@@ -188,6 +193,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let h_key = crossterm::event::KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE);
@@ -219,6 +225,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // Test some key that no command should handle
@@ -229,6 +236,48 @@ mod tests {
             result.is_none(),
             "Should find no relevant command for F99 key"
         );
+    }
+
+    #[test]
+    fn dynamic_registry_should_find_ex_quit_command() {
+        let registry = DynamicCommandRegistry::new();
+
+        // Test Command mode with ':q' command - should find ExQuitCommand
+        let context = CommandContext {
+            current_mode: EditorMode::Command,
+            current_pane: Pane::Request,
+            is_read_only: false,
+            has_selection: false,
+            ex_command_buffer: "q".to_string(),
+        };
+
+        let enter_key = crossterm::event::KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let result = registry.process_key_event(enter_key, EditorMode::Command, &context);
+
+        assert!(
+            result.is_some(),
+            "Should find ExQuitCommand for ':q' + Enter"
+        );
+        let command = result.unwrap();
+        assert_eq!(command.name(), "ExQuitCommand");
+
+        // Test with ':q!' as well
+        let context_force = CommandContext {
+            current_mode: EditorMode::Command,
+            current_pane: Pane::Request,
+            is_read_only: false,
+            has_selection: false,
+            ex_command_buffer: "q!".to_string(),
+        };
+
+        let result_force =
+            registry.process_key_event(enter_key, EditorMode::Command, &context_force);
+        assert!(
+            result_force.is_some(),
+            "Should find ExQuitCommand for ':q!' + Enter"
+        );
+        let command_force = result_force.unwrap();
+        assert_eq!(command_force.name(), "ExQuitCommand");
     }
 
     #[test]

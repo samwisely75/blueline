@@ -62,6 +62,9 @@ pub enum ViewEvent {
 
     /// Both request and response areas need redraw (for layout changes)
     AllContentAreasRedrawRequired,
+
+    /// Application quit has been requested
+    QuitRequested,
 }
 
 /// Input events from user or system

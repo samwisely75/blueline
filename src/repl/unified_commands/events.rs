@@ -74,6 +74,9 @@ pub enum ModelEvent {
 
     /// HTTP response was received
     HttpResponseReceived { status: u16, body: String },
+
+    /// Application quit was requested
+    QuitRequested,
 }
 
 // Re-export YankType from models to avoid duplication

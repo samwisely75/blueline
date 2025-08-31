@@ -1136,6 +1136,10 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                 self.render_pane(app_state, crate::repl::models::pane_state::Pane::Request)?;
                 self.render_pane(app_state, crate::repl::models::pane_state::Pane::Response)?;
             }
+            ViewEvent::QuitRequested => {
+                // Quit requests are handled at the application level, not by the renderer
+                // No rendering action needed here
+            }
         }
         Ok(())
     }

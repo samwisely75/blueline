@@ -142,6 +142,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: true,
+            ex_command_buffer: String::new(),
         };
 
         // Test 'y' key in visual mode - should be relevant
@@ -168,6 +169,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
         let y_key = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
         assert!(!command.is_relevant(y_key, EditorMode::Normal, &context_normal));
@@ -178,6 +180,7 @@ mod tests {
             current_pane: Pane::Response,
             is_read_only: true,
             has_selection: true,
+            ex_command_buffer: String::new(),
         };
         assert!(!command.is_relevant(y_key, EditorMode::Visual, &context_readonly));
 
@@ -188,6 +191,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: true,
+            ex_command_buffer: String::new(),
         };
         assert!(!command.is_relevant(x_key, EditorMode::Visual, &context_valid));
 

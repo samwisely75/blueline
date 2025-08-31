@@ -100,6 +100,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false, // Request pane is editable
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let cmd = HttpExecuteCommand::new();
@@ -115,6 +116,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let cmd = HttpExecuteCommand::new();
@@ -130,6 +132,7 @@ mod tests {
             current_pane: Pane::Response,
             is_read_only: true, // Response pane is read-only
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let cmd = HttpExecuteCommand::new();
@@ -145,6 +148,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let cmd = HttpExecuteCommand::new();

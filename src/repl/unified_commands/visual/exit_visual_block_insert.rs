@@ -113,6 +113,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: true,
+            ex_command_buffer: String::new(),
         };
 
         // Test Escape key in VisualBlockInsert mode - should be relevant
@@ -130,6 +131,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
         let escape_key = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         assert!(!command.is_relevant(escape_key, EditorMode::Normal, &context_normal));
@@ -140,6 +142,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: true,
+            ex_command_buffer: String::new(),
         };
         assert!(!command.is_relevant(escape_key, EditorMode::Visual, &context_visual));
 
@@ -149,6 +152,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
         assert!(!command.is_relevant(escape_key, EditorMode::Insert, &context_insert));
 
@@ -159,6 +163,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: true,
+            ex_command_buffer: String::new(),
         };
         assert!(!command.is_relevant(enter_key, EditorMode::VisualBlockInsert, &context_vbi));
 

@@ -108,6 +108,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // Test in Normal mode
@@ -128,6 +129,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         assert!(command.is_relevant(key_event, EditorMode::Normal, &context));
@@ -142,6 +144,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         assert!(command.is_relevant(key_event, EditorMode::Normal, &context));
@@ -155,6 +158,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // Test Shift+Left (used for selection/scrolling)
@@ -175,6 +179,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // 'h' key should not work in non-movement modes (Vim behavior)
@@ -192,6 +197,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // Left arrow should work in all modes (standard editor behavior)
@@ -210,6 +216,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // Test other movement keys
@@ -250,6 +257,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // Test 'h' with various modifiers - should not be relevant
@@ -279,6 +287,7 @@ mod tests {
             current_pane: Pane::Response,
             is_read_only: true,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // Movement should work in read-only panes (unlike editing commands)

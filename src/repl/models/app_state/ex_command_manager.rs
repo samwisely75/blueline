@@ -40,14 +40,6 @@ impl AppState {
 
         // Handle ex commands
         match command.as_str() {
-            "q" => {
-                // Quit the application
-                events.push(CommandEvent::QuitRequested);
-            }
-            "q!" => {
-                // Force quit the application
-                events.push(CommandEvent::QuitRequested);
-            }
             "set wrap on" => {
                 // Enable word wrap
                 self.pane_manager.set_wrap_enabled(true);

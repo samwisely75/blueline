@@ -156,7 +156,39 @@ grep "pub mod [your_command_name];" src/repl/unified_commands/mod.rs
 
 This is the **silver bullet** - true zero-conflict parallel development! 🎯
 
-#### D. Remove Old AppViewModel Method
+#### D. Special Case: Ex Commands
+
+For ex commands (commands starting with `:` like `:q`, `:w`, `:set`), follow these additional conventions:
+
+**Naming Convention:**
+- Use "Ex" prefix: `ExQuitCommand` for `:q`, `ExWriteCommand` for `:w`
+- File name: `ex_[command].rs` (e.g., `ex_quit.rs`, `ex_write.rs`)
+
+**Implementation Pattern:**
+```rust
+impl Command for ExQuitCommand {
+    fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool {
+        // Check for Enter key in Command mode AND examine ex_command_buffer
+        key_event.code == KeyCode::Enter 
+            && mode == EditorMode::Command
+            && matches!(context.ex_command_buffer.trim(), "q" | "q!")
+    }
+    
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+        // Access the full command via context.app_state.get_ex_command_buffer()
+        // Clear buffer and exit command mode
+        // Process the ex command logic
+    }
+}
+```
+
+**Key Design Points:**
+- Ex commands check `context.ex_command_buffer` in `is_relevant()` 
+- Only one ex command should match any given buffer content
+- Commands automatically clear buffer and exit command mode
+- Use pattern matching for command variants (e.g., `"q" | "q!"`)
+
+#### E. Remove Old AppViewModel Method
 
 ```rust
 // In src/repl/view_models/app_view_model.rs
@@ -239,6 +271,7 @@ Migrates \`handle_[method_name]\` to the new unified command system.
 4. **Run Precheck Script**: `./scripts/git-commit-precheck.sh` before every commit
 5. **Proper Error Handling**: Use Result types and proper error propagation
 6. **Formatting Guidelines**: Use embedded expressions like `format!("Hello, {name}")`
+7. **Ex Command Naming**: Use "Ex" prefix for ex commands (e.g., `ExQuitCommand` for `:q`)
 
 ### Testing Strategy
 

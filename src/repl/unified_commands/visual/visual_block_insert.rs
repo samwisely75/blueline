@@ -152,6 +152,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: true,
+            ex_command_buffer: String::new(),
         };
 
         // Test uppercase 'I' key in Visual Block mode - should be relevant
@@ -179,6 +180,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
         let i_key = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::NONE);
         assert!(!command.is_relevant(i_key, EditorMode::Normal, &context_normal));
@@ -189,6 +191,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: true,
+            ex_command_buffer: String::new(),
         };
         assert!(!command.is_relevant(i_key, EditorMode::Visual, &context_visual));
 
@@ -198,6 +201,7 @@ mod tests {
             current_pane: Pane::Response,
             is_read_only: true,
             has_selection: true,
+            ex_command_buffer: String::new(),
         };
         assert!(!command.is_relevant(i_key, EditorMode::VisualBlock, &context_readonly));
 
@@ -208,6 +212,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: true,
+            ex_command_buffer: String::new(),
         };
         assert!(!command.is_relevant(a_key, EditorMode::VisualBlock, &context_valid));
 

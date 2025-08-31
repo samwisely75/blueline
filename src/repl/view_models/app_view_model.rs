@@ -881,6 +881,9 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                     needs_current_area_redraw = true;
                     needs_secondary_area_redraw = true;
                 }
+                ViewEvent::QuitRequested => {
+                    self.should_quit = true;
+                }
             }
         }
 

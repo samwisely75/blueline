@@ -21,23 +21,6 @@ pub trait ExCommand: Send {
     fn name(&self) -> &'static str;
 }
 
-/// Quit command handler (for :q and :q!)
-pub struct QuitCommand;
-
-impl ExCommand for QuitCommand {
-    fn can_handle(&self, command: &str) -> bool {
-        command == "q" || command == "q!"
-    }
-
-    fn execute(&self, _command: &str, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::QuitRequested])
-    }
-
-    fn name(&self) -> &'static str {
-        "QuitCommand"
-    }
-}
-
 /// Set wrap command handler (for :set wrap on/off)
 pub struct SetWrapCommand;
 
@@ -265,7 +248,6 @@ impl ExCommandRegistry {
     /// Create a new ex command registry with all default commands
     pub fn new() -> Self {
         let commands: ExCommandCollection = vec![
-            Box::new(QuitCommand),
             Box::new(SetWrapCommand),
             Box::new(SetNumberCommand),
             Box::new(SetClipboardCommand),
@@ -331,23 +313,6 @@ mod tests {
                 tab_width: 4,
             },
         }
-    }
-
-    #[test]
-    fn quit_command_should_handle_q() {
-        let cmd = QuitCommand;
-        assert!(cmd.can_handle("q"));
-        assert!(cmd.can_handle("q!"));
-        assert!(!cmd.can_handle("quit"));
-    }
-
-    #[test]
-    fn quit_command_should_produce_quit_event() {
-        let cmd = QuitCommand;
-        let context = create_test_context();
-        let result = cmd.execute("q", &context).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], CommandEvent::QuitRequested);
     }
 
     #[test]
@@ -460,10 +425,6 @@ mod tests {
     fn registry_should_execute_known_commands() {
         let registry = ExCommandRegistry::new();
         let context = create_test_context();
-
-        let result = registry.execute_command("q", &context).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], CommandEvent::QuitRequested);
 
         let result = registry.execute_command("show profile", &context).unwrap();
         assert_eq!(result.len(), 1);

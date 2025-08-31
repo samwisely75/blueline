@@ -114,6 +114,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         assert!(command.is_relevant(key_event, EditorMode::Normal, &context));
@@ -128,6 +129,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // lowercase p should not be relevant for PasteAtCursorCommand
@@ -143,6 +145,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // Should not work in Insert mode
@@ -164,6 +167,7 @@ mod tests {
             current_pane: Pane::Response,
             is_read_only: true,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // Should not work in read-only panes
@@ -178,6 +182,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // Test 'P' with various modifiers - should not be relevant
@@ -206,6 +211,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         // Test other keys

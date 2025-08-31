@@ -113,6 +113,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let d_key = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE);
@@ -127,6 +128,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let d_key = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE);
@@ -141,6 +143,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let d_key = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE);
@@ -155,6 +158,7 @@ mod tests {
             current_pane: Pane::Response,
             is_read_only: true,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let d_key = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE);
@@ -169,6 +173,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let d_key_ctrl = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
@@ -183,6 +188,7 @@ mod tests {
             current_pane: Pane::Request,
             is_read_only: false,
             has_selection: false,
+            ex_command_buffer: String::new(),
         };
 
         let x_key = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE);

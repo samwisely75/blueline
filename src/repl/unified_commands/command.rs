@@ -65,6 +65,8 @@ pub struct CommandContext {
     pub is_read_only: bool,
     /// Whether there's an active visual selection
     pub has_selection: bool,
+    /// Current ex command buffer content
+    pub ex_command_buffer: String,
 }
 
 impl CommandContext {
@@ -75,6 +77,19 @@ impl CommandContext {
             current_pane: app_state.get_current_pane(),
             is_read_only: app_state.is_in_response_pane(), // Response pane is read-only
             has_selection: app_state.get_selected_text().is_some(),
+            ex_command_buffer: app_state.get_ex_command_buffer().to_string(),
+        }
+    }
+
+    /// Create test CommandContext with default values
+    #[cfg(test)]
+    pub fn test_default() -> Self {
+        Self {
+            current_mode: EditorMode::Normal,
+            current_pane: Pane::Request,
+            is_read_only: false,
+            has_selection: false,
+            ex_command_buffer: String::new(),
         }
     }
 }
