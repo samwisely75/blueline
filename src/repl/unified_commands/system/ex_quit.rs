@@ -3,9 +3,9 @@
 //! Handles `:q` and `:q!` ex commands for quitting the application.
 //! This demonstrates the unified command system approach for ex commands.
 
-use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 

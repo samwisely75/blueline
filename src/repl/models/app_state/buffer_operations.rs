@@ -15,9 +15,9 @@
 
 use super::AppState;
 use crate::repl::models::buffer::{YankEntry, YankType};
-use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::models::LogicalPosition;
+use crate::repl::view_models::PostCommandAction;
 use anyhow::Result;
 
 /// Type alias for selection text with its yank type

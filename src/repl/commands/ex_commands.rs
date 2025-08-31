@@ -49,75 +49,6 @@ impl ExCommand for SetWrapCommand {
     }
 }
 
-/// Set line numbers command handler (for :set number on/off)
-pub struct SetNumberCommand;
-
-impl ExCommand for SetNumberCommand {
-    fn can_handle(&self, command: &str) -> bool {
-        command == "set number on" || command == "set number off"
-    }
-
-    fn execute(&self, command: &str, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        let enable = command == "set number on";
-
-        Ok(vec![CommandEvent::SettingChangeRequested {
-            setting: Setting::LineNumbers,
-            value: if enable {
-                SettingValue::On
-            } else {
-                SettingValue::Off
-            },
-        }])
-    }
-
-    fn name(&self) -> &'static str {
-        "SetNumberCommand"
-    }
-}
-
-/// Set clipboard integration command handler (for :set clipboard on/off)
-pub struct SetClipboardCommand;
-
-impl ExCommand for SetClipboardCommand {
-    fn can_handle(&self, command: &str) -> bool {
-        command == "set clipboard on" || command == "set clipboard off"
-    }
-
-    fn execute(&self, command: &str, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        let enable = command == "set clipboard on";
-
-        Ok(vec![CommandEvent::SettingChangeRequested {
-            setting: Setting::Clipboard,
-            value: if enable {
-                SettingValue::On
-            } else {
-                SettingValue::Off
-            },
-        }])
-    }
-
-    fn name(&self) -> &'static str {
-        "SetClipboardCommand"
-    }
-}
-
-/// Show profile command handler (for :show profile)
-pub struct ShowProfileCommand;
-
-impl ExCommand for ShowProfileCommand {
-    fn can_handle(&self, command: &str) -> bool {
-        command == "show profile"
-    }
-
-    fn execute(&self, _command: &str, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::ShowProfileRequested])
-    }
-
-    fn name(&self) -> &'static str {
-        "ShowProfileCommand"
-    }
-}
-
 /// Set tabstop command handler (for :set tabstop <number>)
 pub struct SetTabstopCommand;
 
@@ -151,32 +82,6 @@ impl ExCommand for SetTabstopCommand {
 
     fn name(&self) -> &'static str {
         "SetTabstopCommand"
-    }
-}
-
-/// Set expandtab command handler (for :set expandtab on/off)
-pub struct SetExpandTabCommand;
-
-impl ExCommand for SetExpandTabCommand {
-    fn can_handle(&self, command: &str) -> bool {
-        command == "set expandtab on" || command == "set expandtab off"
-    }
-
-    fn execute(&self, command: &str, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        let enable = command == "set expandtab on";
-
-        Ok(vec![CommandEvent::SettingChangeRequested {
-            setting: Setting::ExpandTab,
-            value: if enable {
-                SettingValue::On
-            } else {
-                SettingValue::Off
-            },
-        }])
-    }
-
-    fn name(&self) -> &'static str {
-        "SetExpandTabCommand"
     }
 }
 
@@ -249,13 +154,8 @@ impl ExCommandRegistry {
     pub fn new() -> Self {
         let commands: ExCommandCollection = vec![
             Box::new(SetWrapCommand),
-            Box::new(SetNumberCommand),
-            Box::new(SetClipboardCommand),
             Box::new(SetTabstopCommand),
-            Box::new(SetExpandTabCommand),
             Box::new(SetDCutCommand),
-            Box::new(ShowProfileCommand),
-            Box::new(GoToLineCommand),
         ];
 
         Self { commands }
@@ -316,14 +216,6 @@ mod tests {
     }
 
     #[test]
-    fn set_wrap_command_should_handle_wrap_settings() {
-        let cmd = SetWrapCommand;
-        assert!(cmd.can_handle("set wrap on"));
-        assert!(cmd.can_handle("set wrap off"));
-        assert!(!cmd.can_handle("set wrap"));
-    }
-
-    #[test]
     fn set_tabstop_command_should_handle_tabstop_settings() {
         let cmd = SetTabstopCommand;
         assert!(cmd.can_handle("set tabstop 4"));
@@ -361,74 +253,19 @@ mod tests {
     }
 
     #[test]
-    fn set_expandtab_command_should_handle_expandtab_settings() {
-        let cmd = SetExpandTabCommand;
-        assert!(cmd.can_handle("set expandtab on"));
-        assert!(cmd.can_handle("set expandtab off"));
-        assert!(!cmd.can_handle("set expandtab"));
-        assert!(!cmd.can_handle("set expandtab yes"));
-    }
-
-    #[test]
-    fn set_expandtab_command_should_produce_setting_change_event() {
-        let cmd = SetExpandTabCommand;
-        let context = create_test_context();
-
-        // Test enabling expandtab
-        let result = cmd.execute("set expandtab on", &context).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(
-            result[0],
-            CommandEvent::SettingChangeRequested {
-                setting: Setting::ExpandTab,
-                value: SettingValue::On,
-            }
-        );
-
-        // Test disabling expandtab
-        let result = cmd.execute("set expandtab off", &context).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(
-            result[0],
-            CommandEvent::SettingChangeRequested {
-                setting: Setting::ExpandTab,
-                value: SettingValue::Off,
-            }
-        );
-    }
-
-    #[test]
-    fn goto_line_command_should_handle_numbers() {
-        let cmd = GoToLineCommand;
-        assert!(cmd.can_handle("42"));
-        assert!(cmd.can_handle("1"));
-        assert!(!cmd.can_handle("abc"));
-        assert!(!cmd.can_handle(""));
-    }
-
-    #[test]
-    fn goto_line_command_should_produce_cursor_move_event() {
-        let cmd = GoToLineCommand;
-        let context = create_test_context();
-        let result = cmd.execute("58", &context).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(
-            result[0],
-            CommandEvent::CursorMoveRequested {
-                direction: MovementDirection::LineNumber(58),
-                amount: 1,
-            }
-        );
-    }
-
-    #[test]
     fn registry_should_execute_known_commands() {
         let registry = ExCommandRegistry::new();
         let context = create_test_context();
 
-        let result = registry.execute_command("show profile", &context).unwrap();
+        let result = registry.execute_command("set number on", &context).unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0], CommandEvent::ShowProfileRequested);
+        assert_eq!(
+            result[0],
+            CommandEvent::SettingChangeRequested {
+                setting: Setting::LineNumbers,
+                value: SettingValue::On,
+            }
+        );
     }
 
     #[test]

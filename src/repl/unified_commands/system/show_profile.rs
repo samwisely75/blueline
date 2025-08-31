@@ -5,9 +5,9 @@
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
-use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 
 /// Command to show current profile information
 ///
@@ -109,7 +109,10 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], PostCommandAction::StatusBarUpdateRequired));
+        assert!(matches!(
+            events[0],
+            PostCommandAction::StatusBarUpdateRequired
+        ));
 
         // Verify status message was set (it will contain default profile info)
         // The actual message content is tested in AppState tests

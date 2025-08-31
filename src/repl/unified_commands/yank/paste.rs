@@ -7,8 +7,8 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::repl::{
     models::pane_state::EditorMode,
-    view_models::post_command_actions::PostCommandAction,
     unified_commands::{Command, CommandContext, ExecutionContext},
+    view_models::post_command_actions::PostCommandAction,
 };
 
 /// Paste command - pastes text after cursor (p command)

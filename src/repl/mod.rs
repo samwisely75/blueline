@@ -19,9 +19,9 @@ pub use views::*;
 pub use io::event_source::EventSource;
 pub use io::terminal_event_source::TerminalEventSource;
 pub use models::events::{EventBus, ModelEvent, SimpleEventBus};
-pub use view_models::{InputEvent, PostCommandAction};
 pub use models::pane_state::{EditorMode, Pane, PaneCapabilities};
 pub use models::{LogicalPosition, LogicalRange};
+pub use view_models::{InputEvent, PostCommandAction};
 
 // Re-export specific items from commands to avoid conflicts
 pub use commands::{AppStateSnapshot, Command, CommandContext, CommandEvent, CommandRegistry};

@@ -7,10 +7,10 @@ use anyhow::Result;
 use crossterm::event::KeyEvent;
 
 use crate::repl::{
-    view_models::post_command_actions::PostCommandAction,
     models::pane_state::{EditorMode, Pane},
     models::AppState,
     services::Services,
+    view_models::post_command_actions::PostCommandAction,
 };
 
 /// Command trait for the new Command Pattern architecture

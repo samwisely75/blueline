@@ -33,10 +33,10 @@
 //! 5. Settings Management: Handles display settings (wrap, line numbers, tab width) that affect all panes
 
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, Pane, PaneCapabilities};
 use crate::repl::models::pane_state::{PaneState, VisualSelectionRestoreResult};
 use crate::repl::models::LogicalPosition;
+use crate::repl::view_models::PostCommandAction;
 
 /// Type alias for visual selection state to reduce complexity
 type VisualSelectionState = (
@@ -535,7 +535,10 @@ impl PaneManager {
     }
 
     /// Ensure cursor is visible in current area
-    pub fn ensure_current_cursor_visible(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn ensure_current_cursor_visible(
+        &mut self,
+        content_width: usize,
+    ) -> Vec<PostCommandAction> {
         let result = self.panes[self.current_pane].ensure_cursor_visible(content_width);
 
         if result.vertical_changed || result.horizontal_changed {
@@ -693,7 +696,10 @@ impl PaneManager {
     }
 
     /// Set cursor position in current area
-    pub fn set_current_cursor_position(&mut self, position: LogicalPosition) -> Vec<PostCommandAction> {
+    pub fn set_current_cursor_position(
+        &mut self,
+        position: LogicalPosition,
+    ) -> Vec<PostCommandAction> {
         self.panes[self.current_pane].set_current_cursor_position(position)
     }
 
@@ -787,7 +793,11 @@ impl PaneManager {
     }
 
     /// Handle horizontal scrolling in current area
-    pub fn scroll_current_horizontally(&mut self, direction: i32, amount: usize) -> Vec<PostCommandAction> {
+    pub fn scroll_current_horizontally(
+        &mut self,
+        direction: i32,
+        amount: usize,
+    ) -> Vec<PostCommandAction> {
         let result = self.panes[self.current_pane].scroll_horizontally(direction, amount);
 
         let mut events = vec![PostCommandAction::CurrentAreaScrollChanged {

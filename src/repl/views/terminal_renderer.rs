@@ -4,9 +4,9 @@
 //! They subscribe to view events and update the display accordingly.
 
 use crate::repl::io::RenderStream;
-use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::AppState;
+use crate::repl::view_models::PostCommandAction;
 use anyhow::Result;
 // Import ANSI escape codes from the separate module
 use super::ansi_escape_codes as ansi;

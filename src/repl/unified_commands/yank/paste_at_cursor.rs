@@ -7,9 +7,9 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
-use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 
 /// Command to paste yanked text at current cursor position
 ///

@@ -3,7 +3,7 @@
 //! Handles ex command buffer operations and command execution.
 
 use super::AppState;
-use crate::repl::commands::{CommandEvent, MovementDirection};
+use crate::repl::commands::CommandEvent;
 use crate::repl::view_models::PostCommandAction;
 use anyhow::Result;
 
@@ -33,67 +33,25 @@ impl AppState {
         let _ = self.emit_view_event([PostCommandAction::StatusBarUpdateRequired]);
     }
 
+    /// Set the ex command buffer
+    pub fn set_ex_command_buffer(&mut self, content: String) {
+        self.status_line.set_command_buffer(content);
+        let _ = self.emit_view_event([PostCommandAction::StatusBarUpdateRequired]);
+    }
+
     /// Execute ex command and return resulting command events
     pub fn execute_ex_command(&mut self) -> Result<Vec<CommandEvent>> {
         let command = self.status_line.command_buffer().trim().to_string();
-        let mut events = Vec::new();
+        let events = Vec::new();
 
         // Handle ex commands
         match command.as_str() {
-            "set wrap on" => {
-                // Enable word wrap
-                self.pane_manager.set_wrap_enabled(true);
-                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![PostCommandAction::FullRedrawRequired];
-                events.extend(visibility_events);
-                let _ = self.emit_view_event(events);
-            }
-            "set wrap off" => {
-                // Disable word wrap
-                self.pane_manager.set_wrap_enabled(false);
-                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![PostCommandAction::FullRedrawRequired];
-                events.extend(visibility_events);
-                let _ = self.emit_view_event(events);
-            }
-            "set number on" => {
-                // Enable line numbers
-                self.pane_manager.set_line_numbers_visible(true);
-                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![PostCommandAction::FullRedrawRequired];
-                events.extend(visibility_events);
-                let _ = self.emit_view_event(events);
-            }
-            "set number off" => {
-                // Disable line numbers
-                self.pane_manager.set_line_numbers_visible(false);
-                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![PostCommandAction::FullRedrawRequired];
-                events.extend(visibility_events);
-                let _ = self.emit_view_event(events);
-            }
-            "show profile" => {
-                // Show profile information in status bar
-                events.push(CommandEvent::ShowProfileRequested);
-            }
             "" => {
                 // Empty command, just exit command mode
             }
             _ => {
-                // Check if it's a line number command (:<number>)
-                if let Ok(line_number) = command.parse::<usize>() {
-                    if line_number > 0 {
-                        events.push(CommandEvent::CursorMoveRequested {
-                            direction: MovementDirection::LineNumber(line_number),
-                            amount: 1,
-                        });
-                    } else {
-                        tracing::warn!("Invalid line number: {}", line_number);
-                    }
-                } else {
-                    // Unknown command - could emit an error event in future
-                    tracing::warn!("Unknown ex command: {}", command);
-                }
+                // Unknown command - could emit an error event in future
+                tracing::warn!("Unknown ex command: {}", command);
             }
         }
 

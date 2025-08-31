@@ -3,8 +3,8 @@
 //! Commands for executing HTTP requests using the unified command pattern.
 
 use crate::register_command;
-use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -178,7 +178,10 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1); // StatusBarUpdateRequired
-        assert!(matches!(events[0], PostCommandAction::StatusBarUpdateRequired));
+        assert!(matches!(
+            events[0],
+            PostCommandAction::StatusBarUpdateRequired
+        ));
     }
 }
 

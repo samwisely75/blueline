@@ -7,9 +7,9 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
 use crate::repl::models::buffer::yank_buffer::YankType;
-use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 
 /// Command to cut (yank and delete) the current visual selection
 ///
@@ -230,7 +230,10 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], PostCommandAction::StatusBarUpdateRequired));
+        assert!(matches!(
+            events[0],
+            PostCommandAction::StatusBarUpdateRequired
+        ));
     }
 
     #[test]

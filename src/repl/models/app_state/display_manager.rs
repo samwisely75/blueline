@@ -6,9 +6,9 @@
 use super::core::DisplayLineData;
 use super::AppState;
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::Pane;
 use crate::repl::models::DisplayCache;
+use crate::repl::view_models::PostCommandAction;
 
 impl AppState {
     /// Get display cache for a specific pane

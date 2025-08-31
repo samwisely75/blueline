@@ -9,11 +9,11 @@
 
 use super::PaneManager;
 use crate::repl::models::events::{EventBus, ModelEvent};
-use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::{
     ClipboardYankBuffer, LogicalPosition, MemoryYankBuffer, ResponseModel, StatusLine, YankBuffer,
 };
+use crate::repl::view_models::PostCommandAction;
 use std::collections::HashMap;
 
 /// Type alias for event bus option to reduce complexity

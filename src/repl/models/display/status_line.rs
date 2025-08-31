@@ -117,6 +117,11 @@ impl StatusLine {
         self.command_buffer.clear();
     }
 
+    /// Set the command buffer content
+    pub fn set_command_buffer(&mut self, content: String) {
+        self.command_buffer = content;
+    }
+
     /// Get the command buffer and clear it
     pub fn take_command_buffer(&mut self) -> String {
         std::mem::take(&mut self.command_buffer)

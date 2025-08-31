@@ -7,8 +7,8 @@
 //! - Virtual column management for Vim-style navigation
 
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
+use crate::repl::view_models::PostCommandAction;
 
 use super::PaneState;
 
@@ -301,7 +301,10 @@ impl PaneState {
     }
 
     /// Set cursor to specific position with capability checking
-    pub fn set_current_cursor_position(&mut self, position: LogicalPosition) -> Vec<PostCommandAction> {
+    pub fn set_current_cursor_position(
+        &mut self,
+        position: LogicalPosition,
+    ) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane

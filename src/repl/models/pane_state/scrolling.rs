@@ -7,8 +7,8 @@
 //! - Mode-aware scrolling behavior
 
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
+use crate::repl::view_models::PostCommandAction;
 
 use super::{CursorMoveResult, PaneState, ScrollAdjustResult, ScrollResult};
 
@@ -265,7 +265,10 @@ impl PaneState {
     }
 
     /// Ensure cursor is visible and return view events (wrapper around ensure_cursor_visible)
-    pub fn ensure_cursor_visible_with_events(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn ensure_cursor_visible_with_events(
+        &mut self,
+        content_width: usize,
+    ) -> Vec<PostCommandAction> {
         let result = self.ensure_cursor_visible(content_width);
 
         if result.vertical_changed || result.horizontal_changed {

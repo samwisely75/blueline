@@ -8,9 +8,9 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
-use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 
 /// Command to exit Visual Block Insert mode
 ///
@@ -202,9 +202,18 @@ mod tests {
 
         // Check that proper events are emitted
         assert_eq!(events.len(), 3, "Should emit 3 view events");
-        assert!(matches!(events[0], PostCommandAction::CurrentAreaRedrawRequired));
-        assert!(matches!(events[1], PostCommandAction::StatusBarUpdateRequired));
-        assert!(matches!(events[2], PostCommandAction::ActiveCursorUpdateRequired));
+        assert!(matches!(
+            events[0],
+            PostCommandAction::CurrentAreaRedrawRequired
+        ));
+        assert!(matches!(
+            events[1],
+            PostCommandAction::StatusBarUpdateRequired
+        ));
+        assert!(matches!(
+            events[2],
+            PostCommandAction::ActiveCursorUpdateRequired
+        ));
 
         // Check that mode changed to Normal
         assert_eq!(

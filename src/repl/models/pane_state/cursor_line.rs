@@ -7,8 +7,8 @@
 //! - Append mode positioning
 
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
+use crate::repl::view_models::PostCommandAction;
 
 use super::PaneState;
 
@@ -54,7 +54,10 @@ impl PaneState {
 
     /// Move cursor to end of current line for append (A command) with capability checking
     /// This positions the cursor AFTER the last character for insert mode
-    pub fn move_cursor_to_line_end_for_append(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_line_end_for_append(
+        &mut self,
+        content_width: usize,
+    ) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -164,7 +167,10 @@ impl PaneState {
     }
 
     /// Move cursor to start of document with capability checking
-    pub fn move_cursor_to_document_start(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_document_start(
+        &mut self,
+        content_width: usize,
+    ) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane

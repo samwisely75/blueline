@@ -7,8 +7,8 @@
 //! - Support for Japanese and multi-byte character word boundaries
 
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
+use crate::repl::view_models::PostCommandAction;
 
 use super::{OptionalPosition, PaneState};
 

@@ -8,9 +8,9 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
-use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition};
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 
 /// Command to change (delete and replace) the current visual block selection
 ///
@@ -266,7 +266,10 @@ mod tests {
 
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], PostCommandAction::StatusBarUpdateRequired));
+        assert!(matches!(
+            events[0],
+            PostCommandAction::StatusBarUpdateRequired
+        ));
 
         // Verify error message was set
         assert_eq!(

@@ -9,8 +9,8 @@
 use super::{EditorMode, PaneCapabilities};
 use crate::repl::models::coordinates::geometry::Position;
 use crate::repl::models::events::ModelEvent;
-use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::{LogicalPosition, LogicalRange};
+use crate::repl::view_models::PostCommandAction;
 
 use super::PaneState;
 
