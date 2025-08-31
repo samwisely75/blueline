@@ -8,7 +8,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::register_command;
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::models::LogicalPosition;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
@@ -21,7 +21,7 @@ use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 /// 3. Creates cursor positions for all lines in the block
 /// 4. Sets up multi-cursor state for Visual Block Insert mode
 /// 5. Switches to VisualBlockInsert mode
-/// 6. Emits ViewEvents for UI updates
+/// 6. Emits PostCommandActions for UI updates
 #[derive(Default)]
 pub struct VisualBlockInsertCommand;
 
@@ -47,7 +47,7 @@ impl Command for VisualBlockInsertCommand {
             )
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Verify we're in Visual Block mode
         let current_mode = context.app_state.get_mode();
         if current_mode != EditorMode::VisualBlock {
@@ -55,7 +55,7 @@ impl Command for VisualBlockInsertCommand {
             context.app_state.set_status_message(
                 "Visual Block Insert only supported in Visual Block mode".to_string(),
             );
-            return Ok(vec![ViewEvent::StatusBarUpdateRequired]);
+            return Ok(vec![PostCommandAction::StatusBarUpdateRequired]);
         }
 
         // Get the visual selection coordinates
@@ -66,7 +66,7 @@ impl Command for VisualBlockInsertCommand {
                 context
                     .app_state
                     .set_status_message("Visual selection is not in current pane".to_string());
-                return Ok(vec![ViewEvent::StatusBarUpdateRequired]);
+                return Ok(vec![PostCommandAction::StatusBarUpdateRequired]);
             }
 
             // Calculate the block boundaries
@@ -110,9 +110,9 @@ impl Command for VisualBlockInsertCommand {
 
             // Return view events for UI updates
             Ok(vec![
-                ViewEvent::CurrentAreaRedrawRequired,
-                ViewEvent::StatusBarUpdateRequired,
-                ViewEvent::ActiveCursorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
+                PostCommandAction::StatusBarUpdateRequired,
+                PostCommandAction::ActiveCursorUpdateRequired,
             ])
         } else {
             tracing::warn!("No visual block selection found");
@@ -120,7 +120,7 @@ impl Command for VisualBlockInsertCommand {
                 .app_state
                 .set_status_message("No visual block selection".to_string());
 
-            Ok(vec![ViewEvent::StatusBarUpdateRequired])
+            Ok(vec![PostCommandAction::StatusBarUpdateRequired])
         }
     }
 
@@ -240,7 +240,7 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
+        assert!(matches!(events[0], PostCommandAction::StatusBarUpdateRequired));
     }
 
     #[test]
@@ -271,7 +271,7 @@ mod tests {
         assert!(!events.is_empty());
         let has_status_update = events
             .iter()
-            .any(|e| matches!(e, ViewEvent::StatusBarUpdateRequired));
+            .any(|e| matches!(e, PostCommandAction::StatusBarUpdateRequired));
         assert!(
             has_status_update,
             "Should have at least one StatusBarUpdateRequired event"

@@ -6,7 +6,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
@@ -38,7 +38,7 @@ impl Command for DeleteSelectionCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // First, check if dcut is enabled (delete should also yank)
         if context.app_state.is_dcut_enabled() {
             // Get selection text and type before deleting
@@ -68,8 +68,8 @@ impl Command for DeleteSelectionCommand {
 
             // Return view events for UI updates
             Ok(vec![
-                ViewEvent::CurrentAreaRedrawRequired,
-                ViewEvent::StatusBarUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
+                PostCommandAction::StatusBarUpdateRequired,
             ])
         } else {
             tracing::warn!("No text selected for deletion");
@@ -77,7 +77,7 @@ impl Command for DeleteSelectionCommand {
                 .app_state
                 .set_status_message("No text selected".to_string());
 
-            Ok(vec![ViewEvent::StatusBarUpdateRequired])
+            Ok(vec![PostCommandAction::StatusBarUpdateRequired])
         }
     }
 
@@ -213,7 +213,7 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
+        assert!(matches!(events[0], PostCommandAction::StatusBarUpdateRequired));
     }
 
     #[test]

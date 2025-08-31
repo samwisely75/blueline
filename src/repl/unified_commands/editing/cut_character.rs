@@ -7,7 +7,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
 use crate::repl::models::buffer::yank_buffer::YankType;
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
@@ -35,7 +35,7 @@ impl Command for CutCharacterCommand {
             && context.current_pane == crate::repl::models::pane_state::Pane::Request
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Only allow in Request pane and Normal mode (double-check)
         if !context.app_state.is_in_request_pane() || context.app_state.mode() != EditorMode::Normal
         {
@@ -61,10 +61,10 @@ impl Command for CutCharacterCommand {
 
             // Return view events for UI updates
             Ok(vec![
-                ViewEvent::RequestContentChanged,
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired,
-                ViewEvent::StatusBarUpdateRequired,
+                PostCommandAction::RequestContentChanged,
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
+                PostCommandAction::StatusBarUpdateRequired,
             ])
         } else {
             // No character to cut at cursor position - don't update anything

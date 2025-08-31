@@ -10,12 +10,12 @@
 //! ARCHITECTURAL PATTERN:
 //! - Operations validate mode and pane context before execution
 //! - All changes go through PaneManager for proper event emission
-//! - ViewEvents are emitted for selective rendering optimization
+//! - PostCommandActions are emitted for selective rendering optimization
 //! - Character-by-character processing maintains semantic consistency
 
 use super::AppState;
 use crate::repl::models::buffer::{YankEntry, YankType};
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::models::LogicalPosition;
 use anyhow::Result;
@@ -395,9 +395,9 @@ impl AppState {
 
             // Emit view events for display update
             self.emit_view_event(vec![
-                ViewEvent::RequestContentChanged,
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired,
+                PostCommandAction::RequestContentChanged,
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
             ])?;
         }
 
@@ -420,9 +420,9 @@ impl AppState {
 
             // Emit view events for display update
             self.emit_view_event(vec![
-                ViewEvent::RequestContentChanged,
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired,
+                PostCommandAction::RequestContentChanged,
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
             ])?;
         }
 
@@ -447,9 +447,9 @@ impl AppState {
 
             // Emit view events for display update
             self.emit_view_event(vec![
-                ViewEvent::RequestContentChanged,
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired,
+                PostCommandAction::RequestContentChanged,
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
             ])?;
         }
 

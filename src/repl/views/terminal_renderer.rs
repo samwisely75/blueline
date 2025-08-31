@@ -4,7 +4,7 @@
 //! They subscribe to view events and update the display accordingly.
 
 use crate::repl::io::RenderStream;
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::AppState;
 use anyhow::Result;
@@ -110,7 +110,7 @@ pub trait ViewRenderer {
     fn render_position_indicator(&mut self, app_state: &AppState) -> Result<()>;
 
     /// Handle view events
-    fn handle_view_event(&mut self, event: &ViewEvent, app_state: &AppState) -> Result<()>;
+    fn handle_view_event(&mut self, event: &PostCommandAction, app_state: &AppState) -> Result<()>;
 
     /// Cleanup terminal on exit
     fn cleanup(&mut self) -> Result<()>;
@@ -186,7 +186,7 @@ pub trait ViewRenderer {
     /// Handle view events using AppState
     fn handle_view_event_from_state(
         &mut self,
-        _event: &ViewEvent,
+        _event: &PostCommandAction,
         _app_state: &crate::repl::models::app_state::AppState,
     ) -> Result<()> {
         Err(anyhow::anyhow!(
@@ -1045,16 +1045,16 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
         Ok(())
     }
 
-    fn handle_view_event(&mut self, event: &ViewEvent, app_state: &AppState) -> Result<()> {
+    fn handle_view_event(&mut self, event: &PostCommandAction, app_state: &AppState) -> Result<()> {
         match event {
-            ViewEvent::FullRedrawRequired => {
+            PostCommandAction::FullRedrawRequired => {
                 self.render_full(app_state)?;
             }
-            ViewEvent::CurrentAreaRedrawRequired => {
+            PostCommandAction::CurrentAreaRedrawRequired => {
                 let current_pane = app_state.get_current_pane();
                 self.render_pane(app_state, current_pane)?;
             }
-            ViewEvent::SecondaryAreaRedrawRequired => {
+            PostCommandAction::SecondaryAreaRedrawRequired => {
                 let current_pane = app_state.get_current_pane();
                 let secondary_pane = match current_pane {
                     crate::repl::models::pane_state::Pane::Request => {
@@ -1066,11 +1066,11 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                 };
                 self.render_pane(app_state, secondary_pane)?;
             }
-            ViewEvent::CurrentAreaPartialRedrawRequired { start_line } => {
+            PostCommandAction::CurrentAreaPartialRedrawRequired { start_line } => {
                 let current_pane = app_state.get_current_pane();
                 self.render_pane_partial(app_state, current_pane, *start_line)?;
             }
-            ViewEvent::SecondaryAreaPartialRedrawRequired { start_line } => {
+            PostCommandAction::SecondaryAreaPartialRedrawRequired { start_line } => {
                 let current_pane = app_state.get_current_pane();
                 let secondary_pane = match current_pane {
                     crate::repl::models::pane_state::Pane::Request => {
@@ -1082,22 +1082,22 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                 };
                 self.render_pane_partial(app_state, secondary_pane, *start_line)?;
             }
-            ViewEvent::StatusBarUpdateRequired => {
+            PostCommandAction::StatusBarUpdateRequired => {
                 self.render_status_bar(app_state)?;
                 self.render_cursor(app_state)?;
                 safe_flush!(self.render_stream)?;
             }
-            ViewEvent::PositionIndicatorUpdateRequired => {
+            PostCommandAction::PositionIndicatorUpdateRequired => {
                 self.render_position_indicator(app_state)?;
             }
-            ViewEvent::ActiveCursorUpdateRequired => {
+            PostCommandAction::ActiveCursorUpdateRequired => {
                 self.render_cursor(app_state)?;
             }
-            ViewEvent::CurrentAreaScrollChanged { .. } => {
+            PostCommandAction::CurrentAreaScrollChanged { .. } => {
                 let current_pane = app_state.get_current_pane();
                 self.render_pane(app_state, current_pane)?;
             }
-            ViewEvent::SecondaryAreaScrollChanged { .. } => {
+            PostCommandAction::SecondaryAreaScrollChanged { .. } => {
                 let current_pane = app_state.get_current_pane();
                 let secondary_pane = match current_pane {
                     crate::repl::models::pane_state::Pane::Request => {
@@ -1109,19 +1109,19 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                 };
                 self.render_pane(app_state, secondary_pane)?;
             }
-            ViewEvent::FocusSwitched => {
+            PostCommandAction::FocusSwitched => {
                 // Focus switched - update cursor and status bar
                 self.render_cursor(app_state)?;
                 self.render_status_bar(app_state)?;
             }
-            ViewEvent::RequestContentChanged => {
+            PostCommandAction::RequestContentChanged => {
                 // Request content changed - redraw if we're in request pane
                 if app_state.is_in_request_pane() {
                     let current_pane = app_state.get_current_pane();
                     self.render_pane(app_state, current_pane)?;
                 }
             }
-            ViewEvent::ResponseContentChanged => {
+            PostCommandAction::ResponseContentChanged => {
                 // Response content changed - redraw if we're in response pane
                 if app_state.is_in_response_pane() {
                     let current_pane = app_state.get_current_pane();
@@ -1131,12 +1131,12 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                     self.render_pane(app_state, crate::repl::models::pane_state::Pane::Response)?;
                 }
             }
-            ViewEvent::AllContentAreasRedrawRequired => {
+            PostCommandAction::AllContentAreasRedrawRequired => {
                 // Redraw both panes
                 self.render_pane(app_state, crate::repl::models::pane_state::Pane::Request)?;
                 self.render_pane(app_state, crate::repl::models::pane_state::Pane::Response)?;
             }
-            ViewEvent::QuitRequested => {
+            PostCommandAction::QuitRequested => {
                 // Quit requests are handled at the application level, not by the renderer
                 // No rendering action needed here
             }

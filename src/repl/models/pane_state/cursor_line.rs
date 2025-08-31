@@ -7,14 +7,14 @@
 //! - Append mode positioning
 
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
 
 use super::PaneState;
 
 impl PaneState {
     /// Move cursor to start of current line with capability checking
-    pub fn move_cursor_to_start_of_line(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_to_start_of_line(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -36,13 +36,13 @@ impl PaneState {
         self.update_visual_selection_on_cursor_move(new_logical);
 
         let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
         // Add redraw event for visual selection if active
         if self.visual_selection_start.is_some() {
-            events.push(ViewEvent::CurrentAreaRedrawRequired);
+            events.push(PostCommandAction::CurrentAreaRedrawRequired);
         }
 
         // Ensure cursor is visible and add visibility events
@@ -54,7 +54,7 @@ impl PaneState {
 
     /// Move cursor to end of current line for append (A command) with capability checking
     /// This positions the cursor AFTER the last character for insert mode
-    pub fn move_cursor_to_line_end_for_append(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_to_line_end_for_append(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -64,8 +64,8 @@ impl PaneState {
         let current_logical = self.buffer.cursor();
 
         let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
         // Get the current line content to find its length
@@ -88,7 +88,7 @@ impl PaneState {
 
             // Add redraw event for visual selection if active
             if self.visual_selection_start.is_some() {
-                events.push(ViewEvent::CurrentAreaRedrawRequired);
+                events.push(PostCommandAction::CurrentAreaRedrawRequired);
             }
         }
 
@@ -110,7 +110,7 @@ impl PaneState {
     }
 
     /// Move cursor to end of current line with capability checking
-    pub fn move_cursor_to_end_of_line(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_to_end_of_line(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -120,8 +120,8 @@ impl PaneState {
         let current_logical = self.buffer.cursor();
 
         let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
         // Get the current line content to find its end position
@@ -152,7 +152,7 @@ impl PaneState {
 
             // Add redraw event for visual selection if active
             if self.visual_selection_start.is_some() {
-                events.push(ViewEvent::CurrentAreaRedrawRequired);
+                events.push(PostCommandAction::CurrentAreaRedrawRequired);
             }
         }
 
@@ -164,7 +164,7 @@ impl PaneState {
     }
 
     /// Move cursor to start of document with capability checking
-    pub fn move_cursor_to_document_start(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_to_document_start(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -178,8 +178,8 @@ impl PaneState {
         self.virtual_column = 0;
 
         let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
         // Update visual selection if active
@@ -188,7 +188,7 @@ impl PaneState {
 
         // Add redraw event for visual selection if active
         if self.visual_selection_start.is_some() {
-            events.push(ViewEvent::CurrentAreaRedrawRequired);
+            events.push(PostCommandAction::CurrentAreaRedrawRequired);
         }
 
         // Ensure cursor is visible and add visibility events
@@ -199,7 +199,7 @@ impl PaneState {
     }
 
     /// Move cursor to end of document with capability checking
-    pub fn move_cursor_to_document_end(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_to_document_end(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -214,8 +214,8 @@ impl PaneState {
         }
 
         let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
         // Move to beginning of the last line (vim G behavior)
@@ -231,7 +231,7 @@ impl PaneState {
 
         // Add redraw event for visual selection if active
         if self.visual_selection_start.is_some() {
-            events.push(ViewEvent::CurrentAreaRedrawRequired);
+            events.push(PostCommandAction::CurrentAreaRedrawRequired);
         }
 
         // Ensure cursor is visible and add visibility events
@@ -247,7 +247,7 @@ impl PaneState {
         &mut self,
         line_number: usize,
         content_width: usize,
-    ) -> Vec<ViewEvent> {
+    ) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -283,13 +283,13 @@ impl PaneState {
         }
 
         let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
         // Add redraw event for visual selection if active
         if self.visual_selection_start.is_some() {
-            events.push(ViewEvent::CurrentAreaRedrawRequired);
+            events.push(PostCommandAction::CurrentAreaRedrawRequired);
         }
 
         // Ensure cursor is visible and add visibility events

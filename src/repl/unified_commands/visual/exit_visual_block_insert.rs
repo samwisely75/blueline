@@ -8,7 +8,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
@@ -21,7 +21,7 @@ use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 /// 4. Restores cursor position to where typing was happening (first cursor)
 /// 5. Switches to Normal mode
 /// 6. Clears status messages
-/// 7. Emits ViewEvents for UI updates
+/// 7. Emits PostCommandActions for UI updates
 #[derive(Default)]
 pub struct ExitVisualBlockInsertCommand;
 
@@ -45,7 +45,7 @@ impl Command for ExitVisualBlockInsertCommand {
             && key_event.modifiers.is_empty()
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         tracing::info!("Exiting Visual Block Insert mode");
 
         // Preserve cursor position at the first multi-cursor position
@@ -77,9 +77,9 @@ impl Command for ExitVisualBlockInsertCommand {
 
         // Return view events for UI updates
         Ok(vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::StatusBarUpdateRequired,
-            ViewEvent::ActiveCursorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+            PostCommandAction::StatusBarUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
         ])
     }
 
@@ -202,9 +202,9 @@ mod tests {
 
         // Check that proper events are emitted
         assert_eq!(events.len(), 3, "Should emit 3 view events");
-        assert!(matches!(events[0], ViewEvent::CurrentAreaRedrawRequired));
-        assert!(matches!(events[1], ViewEvent::StatusBarUpdateRequired));
-        assert!(matches!(events[2], ViewEvent::ActiveCursorUpdateRequired));
+        assert!(matches!(events[0], PostCommandAction::CurrentAreaRedrawRequired));
+        assert!(matches!(events[1], PostCommandAction::StatusBarUpdateRequired));
+        assert!(matches!(events[2], PostCommandAction::ActiveCursorUpdateRequired));
 
         // Check that mode changed to Normal
         assert_eq!(

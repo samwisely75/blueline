@@ -4,7 +4,7 @@
 
 use super::AppState;
 use crate::repl::commands::{Setting, SettingValue};
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use anyhow::Result;
 
 impl AppState {
@@ -15,7 +15,7 @@ impl AppState {
                 let enable = value == SettingValue::On;
                 self.pane_manager.set_wrap_enabled(enable);
                 let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![ViewEvent::FullRedrawRequired];
+                let mut events = vec![PostCommandAction::FullRedrawRequired];
                 events.extend(visibility_events);
                 let _ = self.emit_view_event(events);
                 Ok(())
@@ -24,7 +24,7 @@ impl AppState {
                 let enable = value == SettingValue::On;
                 self.pane_manager.set_line_numbers_visible(enable);
                 let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![ViewEvent::FullRedrawRequired];
+                let mut events = vec![PostCommandAction::FullRedrawRequired];
                 events.extend(visibility_events);
                 let _ = self.emit_view_event(events);
                 Ok(())
@@ -38,7 +38,7 @@ impl AppState {
                 if let SettingValue::Number(width) = value {
                     self.pane_manager.set_tab_width(width);
                     let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                    let mut events = vec![ViewEvent::FullRedrawRequired];
+                    let mut events = vec![PostCommandAction::FullRedrawRequired];
                     events.extend(visibility_events);
                     let _ = self.emit_view_event(events);
                 }
@@ -52,7 +52,7 @@ impl AppState {
                 if enable {
                     self.convert_tabs_to_spaces()?;
                     let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                    let mut events = vec![ViewEvent::FullRedrawRequired];
+                    let mut events = vec![PostCommandAction::FullRedrawRequired];
                     events.extend(visibility_events);
                     let _ = self.emit_view_event(events);
                 }

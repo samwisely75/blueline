@@ -2,13 +2,13 @@
 //!
 //! Command for moving cursor up one line (k key or up arrow).
 //! This demonstrates the unified command architecture where the Command
-//! owns its business logic and emits appropriate ViewEvents.
+//! owns its business logic and emits appropriate PostCommandActions.
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::register_command;
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
@@ -17,7 +17,7 @@ use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 /// This command demonstrates the new architecture:
 /// 1. Checks for 'k' key in Normal/Visual modes or Up arrow in any mode
 /// 2. Calls the pane manager to move cursor up
-/// 3. Emits appropriate ViewEvents to update the display
+/// 3. Emits appropriate PostCommandActions to update the display
 ///
 /// Handles both vim-style 'k' navigation and standard up arrow key.
 pub struct MoveUpCommand;
@@ -75,7 +75,7 @@ impl Command for MoveUpCommand {
         }
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Get the cursor movement events from pane manager
         let events = context.app_state.pane_manager.move_cursor_up();
 

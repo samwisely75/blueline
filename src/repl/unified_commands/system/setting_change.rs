@@ -6,7 +6,7 @@ use anyhow::Result;
 use crossterm::event::KeyEvent;
 
 use crate::repl::commands::events::{Setting, SettingValue};
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
@@ -40,7 +40,7 @@ impl Command for SettingChangeCommand {
         false
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Handle clipboard setting through YankService
         if self.setting == Setting::Clipboard {
             let enable = self.value == SettingValue::On;
@@ -59,7 +59,7 @@ impl Command for SettingChangeCommand {
                 if enable { "enabled" } else { "disabled" }
             );
 
-            Ok(vec![ViewEvent::StatusBarUpdateRequired])
+            Ok(vec![PostCommandAction::StatusBarUpdateRequired])
         } else {
             // Other settings go through AppState
             context.app_state.apply_setting(self.setting, self.value)?;
@@ -81,8 +81,8 @@ impl Command for SettingChangeCommand {
                         .app_state
                         .set_status_message(format!("Tab stop set to {n}"));
                     return Ok(vec![
-                        ViewEvent::CurrentAreaRedrawRequired,
-                        ViewEvent::StatusBarUpdateRequired,
+                        PostCommandAction::CurrentAreaRedrawRequired,
+                        PostCommandAction::StatusBarUpdateRequired,
                     ]);
                 }
                 _ => {
@@ -90,7 +90,7 @@ impl Command for SettingChangeCommand {
                         "Setting {:?} changed to {:?}",
                         self.setting, self.value
                     ));
-                    return Ok(vec![ViewEvent::StatusBarUpdateRequired]);
+                    return Ok(vec![PostCommandAction::StatusBarUpdateRequired]);
                 }
             };
 
@@ -100,8 +100,8 @@ impl Command for SettingChangeCommand {
 
             // Most settings require redraw
             Ok(vec![
-                ViewEvent::CurrentAreaRedrawRequired,
-                ViewEvent::StatusBarUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
+                PostCommandAction::StatusBarUpdateRequired,
             ])
         }
     }
@@ -159,7 +159,7 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
+        assert!(matches!(events[0], PostCommandAction::StatusBarUpdateRequired));
     }
 
     #[test]
@@ -179,8 +179,8 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 2);
-        assert!(matches!(events[0], ViewEvent::CurrentAreaRedrawRequired));
-        assert!(matches!(events[1], ViewEvent::StatusBarUpdateRequired));
+        assert!(matches!(events[0], PostCommandAction::CurrentAreaRedrawRequired));
+        assert!(matches!(events[1], PostCommandAction::StatusBarUpdateRequired));
     }
 
     #[test]
@@ -200,7 +200,7 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 2);
-        assert!(matches!(events[0], ViewEvent::CurrentAreaRedrawRequired));
-        assert!(matches!(events[1], ViewEvent::StatusBarUpdateRequired));
+        assert!(matches!(events[0], PostCommandAction::CurrentAreaRedrawRequired));
+        assert!(matches!(events[1], PostCommandAction::StatusBarUpdateRequired));
     }
 }

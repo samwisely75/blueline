@@ -6,7 +6,8 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::repl::{
-    models::{events::view_events::ViewEvent, pane_state::EditorMode},
+    models::pane_state::EditorMode,
+    view_models::post_command_actions::PostCommandAction,
     unified_commands::{Command, CommandContext, ExecutionContext},
 };
 
@@ -29,7 +30,7 @@ impl Command for PasteAfterCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Get from YankService
         if let Some(yank_entry) = context.services.yank.paste() {
             // Paste the text after the current cursor position using type-aware paste
@@ -56,8 +57,8 @@ impl Command for PasteAfterCommand {
 
         // Return UI update events
         Ok(vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::StatusBarUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+            PostCommandAction::StatusBarUpdateRequired,
         ])
     }
 
@@ -85,7 +86,7 @@ impl Command for PasteBeforeCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Get from YankService
         if let Some(yank_entry) = context.services.yank.paste() {
             tracing::debug!(
@@ -118,8 +119,8 @@ impl Command for PasteBeforeCommand {
 
         // Return UI update events
         Ok(vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::StatusBarUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+            PostCommandAction::StatusBarUpdateRequired,
         ])
     }
 

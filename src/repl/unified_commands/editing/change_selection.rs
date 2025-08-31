@@ -8,7 +8,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition};
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
@@ -38,7 +38,7 @@ impl Command for ChangeSelectionCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Get the visual selection before deleting it
         let (selection_start, selection_end, _pane) = context.app_state.get_visual_selection();
         if selection_start.is_none() || selection_end.is_none() {
@@ -46,7 +46,7 @@ impl Command for ChangeSelectionCommand {
             context
                 .app_state
                 .set_status_message("No text selected".to_string());
-            return Ok(vec![ViewEvent::StatusBarUpdateRequired]);
+            return Ok(vec![PostCommandAction::StatusBarUpdateRequired]);
         }
 
         let start = selection_start.unwrap();
@@ -98,8 +98,8 @@ impl Command for ChangeSelectionCommand {
 
             // Return view events for UI updates
             Ok(vec![
-                ViewEvent::CurrentAreaRedrawRequired,
-                ViewEvent::StatusBarUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
+                PostCommandAction::StatusBarUpdateRequired,
             ])
         } else {
             tracing::warn!("No text selected for changing");
@@ -107,7 +107,7 @@ impl Command for ChangeSelectionCommand {
                 .app_state
                 .set_status_message("No text selected".to_string());
 
-            Ok(vec![ViewEvent::StatusBarUpdateRequired])
+            Ok(vec![PostCommandAction::StatusBarUpdateRequired])
         }
     }
 
@@ -266,7 +266,7 @@ mod tests {
 
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
+        assert!(matches!(events[0], PostCommandAction::StatusBarUpdateRequired));
 
         // Verify error message was set
         assert_eq!(

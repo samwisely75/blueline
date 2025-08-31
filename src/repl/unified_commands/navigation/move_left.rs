@@ -7,7 +7,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::register_command;
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
@@ -58,8 +58,8 @@ impl Command for MoveLeftCommand {
         }
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
-        // Use PaneManager's cursor movement business logic that returns ViewEvents
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+        // Use PaneManager's cursor movement business logic that returns PostCommandActions
         let events = context.app_state.pane_manager.move_cursor_left();
 
         tracing::debug!(

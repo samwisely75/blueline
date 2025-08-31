@@ -8,7 +8,8 @@
 
 use super::{EditorMode, PaneCapabilities};
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::models::events::{ModelEvent, ViewEvent};
+use crate::repl::models::events::ModelEvent;
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::{LogicalPosition, LogicalRange};
 
 use super::PaneState;
@@ -173,14 +174,14 @@ impl PaneState {
     /// - `tab_width`: Tab stop width for character display
     ///
     /// # Returns
-    /// Vector of ViewEvents to update the display, or empty if operation not allowed
+    /// Vector of PostCommandActions to update the display, or empty if operation not allowed
     pub fn insert_char(
         &mut self,
         ch: char,
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<ViewEvent> {
+    ) -> Vec<PostCommandAction> {
         // Check if editing is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
             return vec![]; // Editing not allowed on this pane
@@ -212,9 +213,9 @@ impl PaneState {
 
         // Return events for view updates - caller will handle cursor visibility
         vec![
-            ViewEvent::RequestContentChanged,
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::RequestContentChanged,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ]
     }
 
@@ -231,13 +232,13 @@ impl PaneState {
     /// - `tab_width`: Tab stop width for formatting
     ///
     /// # Returns
-    /// Vector of ViewEvents to update the display, or empty if operation not allowed
+    /// Vector of PostCommandActions to update the display, or empty if operation not allowed
     pub fn delete_char_before_cursor(
         &mut self,
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<ViewEvent> {
+    ) -> Vec<PostCommandAction> {
         // Check if editing is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
             return vec![]; // Editing not allowed on this pane
@@ -267,7 +268,7 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<ViewEvent> {
+    ) -> Vec<PostCommandAction> {
         // Check if editing is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
             return vec![]; // Editing not allowed on this pane
@@ -309,7 +310,7 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<ViewEvent> {
+    ) -> Vec<PostCommandAction> {
         // Check if editing is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
             return vec![]; // Editing not allowed on this pane
@@ -759,7 +760,7 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<ViewEvent> {
+    ) -> Vec<PostCommandAction> {
         tracing::debug!("🗑️  Deleting character before cursor in same line");
 
         let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
@@ -789,9 +790,9 @@ impl PaneState {
         self.rebuild_display_and_sync_cursor(new_cursor, content_width, wrap_enabled, tab_width);
 
         vec![
-            ViewEvent::RequestContentChanged,
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::CurrentAreaRedrawRequired,
+            PostCommandAction::RequestContentChanged,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
         ]
     }
 
@@ -802,7 +803,7 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<ViewEvent> {
+    ) -> Vec<PostCommandAction> {
         tracing::debug!("🗑️  Deleting character after cursor in same line");
 
         let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column);
@@ -834,9 +835,9 @@ impl PaneState {
         );
 
         vec![
-            ViewEvent::RequestContentChanged,
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::CurrentAreaRedrawRequired,
+            PostCommandAction::RequestContentChanged,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
         ]
     }
 
@@ -847,7 +848,7 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<ViewEvent> {
+    ) -> Vec<PostCommandAction> {
         tracing::debug!("🗑️  Joining current line with previous line");
 
         // Get length of previous line to position cursor correctly
@@ -883,9 +884,9 @@ impl PaneState {
         self.rebuild_display_and_sync_cursor(new_cursor, content_width, wrap_enabled, tab_width);
 
         vec![
-            ViewEvent::RequestContentChanged,
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::CurrentAreaRedrawRequired,
+            PostCommandAction::RequestContentChanged,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
         ]
     }
 
@@ -896,7 +897,7 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<ViewEvent> {
+    ) -> Vec<PostCommandAction> {
         tracing::debug!("🗑️  Joining current line with next line");
 
         // Delete the newline character between current and next line
@@ -926,9 +927,9 @@ impl PaneState {
         );
 
         vec![
-            ViewEvent::RequestContentChanged,
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::CurrentAreaRedrawRequired,
+            PostCommandAction::RequestContentChanged,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
         ]
     }
 
@@ -1089,7 +1090,7 @@ impl PaneState {
         &mut self,
         start_position: LogicalPosition,
         block_lines: &[&str],
-    ) -> Vec<ViewEvent> {
+    ) -> Vec<PostCommandAction> {
         if block_lines.is_empty() {
             return vec![];
         }
@@ -1158,8 +1159,8 @@ impl PaneState {
 
         // Return view events for full redraw to ensure the block paste is visible
         vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::ActiveCursorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
         ]
     }
 }

@@ -8,7 +8,8 @@
 //! - Views depend only on AppState for rendering
 
 use super::PaneManager;
-use crate::repl::models::events::{EventBus, ModelEvent, ViewEvent};
+use crate::repl::models::events::{EventBus, ModelEvent};
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::{
     ClipboardYankBuffer, LogicalPosition, MemoryYankBuffer, ResponseModel, StatusLine, YankBuffer,
@@ -40,7 +41,7 @@ pub struct AppState {
 
     // Event management
     pub(crate) event_bus: EventBusOption,
-    pub(crate) pending_view_events: Vec<ViewEvent>,
+    pub(crate) pending_view_events: Vec<PostCommandAction>,
     pub(crate) pending_model_events: Vec<ModelEvent>,
 
     // Yank buffer for copy/paste operations

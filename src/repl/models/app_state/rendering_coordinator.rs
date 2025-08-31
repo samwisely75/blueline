@@ -3,16 +3,17 @@
 //! Handles view event emission, rendering orchestration, and event collection using semantic operations.
 
 use super::AppState;
-use crate::repl::models::events::{ModelEvent, ViewEvent};
+use crate::repl::models::events::ModelEvent;
+use crate::repl::view_models::PostCommandAction;
 
 impl AppState {
     /// Emit view events (adds to pending events collection)
-    /// Accepts single events, vectors, arrays, or any iterator of ViewEvent
+    /// Accepts single events, vectors, arrays, or any iterator of PostCommandAction
     pub fn emit_view_event<E>(&mut self, events: E) -> Result<(), anyhow::Error>
     where
-        E: IntoIterator<Item = ViewEvent>,
+        E: IntoIterator<Item = PostCommandAction>,
     {
-        let event_vec: Vec<ViewEvent> = events.into_iter().collect();
+        let event_vec: Vec<PostCommandAction> = events.into_iter().collect();
         if !event_vec.is_empty() {
             for event in event_vec {
                 self.pending_view_events.push(event);
@@ -23,7 +24,7 @@ impl AppState {
     }
 
     /// Collect and clear pending view events
-    pub fn collect_pending_view_events(&mut self) -> Vec<ViewEvent> {
+    pub fn collect_pending_view_events(&mut self) -> Vec<PostCommandAction> {
         let events = self.pending_view_events.clone();
         self.pending_view_events.clear();
         events

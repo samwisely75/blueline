@@ -6,7 +6,7 @@
 use super::core::DisplayLineData;
 use super::AppState;
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::Pane;
 use crate::repl::models::DisplayCache;
 
@@ -175,7 +175,7 @@ impl AppState {
         if self.pane_manager.is_wrap_enabled() != enabled {
             self.pane_manager.set_wrap_enabled(enabled);
             let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-            let mut events = vec![ViewEvent::FullRedrawRequired];
+            let mut events = vec![PostCommandAction::FullRedrawRequired];
             events.extend(visibility_events);
             self.emit_view_event(events)?;
         }

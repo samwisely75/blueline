@@ -7,7 +7,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
@@ -37,7 +37,7 @@ impl Command for PasteAtCursorCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Get from YankService, not the old app_state buffer!
         if let Some(yank_entry) = context.services.yank.paste() {
             tracing::debug!(
@@ -71,8 +71,8 @@ impl Command for PasteAtCursorCommand {
 
         // Return UI update events
         Ok(vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::StatusBarUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+            PostCommandAction::StatusBarUpdateRequired,
         ])
     }
 
@@ -252,8 +252,8 @@ mod tests {
         let events = result.unwrap();
         // Should return UI update events
         assert_eq!(events.len(), 2);
-        assert!(events.contains(&ViewEvent::CurrentAreaRedrawRequired));
-        assert!(events.contains(&ViewEvent::StatusBarUpdateRequired));
+        assert!(events.contains(&PostCommandAction::CurrentAreaRedrawRequired));
+        assert!(events.contains(&PostCommandAction::StatusBarUpdateRequired));
     }
 
     #[test]

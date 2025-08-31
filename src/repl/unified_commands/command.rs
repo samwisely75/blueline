@@ -1,13 +1,13 @@
 //! # Command Pattern Infrastructure
 //!
-//! Command Pattern where Commands use Services for business logic and emit ViewEvents.
+//! Command Pattern where Commands use Services for business logic and emit PostCommandActions.
 //! Commands receive both AppState and Services through an ExecutionContext.
 
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
 use crate::repl::{
-    models::events::view_events::ViewEvent,
+    view_models::post_command_actions::PostCommandAction,
     models::pane_state::{EditorMode, Pane},
     models::AppState,
     services::Services,
@@ -15,7 +15,7 @@ use crate::repl::{
 
 /// Command trait for the new Command Pattern architecture
 ///
-/// Commands use Services for business logic and emit ViewEvents describing
+/// Commands use Services for business logic and emit PostCommandActions describing
 /// what UI updates are needed. Commands receive both AppState and Services
 /// through an ExecutionContext.
 pub trait Command: Send + Sync {
@@ -31,10 +31,10 @@ pub trait Command: Send + Sync {
 
     /// Execute the command with access to AppState and Services
     ///
-    /// Commands should use Services for business logic and return ViewEvents
+    /// Commands should use Services for business logic and return PostCommandActions
     /// describing what UI updates are needed. Commands perform the business
     /// logic directly and emit view update events.
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>>;
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>>;
 
     /// Get command name for debugging and logging
     fn name(&self) -> &'static str;
@@ -102,11 +102,11 @@ mod tests {
     /// Mock command for testing the Command trait
     struct MockCommand {
         name: &'static str,
-        events_to_return: Vec<ViewEvent>,
+        events_to_return: Vec<PostCommandAction>,
     }
 
     impl MockCommand {
-        fn new(name: &'static str, events: Vec<ViewEvent>) -> Self {
+        fn new(name: &'static str, events: Vec<PostCommandAction>) -> Self {
             Self {
                 name,
                 events_to_return: events,
@@ -125,7 +125,7 @@ mod tests {
             true
         }
 
-        fn execute(&self, _context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+        fn execute(&self, _context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
             Ok(self.events_to_return.clone())
         }
 
@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn command_trait_should_return_name_and_handle_events() {
-        let events = vec![ViewEvent::StatusBarUpdateRequired];
+        let events = vec![PostCommandAction::StatusBarUpdateRequired];
         let command = MockCommand::new("TestCommand", events.clone());
 
         assert_eq!(command.name(), "TestCommand");

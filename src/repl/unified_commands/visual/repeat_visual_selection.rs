@@ -8,7 +8,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
@@ -44,7 +44,7 @@ impl Command for RepeatVisualSelectionCommand {
             && matches!(mode, EditorMode::GPrefix)
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         tracing::info!("Handling repeat visual selection (gv command)");
 
         // First, return to Normal mode to exit GPrefix mode
@@ -71,8 +71,8 @@ impl Command for RepeatVisualSelectionCommand {
 
                 // Return view events for UI updates
                 Ok(vec![
-                    ViewEvent::CurrentAreaRedrawRequired,
-                    ViewEvent::StatusBarUpdateRequired,
+                    PostCommandAction::CurrentAreaRedrawRequired,
+                    PostCommandAction::StatusBarUpdateRequired,
                 ])
             }
             None => {
@@ -84,7 +84,7 @@ impl Command for RepeatVisualSelectionCommand {
                     .set_status_message("No previous visual selection to restore".to_string());
 
                 // Stay in Normal mode, only update status bar
-                Ok(vec![ViewEvent::StatusBarUpdateRequired])
+                Ok(vec![PostCommandAction::StatusBarUpdateRequired])
             }
         }
     }
@@ -230,7 +230,7 @@ mod tests {
 
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
+        assert!(matches!(events[0], PostCommandAction::StatusBarUpdateRequired));
 
         // Verify we returned to Normal mode
         assert_eq!(context.app_state.get_mode(), EditorMode::Normal);

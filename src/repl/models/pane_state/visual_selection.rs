@@ -6,7 +6,7 @@
 //! - Checking position inclusion in selections
 //! - Updating selections during cursor movement
 
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
 
 use super::PaneState;
@@ -15,11 +15,11 @@ use super::PaneState;
 type VisualSelection = (Option<LogicalPosition>, Option<LogicalPosition>);
 
 // Type alias for visual selection restoration result
-pub type VisualSelectionRestoreResult = Option<(EditorMode, Vec<ViewEvent>)>;
+pub type VisualSelectionRestoreResult = Option<(EditorMode, Vec<PostCommandAction>)>;
 
 impl PaneState {
     /// Start visual selection at current cursor position
-    pub fn start_visual_selection(&mut self) -> Vec<ViewEvent> {
+    pub fn start_visual_selection(&mut self) -> Vec<PostCommandAction> {
         // Check if visual selection is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::SELECTABLE) {
             return vec![]; // Selection not allowed on this pane
@@ -35,14 +35,14 @@ impl PaneState {
         );
 
         vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::StatusBarUpdateRequired,
-            ViewEvent::ActiveCursorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+            PostCommandAction::StatusBarUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
         ]
     }
 
     /// End visual selection and clear selection state
-    pub fn end_visual_selection(&mut self) -> Vec<ViewEvent> {
+    pub fn end_visual_selection(&mut self) -> Vec<PostCommandAction> {
         // Save the last visual selection for 'gv' command before clearing
         if self.visual_selection_start.is_some() && self.visual_selection_end.is_some() {
             self.last_visual_selection_start = self.visual_selection_start;
@@ -69,14 +69,14 @@ impl PaneState {
         tracing::info!("🎯 PaneState::end_visual_selection - cleared selection state");
 
         vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::StatusBarUpdateRequired,
-            ViewEvent::ActiveCursorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+            PostCommandAction::StatusBarUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
         ]
     }
 
     /// Update visual selection end position
-    pub fn update_visual_selection(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
+    pub fn update_visual_selection(&mut self, position: LogicalPosition) -> Vec<PostCommandAction> {
         // Check if visual selection is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::SELECTABLE) {
             return vec![]; // Selection not allowed on this pane
@@ -88,7 +88,7 @@ impl PaneState {
                 "🎯 PaneState::update_visual_selection end position to {:?}",
                 position
             );
-            vec![ViewEvent::CurrentAreaRedrawRequired]
+            vec![PostCommandAction::CurrentAreaRedrawRequired]
         } else {
             vec![]
         }
@@ -134,11 +134,11 @@ impl PaneState {
     }
 
     /// Update visual selection end position during cursor movement
-    /// Returns Some(ViewEvent) if visual selection was updated, None otherwise
+    /// Returns Some(PostCommandAction) if visual selection was updated, None otherwise
     pub fn update_visual_selection_on_cursor_move(
         &mut self,
         new_position: LogicalPosition,
-    ) -> Option<ViewEvent> {
+    ) -> Option<PostCommandAction> {
         // Only update if we have an active selection and selection is allowed
         if self.visual_selection_start.is_some()
             && self.capabilities.contains(PaneCapabilities::SELECTABLE)
@@ -148,7 +148,7 @@ impl PaneState {
                 "🎯 PaneState::update_visual_selection_on_cursor_move to {:?}",
                 new_position
             );
-            Some(ViewEvent::CurrentAreaRedrawRequired)
+            Some(PostCommandAction::CurrentAreaRedrawRequired)
         } else {
             None
         }
@@ -236,9 +236,9 @@ impl PaneState {
         Some((
             mode,
             vec![
-                ViewEvent::CurrentAreaRedrawRequired,
-                ViewEvent::StatusBarUpdateRequired,
-                ViewEvent::ActiveCursorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
+                PostCommandAction::StatusBarUpdateRequired,
+                PostCommandAction::ActiveCursorUpdateRequired,
             ],
         ))
     }

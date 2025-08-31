@@ -5,7 +5,7 @@
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
@@ -34,7 +34,7 @@ impl Command for ShowProfileCommand {
         false
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Get profile information from app state
         let profile_name = context.app_state.get_profile_name();
         let profile_path = context.app_state.get_profile_path();
@@ -47,7 +47,7 @@ impl Command for ShowProfileCommand {
         context.app_state.set_status_message(message);
 
         // Return view event for status bar update
-        Ok(vec![ViewEvent::StatusBarUpdateRequired])
+        Ok(vec![PostCommandAction::StatusBarUpdateRequired])
     }
 
     fn name(&self) -> &'static str {
@@ -109,7 +109,7 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
+        assert!(matches!(events[0], PostCommandAction::StatusBarUpdateRequired));
 
         // Verify status message was set (it will contain default profile info)
         // The actual message content is tested in AppState tests

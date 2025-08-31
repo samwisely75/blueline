@@ -7,7 +7,7 @@
 //! - Support for Japanese and multi-byte character word boundaries
 
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
 
 use super::{OptionalPosition, PaneState};
@@ -138,7 +138,7 @@ impl PaneState {
     // ========================================
 
     /// Move cursor to next word with capability checking and Visual Block restrictions
-    pub fn move_cursor_to_next_word(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_to_next_word(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -171,9 +171,9 @@ impl PaneState {
             }
 
             let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired,
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::PositionIndicatorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
             ];
 
             // Ensure cursor is visible and add visibility events
@@ -187,7 +187,7 @@ impl PaneState {
     }
 
     /// Move cursor to previous word with capability checking and Visual Block restrictions
-    pub fn move_cursor_to_previous_word(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_to_previous_word(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -220,9 +220,9 @@ impl PaneState {
             }
 
             let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired,
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::PositionIndicatorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
             ];
 
             // Ensure cursor is visible and add visibility events
@@ -236,7 +236,7 @@ impl PaneState {
     }
 
     /// Move cursor to end of word with capability checking and Visual Block restrictions
-    pub fn move_cursor_to_end_of_word(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_to_end_of_word(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -269,9 +269,9 @@ impl PaneState {
             }
 
             let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired,
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::PositionIndicatorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
             ];
 
             // Ensure cursor is visible and add visibility events

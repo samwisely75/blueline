@@ -18,7 +18,8 @@ pub use views::*;
 // Re-export event types from their new locations
 pub use io::event_source::EventSource;
 pub use io::terminal_event_source::TerminalEventSource;
-pub use models::events::{EventBus, InputEvent, ModelEvent, SimpleEventBus, ViewEvent};
+pub use models::events::{EventBus, ModelEvent, SimpleEventBus};
+pub use view_models::{InputEvent, PostCommandAction};
 pub use models::pane_state::{EditorMode, Pane, PaneCapabilities};
 pub use models::{LogicalPosition, LogicalRange};
 

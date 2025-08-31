@@ -7,7 +7,7 @@
 //! - Mode-aware scrolling behavior
 
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
 
 use super::{CursorMoveResult, PaneState, ScrollAdjustResult, ScrollResult};
@@ -265,7 +265,7 @@ impl PaneState {
     }
 
     /// Ensure cursor is visible and return view events (wrapper around ensure_cursor_visible)
-    pub fn ensure_cursor_visible_with_events(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn ensure_cursor_visible_with_events(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         let result = self.ensure_cursor_visible(content_width);
 
         if result.vertical_changed || result.horizontal_changed {
@@ -277,7 +277,7 @@ impl PaneState {
                 (result.old_vertical_offset, result.new_vertical_offset)
             };
 
-            vec![ViewEvent::CurrentAreaScrollChanged {
+            vec![PostCommandAction::CurrentAreaScrollChanged {
                 old_offset,
                 new_offset,
             }]
@@ -348,7 +348,7 @@ impl PaneState {
     // ========================================
 
     /// Move cursor down one page with capability checking
-    pub fn move_cursor_page_down(&mut self) -> Vec<ViewEvent> {
+    pub fn move_cursor_page_down(&mut self) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -427,13 +427,13 @@ impl PaneState {
         }
 
         let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
         // Add redraw event for visual selection if active
         if self.visual_selection_start.is_some() {
-            events.push(ViewEvent::CurrentAreaRedrawRequired);
+            events.push(PostCommandAction::CurrentAreaRedrawRequired);
         }
 
         // Ensure cursor is visible and add visibility events
@@ -445,7 +445,7 @@ impl PaneState {
     }
 
     /// Move cursor up one page with capability checking
-    pub fn move_cursor_page_up(&mut self) -> Vec<ViewEvent> {
+    pub fn move_cursor_page_up(&mut self) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -524,13 +524,13 @@ impl PaneState {
         }
 
         let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
         // Add redraw event for visual selection if active
         if self.visual_selection_start.is_some() {
-            events.push(ViewEvent::CurrentAreaRedrawRequired);
+            events.push(PostCommandAction::CurrentAreaRedrawRequired);
         }
 
         // Ensure cursor is visible and add visibility events
@@ -542,7 +542,7 @@ impl PaneState {
     }
 
     /// Move cursor down half a page with capability checking
-    pub fn move_cursor_half_page_down(&mut self) -> Vec<ViewEvent> {
+    pub fn move_cursor_half_page_down(&mut self) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -622,13 +622,13 @@ impl PaneState {
         }
 
         let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
         // Add redraw event for visual selection if active
         if self.visual_selection_start.is_some() {
-            events.push(ViewEvent::CurrentAreaRedrawRequired);
+            events.push(PostCommandAction::CurrentAreaRedrawRequired);
         }
 
         // Ensure cursor is visible and add visibility events
@@ -640,7 +640,7 @@ impl PaneState {
     }
 
     /// Move cursor up half a page with capability checking
-    pub fn move_cursor_half_page_up(&mut self) -> Vec<ViewEvent> {
+    pub fn move_cursor_half_page_up(&mut self) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -720,13 +720,13 @@ impl PaneState {
         }
 
         let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
         // Add redraw event for visual selection if active
         if self.visual_selection_start.is_some() {
-            events.push(ViewEvent::CurrentAreaRedrawRequired);
+            events.push(PostCommandAction::CurrentAreaRedrawRequired);
         }
 
         // Ensure cursor is visible and add visibility events

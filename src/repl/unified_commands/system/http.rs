@@ -3,7 +3,7 @@
 //! Commands for executing HTTP requests using the unified command pattern.
 
 use crate::register_command;
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -39,7 +39,7 @@ impl Command for HttpExecuteCommand {
         is_enter && no_modifiers && is_normal_mode && is_request_pane
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Get request text from the app state
         let request_text = context.app_state.get_request_text();
 
@@ -49,7 +49,7 @@ impl Command for HttpExecuteCommand {
             context
                 .app_state
                 .set_status_message("HTTP service not available");
-            return Ok(vec![ViewEvent::StatusBarUpdateRequired]);
+            return Ok(vec![PostCommandAction::StatusBarUpdateRequired]);
         }
 
         // Mark request as executing
@@ -66,7 +66,7 @@ impl Command for HttpExecuteCommand {
 
         // Return view events for UI updates
         Ok(vec![
-            ViewEvent::StatusBarUpdateRequired,
+            PostCommandAction::StatusBarUpdateRequired,
             // The response will be handled asynchronously via handle_http_response
         ])
     }
@@ -178,7 +178,7 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1); // StatusBarUpdateRequired
-        assert!(matches!(events[0], ViewEvent::StatusBarUpdateRequired));
+        assert!(matches!(events[0], PostCommandAction::StatusBarUpdateRequired));
     }
 }
 

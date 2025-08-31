@@ -304,7 +304,7 @@ mod tests {
             fn execute(
                 &self,
                 _context: &mut crate::repl::unified_commands::ExecutionContext,
-            ) -> Result<Vec<crate::repl::models::events::view_events::ViewEvent>> {
+            ) -> Result<Vec<crate::repl::view_models::post_command_actions::PostCommandAction>> {
                 Ok(vec![])
             }
 

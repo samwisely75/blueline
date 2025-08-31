@@ -3,7 +3,7 @@
 //! Handles `:q` and `:q!` ex commands for quitting the application.
 //! This demonstrates the unified command system approach for ex commands.
 
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 use anyhow::Result;
@@ -24,7 +24,7 @@ impl Command for ExQuitCommand {
         matches!(buffer, "q" | "q!")
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         let command = context.app_state.get_ex_command_buffer().trim();
 
         match command {
@@ -35,7 +35,7 @@ impl Command for ExQuitCommand {
                 context.app_state.change_mode(previous_mode)?;
 
                 // Request application quit
-                Ok(vec![ViewEvent::QuitRequested])
+                Ok(vec![PostCommandAction::QuitRequested])
             }
             _ => {
                 // This shouldn't happen given our is_relevant check, but handle gracefully

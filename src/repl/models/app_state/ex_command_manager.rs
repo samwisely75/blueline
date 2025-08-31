@@ -4,7 +4,7 @@
 
 use super::AppState;
 use crate::repl::commands::{CommandEvent, MovementDirection};
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use anyhow::Result;
 
 impl AppState {
@@ -16,21 +16,21 @@ impl AppState {
     /// Add character to ex command buffer
     pub fn add_ex_command_char(&mut self, ch: char) -> Result<()> {
         self.status_line.append_to_command_buffer(ch);
-        let _ = self.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
+        let _ = self.emit_view_event([PostCommandAction::StatusBarUpdateRequired]);
         Ok(())
     }
 
     /// Remove last character from ex command buffer
     pub fn backspace_ex_command(&mut self) -> Result<()> {
         self.status_line.backspace_command_buffer();
-        let _ = self.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
+        let _ = self.emit_view_event([PostCommandAction::StatusBarUpdateRequired]);
         Ok(())
     }
 
     /// Clear the ex command buffer
     pub fn clear_ex_command_buffer(&mut self) {
         self.status_line.clear_command_buffer();
-        let _ = self.emit_view_event([ViewEvent::StatusBarUpdateRequired]);
+        let _ = self.emit_view_event([PostCommandAction::StatusBarUpdateRequired]);
     }
 
     /// Execute ex command and return resulting command events
@@ -44,7 +44,7 @@ impl AppState {
                 // Enable word wrap
                 self.pane_manager.set_wrap_enabled(true);
                 let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![ViewEvent::FullRedrawRequired];
+                let mut events = vec![PostCommandAction::FullRedrawRequired];
                 events.extend(visibility_events);
                 let _ = self.emit_view_event(events);
             }
@@ -52,7 +52,7 @@ impl AppState {
                 // Disable word wrap
                 self.pane_manager.set_wrap_enabled(false);
                 let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![ViewEvent::FullRedrawRequired];
+                let mut events = vec![PostCommandAction::FullRedrawRequired];
                 events.extend(visibility_events);
                 let _ = self.emit_view_event(events);
             }
@@ -60,7 +60,7 @@ impl AppState {
                 // Enable line numbers
                 self.pane_manager.set_line_numbers_visible(true);
                 let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![ViewEvent::FullRedrawRequired];
+                let mut events = vec![PostCommandAction::FullRedrawRequired];
                 events.extend(visibility_events);
                 let _ = self.emit_view_event(events);
             }
@@ -68,7 +68,7 @@ impl AppState {
                 // Disable line numbers
                 self.pane_manager.set_line_numbers_visible(false);
                 let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![ViewEvent::FullRedrawRequired];
+                let mut events = vec![PostCommandAction::FullRedrawRequired];
                 events.extend(visibility_events);
                 let _ = self.emit_view_event(events);
             }

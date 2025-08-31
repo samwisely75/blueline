@@ -1,15 +1,15 @@
-//! # View Events
+//! # Post-Command Actions
 //!
-//! Events related to view updates and user input.
-//! These events drive UI refreshing and handle user interactions.
+//! Actions that need to be taken after command execution.
+//! These actions include UI updates, application control, and other side effects.
 
 // Pane import removed - no longer needed for abstracted events
 use crossterm::event::KeyEvent;
 
-/// Events emitted when view updates are needed
-/// These events are completely abstracted - external components never need to know about specific panes
+/// Actions that need to be taken after command execution
+/// These actions are completely abstracted - external components never need to know about specific panes
 #[derive(Debug, Clone, PartialEq)]
-pub enum ViewEvent {
+pub enum PostCommandAction {
     /// Full screen redraw required (most expensive - terminal resize, etc)
     FullRedrawRequired,
 
@@ -83,33 +83,33 @@ mod tests {
     use crossterm::event::{KeyCode, KeyModifiers};
 
     #[test]
-    fn view_event_full_redraw_should_create() {
-        let event = ViewEvent::FullRedrawRequired;
-        assert_eq!(event, ViewEvent::FullRedrawRequired);
+    fn post_command_action_full_redraw_should_create() {
+        let action = PostCommandAction::FullRedrawRequired;
+        assert_eq!(action, PostCommandAction::FullRedrawRequired);
     }
 
     #[test]
-    fn view_event_current_area_redraw_should_create() {
-        let event = ViewEvent::CurrentAreaRedrawRequired;
-        assert_eq!(event, ViewEvent::CurrentAreaRedrawRequired);
+    fn post_command_action_current_area_redraw_should_create() {
+        let action = PostCommandAction::CurrentAreaRedrawRequired;
+        assert_eq!(action, PostCommandAction::CurrentAreaRedrawRequired);
     }
 
     #[test]
-    fn scroll_changed_event_should_carry_offset_data() {
-        let event = ViewEvent::CurrentAreaScrollChanged {
+    fn scroll_changed_action_should_carry_offset_data() {
+        let action = PostCommandAction::CurrentAreaScrollChanged {
             old_offset: 5,
             new_offset: 10,
         };
 
-        match event {
-            ViewEvent::CurrentAreaScrollChanged {
+        match action {
+            PostCommandAction::CurrentAreaScrollChanged {
                 old_offset,
                 new_offset,
             } => {
                 assert_eq!(old_offset, 5);
                 assert_eq!(new_offset, 10);
             }
-            _ => panic!("Expected CurrentAreaScrollChanged event"),
+            _ => panic!("Expected CurrentAreaScrollChanged action"),
         }
     }
 

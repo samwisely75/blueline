@@ -9,7 +9,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
 use crate::repl::models::buffer::yank_buffer::YankType;
-use crate::repl::models::events::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
@@ -41,7 +41,7 @@ impl Command for YankCurrentLineCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<ViewEvent>> {
+    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Yank entire current line to yank buffer
         context.app_state.yank_current_line()?;
 
@@ -70,8 +70,8 @@ impl Command for YankCurrentLineCommand {
 
         // Return view events for UI updates
         Ok(vec![
-            ViewEvent::CurrentAreaRedrawRequired,
-            ViewEvent::StatusBarUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+            PostCommandAction::StatusBarUpdateRequired,
         ])
     }
 
@@ -188,8 +188,8 @@ mod tests {
         // Should emit view events
         let events = result.unwrap();
         assert!(!events.is_empty());
-        assert!(events.contains(&ViewEvent::CurrentAreaRedrawRequired));
-        assert!(events.contains(&ViewEvent::StatusBarUpdateRequired));
+        assert!(events.contains(&PostCommandAction::CurrentAreaRedrawRequired));
+        assert!(events.contains(&PostCommandAction::StatusBarUpdateRequired));
     }
 
     #[test]
@@ -211,7 +211,7 @@ mod tests {
         // Note: We can't easily test the exact message without setting up buffer content,
         // but we can verify the command completes successfully
         let events = result.unwrap();
-        assert!(events.contains(&ViewEvent::StatusBarUpdateRequired));
+        assert!(events.contains(&PostCommandAction::StatusBarUpdateRequired));
     }
 
     #[test]

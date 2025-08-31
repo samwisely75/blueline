@@ -6,7 +6,7 @@
 //! - Content manipulation with capability checking
 
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{Pane, PaneCapabilities};
 use crate::repl::models::BufferModel;
 
@@ -14,7 +14,7 @@ use super::PaneState;
 
 impl PaneState {
     /// Clear editable content with capability checking
-    pub fn clear_editable_content(&mut self) -> Vec<ViewEvent> {
+    pub fn clear_editable_content(&mut self) -> Vec<PostCommandAction> {
         // Check if editing is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
             return vec![]; // Editing not allowed on this pane
@@ -23,11 +23,11 @@ impl PaneState {
         // Create new buffer (same as original implementation)
         self.buffer = BufferModel::new(Pane::Request);
 
-        vec![ViewEvent::RequestContentChanged]
+        vec![PostCommandAction::RequestContentChanged]
     }
 
     /// Set request content with capability checking
-    pub fn set_request_content(&mut self, text: &str) -> Vec<ViewEvent> {
+    pub fn set_request_content(&mut self, text: &str) -> Vec<PostCommandAction> {
         // Check if editing is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
             return vec![]; // Editing not allowed on this pane
@@ -40,11 +40,11 @@ impl PaneState {
         // Update line number width after content changes
         self.update_line_number_width();
 
-        vec![ViewEvent::RequestContentChanged]
+        vec![PostCommandAction::RequestContentChanged]
     }
 
     /// Set response content (read-only operation, no capability check needed)
-    pub fn set_response_content(&mut self, text: &str) -> Vec<ViewEvent> {
+    pub fn set_response_content(&mut self, text: &str) -> Vec<PostCommandAction> {
         // Response content setting doesn't require EDITABLE capability
         // as this is internal content display, not user editing
 
@@ -63,6 +63,6 @@ impl PaneState {
         self.visual_selection_start = None;
         self.visual_selection_end = None;
 
-        vec![ViewEvent::ResponseContentChanged]
+        vec![PostCommandAction::ResponseContentChanged]
     }
 }

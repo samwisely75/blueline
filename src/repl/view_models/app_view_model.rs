@@ -189,7 +189,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     ///    a. Read terminal events (keyboard, resize)
     ///    b. Convert events to commands via CommandRegistry
     ///    c. Apply commands to ViewModel (business logic)
-    ///    d. Collect ViewEvents from ViewModel changes
+    ///    d. Collect PostCommandActions from ViewModel changes
     ///    e. Render only what changed (selective rendering)
     /// 3. Handle terminal cleanup on exit
     ///
@@ -300,7 +300,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 view_events.len()
             );
 
-            // Process ViewEvents directly without storing in AppState
+            // Process PostCommandActions directly without storing in AppState
             if !view_events.is_empty() {
                 self.process_view_events(view_events)?;
             }
@@ -398,11 +398,11 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     /// HIGH-LEVEL LOGIC FLOW:
     /// This method serves as the command processor that translates semantic commands
     /// into specific ViewModel operations. Each CommandEvent type maps to one or more
-    /// ViewModel method calls that modify application state and emit ViewEvents.
+    /// ViewModel method calls that modify application state and emit PostCommandActions.
     ///
     /// ARCHITECTURAL PATTERN:
     /// - Commands are processed atomically (all-or-nothing)
-    /// - State changes emit ViewEvents for selective rendering
+    /// - State changes emit PostCommandActions for selective rendering
     /// - Complex commands (like ex commands) can generate nested events
     /// - HTTP requests are handled asynchronously with status updates
     async fn apply_command_event(&mut self, event: CommandEvent) -> Result<()> {
@@ -775,7 +775,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     /// Process view events for selective rendering instead of always doing full redraws
     ///
     /// HIGH-LEVEL LOGIC FLOW:
-    /// 1. Collect and group ViewEvents to minimize redundant renders
+    /// 1. Collect and group PostCommandActions to minimize redundant renders
     /// 2. Determine optimal rendering strategy based on event types
     /// 3. Execute renders in order of efficiency (full > area > partial > status)
     /// 4. Always render cursor last to prevent ghost cursor artifacts
@@ -787,9 +787,9 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     /// - Full redraw overrides all other events for simplicity
     fn process_view_events(
         &mut self,
-        view_events: Vec<crate::repl::models::events::ViewEvent>,
+        view_events: Vec<crate::repl::view_models::PostCommandAction>,
     ) -> Result<()> {
-        use crate::repl::models::events::ViewEvent;
+        use crate::repl::view_models::PostCommandAction;
 
         // Group events to avoid redundant renders
         let mut needs_full_redraw = false;
@@ -802,18 +802,18 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
         for event in view_events {
             match event {
-                ViewEvent::FullRedrawRequired => {
+                PostCommandAction::FullRedrawRequired => {
                     needs_full_redraw = true;
                     // Full redraw overrides all other events
                     break;
                 }
-                ViewEvent::CurrentAreaRedrawRequired => {
+                PostCommandAction::CurrentAreaRedrawRequired => {
                     needs_current_area_redraw = true;
                 }
-                ViewEvent::SecondaryAreaRedrawRequired => {
+                PostCommandAction::SecondaryAreaRedrawRequired => {
                     needs_secondary_area_redraw = true;
                 }
-                ViewEvent::CurrentAreaPartialRedrawRequired { start_line } => {
+                PostCommandAction::CurrentAreaPartialRedrawRequired { start_line } => {
                     // Only add partial redraw if we're not already doing a full current area redraw
                     if !needs_current_area_redraw {
                         let current_pane = self.app_state.get_current_pane();
@@ -823,7 +823,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                             .or_insert(start_line);
                     }
                 }
-                ViewEvent::SecondaryAreaPartialRedrawRequired { start_line } => {
+                PostCommandAction::SecondaryAreaPartialRedrawRequired { start_line } => {
                     // Only add partial redraw if we're not already doing a full secondary area redraw
                     if !needs_secondary_area_redraw {
                         let current_pane = self.app_state.get_current_pane();
@@ -837,31 +837,31 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                             .or_insert(start_line);
                     }
                 }
-                ViewEvent::StatusBarUpdateRequired => {
+                PostCommandAction::StatusBarUpdateRequired => {
                     needs_status_bar = true;
                 }
-                ViewEvent::PositionIndicatorUpdateRequired => {
+                PostCommandAction::PositionIndicatorUpdateRequired => {
                     // Handle position indicator separately for minimal flickering
                     self.view_renderer
                         .render_position_indicator(&self.app_state)?;
                 }
-                ViewEvent::ActiveCursorUpdateRequired => {
+                PostCommandAction::ActiveCursorUpdateRequired => {
                     needs_cursor_update = true;
                 }
-                ViewEvent::CurrentAreaScrollChanged { .. } => {
+                PostCommandAction::CurrentAreaScrollChanged { .. } => {
                     needs_current_area_redraw = true;
                     // Ensure cursor is updated after scroll to prevent ghost cursor
                     needs_cursor_update = true;
                 }
-                ViewEvent::SecondaryAreaScrollChanged { .. } => {
+                PostCommandAction::SecondaryAreaScrollChanged { .. } => {
                     needs_secondary_area_redraw = true;
                 }
-                ViewEvent::FocusSwitched => {
+                PostCommandAction::FocusSwitched => {
                     // Focus switch requires cursor update and status bar update
                     needs_cursor_update = true;
                     needs_status_bar = true;
                 }
-                ViewEvent::RequestContentChanged => {
+                PostCommandAction::RequestContentChanged => {
                     // Request content changed - redraw current area if we're in request pane
                     if self.app_state.is_in_request_pane() {
                         needs_current_area_redraw = true;
@@ -869,7 +869,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                         needs_secondary_area_redraw = true;
                     }
                 }
-                ViewEvent::ResponseContentChanged => {
+                PostCommandAction::ResponseContentChanged => {
                     // Response content changed - redraw current area if we're in response pane
                     if self.app_state.is_in_response_pane() {
                         needs_current_area_redraw = true;
@@ -877,11 +877,11 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                         needs_secondary_area_redraw = true;
                     }
                 }
-                ViewEvent::AllContentAreasRedrawRequired => {
+                PostCommandAction::AllContentAreasRedrawRequired => {
                     needs_current_area_redraw = true;
                     needs_secondary_area_redraw = true;
                 }
-                ViewEvent::QuitRequested => {
+                PostCommandAction::QuitRequested => {
                     self.should_quit = true;
                 }
             }
@@ -1457,7 +1457,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             );
             tracing::debug!("Command events generated: {:?}", events);
             if !events.is_empty() {
-                // Apply events to view model (this will emit appropriate ViewEvents)
+                // Apply events to view model (this will emit appropriate PostCommandActions)
                 tracing::debug!(
                     "AppViewModel: About to apply {} command events",
                     events.len()
@@ -1498,7 +1498,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
     /// Execute a Command using the new Command Pattern
     ///
-    /// This method allows execution of Commands that emit ViewEvents
+    /// This method allows execution of Commands that emit PostCommandActions
     /// alongside the existing command system. This enables gradual migration.
     pub fn execute_command(&mut self, command: Box<dyn Command>) -> Result<()> {
         tracing::debug!("Executing command: {}", command.name());
@@ -1515,7 +1515,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             view_events.len()
         );
 
-        // Process ViewEvents directly without storing in AppState
+        // Process PostCommandActions directly without storing in AppState
         if !view_events.is_empty() {
             self.process_view_events(view_events)?;
         }
@@ -1686,7 +1686,7 @@ mod tests {
         }
     }
 
-    // TODO: Re-enable this test when ModelEvent is fully migrated to ViewEvent
+    // TODO: Re-enable this test when ModelEvent is fully migrated to PostCommandAction
     // #[test]
     // fn app_controller_should_process_model_events() {
     //     use crate::repl::unified_commands::{events::YankType, ModelEvent};

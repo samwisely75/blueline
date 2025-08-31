@@ -4,13 +4,13 @@
 //! between REPL components using the observer pattern.
 
 use super::model_events::ModelEvent;
-use super::view_events::ViewEvent;
+use crate::repl::view_models::post_command_actions::PostCommandAction;
 
 /// Type alias for model event handlers to reduce complexity
 pub type ModelEventHandler = Box<dyn Fn(&ModelEvent) + Send + Sync>;
 
 /// Type alias for view event handlers to reduce complexity
-pub type ViewEventHandler = Box<dyn Fn(&ViewEvent) + Send + Sync>;
+pub type PostCommandActionHandler = Box<dyn Fn(&PostCommandAction) + Send + Sync>;
 
 /// Event bus for decoupled communication between components
 pub trait EventBus: Send + Sync {
@@ -18,19 +18,19 @@ pub trait EventBus: Send + Sync {
     fn publish_model_event(&mut self, event: ModelEvent);
 
     /// Publish a view event
-    fn publish_view_event(&mut self, event: ViewEvent);
+    fn publish_view_event(&mut self, event: PostCommandAction);
 
     /// Subscribe to model events
     fn subscribe_to_model_events(&mut self, handler: ModelEventHandler);
 
     /// Subscribe to view events
-    fn subscribe_to_view_events(&mut self, handler: ViewEventHandler);
+    fn subscribe_to_post_command_actions(&mut self, handler: PostCommandActionHandler);
 }
 
 /// Simple in-memory event bus implementation
 pub struct SimpleEventBus {
     model_handlers: Vec<ModelEventHandler>,
-    view_handlers: Vec<ViewEventHandler>,
+    view_handlers: Vec<PostCommandActionHandler>,
 }
 
 impl SimpleEventBus {
@@ -55,7 +55,7 @@ impl EventBus for SimpleEventBus {
         }
     }
 
-    fn publish_view_event(&mut self, event: ViewEvent) {
+    fn publish_view_event(&mut self, event: PostCommandAction) {
         for handler in &self.view_handlers {
             handler(&event);
         }
@@ -65,7 +65,7 @@ impl EventBus for SimpleEventBus {
         self.model_handlers.push(handler);
     }
 
-    fn subscribe_to_view_events(&mut self, handler: ViewEventHandler) {
+    fn subscribe_to_post_command_actions(&mut self, handler: PostCommandActionHandler) {
         self.view_handlers.push(handler);
     }
 }
@@ -98,16 +98,16 @@ mod tests {
     }
 
     #[test]
-    fn event_bus_should_deliver_view_events() {
+    fn event_bus_should_deliver_post_command_actions() {
         let mut bus = SimpleEventBus::new();
         let received_events = Arc::new(Mutex::new(Vec::new()));
         let events_clone = received_events.clone();
 
-        bus.subscribe_to_view_events(Box::new(move |event| {
+        bus.subscribe_to_post_command_actions(Box::new(move |event| {
             events_clone.lock().unwrap().push(event.clone());
         }));
 
-        let event = ViewEvent::CurrentAreaRedrawRequired;
+        let event = PostCommandAction::CurrentAreaRedrawRequired;
         bus.publish_view_event(event.clone());
 
         let received = received_events.lock().unwrap();

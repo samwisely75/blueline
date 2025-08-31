@@ -3,7 +3,7 @@
 //! Handles editor mode transitions, visual mode selection state, and mode-related operations.
 
 use super::AppState;
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::LogicalPosition;
 use anyhow::Result;
@@ -133,8 +133,8 @@ impl AppState {
 
         // Add standard mode change events
         events.extend([
-            ViewEvent::StatusBarUpdateRequired,
-            ViewEvent::ActiveCursorUpdateRequired,
+            PostCommandAction::StatusBarUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
         ]);
 
         let _ = self.emit_view_event(events);
@@ -158,12 +158,12 @@ impl AppState {
     }
 
     /// Start a new visual selection at current cursor
-    pub fn start_visual_selection(&mut self) -> Vec<ViewEvent> {
+    pub fn start_visual_selection(&mut self) -> Vec<PostCommandAction> {
         self.pane_manager.start_visual_selection()
     }
 
     /// Update visual selection to new position
-    pub fn update_visual_selection(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
+    pub fn update_visual_selection(&mut self, position: LogicalPosition) -> Vec<PostCommandAction> {
         self.pane_manager.update_visual_selection(position)
     }
 

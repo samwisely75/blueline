@@ -7,14 +7,14 @@
 //! - Virtual column management for Vim-style navigation
 
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::models::events::ViewEvent;
+use crate::repl::view_models::PostCommandAction;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
 
 use super::PaneState;
 
 impl PaneState {
     /// Move cursor left with capability checking and visual selection support
-    pub fn move_cursor_left(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_left(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -67,9 +67,9 @@ impl PaneState {
             }
 
             let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired,
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::PositionIndicatorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
             ];
 
             // Ensure cursor is visible and add visibility events
@@ -83,7 +83,7 @@ impl PaneState {
     }
 
     /// Move cursor right with capability checking and visual selection support
-    pub fn move_cursor_right(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_right(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -170,9 +170,9 @@ impl PaneState {
             }
 
             let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired,
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::PositionIndicatorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
             ];
 
             // Ensure cursor is visible and add visibility events
@@ -186,7 +186,7 @@ impl PaneState {
     }
 
     /// Move cursor up with capability checking and virtual column support
-    pub fn move_cursor_up(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_up(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -230,9 +230,9 @@ impl PaneState {
             }
 
             let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired,
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::PositionIndicatorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
             ];
 
             // Ensure cursor is visible and add visibility events
@@ -246,7 +246,7 @@ impl PaneState {
     }
 
     /// Move cursor down with capability checking and virtual column support
-    pub fn move_cursor_down(&mut self, content_width: usize) -> Vec<ViewEvent> {
+    pub fn move_cursor_down(&mut self, content_width: usize) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -285,9 +285,9 @@ impl PaneState {
             }
 
             let mut events = vec![
-                ViewEvent::ActiveCursorUpdateRequired,
-                ViewEvent::PositionIndicatorUpdateRequired,
-                ViewEvent::CurrentAreaRedrawRequired,
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::PositionIndicatorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
             ];
 
             // Ensure cursor is visible and add visibility events
@@ -301,7 +301,7 @@ impl PaneState {
     }
 
     /// Set cursor to specific position with capability checking
-    pub fn set_current_cursor_position(&mut self, position: LogicalPosition) -> Vec<ViewEvent> {
+    pub fn set_current_cursor_position(&mut self, position: LogicalPosition) -> Vec<PostCommandAction> {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
             return vec![]; // Navigation not allowed on this pane
@@ -339,8 +339,8 @@ impl PaneState {
         }
 
         let mut events = vec![
-            ViewEvent::ActiveCursorUpdateRequired,
-            ViewEvent::PositionIndicatorUpdateRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
         ];
 
         // Ensure cursor is visible and add visibility events
