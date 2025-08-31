@@ -85,7 +85,7 @@ impl CommandRegistry {
             // Request commands (high priority - must intercept Enter before other commands)
             Box::new(ExecuteRequestCommand),
             // G mode commands (high priority - must be processed before regular g handling)
-            Box::new(GoToTopCommand),
+            // Box::new(GoToTopCommand), // Migrated to unified_commands/navigation/go_to_top.rs
             Box::new(GoToBottomCommand),
             Box::new(RepeatVisualSelectionCommand), // gv command
             Box::new(EnterGPrefixCommand),
