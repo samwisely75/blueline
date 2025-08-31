@@ -75,8 +75,8 @@ pub use mode::{
 pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
     GoToBottomCommand, GoToTopCommand, HalfPageDownCommand, HalfPageUpCommand, HomeKeyCommand,
-    MoveCursorDownCommand, MoveCursorUpCommand, NextWordCommand, PageDownCommand, PageUpCommand,
-    PreviousWordCommand, ScrollLeftCommand, ScrollRightCommand,
+    MoveCursorUpCommand, NextWordCommand, PageDownCommand, PageUpCommand, PreviousWordCommand,
+    ScrollLeftCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -108,7 +108,7 @@ impl CommandRegistry {
             Box::new(EnterGPrefixCommand),
             // Scroll commands (higher priority than regular movement)
             Box::new(ScrollLeftCommand),
-            Box::new(ScrollRightCommand),
+            // Box::new(ScrollRightCommand), // Migrated to unified_commands
             // Pagination commands (high priority - Ctrl+key combinations)
             Box::new(PageDownCommand),
             Box::new(PageUpCommand),
@@ -119,7 +119,7 @@ impl CommandRegistry {
             // Box::new(MoveCursorLeftCommand),
             // Box::new(MoveCursorRightCommand),
             Box::new(MoveCursorUpCommand),
-            Box::new(MoveCursorDownCommand),
+            // Box::new(MoveCursorDownCommand), // Migrated to unified_commands
             Box::new(NextWordCommand),
             Box::new(PreviousWordCommand),
             Box::new(EndOfWordCommand),

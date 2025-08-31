@@ -25,7 +25,7 @@ pub mod yank;
 // Issue #231: MoveLeftCommand - MOVED to navigation/
 // Issue #232: MoveRightCommand - MOVED to navigation/
 // Issue #233: MoveUpCommand - MOVED to navigation/
-// Issue #234: MoveDownCommand
+// Issue #234: MoveDownCommand - MOVED to navigation/
 // pub mod move_down;
 // Issue #235: InsertCharCommand
 // pub mod insert_char;
