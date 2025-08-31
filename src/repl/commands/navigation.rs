@@ -835,37 +835,7 @@ mod tests {
     // }
 
     // Tests for BeginningOfLineCommand (0)
-    #[test]
-    fn beginning_of_line_should_be_relevant_for_zero_in_normal_mode() {
-        let context = create_test_context(EditorMode::Normal);
-        let cmd = BeginningOfLineCommand;
-        let event = create_test_key_event(KeyCode::Char('0'));
-
-        assert!(cmd.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn beginning_of_line_should_not_be_relevant_for_zero_in_insert_mode() {
-        let context = create_test_context(EditorMode::Insert);
-        let cmd = BeginningOfLineCommand;
-        let event = create_test_key_event(KeyCode::Char('0'));
-
-        assert!(!cmd.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn beginning_of_line_should_produce_line_start_event() {
-        let context = create_test_context(EditorMode::Normal);
-        let cmd = BeginningOfLineCommand;
-        let event = create_test_key_event(KeyCode::Char('0'));
-
-        let events = cmd.execute(event, &context).unwrap();
-        assert_eq!(events.len(), 1);
-        assert_eq!(
-            events[0],
-            CommandEvent::cursor_move(MovementDirection::LineStart)
-        );
-    }
+    // MIGRATED: These tests moved to unified_commands/navigation/beginning_of_line.rs
 
     // Tests for EndOfLineCommand ($)
     #[test]
@@ -1034,6 +1004,8 @@ mod tests {
     //     assert!(cmd.is_relevant(&context, &event));
     // }
 
+    // MIGRATED: Test moved to unified_commands/navigation/beginning_of_line.rs
+    /*
     #[test]
     fn beginning_of_line_should_be_relevant_for_zero_in_visual_mode() {
         let context = create_test_context(EditorMode::Visual);
@@ -1042,6 +1014,7 @@ mod tests {
 
         assert!(cmd.is_relevant(&context, &event));
     }
+    */
 
     #[test]
     fn end_of_line_should_be_relevant_for_dollar_in_visual_mode() {

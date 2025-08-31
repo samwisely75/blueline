@@ -91,7 +91,7 @@ impl CommandRegistry {
             // Box::new(ScrollLeftCommand), // Migrated to unified_commands
             // Box::new(ScrollRightCommand), // Migrated to unified_commands
             // Pagination commands (high priority - Ctrl+key combinations)
-            Box::new(PageDownCommand),
+            // Box::new(PageDownCommand), // Migrated to unified_commands/navigation/page_down.rs
             Box::new(PageUpCommand),
             Box::new(HalfPageDownCommand),
             Box::new(HalfPageUpCommand),
