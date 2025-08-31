@@ -60,11 +60,9 @@ pub mod request;
 pub mod yank;
 
 // Re-export all commands using wildcards to prevent merge conflicts
-pub use app::*;
 pub use editing::*;
 pub use mode::*;
 pub use navigation::*;
-pub use pane::*;
 pub use request::*;
 pub use yank::*;
 
@@ -118,7 +116,7 @@ impl CommandRegistry {
             Box::new(VisualBlockInsertCommand),
             Box::new(VisualBlockAppendCommand),
             // Box::new(AppendAfterCursorCommand), // Migrated to unified_commands/mode/append_after_cursor.rs
-            Box::new(AppendAtEndOfLineCommand),
+            // Box::new(AppendAtEndOfLineCommand), // Migrated to unified_commands/mode/append_at_end_of_line.rs
             // Box::new(InsertAtBeginningOfLineCommand), // Migrated to unified_commands/mode/insert_at_beginning_of_line.rs
             Box::new(ExitInsertModeCommand),
             Box::new(ExitVisualBlockInsertModeCommand),
@@ -355,8 +353,8 @@ mod tests {
         let initial_count = registry.commands.len();
 
         // Add a custom command (using an existing one for simplicity)
-        // SwitchPaneCommand migrated to unified_commands, using AppTerminateCommand instead
-        registry.add_command(Box::new(crate::repl::commands::app::AppTerminateCommand));
+        // Both SwitchPaneCommand and AppTerminateCommand migrated to unified_commands
+        registry.add_command(Box::new(crate::repl::commands::editing::InsertCharCommand));
 
         assert_eq!(registry.commands.len(), initial_count + 1);
     }

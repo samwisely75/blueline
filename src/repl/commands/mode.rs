@@ -261,6 +261,10 @@ impl Command for AppendAtEndOfLineCommand {
     }
 }
 
+// Legacy InsertAtBeginningOfLineCommand - MIGRATED to unified_commands/mode/insert_at_beginning_of_line.rs
+// The unified implementation provides the same 'I' key functionality with modern architecture
+
+/*
 /// Insert at beginning of line (Shift+I)
 pub struct InsertAtBeginningOfLineCommand;
 
@@ -289,7 +293,12 @@ impl Command for InsertAtBeginningOfLineCommand {
         "InsertAtBeginningOfLine"
     }
 }
+*/
 
+// Legacy AppendAfterCursorCommand - MIGRATED to unified_commands/mode/append_after_cursor.rs
+// The unified implementation provides the same 'a' key functionality with modern architecture
+
+/*
 /// Append after cursor (a key)
 pub struct AppendAfterCursorCommand;
 
@@ -312,6 +321,7 @@ impl Command for AppendAfterCursorCommand {
         "AppendAfterCursor"
     }
 }
+*/
 
 /// Handle all ex command mode input (typing, backspace, execute)
 pub struct ExCommandModeCommand;
@@ -540,6 +550,10 @@ mod tests {
         assert_eq!(result[0], CommandEvent::restore_previous_mode());
     }
 
+    // Legacy tests for InsertAtBeginningOfLineCommand - MIGRATED to unified_commands/mode/insert_at_beginning_of_line.rs
+    // Comprehensive unit tests now exist in the unified implementation
+
+    /*
     #[test]
     fn insert_at_beginning_of_line_should_be_relevant_for_uppercase_i_in_normal_mode() {
         let context = create_test_context();
@@ -600,7 +614,12 @@ mod tests {
         );
         assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
     }
+    */
 
+    // Legacy tests for AppendAfterCursorCommand - MIGRATED to unified_commands/mode/append_after_cursor.rs
+    // Comprehensive unit tests now exist in the unified implementation
+
+    /*
     #[test]
     fn append_after_cursor_should_be_relevant_for_lowercase_a_in_normal_mode() {
         let context = create_test_context();
@@ -653,6 +672,7 @@ mod tests {
         );
         assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
     }
+    */
 
     // Visual mode tests
     #[test]
