@@ -11,6 +11,7 @@ pub mod events;
 
 // Command implementations organized by category
 pub mod editing;
+pub mod mode;
 pub mod navigation;
 pub mod system;
 pub mod visual;
