@@ -4,6 +4,7 @@
 //! functionality such as HTTP requests, profile management, and settings configuration.
 
 // System command implementations
+pub mod app_terminate;
 pub mod ex_quit;
 pub mod ex_quit_test;
 pub mod ex_set_clipboard;
@@ -16,3 +17,6 @@ pub mod ex_show_profile;
 pub mod http;
 pub mod setting_change;
 pub mod show_profile;
+
+// Re-export all command types using wildcards to prevent merge conflicts
+pub use app_terminate::*;
