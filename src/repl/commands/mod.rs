@@ -103,7 +103,7 @@ impl CommandRegistry {
             // Box::new(MoveCursorRightCommand),
             Box::new(MoveCursorUpCommand),
             // Box::new(MoveCursorDownCommand), // Migrated to unified_commands
-            Box::new(NextWordCommand),
+            // Box::new(NextWordCommand), // Migrated to unified_commands
             Box::new(PreviousWordCommand),
             Box::new(EndOfWordCommand),
             Box::new(BeginningOfLineCommand),
@@ -275,9 +275,10 @@ mod tests {
         let registry = CommandRegistry::new();
         let context = create_test_context();
 
-        // Test with 'w' key (NextWordCommand) instead of Left arrow
+        // Test with 'b' key (PreviousWordCommand) instead of Left arrow
         // Left/Right arrow movement is now handled by unified_commands
-        let event = create_test_key_event(KeyCode::Char('w'));
+        // 'w' key (NextWordCommand) is also handled by unified_commands
+        let event = create_test_key_event(KeyCode::Char('b'));
         let events = registry.process_event(event, &context).unwrap();
 
         // Should produce a cursor move event
