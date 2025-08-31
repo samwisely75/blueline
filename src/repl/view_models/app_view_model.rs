@@ -631,10 +631,16 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 );
             }
             CommandEvent::PasteAfterRequested => {
-                self.handle_paste_after()?;
+                // Now handled by PasteAfterCommand in unified_commands
+                tracing::debug!(
+                    "PasteAfterRequested received via old command path - ignoring (handled by unified system)"
+                );
             }
             CommandEvent::PasteAtCursorRequested => {
-                self.handle_paste_at_cursor()?;
+                // Now handled by PasteAtCursorCommand in unified_commands
+                tracing::debug!(
+                    "PasteAtCursorRequested received via old command path - ignoring (handled by unified system)"
+                );
             }
             CommandEvent::ChangeSelectionRequested => {
                 // Now handled by ChangeSelectionCommand in unified commands
@@ -877,56 +883,57 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
     // MIGRATED to YankSelectionCommand in unified_commands
     #[allow(dead_code)]
-    fn handle_yank_selection(&mut self) -> Result<()> {
-        // Get selected text from current pane
-        if let Some(text) = self.app_state.get_selected_text() {
-            // Determine yank type based on current visual mode
-            let current_mode = self.app_state.get_mode();
-            let yank_type = match current_mode {
-                EditorMode::Visual => NewYankType::Character,
-                EditorMode::VisualLine => NewYankType::Line,
-                EditorMode::VisualBlock => NewYankType::Block,
-                _ => NewYankType::Character, // Fallback for any other mode
-            };
+    // Migrated to YankSelectionCommand
+    // fn handle_yank_selection(&mut self) -> Result<()> {
+    //     // Get selected text from current pane
+    //     if let Some(text) = self.app_state.get_selected_text() {
+    //         // Determine yank type based on current visual mode
+    //         let current_mode = self.app_state.get_mode();
+    //         let yank_type = match current_mode {
+    //             EditorMode::Visual => NewYankType::Character,
+    //             EditorMode::VisualLine => NewYankType::Line,
+    //             EditorMode::VisualBlock => NewYankType::Block,
+    //             _ => NewYankType::Character, // Fallback for any other mode
+    //         };
 
-            // Store in yank buffer using YankService (not the old ViewModel method!)
-            self.services.yank.yank(text.clone(), yank_type)?;
+    //         // Store in yank buffer using YankService (not the old ViewModel method!)
+    //         self.services.yank.yank(text.clone(), yank_type)?;
 
-            // Switch to Normal mode (automatically clears visual selection)
-            self.app_state.change_mode(EditorMode::Normal)?;
+    //         // Switch to Normal mode (automatically clears visual selection)
+    //         self.app_state.change_mode(EditorMode::Normal)?;
 
-            // Show feedback in status bar
-            let char_count = text.chars().count();
-            let line_count = text.lines().count();
-            let message = match yank_type {
-                NewYankType::Character => {
-                    if line_count > 1 {
-                        format!("{line_count} lines yanked (character-wise)")
-                    } else {
-                        format!("{char_count} characters yanked")
-                    }
-                }
-                NewYankType::Line => format!("{line_count} lines yanked (line-wise)"),
-                NewYankType::Block => {
-                    format!("Block yanked ({line_count} lines, {char_count} chars)")
-                }
-            };
-            self.app_state.set_status_message(message);
+    //         // Show feedback in status bar
+    //         let char_count = text.chars().count();
+    //         let line_count = text.lines().count();
+    //         let message = match yank_type {
+    //             NewYankType::Character => {
+    //                 if line_count > 1 {
+    //                     format!("{line_count} lines yanked (character-wise)")
+    //                 } else {
+    //                     format!("{char_count} characters yanked")
+    //                 }
+    //             }
+    //             NewYankType::Line => format!("{line_count} lines yanked (line-wise)"),
+    //             NewYankType::Block => {
+    //                 format!("Block yanked ({line_count} lines, {char_count} chars)")
+    //             }
+    //         };
+    //         self.app_state.set_status_message(message);
 
-            tracing::info!(
-                "Yanked {} characters ({} lines) to buffer as {:?}",
-                char_count,
-                line_count,
-                yank_type
-            );
-        } else {
-            tracing::warn!("No text selected for yanking");
-            self.app_state
-                .set_status_message("No text selected".to_string());
-        }
+    //         tracing::info!(
+    //             "Yanked {} characters ({} lines) to buffer as {:?}",
+    //             char_count,
+    //             line_count,
+    //             yank_type
+    //         );
+    //     } else {
+    //         tracing::warn!("No text selected for yanking");
+    //         self.app_state
+    //             .set_status_message("No text selected".to_string());
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     // Migrated to DeleteSelectionCommand
     // /// Handle deleting selected text
@@ -1278,67 +1285,69 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         Ok(())
     }
 
-    /// Handle pasting yanked text after cursor
-    fn handle_paste_after(&mut self) -> Result<()> {
-        // Get from YankService, not the old app_state buffer!
-        if let Some(yank_entry) = self.services.yank.paste() {
-            // Paste the text after the current cursor position using type-aware paste
-            self.app_state.paste_after_with_type(&yank_entry)?;
+    // Migrated to PasteAfterCommand
+    // /// Handle pasting yanked text after cursor
+    // fn handle_paste_after(&mut self) -> Result<()> {
+    //     // Get from YankService, not the old app_state buffer!
+    //     if let Some(yank_entry) = self.services.yank.paste() {
+    //         // Paste the text after the current cursor position using type-aware paste
+    //         self.app_state.paste_after_with_type(&yank_entry)?;
 
-            let char_count = yank_entry.text.chars().count();
-            let line_count = yank_entry.text.lines().count();
+    //         let char_count = yank_entry.text.chars().count();
+    //         let line_count = yank_entry.text.lines().count();
 
-            // Clear any previous status message (e.g., "1 line yanked")
-            self.app_state.clear_status_message();
+    //         // Clear any previous status message (e.g., "1 line yanked")
+    //         self.app_state.clear_status_message();
 
-            tracing::info!(
-                "Pasted {} characters ({} lines) after cursor as {:?}",
-                char_count,
-                line_count,
-                yank_entry.yank_type
-            );
-        } else {
-            self.app_state
-                .set_status_message("Nothing to paste".to_string());
-            tracing::warn!("No text in yank buffer to paste");
-        }
+    //         tracing::info!(
+    //             "Pasted {} characters ({} lines) after cursor as {:?}",
+    //             char_count,
+    //             line_count,
+    //             yank_entry.yank_type
+    //         );
+    //     } else {
+    //         self.app_state
+    //             .set_status_message("Nothing to paste".to_string());
+    //         tracing::warn!("No text in yank buffer to paste");
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    /// Handle pasting yanked text at current cursor position
-    fn handle_paste_at_cursor(&mut self) -> Result<()> {
-        // Get from YankService, not the old app_state buffer!
-        if let Some(yank_entry) = self.services.yank.paste() {
-            tracing::debug!(
-                "Retrieved yank entry with type: {:?}, text length: {}",
-                yank_entry.yank_type,
-                yank_entry.text.len()
-            );
+    // Migrated to PasteAtCursorCommand
+    // /// Handle pasting yanked text at current cursor position
+    // fn handle_paste_at_cursor(&mut self) -> Result<()> {
+    //     // Get from YankService, not the old app_state buffer!
+    //     if let Some(yank_entry) = self.services.yank.paste() {
+    //         tracing::debug!(
+    //             "Retrieved yank entry with type: {:?}, text length: {}",
+    //             yank_entry.yank_type,
+    //             yank_entry.text.len()
+    //         );
 
-            // Paste the text at current position (before cursor) using type-aware paste
-            self.app_state.paste_with_type(&yank_entry)?;
+    //         // Paste the text at current position (before cursor) using type-aware paste
+    //         self.app_state.paste_with_type(&yank_entry)?;
 
-            let char_count = yank_entry.text.chars().count();
-            let line_count = yank_entry.text.lines().count();
+    //         let char_count = yank_entry.text.chars().count();
+    //         let line_count = yank_entry.text.lines().count();
 
-            // Clear any previous status message (e.g., "1 line yanked")
-            self.app_state.clear_status_message();
+    //         // Clear any previous status message (e.g., "1 line yanked")
+    //         self.app_state.clear_status_message();
 
-            tracing::info!(
-                "Pasted {} characters ({} lines) at cursor as {:?}",
-                char_count,
-                line_count,
-                yank_entry.yank_type
-            );
-        } else {
-            self.app_state
-                .set_status_message("Nothing to paste".to_string());
-            tracing::warn!("No text in yank buffer to paste");
-        }
+    //         tracing::info!(
+    //             "Pasted {} characters ({} lines) at cursor as {:?}",
+    //             char_count,
+    //             line_count,
+    //             yank_entry.yank_type
+    //         );
+    //     } else {
+    //         self.app_state
+    //             .set_status_message("Nothing to paste".to_string());
+    //         tracing::warn!("No text in yank buffer to paste");
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     /// Process a single key event without running the full event loop (for testing)
     pub async fn process_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
