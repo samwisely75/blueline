@@ -674,6 +674,8 @@ mod tests {
     }
     */
 
+    // MIGRATED: EnterVisualModeCommand tests moved to unified_commands/mode/enter_visual_mode.rs
+    /*
     // Visual mode tests
     #[test]
     fn enter_visual_mode_should_be_relevant_for_v_in_normal_mode() {
@@ -723,6 +725,7 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], CommandEvent::mode_change(EditorMode::Visual));
     }
+    */
 
     #[test]
     fn exit_visual_mode_should_be_relevant_for_escape_in_visual_mode() {
