@@ -42,8 +42,8 @@ impl MoveUpCommand {
         }
     }
 
-    /// Check if current mode allows navigation
-    fn is_navigation_mode(mode: EditorMode) -> bool {
+    /// Check if current mode allows cursor movement
+    fn is_movement_mode(mode: EditorMode) -> bool {
         matches!(
             mode,
             EditorMode::Normal
@@ -66,10 +66,10 @@ impl Command for MoveUpCommand {
             return false;
         }
 
-        // For 'k' key, only allow in navigation modes
-        // For Up arrow, allow in any mode
+        // For 'k' key, only allow in movement modes (Vim behavior)
+        // For Up arrow, allow in any mode (standard editor behavior)
         match key_event.code {
-            KeyCode::Char('k') => Self::is_navigation_mode(mode),
+            KeyCode::Char('k') => Self::is_movement_mode(mode),
             KeyCode::Up => true,
             _ => false,
         }
@@ -334,22 +334,6 @@ mod tests {
         assert!(!MoveUpCommand::is_move_up_key(down_key));
     }
 
-    #[test]
-    fn is_navigation_mode_should_allow_normal_and_visual_modes() {
-        assert!(MoveUpCommand::is_navigation_mode(EditorMode::Normal));
-        assert!(MoveUpCommand::is_navigation_mode(EditorMode::Visual));
-        assert!(MoveUpCommand::is_navigation_mode(EditorMode::VisualLine));
-        assert!(MoveUpCommand::is_navigation_mode(EditorMode::VisualBlock));
-    }
-
-    #[test]
-    fn is_navigation_mode_should_reject_other_modes() {
-        assert!(!MoveUpCommand::is_navigation_mode(EditorMode::Insert));
-        assert!(!MoveUpCommand::is_navigation_mode(EditorMode::Command));
-        assert!(!MoveUpCommand::is_navigation_mode(EditorMode::GPrefix));
-        assert!(!MoveUpCommand::is_navigation_mode(EditorMode::DPrefix));
-        assert!(!MoveUpCommand::is_navigation_mode(EditorMode::YPrefix));
-    }
 
     #[test]
     fn move_up_command_should_generate_events_on_execution() {
@@ -375,8 +359,24 @@ mod tests {
 
     #[test]
     fn default_should_create_new_instance() {
-        let command = MoveUpCommand::new();
+        let command = MoveUpCommand;
         assert_eq!(command.name(), "MoveUpCommand");
+    }
+
+    #[test]
+    fn is_movement_mode_should_identify_correct_modes() {
+        // Movement modes
+        assert!(MoveUpCommand::is_movement_mode(EditorMode::Normal));
+        assert!(MoveUpCommand::is_movement_mode(EditorMode::Visual));
+        assert!(MoveUpCommand::is_movement_mode(EditorMode::VisualLine));
+        assert!(MoveUpCommand::is_movement_mode(EditorMode::VisualBlock));
+
+        // Non-movement modes
+        assert!(!MoveUpCommand::is_movement_mode(EditorMode::Insert));
+        assert!(!MoveUpCommand::is_movement_mode(
+            EditorMode::VisualBlockInsert
+        ));
+        assert!(!MoveUpCommand::is_movement_mode(EditorMode::Command));
     }
 }
 
