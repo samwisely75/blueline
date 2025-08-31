@@ -101,6 +101,10 @@ impl Command for EnterVisualModeCommand {
     }
 }
 
+// MIGRATED: ExitVisualModeCommand moved to unified_commands/mode/exit_visual_mode.rs
+// The unified implementation provides the same Escape key functionality with modern architecture
+
+/*
 /// Exit visual mode (Escape key)
 pub struct ExitVisualModeCommand;
 
@@ -121,6 +125,7 @@ impl Command for ExitVisualModeCommand {
         "ExitVisualMode"
     }
 }
+*/
 
 /// Enter visual line mode (Shift+V)
 pub struct EnterVisualLineModeCommand;
@@ -727,6 +732,10 @@ mod tests {
     }
     */
 
+    // MIGRATED: ExitVisualModeCommand tests moved to unified_commands/mode/exit_visual_mode.rs
+    // Comprehensive unit tests now exist in the unified implementation
+    
+    /*
     #[test]
     fn exit_visual_mode_should_be_relevant_for_escape_in_visual_mode() {
         let mut context = create_test_context();
@@ -767,6 +776,7 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], CommandEvent::mode_change(EditorMode::Normal));
     }
+    */
 
     // MIGRATED: EnterCommandModeCommand tests moved to unified_commands/mode/enter_command_mode.rs
     // #[test]
