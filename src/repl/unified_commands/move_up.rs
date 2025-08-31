@@ -5,7 +5,7 @@
 //! owns its business logic and emits appropriate ViewEvents.
 
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::register_command;
 use crate::repl::models::events::view_events::ViewEvent;
@@ -20,7 +20,6 @@ use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 /// 3. Emits appropriate ViewEvents to update the display
 ///
 /// Handles both vim-style 'k' navigation and standard up arrow key.
-#[derive(Default)]
 pub struct MoveUpCommand;
 
 impl MoveUpCommand {
@@ -34,14 +33,17 @@ impl MoveUpCommand {
         match key_event.code {
             // vim-style 'k' key without modifiers
             KeyCode::Char('k') => key_event.modifiers.is_empty(),
-            // Standard up arrow key (any mode)
-            KeyCode::Up => true,
+            // Standard up arrow key - allow without Shift/Control (like move_left/right)
+            KeyCode::Up => {
+                !key_event.modifiers.contains(KeyModifiers::SHIFT)
+                    && !key_event.modifiers.contains(KeyModifiers::CONTROL)
+            }
             _ => false,
         }
     }
 
-    /// Check if current mode allows navigation
-    fn is_navigation_mode(mode: EditorMode) -> bool {
+    /// Check if current mode allows cursor movement
+    fn is_movement_mode(mode: EditorMode) -> bool {
         matches!(
             mode,
             EditorMode::Normal
@@ -53,21 +55,21 @@ impl MoveUpCommand {
 }
 
 impl Command for MoveUpCommand {
-    fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool {
-        // Don't handle read-only panes
-        if context.is_read_only {
-            return false;
-        }
-
+    fn is_relevant(
+        &self,
+        key_event: KeyEvent,
+        mode: EditorMode,
+        _context: &CommandContext,
+    ) -> bool {
         // Check if it's a move up key
         if !Self::is_move_up_key(key_event) {
             return false;
         }
 
-        // For 'k' key, only allow in navigation modes
-        // For Up arrow, allow in any mode
+        // For 'k' key, only allow in movement modes (Vim behavior)
+        // For Up arrow, allow in any mode (standard editor behavior)
         match key_event.code {
-            KeyCode::Char('k') => Self::is_navigation_mode(mode),
+            KeyCode::Char('k') => Self::is_movement_mode(mode),
             KeyCode::Up => true,
             _ => false,
         }
@@ -84,6 +86,12 @@ impl Command for MoveUpCommand {
 
     fn name(&self) -> &'static str {
         "MoveUpCommand"
+    }
+}
+
+impl Default for MoveUpCommand {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -178,6 +186,41 @@ mod tests {
     }
 
     #[test]
+    fn move_up_command_should_allow_up_arrow_with_alt_modifier() {
+        let command = MoveUpCommand::new();
+
+        let context = CommandContext {
+            current_mode: EditorMode::Normal,
+            current_pane: Pane::Request,
+            is_read_only: false,
+            has_selection: false,
+        };
+
+        let up_key = KeyEvent::new(KeyCode::Up, KeyModifiers::ALT);
+        assert!(command.is_relevant(up_key, EditorMode::Normal, &context));
+    }
+
+    #[test]
+    fn move_up_command_should_not_be_relevant_for_up_arrow_with_shift_or_control() {
+        let command = MoveUpCommand::new();
+
+        let context = CommandContext {
+            current_mode: EditorMode::Normal,
+            current_pane: Pane::Request,
+            is_read_only: false,
+            has_selection: false,
+        };
+
+        // Test Shift+Up (used for selection/scrolling)
+        let shift_up = KeyEvent::new(KeyCode::Up, KeyModifiers::SHIFT);
+        assert!(!command.is_relevant(shift_up, EditorMode::Normal, &context));
+
+        // Test Ctrl+Up (used for scrolling/other functions)
+        let ctrl_up = KeyEvent::new(KeyCode::Up, KeyModifiers::CONTROL);
+        assert!(!command.is_relevant(ctrl_up, EditorMode::Normal, &context));
+    }
+
+    #[test]
     fn move_up_command_should_not_be_relevant_for_k_in_insert_mode() {
         let command = MoveUpCommand::new();
 
@@ -208,7 +251,7 @@ mod tests {
     }
 
     #[test]
-    fn move_up_command_should_not_be_relevant_in_read_only_pane() {
+    fn move_up_command_should_work_in_read_only_panes() {
         let command = MoveUpCommand::new();
 
         let context = CommandContext {
@@ -219,10 +262,10 @@ mod tests {
         };
 
         let k_key = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE);
-        assert!(!command.is_relevant(k_key, EditorMode::Normal, &context));
+        assert!(command.is_relevant(k_key, EditorMode::Normal, &context));
 
         let up_key = KeyEvent::new(KeyCode::Up, KeyModifiers::NONE);
-        assert!(!command.is_relevant(up_key, EditorMode::Normal, &context));
+        assert!(command.is_relevant(up_key, EditorMode::Normal, &context));
     }
 
     #[test]
@@ -291,22 +334,6 @@ mod tests {
         assert!(!MoveUpCommand::is_move_up_key(down_key));
     }
 
-    #[test]
-    fn is_navigation_mode_should_allow_normal_and_visual_modes() {
-        assert!(MoveUpCommand::is_navigation_mode(EditorMode::Normal));
-        assert!(MoveUpCommand::is_navigation_mode(EditorMode::Visual));
-        assert!(MoveUpCommand::is_navigation_mode(EditorMode::VisualLine));
-        assert!(MoveUpCommand::is_navigation_mode(EditorMode::VisualBlock));
-    }
-
-    #[test]
-    fn is_navigation_mode_should_reject_other_modes() {
-        assert!(!MoveUpCommand::is_navigation_mode(EditorMode::Insert));
-        assert!(!MoveUpCommand::is_navigation_mode(EditorMode::Command));
-        assert!(!MoveUpCommand::is_navigation_mode(EditorMode::GPrefix));
-        assert!(!MoveUpCommand::is_navigation_mode(EditorMode::DPrefix));
-        assert!(!MoveUpCommand::is_navigation_mode(EditorMode::YPrefix));
-    }
 
     #[test]
     fn move_up_command_should_generate_events_on_execution() {
@@ -328,6 +355,28 @@ mod tests {
         // We don't check exact events since they depend on internal state
         // but we verify the command can execute without errors
         let _events = result.unwrap();
+    }
+
+    #[test]
+    fn default_should_create_new_instance() {
+        let command = MoveUpCommand;
+        assert_eq!(command.name(), "MoveUpCommand");
+    }
+
+    #[test]
+    fn is_movement_mode_should_identify_correct_modes() {
+        // Movement modes
+        assert!(MoveUpCommand::is_movement_mode(EditorMode::Normal));
+        assert!(MoveUpCommand::is_movement_mode(EditorMode::Visual));
+        assert!(MoveUpCommand::is_movement_mode(EditorMode::VisualLine));
+        assert!(MoveUpCommand::is_movement_mode(EditorMode::VisualBlock));
+
+        // Non-movement modes
+        assert!(!MoveUpCommand::is_movement_mode(EditorMode::Insert));
+        assert!(!MoveUpCommand::is_movement_mode(
+            EditorMode::VisualBlockInsert
+        ));
+        assert!(!MoveUpCommand::is_movement_mode(EditorMode::Command));
     }
 }
 
