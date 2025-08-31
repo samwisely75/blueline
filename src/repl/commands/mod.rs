@@ -104,7 +104,7 @@ impl CommandRegistry {
             Box::new(MoveCursorUpCommand),
             // Box::new(MoveCursorDownCommand), // Migrated to unified_commands
             // Box::new(NextWordCommand), // Migrated to unified_commands
-            Box::new(PreviousWordCommand),
+            // Box::new(PreviousWordCommand), // Migrated to unified_commands
             Box::new(EndOfWordCommand),
             Box::new(BeginningOfLineCommand),
             Box::new(EndOfLineCommand),
@@ -275,10 +275,11 @@ mod tests {
         let registry = CommandRegistry::new();
         let context = create_test_context();
 
-        // Test with 'b' key (PreviousWordCommand) instead of Left arrow
+        // Test with up arrow (MoveCursorUpCommand) since most movement commands are now in unified_commands
         // Left/Right arrow movement is now handled by unified_commands
-        // 'w' key (NextWordCommand) is also handled by unified_commands
-        let event = create_test_key_event(KeyCode::Char('b'));
+        // 'w' key (NextWordCommand) is handled by unified_commands
+        // 'b' key (PreviousWordCommand) is handled by unified_commands
+        let event = create_test_key_event(KeyCode::Up);
         let events = registry.process_event(event, &context).unwrap();
 
         // Should produce a cursor move event
@@ -421,15 +422,8 @@ mod tests {
         let event = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::empty());
         let events = registry.process_event(event, &context).unwrap();
 
-        // Should produce previous word event (regular 'b' in Normal mode)
-        assert_eq!(events.len(), 1);
-        assert!(matches!(
-            events[0],
-            CommandEvent::CursorMoveRequested {
-                direction: MovementDirection::WordBackward,
-                amount: 1
-            }
-        ));
+        // Should not produce any events (regular 'b' is now handled by unified_commands)
+        assert!(events.is_empty());
     }
 
     #[test]
