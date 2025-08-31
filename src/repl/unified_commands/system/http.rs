@@ -8,7 +8,7 @@ use crate::repl::models::pane_state::EditorMode;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::{Command, CommandContext, ExecutionContext};
+use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 
 /// Execute HTTP request command (Enter in Normal mode on Request pane)
 ///

@@ -9,33 +9,22 @@ pub mod command;
 pub mod dynamic_registry; // Dynamic command discovery system
 pub mod events;
 
-// Command implementations (migrated)
-pub mod change_selection;
-pub mod cut_character;
-pub mod cut_current_line;
-pub mod cut_selection;
-pub mod cut_to_end_of_line;
-pub mod delete_selection;
-pub mod exit_visual_block_insert;
-pub mod http;
-pub mod paste; // Added missing paste module
-pub mod paste_at_cursor;
-pub mod repeat_visual_selection;
-pub mod setting_change;
-pub mod show_profile;
-pub mod visual_block_append;
-pub mod visual_block_insert;
+// Command implementations organized by category
+pub mod editing;
+pub mod navigation;
+pub mod system;
+pub mod visual;
 pub mod yank;
-pub mod yank_current_line;
+
+// Individual command implementations (migrated)
+// System commands moved to system/ module
 
 // Placeholder reservations for remaining migrations (issues #231-295)
 // Agents: Replace your assigned comment line with: pub mod your_command_name;
-// Issue #231: MoveLeftCommand
-pub mod move_left;
-// Issue #232: MoveRightCommand
-pub mod move_right;
-// Issue #233: MoveUpCommand
-pub mod move_up;
+// Navigation commands moved to navigation/ module:
+// Issue #231: MoveLeftCommand - MOVED to navigation/
+// Issue #232: MoveRightCommand - MOVED to navigation/
+// Issue #233: MoveUpCommand - MOVED to navigation/
 // Issue #234: MoveDownCommand
 // pub mod move_down;
 // Issue #235: InsertCharCommand

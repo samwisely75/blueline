@@ -154,7 +154,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                         match event {
                             CommandEvent::SettingChangeRequested { setting, value } => {
                                 // Now handled by SettingChangeCommand
-                                use crate::repl::unified_commands::setting_change::SettingChangeCommand;
+                                use crate::repl::unified_commands::system::setting_change::SettingChangeCommand;
                                 let command = SettingChangeCommand::new(setting, value);
                                 let mut exec_context = ExecutionContext {
                                     app_state: &mut self.app_state,
@@ -601,7 +601,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                         }
                         CommandEvent::ShowProfileRequested => {
                             // Now handled by ShowProfileCommand
-                            use crate::repl::unified_commands::show_profile::ShowProfileCommand;
+                            use crate::repl::unified_commands::system::show_profile::ShowProfileCommand;
                             let command = ShowProfileCommand::new();
                             let mut exec_context = ExecutionContext {
                                 app_state: &mut self.app_state,
@@ -613,7 +613,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                         }
                         CommandEvent::SettingChangeRequested { setting, value } => {
                             // Now handled by SettingChangeCommand
-                            use crate::repl::unified_commands::setting_change::SettingChangeCommand;
+                            use crate::repl::unified_commands::system::setting_change::SettingChangeCommand;
                             let command = SettingChangeCommand::new(setting, value);
                             let mut exec_context = ExecutionContext {
                                 app_state: &mut self.app_state,
@@ -651,7 +651,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             }
             CommandEvent::ShowProfileRequested => {
                 // Now handled by ShowProfileCommand
-                use crate::repl::unified_commands::show_profile::ShowProfileCommand;
+                use crate::repl::unified_commands::system::show_profile::ShowProfileCommand;
                 let command = ShowProfileCommand::new();
                 let mut exec_context = ExecutionContext {
                     app_state: &mut self.app_state,
@@ -663,7 +663,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             }
             CommandEvent::SettingChangeRequested { setting, value } => {
                 // Now handled by SettingChangeCommand
-                use crate::repl::unified_commands::setting_change::SettingChangeCommand;
+                use crate::repl::unified_commands::system::setting_change::SettingChangeCommand;
                 let command = SettingChangeCommand::new(setting, value);
                 let mut exec_context = ExecutionContext {
                     app_state: &mut self.app_state,
