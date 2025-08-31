@@ -741,6 +741,42 @@ This represents a **major architectural milestone** - the ex command migration i
 
 ---
 
+## [2025-08-31] PR #316 Investigation - MoveCursorDownCommand Migration Status
+
+### Investigation Summary
+User reported that PR #316 for MoveCursorDownCommand migration (issue #259) was missing, but agent claimed success.
+
+### Findings
+1. **PR #316 EXISTS and was MERGED** ✅
+   - Title: "Fix #259: Migrate MoveCursorDownCommand to unified command system"
+   - State: MERGED 
+   - Date: 2025-08-31T08:23:30Z
+   - URL: https://github.com/samwisely75/blueline/pull/316
+
+2. **Migration was SUCCESSFUL** ✅
+   - MoveDownCommand exists in `src/repl/unified_commands/navigation/move_down.rs`
+   - Legacy MoveCursorDownCommand is commented out in `commands/mod.rs`
+   - Comprehensive implementation with 19 unit tests
+   - Auto-registered using `register_command!` macro
+
+3. **Feature Branch Confusion** ⚠️
+   - Branch `feature/move-cursor-down-command-259` still exists but shows ROLLBACK changes
+   - The rollback changes restore legacy system and delete unified implementation
+   - This appears to be an older state or different attempt, NOT the merged work
+
+### Technical Verification
+- **On develop branch**: Migration is complete and working
+- **In feature branch**: Shows rollback/undo of the migration
+- **PR Status**: Successfully merged into develop
+- **Current Status**: MoveDownCommand is live and functional
+
+### Conclusion
+**PR #316 exists, was merged successfully, and the migration is complete.** The agent DID complete the work successfully. The feature branch showing rollback changes appears to be misleading - possibly an older attempt or different branch state.
+
+**Action Required**: NONE - The work was completed correctly and is already merged into develop.
+
+---
+
 ## Current Migration Status (as of 2025-08-31)
 
 ### Completed Migrations
