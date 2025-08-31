@@ -334,7 +334,6 @@ mod tests {
         assert!(!MoveUpCommand::is_move_up_key(down_key));
     }
 
-
     #[test]
     fn move_up_command_should_generate_events_on_execution() {
         use crate::repl::models::AppState;

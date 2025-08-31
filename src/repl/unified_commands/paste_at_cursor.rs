@@ -47,25 +47,26 @@ impl Command for PasteAtCursorCommand {
             );
 
             // Paste the text at current position (before cursor) using type-aware paste
-            context.app_state.paste_with_type(&yank_entry)?;
-
-            let char_count = yank_entry.text.chars().count();
-            let line_count = yank_entry.text.lines().count();
-
-            // Clear any previous status message (e.g., "1 line yanked")
-            context.app_state.clear_status_message();
-
-            tracing::info!(
-                "Pasted {} characters ({} lines) at cursor as {:?}",
-                char_count,
-                line_count,
-                yank_entry.yank_type
-            );
+            if let Err(e) = context.app_state.paste_with_type(&yank_entry) {
+                tracing::error!("Failed to paste at cursor: {}", e);
+                context
+                    .app_state
+                    .set_status_message(format!("Failed to paste: {e}"));
+            } else {
+                tracing::info!(
+                    "Successfully pasted {} characters at cursor",
+                    yank_entry.text.len()
+                );
+                context
+                    .app_state
+                    .set_status_message(format!("Pasted {} characters", yank_entry.text.len()));
+            }
         } else {
+            // Nothing in yank buffer
+            tracing::debug!("No text in yank buffer");
             context
                 .app_state
                 .set_status_message("Nothing to paste".to_string());
-            tracing::warn!("No text in yank buffer to paste");
         }
 
         // Return UI update events
