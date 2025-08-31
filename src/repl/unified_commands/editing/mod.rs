@@ -12,11 +12,11 @@ pub mod cut_to_end_of_line;
 pub mod delete_selection;
 pub mod multi_cursor_text_insert;
 
-// Re-export the command structs for easier access
-pub use change_selection::ChangeSelectionCommand;
-pub use cut_character::CutCharacterCommand;
-pub use cut_current_line::CutCurrentLineCommand;
-pub use cut_selection::CutSelectionCommand;
-pub use cut_to_end_of_line::CutToEndOfLineCommand;
-pub use delete_selection::DeleteSelectionCommand;
-pub use multi_cursor_text_insert::MultiCursorTextInsertCommand;
+// Re-export all command structs using wildcards to prevent merge conflicts
+pub use change_selection::*;
+pub use cut_character::*;
+pub use cut_current_line::*;
+pub use cut_selection::*;
+pub use cut_to_end_of_line::*;
+pub use delete_selection::*;
+pub use multi_cursor_text_insert::*;

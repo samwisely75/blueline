@@ -16,11 +16,11 @@ pub mod move_up;
 pub mod scroll_left;
 pub mod scroll_right;
 
-// Re-export command types for convenience
-pub use ex_goto_line::ExGotoLineCommand;
-pub use move_down::MoveDownCommand;
-pub use move_left::MoveLeftCommand;
-pub use move_right::MoveRightCommand;
-pub use move_up::MoveUpCommand;
-pub use scroll_left::ScrollLeftCommand;
-pub use scroll_right::ScrollRightCommand;
+// Re-export all command types using wildcards to prevent merge conflicts
+pub use ex_goto_line::*;
+pub use move_down::*;
+pub use move_left::*;
+pub use move_right::*;
+pub use move_up::*;
+pub use scroll_left::*;
+pub use scroll_right::*;

@@ -12,8 +12,8 @@ pub mod yank_selection;
 pub mod paste;
 pub mod paste_at_cursor;
 
-// Re-export command structs for easier access
-pub use paste::PasteAfterCommand;
-pub use paste_at_cursor::PasteAtCursorCommand;
-pub use yank_current_line::YankCurrentLineCommand;
-pub use yank_selection::YankSelectionCommand;
+// Re-export all command structs using wildcards to prevent merge conflicts
+pub use paste::*;
+pub use paste_at_cursor::*;
+pub use yank_current_line::*;
+pub use yank_selection::*;

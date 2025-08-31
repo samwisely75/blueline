@@ -59,43 +59,14 @@ pub mod pane;
 pub mod request;
 pub mod yank;
 
-// Re-export all commands for easy access
-pub use app::AppTerminateCommand;
-pub use editing::{
-    DeleteCharAtCursorCommand, DeleteCharCommand, InsertCharCommand, InsertNewLineCommand,
-    InsertTabCommand,
-};
-pub use mode::{
-    AppendAfterCursorCommand, AppendAtEndOfLineCommand, EnterCommandModeCommand,
-    EnterInsertModeCommand, EnterVisualBlockModeCommand, EnterVisualLineModeCommand,
-    EnterVisualModeCommand, ExCommandModeCommand, ExitInsertModeCommand,
-    ExitVisualBlockInsertModeCommand, ExitVisualModeCommand, InsertAtBeginningOfLineCommand,
-    RepeatVisualSelectionCommand, VisualBlockAppendCommand, VisualBlockInsertCommand,
-};
-pub use navigation::{
-    BeginningOfLineCommand,
-    EndKeyCommand,
-    EndOfLineCommand,
-    EndOfWordCommand,
-    EnterGPrefixCommand,
-    GoToBottomCommand,
-    GoToTopCommand,
-    HalfPageDownCommand,
-    HalfPageUpCommand,
-    HomeKeyCommand,
-    MoveCursorUpCommand,
-    NextWordCommand,
-    PageDownCommand,
-    PageUpCommand,
-    PreviousWordCommand,
-    // ScrollLeftCommand, ScrollRightCommand, // Migrated to unified_commands
-};
-pub use pane::SwitchPaneCommand;
-pub use request::ExecuteRequestCommand;
-pub use yank::{
-    CancelPrefixModeCommand, ChangeSelectionCommand, EnterDPrefixCommand, EnterYPrefixCommand,
-    PasteAfterCommand, /* PasteAtCursorCommand, */ YankCurrentLineCommand,
-};
+// Re-export all commands using wildcards to prevent merge conflicts
+pub use app::*;
+pub use editing::*;
+pub use mode::*;
+pub use navigation::*;
+pub use pane::*;
+pub use request::*;
+pub use yank::*;
 
 /// Type alias for command collection to reduce complexity
 pub type CommandCollection = Vec<Box<dyn Command + Send>>;
