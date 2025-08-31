@@ -19,6 +19,7 @@ pub mod delete_selection;
 pub mod exit_visual_block_insert;
 pub mod http;
 pub mod paste; // Added missing paste module
+pub mod paste_at_cursor;
 pub mod repeat_visual_selection;
 pub mod setting_change;
 pub mod show_profile;

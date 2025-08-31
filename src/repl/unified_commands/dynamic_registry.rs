@@ -152,6 +152,10 @@ mod tests {
             command_names.contains(&"ChangeSelectionCommand"),
             "Should discover ChangeSelectionCommand"
         );
+        assert!(
+            command_names.contains(&"MoveLeftCommand"),
+            "Should discover MoveLeftCommand"
+        );
     }
 
     #[test]
@@ -172,6 +176,37 @@ mod tests {
         assert!(result.is_some(), "Should find YankSelectionCommand");
         let command = result.unwrap();
         assert_eq!(command.name(), "YankSelectionCommand");
+    }
+
+    #[test]
+    fn dynamic_registry_should_find_move_left_command() {
+        let registry = DynamicCommandRegistry::new();
+
+        // Test Normal mode with 'h' key - should find MoveLeftCommand
+        let normal_context = CommandContext {
+            current_mode: EditorMode::Normal,
+            current_pane: Pane::Request,
+            is_read_only: false,
+            has_selection: false,
+        };
+
+        let h_key = crossterm::event::KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE);
+        let result = registry.process_key_event(h_key, EditorMode::Normal, &normal_context);
+
+        assert!(result.is_some(), "Should find MoveLeftCommand for 'h' key");
+        let command = result.unwrap();
+        assert_eq!(command.name(), "MoveLeftCommand");
+
+        // Test Left arrow key - should also find MoveLeftCommand
+        let left_key = crossterm::event::KeyEvent::new(KeyCode::Left, KeyModifiers::NONE);
+        let result = registry.process_key_event(left_key, EditorMode::Normal, &normal_context);
+
+        assert!(
+            result.is_some(),
+            "Should find MoveLeftCommand for Left arrow key"
+        );
+        let command = result.unwrap();
+        assert_eq!(command.name(), "MoveLeftCommand");
     }
 
     #[test]
