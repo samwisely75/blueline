@@ -4,11 +4,13 @@
 
 pub mod append_after_cursor;
 pub mod enter_command_mode;
+pub mod exit_insert_mode;
 pub mod append_at_end_of_line;
 pub mod insert_at_beginning_of_line;
 
 // Re-export commands for easy access
 pub use append_after_cursor::*;
 pub use enter_command_mode::*;
+pub use exit_insert_mode::*;
 pub use append_at_end_of_line::*;
 pub use insert_at_beginning_of_line::*;

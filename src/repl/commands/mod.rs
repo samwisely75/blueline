@@ -118,7 +118,7 @@ impl CommandRegistry {
             // Box::new(AppendAfterCursorCommand), // Migrated to unified_commands/mode/append_after_cursor.rs
             // Box::new(AppendAtEndOfLineCommand), // Migrated to unified_commands/mode/append_at_end_of_line.rs
             // Box::new(InsertAtBeginningOfLineCommand), // Migrated to unified_commands/mode/insert_at_beginning_of_line.rs
-            Box::new(ExitInsertModeCommand),
+            // Box::new(ExitInsertModeCommand), // Migrated to unified_commands/mode/exit_insert_mode.rs
             Box::new(ExitVisualBlockInsertModeCommand),
             Box::new(ExitVisualModeCommand),
             // Box::new(EnterCommandModeCommand), // Migrated to unified_commands/mode/enter_command_mode.rs
