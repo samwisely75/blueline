@@ -122,6 +122,10 @@ impl Command for ExitVisualModeCommand {
     }
 }
 
+// MIGRATED: EnterVisualLineModeCommand moved to unified_commands/mode/enter_visual_line_mode.rs
+// The unified implementation provides the same Shift+V key functionality with modern architecture
+
+/*
 /// Enter visual line mode (Shift+V)
 pub struct EnterVisualLineModeCommand;
 
@@ -153,6 +157,7 @@ impl Command for EnterVisualLineModeCommand {
         "EnterVisualLineMode"
     }
 }
+*/
 
 /// Enter visual block mode (Ctrl+V)
 pub struct EnterVisualBlockModeCommand;

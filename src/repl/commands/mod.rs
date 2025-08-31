@@ -111,7 +111,7 @@ impl CommandRegistry {
             // Mode commands
             Box::new(EnterInsertModeCommand),
             Box::new(EnterVisualModeCommand),
-            Box::new(EnterVisualLineModeCommand),
+            // Box::new(EnterVisualLineModeCommand), // Migrated to unified_commands
             Box::new(EnterVisualBlockModeCommand),
             Box::new(VisualBlockInsertCommand),
             Box::new(VisualBlockAppendCommand),
