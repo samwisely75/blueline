@@ -13,8 +13,8 @@ pub mod move_down;
 pub mod move_left;
 pub mod move_right;
 pub mod move_up;
-// pub mod scroll_left;  // Temporarily disabled due to compilation errors
-// pub mod scroll_right; // Temporarily disabled due to compilation errors
+pub mod scroll_left;
+pub mod scroll_right;
 
 // Re-export command types for convenience
 pub use ex_goto_line::ExGotoLineCommand;
@@ -22,5 +22,5 @@ pub use move_down::MoveDownCommand;
 pub use move_left::MoveLeftCommand;
 pub use move_right::MoveRightCommand;
 pub use move_up::MoveUpCommand;
-// pub use scroll_left::ScrollLeftCommand;   // Temporarily disabled
-// pub use scroll_right::ScrollRightCommand; // Temporarily disabled
+pub use scroll_left::ScrollLeftCommand;
+pub use scroll_right::ScrollRightCommand;

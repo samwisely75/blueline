@@ -73,16 +73,28 @@ pub use mode::{
     RepeatVisualSelectionCommand, VisualBlockAppendCommand, VisualBlockInsertCommand,
 };
 pub use navigation::{
-    BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
-    GoToBottomCommand, GoToTopCommand, HalfPageDownCommand, HalfPageUpCommand, HomeKeyCommand,
-    MoveCursorUpCommand, NextWordCommand, PageDownCommand, PageUpCommand, PreviousWordCommand,
-    ScrollLeftCommand, ScrollRightCommand,
+    BeginningOfLineCommand,
+    EndKeyCommand,
+    EndOfLineCommand,
+    EndOfWordCommand,
+    EnterGPrefixCommand,
+    GoToBottomCommand,
+    GoToTopCommand,
+    HalfPageDownCommand,
+    HalfPageUpCommand,
+    HomeKeyCommand,
+    MoveCursorUpCommand,
+    NextWordCommand,
+    PageDownCommand,
+    PageUpCommand,
+    PreviousWordCommand,
+    // ScrollLeftCommand, ScrollRightCommand, // Migrated to unified_commands
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
 pub use yank::{
     CancelPrefixModeCommand, ChangeSelectionCommand, EnterDPrefixCommand, EnterYPrefixCommand,
-    PasteAfterCommand, PasteAtCursorCommand, YankCurrentLineCommand,
+    PasteAfterCommand, /* PasteAtCursorCommand, */ YankCurrentLineCommand,
 };
 
 /// Type alias for command collection to reduce complexity
@@ -107,7 +119,7 @@ impl CommandRegistry {
             Box::new(RepeatVisualSelectionCommand), // gv command
             Box::new(EnterGPrefixCommand),
             // Scroll commands (higher priority than regular movement)
-            Box::new(ScrollLeftCommand),
+            // Box::new(ScrollLeftCommand), // Migrated to unified_commands
             // Box::new(ScrollRightCommand), // Migrated to unified_commands
             // Pagination commands (high priority - Ctrl+key combinations)
             Box::new(PageDownCommand),
@@ -162,7 +174,7 @@ impl CommandRegistry {
             Box::new(CancelPrefixModeCommand),
             Box::new(ChangeSelectionCommand),
             Box::new(PasteAfterCommand),
-            Box::new(PasteAtCursorCommand),
+            // Box::new(PasteAtCursorCommand), // Migrated to unified_commands (PasteBeforeCommand)
         ];
 
         Self { commands }

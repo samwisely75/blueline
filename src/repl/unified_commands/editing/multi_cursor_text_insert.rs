@@ -47,16 +47,16 @@ impl Command for MultiCursorTextInsertCommand {
 
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // ARCHITECTURAL CHALLENGE: We need the character from the KeyEvent, but execute() doesn't receive it.
-        // 
+        //
         // Current limitation: The Command trait's execute() method doesn't provide access to the original KeyEvent.
         // This is a fundamental architectural issue for commands that need to handle arbitrary character input.
         //
         // For now, we'll implement a fallback approach that demonstrates the multi-cursor logic
         // but doesn't provide the full functionality. This represents the core migration challenge
         // that needs to be addressed at the architecture level.
-        
+
         tracing::warn!("MultiCursorTextInsertCommand: KeyEvent not available in execute() - architectural limitation");
-        
+
         // Get cursor positions to validate we're in the right context
         let cursor_positions = context.app_state.get_visual_block_insert_cursors().to_vec();
 
@@ -76,14 +76,14 @@ impl Command for MultiCursorTextInsertCommand {
             "Multi-cursor insert ready: {} cursor positions (character unavailable due to architectural limitation)",
             cursor_positions.len()
         );
-        
+
         context.app_state.set_status_message(msg);
-        
+
         tracing::info!(
-            "MultiCursorTextInsertCommand executed with {} cursor positions", 
+            "MultiCursorTextInsertCommand executed with {} cursor positions",
             cursor_positions.len()
         );
-        
+
         // Return appropriate PostCommandActions for UI updates
         Ok(vec![
             PostCommandAction::StatusBarUpdateRequired,
@@ -105,7 +105,7 @@ impl Command for MultiCursorTextInsertCommand {
 /// once the architectural limitation is resolved.
 impl MultiCursorTextInsertCommand {
     /// Handle multi-cursor text insertion with a given character
-    /// 
+    ///
     /// This method demonstrates the complete multi-cursor insertion logic
     /// that would be used if the Command trait provided access to the KeyEvent character.
     /// It replicates the original handle_multi_cursor_text_insert functionality.
@@ -173,6 +173,7 @@ mod tests {
     use crate::repl::models::pane_state::Pane;
     use crate::repl::models::AppState;
     use crate::repl::services::Services;
+    use crossterm::event::KeyModifiers;
 
     #[test]
     fn multi_cursor_text_insert_command_should_return_correct_name() {
@@ -258,10 +259,18 @@ mod tests {
 
         // Test character with modifiers - should not be relevant (reserved for other commands)
         let char_ctrl_event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL);
-        assert!(!command.is_relevant(char_ctrl_event, EditorMode::VisualBlockInsert, &context_valid));
+        assert!(!command.is_relevant(
+            char_ctrl_event,
+            EditorMode::VisualBlockInsert,
+            &context_valid
+        ));
 
         let char_shift_event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT);
-        assert!(!command.is_relevant(char_shift_event, EditorMode::VisualBlockInsert, &context_valid));
+        assert!(!command.is_relevant(
+            char_shift_event,
+            EditorMode::VisualBlockInsert,
+            &context_valid
+        ));
     }
 
     #[test]
@@ -271,7 +280,9 @@ mod tests {
         let mut services = Services::new();
 
         // Set to VisualBlockInsert mode but don't set multi-cursor positions
-        app_state.change_mode(EditorMode::VisualBlockInsert).unwrap();
+        app_state
+            .change_mode(EditorMode::VisualBlockInsert)
+            .unwrap();
 
         let mut context = ExecutionContext {
             app_state: &mut app_state,
@@ -296,15 +307,19 @@ mod tests {
         let mut services = Services::new();
 
         // Set up VisualBlockInsert mode with some cursor positions
-        app_state.change_mode(EditorMode::VisualBlockInsert).unwrap();
-        
+        app_state
+            .change_mode(EditorMode::VisualBlockInsert)
+            .unwrap();
+
         // Add some text to work with
-        app_state.pane_manager.set_request_content("line1\nline2\nline3");
-        
+        app_state
+            .pane_manager
+            .set_request_content("line1\nline2\nline3");
+
         // Set multi-cursor positions
         let cursor_positions = vec![
             LogicalPosition::new(0, 2), // line1, after 'li'
-            LogicalPosition::new(1, 2), // line2, after 'li'  
+            LogicalPosition::new(1, 2), // line2, after 'li'
             LogicalPosition::new(2, 2), // line3, after 'li'
         ];
         app_state.set_visual_block_insert_cursors(cursor_positions);
@@ -320,7 +335,7 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert!(!events.is_empty());
-        
+
         // Should have current area redraw, cursor update, and status bar update
         assert!(events
             .iter()
@@ -340,7 +355,9 @@ mod tests {
         let mut services = Services::new();
 
         // Set to VisualBlockInsert mode but no cursor positions
-        app_state.change_mode(EditorMode::VisualBlockInsert).unwrap();
+        app_state
+            .change_mode(EditorMode::VisualBlockInsert)
+            .unwrap();
         app_state.pane_manager.set_request_content("test content");
 
         let mut context = ExecutionContext {
@@ -354,7 +371,7 @@ mod tests {
         assert!(result.is_ok());
         let events = result.unwrap();
         assert!(!events.is_empty());
-        
+
         // Should have redraw and cursor update events
         assert!(events
             .iter()
