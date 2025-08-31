@@ -497,8 +497,11 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 );
 
                 // Check if we're in Visual Block Insert mode with multiple cursors
+                // NOTE: Multi-cursor text deletion is now handled by MultiCursorTextDeleteCommand
+                // in the unified command system, which intercepts delete keys in VisualBlockInsert mode
                 if self.app_state.is_in_visual_block_insert_mode() {
-                    self.handle_multi_cursor_text_delete(amount, direction)?;
+                    // Multi-cursor deletion now handled by unified command system
+                    tracing::debug!("TextDeleteRequested in VisualBlockInsert mode - should be handled by MultiCursorTextDeleteCommand");
                 } else {
                     for i in 0..amount {
                         match direction {
@@ -947,6 +950,10 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         Ok(())
     }
 
+    // MIGRATED: This function has been migrated to MultiCursorTextDeleteCommand
+    // The unified command system now handles multi-cursor text deletion directly
+    // keeping this commented for reference during transition
+    /*
     /// Handle text deletion for multi-cursor Visual Block Insert mode
     fn handle_multi_cursor_text_delete(
         &mut self,
@@ -1067,6 +1074,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         tracing::debug!("Multi-cursor text delete completed, updated cursor positions");
         Ok(())
     }
+    */
 
     /// Process a single key event without running the full event loop (for testing)
     pub async fn process_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
