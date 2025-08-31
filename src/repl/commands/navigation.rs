@@ -99,31 +99,9 @@ impl Command for MoveCursorDownCommand {
     }
 }
 
-/// Scroll left horizontally (Shift+Left or Ctrl+Left)
-pub struct ScrollLeftCommand;
-
-impl Command for ScrollLeftCommand {
-    fn is_relevant(&self, _context: &CommandContext, event: &KeyEvent) -> bool {
-        let relevant = matches!(event.code, KeyCode::Left)
-            && (event.modifiers.contains(KeyModifiers::SHIFT)
-                || event.modifiers.contains(KeyModifiers::CONTROL));
-        if relevant {
-            tracing::debug!("ScrollLeftCommand is relevant for event: {:?}", event);
-        }
-        relevant
-    }
-
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::cursor_move_by(
-            MovementDirection::ScrollLeft,
-            5,
-        )])
-    }
-
-    fn name(&self) -> &'static str {
-        "ScrollLeft"
-    }
-}
+// Scroll left horizontally (Shift+Left or Ctrl+Left)
+// MIGRATED: This command has been migrated to unified_commands/navigation/scroll_left.rs
+// pub struct ScrollLeftCommand;
 
 /// Scroll right horizontally (Shift+Right or Ctrl+Right)
 pub struct ScrollRightCommand;

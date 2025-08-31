@@ -76,7 +76,7 @@ pub use navigation::{
     BeginningOfLineCommand, EndKeyCommand, EndOfLineCommand, EndOfWordCommand, EnterGPrefixCommand,
     GoToBottomCommand, GoToTopCommand, HalfPageDownCommand, HalfPageUpCommand, HomeKeyCommand,
     MoveCursorDownCommand, MoveCursorUpCommand, NextWordCommand, PageDownCommand, PageUpCommand,
-    PreviousWordCommand, ScrollLeftCommand, ScrollRightCommand,
+    PreviousWordCommand, ScrollRightCommand,
 };
 pub use pane::SwitchPaneCommand;
 pub use request::ExecuteRequestCommand;
@@ -107,8 +107,8 @@ impl CommandRegistry {
             Box::new(RepeatVisualSelectionCommand), // gv command
             Box::new(EnterGPrefixCommand),
             // Scroll commands (higher priority than regular movement)
-            Box::new(ScrollLeftCommand),
-            Box::new(ScrollRightCommand),
+            // Box::new(ScrollLeftCommand), // Migrated to unified_commands
+            // Box::new(ScrollRightCommand), // Migrated to unified_commands
             // Pagination commands (high priority - Ctrl+key combinations)
             Box::new(PageDownCommand),
             Box::new(PageUpCommand),

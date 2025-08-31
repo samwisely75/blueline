@@ -12,9 +12,11 @@ pub mod ex_goto_line;
 pub mod move_left;
 pub mod move_right;
 pub mod move_up;
+pub mod scroll_right;
 
 // Re-export command types for convenience
 pub use ex_goto_line::ExGotoLineCommand;
 pub use move_left::MoveLeftCommand;
 pub use move_right::MoveRightCommand;
 pub use move_up::MoveUpCommand;
+pub use scroll_right::ScrollRightCommand;
