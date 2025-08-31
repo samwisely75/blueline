@@ -264,24 +264,24 @@ impl Command for PreviousWordCommand {
     }
 }
 
-/// Move to end of word (e command)
-pub struct EndOfWordCommand;
-
-impl Command for EndOfWordCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Char('e'))
-            && is_navigation_mode(context)
-            && event.modifiers.is_empty()
-    }
-
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::cursor_move(MovementDirection::WordEnd)])
-    }
-
-    fn name(&self) -> &'static str {
-        "EndOfWord"
-    }
-}
+// Move to end of word (e command) - Migrated to unified_commands
+// pub struct EndOfWordCommand;
+//
+// impl Command for EndOfWordCommand {
+//     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+//         matches!(event.code, KeyCode::Char('e'))
+//             && is_navigation_mode(context)
+//             && event.modifiers.is_empty()
+//     }
+//
+//     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         Ok(vec![CommandEvent::cursor_move(MovementDirection::WordEnd)])
+//     }
+//
+//     fn name(&self) -> &'static str {
+//         "EndOfWord"
+//     }
+// }
 
 /// Move to beginning of line (0 command)
 pub struct BeginningOfLineCommand;
@@ -789,38 +789,38 @@ mod tests {
         );
     }
 
-    // Tests for EndOfWordCommand (e)
-    #[test]
-    fn end_of_word_should_be_relevant_for_e_in_normal_mode() {
-        let context = create_test_context(EditorMode::Normal);
-        let cmd = EndOfWordCommand;
-        let event = create_test_key_event(KeyCode::Char('e'));
-
-        assert!(cmd.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn end_of_word_should_not_be_relevant_for_e_in_insert_mode() {
-        let context = create_test_context(EditorMode::Insert);
-        let cmd = EndOfWordCommand;
-        let event = create_test_key_event(KeyCode::Char('e'));
-
-        assert!(!cmd.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn end_of_word_should_produce_word_end_event() {
-        let context = create_test_context(EditorMode::Normal);
-        let cmd = EndOfWordCommand;
-        let event = create_test_key_event(KeyCode::Char('e'));
-
-        let events = cmd.execute(event, &context).unwrap();
-        assert_eq!(events.len(), 1);
-        assert_eq!(
-            events[0],
-            CommandEvent::cursor_move(MovementDirection::WordEnd)
-        );
-    }
+    // Tests for EndOfWordCommand (e) - Migrated to unified_commands
+    // #[test]
+    // fn end_of_word_should_be_relevant_for_e_in_normal_mode() {
+    //     let context = create_test_context(EditorMode::Normal);
+    //     let cmd = EndOfWordCommand;
+    //     let event = create_test_key_event(KeyCode::Char('e'));
+    //
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
+    //
+    // #[test]
+    // fn end_of_word_should_not_be_relevant_for_e_in_insert_mode() {
+    //     let context = create_test_context(EditorMode::Insert);
+    //     let cmd = EndOfWordCommand;
+    //     let event = create_test_key_event(KeyCode::Char('e'));
+    //
+    //     assert!(!cmd.is_relevant(&context, &event));
+    // }
+    //
+    // #[test]
+    // fn end_of_word_should_produce_word_end_event() {
+    //     let context = create_test_context(EditorMode::Normal);
+    //     let cmd = EndOfWordCommand;
+    //     let event = create_test_key_event(KeyCode::Char('e'));
+    //
+    //     let events = cmd.execute(event, &context).unwrap();
+    //     assert_eq!(events.len(), 1);
+    //     assert_eq!(
+    //         events[0],
+    //         CommandEvent::cursor_move(MovementDirection::WordEnd)
+    //     );
+    // }
 
     // Tests for BeginningOfLineCommand (0)
     #[test]
@@ -1009,14 +1009,14 @@ mod tests {
         assert!(cmd.is_relevant(&context, &event));
     }
 
-    #[test]
-    fn end_of_word_should_be_relevant_for_e_in_visual_mode() {
-        let context = create_test_context(EditorMode::Visual);
-        let cmd = EndOfWordCommand;
-        let event = create_test_key_event(KeyCode::Char('e'));
-
-        assert!(cmd.is_relevant(&context, &event));
-    }
+    // #[test]
+    // fn end_of_word_should_be_relevant_for_e_in_visual_mode() {
+    //     let context = create_test_context(EditorMode::Visual);
+    //     let cmd = EndOfWordCommand;
+    //     let event = create_test_key_event(KeyCode::Char('e'));
+    //
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
 
     #[test]
     fn beginning_of_line_should_be_relevant_for_zero_in_visual_mode() {
