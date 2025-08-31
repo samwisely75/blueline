@@ -6,7 +6,7 @@
 use crate::config::AppConfig;
 use crate::repl::{
     commands::{
-        AppStateSnapshot, CommandContext, CommandEvent, CommandRegistry, ExCommandRegistry,
+        AppStateSnapshot, CommandContext, CommandEvent, CommandRegistry,
         MovementDirection,
     },
     io::{EventStream, RenderStream},
@@ -33,7 +33,6 @@ pub struct AppViewModel<ES: EventStream, RS: RenderStream> {
     services: Services,
     // Old command system (being phased out)
     command_registry: CommandRegistry,
-    ex_command_registry: ExCommandRegistry,
     // New dynamic command system (checks first, falls back to old system)
     unified_command_registry: DynamicCommandRegistry,
     #[allow(dead_code)]
@@ -63,7 +62,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         }
 
         let command_registry = CommandRegistry::new();
-        let ex_command_registry = ExCommandRegistry::new();
         let unified_command_registry = DynamicCommandRegistry::new();
         let event_bus = SimpleEventBus::new();
 
@@ -80,7 +78,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             view_renderer,
             services,
             command_registry,
-            ex_command_registry,
             unified_command_registry,
             event_bus,
             event_stream,
@@ -140,43 +137,13 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
     /// Apply initial ex commands from config file
     fn apply_initial_commands(&mut self, commands: &[String]) -> Result<()> {
+        // Ex commands from config are now handled by the unified command system
+        // via key events, so we can simply log them as unsupported for now
         for command in commands {
-            tracing::debug!("Applying config command: {}", command);
-
-            // Create command context
-            let context = CommandContext::new(AppStateSnapshot::from_app_state(&self.app_state));
-
-            // Execute the ex command
-            match self.ex_command_registry.execute_command(command, &context) {
-                Ok(events) => {
-                    // Apply each event
-                    for event in events {
-                        match event {
-                            CommandEvent::SettingChangeRequested { setting, value } => {
-                                // Now handled by SettingChangeCommand
-                                use crate::repl::unified_commands::system::setting_change::SettingChangeCommand;
-                                let command = SettingChangeCommand::new(setting, value);
-                                let mut exec_context = ExecutionContext {
-                                    app_state: &mut self.app_state,
-                                    services: &mut self.services,
-                                };
-                                if let Err(e) = command.execute(&mut exec_context) {
-                                    tracing::warn!("Failed to apply setting from config: {}", e);
-                                }
-                            }
-                            _ => {
-                                tracing::debug!(
-                                    "Ignoring non-setting command event from config: {:?}",
-                                    event
-                                );
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to execute config command '{}': {}", command, e);
-                }
-            }
+            tracing::warn!(
+                "Config command '{}' not supported - ex commands now handled via unified system", 
+                command
+            );
         }
         Ok(())
     }
@@ -576,78 +543,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 self.app_state.backspace_ex_command()?;
             }
             CommandEvent::ExCommandExecuteRequested => {
-                // Get the ex command string from the view model
-                let command_str = self.app_state.get_ex_command_buffer().to_string();
-
-                // Create command context for ex command execution
-                let context =
-                    CommandContext::new(AppStateSnapshot::from_app_state(&self.app_state));
-
-                // Execute through the ex command registry
-                let events = self
-                    .ex_command_registry
-                    .execute_command(&command_str, &context)?;
-
-                // Clear the command buffer and return to previous mode after successful execution
+                // Ex commands are now handled by the unified command system
+                // This legacy handler just clears the buffer and exits command mode
+                tracing::debug!("Legacy ex command execute request - clearing buffer and exiting command mode");
                 self.app_state.clear_ex_command_buffer();
                 let previous_mode = self.app_state.get_previous_mode();
                 self.app_state.change_mode(previous_mode)?;
-
-                // Handle events directly to avoid recursion
-                for event in events {
-                    match event {
-                        CommandEvent::QuitRequested => {
-                            self.should_quit = true;
-                        }
-                        CommandEvent::ShowProfileRequested => {
-                            // Now handled by ShowProfileCommand
-                            use crate::repl::unified_commands::system::show_profile::ShowProfileCommand;
-                            let command = ShowProfileCommand::new();
-                            let mut exec_context = ExecutionContext {
-                                app_state: &mut self.app_state,
-                                services: &mut self.services,
-                            };
-                            if let Ok(view_events) = command.execute(&mut exec_context) {
-                                self.process_view_events(view_events)?;
-                            }
-                        }
-                        CommandEvent::SettingChangeRequested { setting, value } => {
-                            // Now handled by SettingChangeCommand
-                            use crate::repl::unified_commands::system::setting_change::SettingChangeCommand;
-                            let command = SettingChangeCommand::new(setting, value);
-                            let mut exec_context = ExecutionContext {
-                                app_state: &mut self.app_state,
-                                services: &mut self.services,
-                            };
-                            if let Ok(view_events) = command.execute(&mut exec_context) {
-                                self.process_view_events(view_events)?;
-                            }
-                        }
-                        CommandEvent::CursorMoveRequested { direction, amount } => {
-                            // BUGFIX: Handle line navigation from ex commands like `:58`
-                            // Previously these events were unhandled, causing `:number` to not work
-                            for _ in 0..amount {
-                                match direction {
-                                    MovementDirection::LineNumber(line_number) => {
-                                        self.app_state.move_cursor_to_line(line_number)?
-                                    }
-                                    _ => {
-                                        tracing::warn!(
-                                            "Unsupported movement direction from ex command: {:?}",
-                                            direction
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                        _ => {
-                            tracing::warn!(
-                                "Unhandled event from ex command execution: {:?}",
-                                event
-                            );
-                        }
-                    }
-                }
             }
             CommandEvent::ShowProfileRequested => {
                 // Now handled by ShowProfileCommand
