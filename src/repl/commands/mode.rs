@@ -154,35 +154,36 @@ impl Command for EnterVisualLineModeCommand {
     }
 }
 
-/// Enter visual block mode (Ctrl+V)
-pub struct EnterVisualBlockModeCommand;
+// MIGRATED: EnterVisualBlockModeCommand moved to unified_commands/mode/enter_visual_block_mode.rs
+// /// Enter visual block mode (Ctrl+V)
+// pub struct EnterVisualBlockModeCommand;
 
-impl Command for EnterVisualBlockModeCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        let is_ctrl_v = matches!(event.code, KeyCode::Char('v'))
-            && event.modifiers.contains(KeyModifiers::CONTROL);
-        let is_normal_mode = context.state.current_mode == EditorMode::Normal;
-        let result = is_ctrl_v && is_normal_mode;
+// impl Command for EnterVisualBlockModeCommand {
+//     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+//         let is_ctrl_v = matches!(event.code, KeyCode::Char('v'))
+//             && event.modifiers.contains(KeyModifiers::CONTROL);
+//         let is_normal_mode = context.state.current_mode == EditorMode::Normal;
+//         let result = is_ctrl_v && is_normal_mode;
 
-        tracing::debug!(
-            "EnterVisualBlockModeCommand.is_relevant(): event={:?}, ctrl_v={}, normal_mode={}, result={}",
-            event, is_ctrl_v, is_normal_mode, result
-        );
+//         tracing::debug!(
+//             "EnterVisualBlockModeCommand.is_relevant(): event={:?}, ctrl_v={}, normal_mode={}, result={}",
+//             event, is_ctrl_v, is_normal_mode, result
+//         );
 
-        result
-    }
+//         result
+//     }
 
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        tracing::debug!(
-            "EnterVisualBlockModeCommand executing - creating mode change event to VisualBlock"
-        );
-        Ok(vec![CommandEvent::mode_change(EditorMode::VisualBlock)])
-    }
+//     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         tracing::debug!(
+//             "EnterVisualBlockModeCommand executing - creating mode change event to VisualBlock"
+//         );
+//         Ok(vec![CommandEvent::mode_change(EditorMode::VisualBlock)])
+//     }
 
-    fn name(&self) -> &'static str {
-        "EnterVisualBlockMode"
-    }
-}
+//     fn name(&self) -> &'static str {
+//         "EnterVisualBlockMode"
+//     }
+// }
 
 /// Repeat last visual selection (gv command)
 pub struct RepeatVisualSelectionCommand;
