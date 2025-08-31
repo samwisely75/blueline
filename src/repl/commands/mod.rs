@@ -60,7 +60,6 @@ pub mod request;
 pub mod yank;
 
 // Re-export all commands using wildcards to prevent merge conflicts
-pub use app::*;
 pub use editing::*;
 pub use mode::*;
 pub use navigation::*;
