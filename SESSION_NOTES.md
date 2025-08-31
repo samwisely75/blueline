@@ -1,5 +1,91 @@
 # Session Notes
 
+## [2025-08-31] Investigation: Issue #314 - handle_multi_cursor_text_insert vs VisualBlockInsertCommand
+
+### User Request Summary
+- Investigate whether `handle_multi_cursor_text_insert` can be removed after VisualBlockInsertCommand integration
+- Verify that VisualBlockInsertCommand handles multi-cursor text insertion functionality
+- Remove the legacy function if integration is complete
+
+### Investigation Results
+
+#### Function Analysis
+**`handle_multi_cursor_text_insert()`** (`src/repl/view_models/app_view_model.rs:909`):
+- Handles actual text insertion when in Visual Block Insert mode
+- Called by `AppViewModel.handle_command_event()` when `TextInsertRequested` events are received in VisualBlockInsert mode
+- Performs multi-cursor text insertion across all visual block cursors
+- Updates cursor positions after insertion
+
+**`VisualBlockInsertCommand`** (`src/repl/unified_commands/visual/visual_block_insert.rs`):
+- Only handles **entering** Visual Block Insert mode (pressing 'I' key in Visual Block mode)
+- Sets up multi-cursor positions and switches to VisualBlockInsert mode
+- Does NOT handle actual character typing/text insertion
+
+#### Flow Analysis
+The current text insertion flow in Visual Block Insert mode:
+
+1. **User types character** → Legacy `InsertCharCommand` (editing.rs) detects VisualBlockInsert mode
+2. **InsertCharCommand** → Emits `TextInsertRequested` event
+3. **AppViewModel.handle_command_event()** → Receives event, checks `is_in_visual_block_insert_mode()`
+4. **If in VisualBlockInsert mode** → Calls `handle_multi_cursor_text_insert()`
+5. **handle_multi_cursor_text_insert()** → Performs actual multi-cursor insertion
+
+#### Key Findings
+
+1. **VisualBlockInsertCommand is NOT a replacement** for `handle_multi_cursor_text_insert()`
+   - VisualBlockInsertCommand: Mode entry only
+   - handle_multi_cursor_text_insert(): Actual text insertion
+
+2. **No unified commands handle arbitrary character input** in VisualBlockInsert mode
+   - Unified commands handle specific keys: 'x' (cut), 'y' (yank), 'I' (block insert), etc.
+   - No unified commands for typing letters, numbers, symbols
+
+3. **Legacy system still essential** for Visual Block Insert functionality
+   - Legacy `InsertCharCommand` detects characters and emits events
+   - `handle_multi_cursor_text_insert()` processes the multi-cursor insertion
+
+4. **All tests pass** - Visual Block Insert functionality confirmed working (16 related tests passing)
+
+### Decisions Made
+
+**CANNOT remove `handle_multi_cursor_text_insert()` at this time** because:
+1. No unified command equivalent exists for arbitrary character input in VisualBlockInsert mode
+2. Function is still actively used and essential for Visual Block Insert functionality  
+3. Removing it would break multi-cursor text insertion in Visual Block mode
+
+### Recommendations
+
+**Short-term (Issue #314):**
+- Keep `handle_multi_cursor_text_insert()` function intact
+- Document that it's still needed for Visual Block Insert functionality
+- Close issue #314 with explanation that removal is premature
+
+**Long-term (Future work):**
+- Create unified command for character input in VisualBlockInsert mode
+- This would require a generic "InsertCharacterCommand" that handles multi-cursor logic
+- Only then can `handle_multi_cursor_text_insert()` be removed
+
+### Architecture Notes
+
+**Current Visual Block Insert Architecture:**
+```
+User Types → Legacy InsertCharCommand → TextInsertRequested Event →
+AppViewModel.handle_command_event() → handle_multi_cursor_text_insert() → Multi-cursor insertion
+```
+
+**Future Unified Architecture:**
+```
+User Types → UnifiedInsertCharacterCommand → Direct multi-cursor insertion via Command pattern
+```
+
+### Next Steps / TODO
+1. Close issue #314 with findings
+2. Document this analysis in GitHub issue
+3. Consider creating new issue for unified character input command system
+4. Continue with other legacy function migrations that are actually completed
+
+---
+
 ## CRITICAL RULES - ALWAYS FOLLOW
 
 1. **NEVER commit without explicit user confirmation** - User must say "yes", "commit", "go ahead" or similar
