@@ -831,52 +831,51 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
             let mut left_status_text = String::new();
             let mut right_status_text = String::new();
 
-            // Left side: Vim-style mode indicators (highest priority)
-            match app_state.get_mode() {
-                EditorMode::Insert => {
-                    left_status_text.push_str(&format!(
-                        "{}-- INSERT --{}",
-                        ansi::BOLD,
-                        ansi::RESET
-                    ));
-                }
-                EditorMode::Visual => {
-                    left_status_text.push_str(&format!(
-                        "{}-- VISUAL --{}",
-                        ansi::BOLD,
-                        ansi::RESET
-                    ));
-                }
-                EditorMode::VisualLine => {
-                    left_status_text.push_str(&format!(
-                        "{}-- VISUAL LINE --{}",
-                        ansi::BOLD,
-                        ansi::RESET
-                    ));
-                }
-                EditorMode::VisualBlock => {
-                    left_status_text.push_str(&format!(
-                        "{}-- VISUAL BLOCK --{}",
-                        ansi::BOLD,
-                        ansi::RESET
-                    ));
-                }
-                _ => {
-                    // Normal mode shows no status message (following Vim exactly)
-                    // Command mode shows ex command buffer (handled above)
-                    // GPrefix mode shows no status message
-                }
+            // Left side: Status messages have highest priority, then vim mode indicators
+            if let Some(message) = app_state.get_status_message() {
+                left_status_text.push_str(message);
             }
-
-            // If no vim mode indicator and we have custom status message, show it
-            if left_status_text.is_empty() {
-                if let Some(message) = app_state.get_status_message() {
-                    left_status_text.push_str(message);
-                }
-                // Show "Executing..." when request is being processed
-                else if app_state.is_executing_request() {
-                    let bullet = ansi::STATUS_BULLET_YELLOW;
-                    left_status_text.push_str(&format!("{bullet} Executing..."));
+            // Show "Executing..." when request is being processed
+            else if app_state.is_executing_request() {
+                let bullet = ansi::STATUS_BULLET_YELLOW;
+                left_status_text.push_str(&format!("{bullet} Executing..."));
+            }
+            // Vim-style mode indicators (shown when no status message)
+            else {
+                match app_state.get_mode() {
+                    EditorMode::Insert => {
+                        left_status_text.push_str(&format!(
+                            "{}-- INSERT --{}",
+                            ansi::BOLD,
+                            ansi::RESET
+                        ));
+                    }
+                    EditorMode::Visual => {
+                        left_status_text.push_str(&format!(
+                            "{}-- VISUAL --{}",
+                            ansi::BOLD,
+                            ansi::RESET
+                        ));
+                    }
+                    EditorMode::VisualLine => {
+                        left_status_text.push_str(&format!(
+                            "{}-- VISUAL LINE --{}",
+                            ansi::BOLD,
+                            ansi::RESET
+                        ));
+                    }
+                    EditorMode::VisualBlock => {
+                        left_status_text.push_str(&format!(
+                            "{}-- VISUAL BLOCK --{}",
+                            ansi::BOLD,
+                            ansi::RESET
+                        ));
+                    }
+                    _ => {
+                        // Normal mode shows no status message (following Vim exactly)
+                        // Command mode shows ex command buffer (handled above)
+                        // GPrefix mode shows no status message
+                    }
                 }
             }
 

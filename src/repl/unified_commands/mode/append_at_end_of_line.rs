@@ -1,8 +1,8 @@
-//! # Insert At Beginning Of Line Command
+//! # Append At End Of Line Command
 //!
-//! Command to handle the 'I' (uppercase) key in Normal mode which positions
-//! the cursor at the beginning of the current line and enters Insert mode,
-//! enabling text insertion at the line start.
+//! Command to handle the 'A' (uppercase) key in Normal mode which positions
+//! the cursor at the end of the current line and enters Insert mode,
+//! enabling text insertion at the line end (append mode).
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -12,58 +12,58 @@ use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 use crate::repl::view_models::post_command_actions::PostCommandAction;
 
-/// Command to handle insert at beginning of line operation
+/// Command to handle append at end of line operation
 ///
-/// This command handles the 'I' key in Normal mode, which moves the cursor
-/// to the beginning of the current line and enters Insert mode, enabling
-/// text insertion at the line start.
-pub struct InsertAtBeginningOfLineCommand;
+/// This command handles the 'A' key in Normal mode, which moves the cursor
+/// to the end of the current line and enters Insert mode, enabling
+/// text insertion at the line end (append mode).
+pub struct AppendAtEndOfLineCommand;
 
-impl InsertAtBeginningOfLineCommand {
-    /// Create new InsertAtBeginningOfLineCommand
+impl AppendAtEndOfLineCommand {
+    /// Create new AppendAtEndOfLineCommand
     pub fn new() -> Self {
         Self
     }
 }
 
-impl Default for InsertAtBeginningOfLineCommand {
+impl Default for AppendAtEndOfLineCommand {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Command for InsertAtBeginningOfLineCommand {
+impl Command for AppendAtEndOfLineCommand {
     fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool {
-        // Handle 'I' key (uppercase) in Normal mode for Request pane only
-        // This accepts various terminal combinations for uppercase I
-        let is_uppercase_i =
-            matches!(key_event.code, KeyCode::Char('I')) && key_event.modifiers.is_empty();
-        let is_shift_i = matches!(key_event.code, KeyCode::Char('i'))
+        // Handle 'A' key (uppercase) in Normal mode for Request pane only
+        // This accepts various terminal combinations for uppercase A
+        let is_uppercase_a =
+            matches!(key_event.code, KeyCode::Char('A')) && key_event.modifiers.is_empty();
+        let is_shift_a = matches!(key_event.code, KeyCode::Char('a'))
             && key_event.modifiers.contains(KeyModifiers::SHIFT);
-        let is_uppercase_i_with_shift = matches!(key_event.code, KeyCode::Char('I'))
+        let is_uppercase_a_with_shift = matches!(key_event.code, KeyCode::Char('A'))
             && key_event.modifiers.contains(KeyModifiers::SHIFT);
 
-        (is_uppercase_i || is_shift_i || is_uppercase_i_with_shift)
+        (is_uppercase_a || is_shift_a || is_uppercase_a_with_shift)
             && mode == EditorMode::Normal
             && context.current_pane == Pane::Request
     }
 
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         tracing::debug!(
-            "InsertAtBeginningOfLineCommand: moving cursor to line start and entering Insert mode"
+            "AppendAtEndOfLineCommand: moving cursor to line end and entering Insert mode"
         );
 
-        // First, move cursor to the beginning of the current line
+        // First, move cursor to the end of the current line (for append)
         let cursor_events = context
             .app_state
             .pane_manager
-            .move_cursor_to_start_of_line();
+            .move_cursor_to_line_end_for_append();
 
         // Then set the mode to Insert
         context.app_state.change_mode(EditorMode::Insert)?;
 
         tracing::debug!(
-            "InsertAtBeginningOfLineCommand: cursor moved to line start, mode changed to Insert"
+            "AppendAtEndOfLineCommand: cursor moved to line end for append, mode changed to Insert"
         );
 
         // Combine cursor movement events with mode change event
@@ -77,7 +77,7 @@ impl Command for InsertAtBeginningOfLineCommand {
     }
 
     fn name(&self) -> &'static str {
-        "InsertAtBeginningOfLineCommand"
+        "AppendAtEndOfLineCommand"
     }
 }
 
@@ -100,59 +100,59 @@ mod tests {
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_return_correct_name() {
-        let command = InsertAtBeginningOfLineCommand::new();
-        assert_eq!(command.name(), "InsertAtBeginningOfLineCommand");
+    fn append_at_end_of_line_command_should_return_correct_name() {
+        let command = AppendAtEndOfLineCommand::new();
+        assert_eq!(command.name(), "AppendAtEndOfLineCommand");
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_be_relevant_for_uppercase_i() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_be_relevant_for_uppercase_a() {
+        let command = AppendAtEndOfLineCommand::new();
         let context = create_test_context();
-        let key_event = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::NONE);
+        let key_event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::NONE);
 
         assert!(command.is_relevant(key_event, EditorMode::Normal, &context));
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_be_relevant_for_shift_i() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_be_relevant_for_shift_a() {
+        let command = AppendAtEndOfLineCommand::new();
         let context = create_test_context();
-        let key_event = KeyEvent::new(KeyCode::Char('i'), KeyModifiers::SHIFT);
+        let key_event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::SHIFT);
 
         assert!(command.is_relevant(key_event, EditorMode::Normal, &context));
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_be_relevant_for_uppercase_i_with_shift() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_be_relevant_for_uppercase_a_with_shift() {
+        let command = AppendAtEndOfLineCommand::new();
         let context = create_test_context();
-        let key_event = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::SHIFT);
+        let key_event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT);
 
         assert!(command.is_relevant(key_event, EditorMode::Normal, &context));
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_not_be_relevant_for_lowercase_i() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_not_be_relevant_for_lowercase_a() {
+        let command = AppendAtEndOfLineCommand::new();
         let context = create_test_context();
-        let key_event = KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE);
+        let key_event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
 
         assert!(!command.is_relevant(key_event, EditorMode::Normal, &context));
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_not_be_relevant_in_insert_mode() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_not_be_relevant_in_insert_mode() {
+        let command = AppendAtEndOfLineCommand::new();
         let context = create_test_context();
-        let key_event = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::NONE);
+        let key_event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::NONE);
 
         assert!(!command.is_relevant(key_event, EditorMode::Insert, &context));
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_not_be_relevant_in_response_pane() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_not_be_relevant_in_response_pane() {
+        let command = AppendAtEndOfLineCommand::new();
         let context = CommandContext {
             current_mode: EditorMode::Normal,
             current_pane: Pane::Response,
@@ -160,16 +160,16 @@ mod tests {
             has_selection: false,
             ex_command_buffer: String::new(),
         };
-        let key_event = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::NONE);
+        let key_event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::NONE);
 
         assert!(!command.is_relevant(key_event, EditorMode::Normal, &context));
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_not_be_relevant_in_visual_modes() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_not_be_relevant_in_visual_modes() {
+        let command = AppendAtEndOfLineCommand::new();
         let context = create_test_context();
-        let key_event = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::NONE);
+        let key_event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::NONE);
 
         let visual_modes = vec![
             EditorMode::Visual,
@@ -186,32 +186,32 @@ mod tests {
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_not_be_relevant_with_other_modifiers() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_not_be_relevant_with_other_modifiers() {
+        let command = AppendAtEndOfLineCommand::new();
         let context = create_test_context();
 
         let modified_keys = vec![
-            KeyEvent::new(KeyCode::Char('I'), KeyModifiers::CONTROL),
-            KeyEvent::new(KeyCode::Char('I'), KeyModifiers::ALT),
-            KeyEvent::new(KeyCode::Char('i'), KeyModifiers::CONTROL),
-            KeyEvent::new(KeyCode::Char('i'), KeyModifiers::ALT),
+            KeyEvent::new(KeyCode::Char('A'), KeyModifiers::CONTROL),
+            KeyEvent::new(KeyCode::Char('A'), KeyModifiers::ALT),
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL),
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::ALT),
         ];
 
         for key_event in modified_keys {
             assert!(
                 !command.is_relevant(key_event, EditorMode::Normal, &context),
-                "Should not be relevant for modified 'I' key: {key_event:?}"
+                "Should not be relevant for modified 'A' key: {key_event:?}"
             );
         }
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_not_be_relevant_for_other_keys() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_not_be_relevant_for_other_keys() {
+        let command = AppendAtEndOfLineCommand::new();
         let context = create_test_context();
 
         let other_keys = vec![
-            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
+            KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE),
             KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE),
             KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
             KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
@@ -227,17 +227,13 @@ mod tests {
     }
 
     #[test]
-    fn insert_at_beginning_of_line_execute_should_move_cursor_to_start_and_change_mode() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_execute_should_change_mode_and_return_events() {
+        let command = AppendAtEndOfLineCommand::new();
         let mut app_state = AppState::new();
         let mut services = Services::new();
 
-        // Set some initial content and move cursor to middle of line
+        // Set some initial content
         app_state.insert_text("Hello World").unwrap();
-        // Move cursor to position 5 (middle of "Hello World")
-        for _ in 0..5 {
-            let _ = app_state.pane_manager.move_cursor_right();
-        }
 
         // Verify initial state is Normal mode
         assert_eq!(
@@ -269,15 +265,11 @@ mod tests {
             context.app_state.pane_manager.get_current_pane_mode(),
             EditorMode::Insert
         );
-
-        // Cursor should be at beginning of line (column 0)
-        let cursor = context.app_state.pane_manager.get_current_cursor_position();
-        assert_eq!(cursor.column, 0, "Cursor should be at beginning of line");
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_work_with_empty_content() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_work_with_empty_content() {
+        let command = AppendAtEndOfLineCommand::new();
         let mut app_state = AppState::new();
         let mut services = Services::new();
 
@@ -308,14 +300,14 @@ mod tests {
             EditorMode::Insert
         );
 
-        // Cursor should remain at beginning of line
+        // Cursor should be at end of line (which is 0,0 for empty content)
         let cursor = context.app_state.pane_manager.get_current_cursor_position();
-        assert_eq!(cursor.column, 0, "Cursor should be at beginning of line");
+        assert_eq!(cursor.column, 0, "Cursor should be at end of empty line");
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_handle_read_only_context() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_handle_read_only_context() {
+        let command = AppendAtEndOfLineCommand::new();
         let read_only_context = CommandContext {
             current_mode: EditorMode::Normal,
             current_pane: Pane::Request,
@@ -323,15 +315,15 @@ mod tests {
             has_selection: false,
             ex_command_buffer: String::new(),
         };
-        let key_event = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::NONE);
+        let key_event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::NONE);
 
         // Should still be relevant even in read-only context for mode change
         assert!(command.is_relevant(key_event, EditorMode::Normal, &read_only_context));
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_work_with_selection() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_work_with_selection() {
+        let command = AppendAtEndOfLineCommand::new();
         let context_with_selection = CommandContext {
             current_mode: EditorMode::Normal,
             current_pane: Pane::Request,
@@ -339,15 +331,15 @@ mod tests {
             has_selection: true, // Has active selection
             ex_command_buffer: String::new(),
         };
-        let key_event = KeyEvent::new(KeyCode::Char('I'), KeyModifiers::NONE);
+        let key_event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::NONE);
 
         // Should still be relevant even with selection
         assert!(command.is_relevant(key_event, EditorMode::Normal, &context_with_selection));
     }
 
     #[test]
-    fn insert_at_beginning_of_line_command_should_execute_successfully() {
-        let command = InsertAtBeginningOfLineCommand::new();
+    fn append_at_end_of_line_command_should_execute_successfully() {
+        let command = AppendAtEndOfLineCommand::new();
         let mut app_state = AppState::new();
         let mut services = Services::new();
 
@@ -387,14 +379,39 @@ mod tests {
     }
 
     #[test]
+    fn append_at_end_of_line_command_should_work_with_multiline_content() {
+        let command = AppendAtEndOfLineCommand::new();
+        let mut app_state = AppState::new();
+        let mut services = Services::new();
+
+        // Set multiline content
+        app_state.insert_text("Line 1\nLine 2\nLine 3").unwrap();
+
+        let mut context = ExecutionContext {
+            app_state: &mut app_state,
+            services: &mut services,
+        };
+
+        let result = command.execute(&mut context);
+        assert!(result.is_ok());
+
+        // Should have changed to Insert mode
+        assert_eq!(
+            context.app_state.pane_manager.get_current_pane_mode(),
+            EditorMode::Insert
+        );
+
+        // Should have returned events
+        let events = result.unwrap();
+        assert!(!events.is_empty());
+    }
+
+    #[test]
     fn default_should_create_new_instance() {
-        let command = InsertAtBeginningOfLineCommand;
-        assert_eq!(command.name(), "InsertAtBeginningOfLineCommand");
+        let command = AppendAtEndOfLineCommand;
+        assert_eq!(command.name(), "AppendAtEndOfLineCommand");
     }
 }
 
 // Auto-register this command using the inventory system
-register_command!(
-    InsertAtBeginningOfLineCommand,
-    "InsertAtBeginningOfLineCommand"
-);
+register_command!(AppendAtEndOfLineCommand, "AppendAtEndOfLineCommand");

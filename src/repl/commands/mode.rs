@@ -101,6 +101,10 @@ impl Command for EnterVisualModeCommand {
     }
 }
 
+// MIGRATED: ExitVisualModeCommand moved to unified_commands/mode/exit_visual_mode.rs
+// The unified implementation provides the same Escape key functionality with modern architecture
+
+/*
 /// Exit visual mode (Escape key)
 pub struct ExitVisualModeCommand;
 
@@ -121,6 +125,7 @@ impl Command for ExitVisualModeCommand {
         "ExitVisualMode"
     }
 }
+*/
 
 /// Enter visual line mode (Shift+V)
 pub struct EnterVisualLineModeCommand;
@@ -207,30 +212,31 @@ impl Command for RepeatVisualSelectionCommand {
     }
 }
 
-/// Enter command mode (: key)
-pub struct EnterCommandModeCommand;
+// MIGRATED: EnterCommandModeCommand moved to unified_commands/mode/enter_command_mode.rs
+// /// Enter command mode (: key)
+// pub struct EnterCommandModeCommand;
 
-impl Command for EnterCommandModeCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Char(':'))
-            && matches!(
-                context.state.current_mode,
-                EditorMode::Normal
-                    | EditorMode::Visual
-                    | EditorMode::VisualLine
-                    | EditorMode::VisualBlock
-            )
-            && event.modifiers.is_empty()
-    }
+// impl Command for EnterCommandModeCommand {
+//     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+//         matches!(event.code, KeyCode::Char(':'))
+//             && matches!(
+//                 context.state.current_mode,
+//                 EditorMode::Normal
+//                     | EditorMode::Visual
+//                     | EditorMode::VisualLine
+//                     | EditorMode::VisualBlock
+//             )
+//             && event.modifiers.is_empty()
+//     }
 
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::mode_change(EditorMode::Command)])
-    }
+//     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         Ok(vec![CommandEvent::mode_change(EditorMode::Command)])
+//     }
 
-    fn name(&self) -> &'static str {
-        "EnterCommandMode"
-    }
-}
+//     fn name(&self) -> &'static str {
+//         "EnterCommandMode"
+//     }
+// }
 
 /// Append at end of line (Shift+A)
 pub struct AppendAtEndOfLineCommand;
@@ -261,6 +267,10 @@ impl Command for AppendAtEndOfLineCommand {
     }
 }
 
+// Legacy InsertAtBeginningOfLineCommand - MIGRATED to unified_commands/mode/insert_at_beginning_of_line.rs
+// The unified implementation provides the same 'I' key functionality with modern architecture
+
+/*
 /// Insert at beginning of line (Shift+I)
 pub struct InsertAtBeginningOfLineCommand;
 
@@ -289,7 +299,12 @@ impl Command for InsertAtBeginningOfLineCommand {
         "InsertAtBeginningOfLine"
     }
 }
+*/
 
+// Legacy AppendAfterCursorCommand - MIGRATED to unified_commands/mode/append_after_cursor.rs
+// The unified implementation provides the same 'a' key functionality with modern architecture
+
+/*
 /// Append after cursor (a key)
 pub struct AppendAfterCursorCommand;
 
@@ -312,6 +327,7 @@ impl Command for AppendAfterCursorCommand {
         "AppendAfterCursor"
     }
 }
+*/
 
 /// Handle all ex command mode input (typing, backspace, execute)
 pub struct ExCommandModeCommand;
@@ -540,6 +556,10 @@ mod tests {
         assert_eq!(result[0], CommandEvent::restore_previous_mode());
     }
 
+    // Legacy tests for InsertAtBeginningOfLineCommand - MIGRATED to unified_commands/mode/insert_at_beginning_of_line.rs
+    // Comprehensive unit tests now exist in the unified implementation
+
+    /*
     #[test]
     fn insert_at_beginning_of_line_should_be_relevant_for_uppercase_i_in_normal_mode() {
         let context = create_test_context();
@@ -600,7 +620,12 @@ mod tests {
         );
         assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
     }
+    */
 
+    // Legacy tests for AppendAfterCursorCommand - MIGRATED to unified_commands/mode/append_after_cursor.rs
+    // Comprehensive unit tests now exist in the unified implementation
+
+    /*
     #[test]
     fn append_after_cursor_should_be_relevant_for_lowercase_a_in_normal_mode() {
         let context = create_test_context();
@@ -653,7 +678,10 @@ mod tests {
         );
         assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
     }
+    */
 
+    // MIGRATED: EnterVisualModeCommand tests moved to unified_commands/mode/enter_visual_mode.rs
+    /*
     // Visual mode tests
     #[test]
     fn enter_visual_mode_should_be_relevant_for_v_in_normal_mode() {
@@ -703,7 +731,12 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], CommandEvent::mode_change(EditorMode::Visual));
     }
+    */
 
+    // MIGRATED: ExitVisualModeCommand tests moved to unified_commands/mode/exit_visual_mode.rs
+    // Comprehensive unit tests now exist in the unified implementation
+
+    /*
     #[test]
     fn exit_visual_mode_should_be_relevant_for_escape_in_visual_mode() {
         let mut context = create_test_context();
@@ -744,64 +777,65 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], CommandEvent::mode_change(EditorMode::Normal));
     }
+    */
 
-    // EnterCommandModeCommand tests
-    #[test]
-    fn enter_command_mode_should_be_relevant_for_colon_in_normal_mode() {
-        let context = create_test_context();
-        let cmd = EnterCommandModeCommand;
-        let event = create_test_key_event(KeyCode::Char(':'));
+    // MIGRATED: EnterCommandModeCommand tests moved to unified_commands/mode/enter_command_mode.rs
+    // #[test]
+    // fn enter_command_mode_should_be_relevant_for_colon_in_normal_mode() {
+    //     let context = create_test_context();
+    //     let cmd = EnterCommandModeCommand;
+    //     let event = create_test_key_event(KeyCode::Char(':'));
 
-        assert!(cmd.is_relevant(&context, &event));
-    }
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
 
-    #[test]
-    fn enter_command_mode_should_be_relevant_for_colon_in_visual_mode() {
-        let mut context = create_test_context();
-        context.state.current_mode = EditorMode::Visual;
-        let cmd = EnterCommandModeCommand;
-        let event = create_test_key_event(KeyCode::Char(':'));
+    // #[test]
+    // fn enter_command_mode_should_be_relevant_for_colon_in_visual_mode() {
+    //     let mut context = create_test_context();
+    //     context.state.current_mode = EditorMode::Visual;
+    //     let cmd = EnterCommandModeCommand;
+    //     let event = create_test_key_event(KeyCode::Char(':'));
 
-        assert!(cmd.is_relevant(&context, &event));
-    }
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
 
-    #[test]
-    fn enter_command_mode_should_not_be_relevant_for_colon_in_insert_mode() {
-        let mut context = create_test_context();
-        context.state.current_mode = EditorMode::Insert;
-        let cmd = EnterCommandModeCommand;
-        let event = create_test_key_event(KeyCode::Char(':'));
+    // #[test]
+    // fn enter_command_mode_should_not_be_relevant_for_colon_in_insert_mode() {
+    //     let mut context = create_test_context();
+    //     context.state.current_mode = EditorMode::Insert;
+    //     let cmd = EnterCommandModeCommand;
+    //     let event = create_test_key_event(KeyCode::Char(':'));
 
-        assert!(!cmd.is_relevant(&context, &event));
-    }
+    //     assert!(!cmd.is_relevant(&context, &event));
+    // }
 
-    #[test]
-    fn enter_command_mode_should_not_be_relevant_for_colon_in_command_mode() {
-        let mut context = create_test_context();
-        context.state.current_mode = EditorMode::Command;
-        let cmd = EnterCommandModeCommand;
-        let event = create_test_key_event(KeyCode::Char(':'));
+    // #[test]
+    // fn enter_command_mode_should_not_be_relevant_for_colon_in_command_mode() {
+    //     let mut context = create_test_context();
+    //     context.state.current_mode = EditorMode::Command;
+    //     let cmd = EnterCommandModeCommand;
+    //     let event = create_test_key_event(KeyCode::Char(':'));
 
-        assert!(!cmd.is_relevant(&context, &event));
-    }
+    //     assert!(!cmd.is_relevant(&context, &event));
+    // }
 
-    #[test]
-    fn enter_command_mode_should_not_be_relevant_with_modifiers() {
-        let context = create_test_context();
-        let cmd = EnterCommandModeCommand;
-        let event = KeyEvent::new(KeyCode::Char(':'), KeyModifiers::SHIFT);
+    // #[test]
+    // fn enter_command_mode_should_not_be_relevant_with_modifiers() {
+    //     let context = create_test_context();
+    //     let cmd = EnterCommandModeCommand;
+    //     let event = KeyEvent::new(KeyCode::Char(':'), KeyModifiers::SHIFT);
 
-        assert!(!cmd.is_relevant(&context, &event));
-    }
+    //     assert!(!cmd.is_relevant(&context, &event));
+    // }
 
-    #[test]
-    fn enter_command_mode_should_produce_command_mode_change_event() {
-        let context = create_test_context();
-        let cmd = EnterCommandModeCommand;
-        let event = create_test_key_event(KeyCode::Char(':'));
+    // #[test]
+    // fn enter_command_mode_should_produce_command_mode_change_event() {
+    //     let context = create_test_context();
+    //     let cmd = EnterCommandModeCommand;
+    //     let event = create_test_key_event(KeyCode::Char(':'));
 
-        let result = cmd.execute(event, &context).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], CommandEvent::mode_change(EditorMode::Command));
-    }
+    //     let result = cmd.execute(event, &context).unwrap();
+    //     assert_eq!(result.len(), 1);
+    //     assert_eq!(result[0], CommandEvent::mode_change(EditorMode::Command));
+    // }
 }

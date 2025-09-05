@@ -1,7 +1,13 @@
 //! # Application Control Commands
 //!
 //! Commands for controlling the application lifecycle such as quit/terminate operations.
+//!
+//! MIGRATION STATUS: AppTerminateCommand migrated to unified_commands/system/app_terminate.rs
 
+// Legacy AppTerminateCommand - MIGRATED to unified_commands/system/app_terminate.rs
+// The unified implementation provides the same Ctrl+C functionality with modern architecture
+
+/*
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -24,7 +30,12 @@ impl Command for AppTerminateCommand {
         "AppTerminate"
     }
 }
+*/
 
+// Legacy tests for AppTerminateCommand - MIGRATED to unified_commands/system/app_terminate.rs
+// Comprehensive unit tests now exist in the unified implementation
+
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,3 +98,4 @@ mod tests {
         assert_eq!(events[0], CommandEvent::QuitRequested);
     }
 }
+*/

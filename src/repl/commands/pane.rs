@@ -1,7 +1,13 @@
 //! # Pane Management Commands
 //!
 //! Commands for switching between request and response panes
+//!
+//! MIGRATION STATUS: SwitchPaneCommand migrated to unified_commands/navigation/switch_pane.rs
 
+// Legacy SwitchPaneCommand - MIGRATED to unified_commands/navigation/switch_pane.rs
+// The unified implementation provides the same Tab key pane switching with modern architecture
+
+/*
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -44,7 +50,12 @@ impl Command for SwitchPaneCommand {
         "SwitchPane"
     }
 }
+*/
 
+// Legacy tests for SwitchPaneCommand - MIGRATED to unified_commands/navigation/switch_pane.rs
+// Comprehensive unit tests now exist in the unified implementation
+
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,3 +168,4 @@ mod tests {
         assert_eq!(cmd.name(), "SwitchPane");
     }
 }
+*/

@@ -108,6 +108,22 @@ impl AppState {
             tracing::debug!("Cleared command buffer when exiting Command mode");
         }
 
+        // Clear status messages when entering modes that show mode indicators
+        // This ensures mode indicators are visible and status messages don't persist indefinitely
+        if matches!(
+            mode,
+            EditorMode::Insert
+                | EditorMode::Visual
+                | EditorMode::VisualLine
+                | EditorMode::VisualBlock
+        ) {
+            self.status_line.clear_status_message();
+            tracing::debug!(
+                "Cleared status message when entering mode with indicator: {:?}",
+                mode
+            );
+        }
+
         // Handle visual mode selection state using PaneManager
         let mut events = mode_change_events; // Start with any cursor pullback events
         let entering_visual_mode = matches!(
