@@ -53,7 +53,7 @@ impl Command for EnterCommandModeCommand {
         tracing::debug!("EnterCommandModeCommand: entering Command mode");
 
         // Change mode to Command mode
-        let _mode_change = context.app_state.set_mode(EditorMode::Command);
+        context.app_state.change_mode(EditorMode::Command)?;
 
         tracing::debug!("EnterCommandModeCommand: mode changed to Command");
 

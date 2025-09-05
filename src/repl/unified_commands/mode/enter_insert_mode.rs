@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn enter_insert_mode_command_should_create_default_instance() {
-        let command = EnterInsertModeCommand::default();
+        let command = EnterInsertModeCommand;
         assert_eq!(command.name(), "EnterInsertModeCommand");
     }
 

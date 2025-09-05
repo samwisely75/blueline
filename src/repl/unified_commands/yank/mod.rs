@@ -3,6 +3,9 @@
 //! This module contains all yank (copy) and paste related commands.
 //! These commands handle copying text to clipboard/yank buffer and
 //! pasting text from clipboard/yank buffer.
+//!
+//! NOTE: Commands self-register via inventory system - adding new command files
+//! here won't cause merge conflicts. Add modules alphabetically to prevent conflicts.
 
 // Yank commands
 pub mod yank_current_line;

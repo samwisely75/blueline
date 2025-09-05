@@ -4,8 +4,8 @@
 //! movement within the editor. These commands support both Vim-style keys
 //! (h, j, k, l) and standard arrow keys.
 //!
-//! All commands in this module self-register using the inventory system
-//! for dynamic discovery by the command registry.
+//! NOTE: Commands self-register via inventory system - adding new command files
+//! here won't cause merge conflicts. Add modules alphabetically to prevent conflicts.
 
 // Navigation command modules
 pub mod cancel_g_prefix;
