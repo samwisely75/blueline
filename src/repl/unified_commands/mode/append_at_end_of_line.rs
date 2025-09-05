@@ -60,7 +60,7 @@ impl Command for AppendAtEndOfLineCommand {
             .move_cursor_to_line_end_for_append();
 
         // Then set the mode to Insert
-        let _mode_change = context.app_state.set_mode(EditorMode::Insert);
+        context.app_state.change_mode(EditorMode::Insert)?;
 
         tracing::debug!(
             "AppendAtEndOfLineCommand: cursor moved to line end for append, mode changed to Insert"

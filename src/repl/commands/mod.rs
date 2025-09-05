@@ -91,7 +91,7 @@ impl CommandRegistry {
             // Box::new(ScrollLeftCommand), // Migrated to unified_commands
             // Box::new(ScrollRightCommand), // Migrated to unified_commands
             // Pagination commands (high priority - Ctrl+key combinations)
-            Box::new(PageDownCommand),
+            // Box::new(PageDownCommand), // Migrated to unified_commands/navigation/page_down.rs
             Box::new(PageUpCommand),
             Box::new(HalfPageDownCommand),
             Box::new(HalfPageUpCommand),
@@ -109,18 +109,18 @@ impl CommandRegistry {
             Box::new(HomeKeyCommand),
             Box::new(EndKeyCommand),
             // Mode commands
-            Box::new(EnterInsertModeCommand),
+            // Box::new(EnterInsertModeCommand), // Migrated to unified_commands/mode/enter_insert_mode.rs
             Box::new(EnterVisualModeCommand),
             Box::new(EnterVisualLineModeCommand),
-            Box::new(EnterVisualBlockModeCommand),
+            // Box::new(EnterVisualBlockModeCommand), // Migrated to unified_commands/mode/enter_visual_block_mode.rs
             Box::new(VisualBlockInsertCommand),
             Box::new(VisualBlockAppendCommand),
             // Box::new(AppendAfterCursorCommand), // Migrated to unified_commands/mode/append_after_cursor.rs
             // Box::new(AppendAtEndOfLineCommand), // Migrated to unified_commands/mode/append_at_end_of_line.rs
             // Box::new(InsertAtBeginningOfLineCommand), // Migrated to unified_commands/mode/insert_at_beginning_of_line.rs
-            Box::new(ExitInsertModeCommand),
+            // Box::new(ExitInsertModeCommand), // Migrated to unified_commands/mode/exit_insert_mode.rs
             Box::new(ExitVisualBlockInsertModeCommand),
-            Box::new(ExitVisualModeCommand),
+            // Box::new(ExitVisualModeCommand), // Migrated to unified_commands
             // Box::new(EnterCommandModeCommand), // Migrated to unified_commands/mode/enter_command_mode.rs
             Box::new(ExCommandModeCommand),
             // Pane commands
@@ -296,14 +296,9 @@ mod tests {
         let event = create_test_key_event(KeyCode::Char('i'));
         let events = registry.process_event(event, &context).unwrap();
 
-        // Should produce a mode change event to Insert mode
-        assert_eq!(events.len(), 1);
-        assert_eq!(
-            events[0],
-            CommandEvent::ModeChangeRequested {
-                new_mode: EditorMode::Insert
-            }
-        );
+        // This command has been migrated to the unified command system
+        // The legacy registry should no longer handle it
+        assert_eq!(events.len(), 0);
     }
 
     #[test]
@@ -367,15 +362,9 @@ mod tests {
         let event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
         let events = registry.process_event(event, &context).unwrap();
 
-        // Should produce a page down cursor movement event
-        assert_eq!(events.len(), 1);
-        assert!(matches!(
-            events[0],
-            CommandEvent::CursorMoveRequested {
-                direction: MovementDirection::PageDown,
-                amount: 1
-            }
-        ));
+        // This command has been migrated to the unified command system
+        // The legacy registry should no longer handle it
+        assert_eq!(events.len(), 0);
     }
 
     #[test]
