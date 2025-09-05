@@ -40,12 +40,13 @@ impl Command for InsertCharCommand {
     fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
         // Only allow in Insert modes and Request pane (double-check)
         let mode = context.app_state.get_mode();
-        if !matches!(mode, EditorMode::Insert | EditorMode::VisualBlockInsert) 
-            || !context.app_state.is_in_request_pane() {
+        if !matches!(mode, EditorMode::Insert | EditorMode::VisualBlockInsert)
+            || !context.app_state.is_in_request_pane()
+        {
             return Ok(vec![]);
         }
 
-        // In the unified command system, we return appropriate post-command actions 
+        // In the unified command system, we return appropriate post-command actions
         // The actual character insertion would be handled by the key processing system
         Ok(vec![
             PostCommandAction::RequestContentChanged,
@@ -222,9 +223,9 @@ mod tests {
 
         let result = command.execute(&mut context);
         assert!(result.is_ok());
-        
+
         let events = result.unwrap();
-        assert!(events.len() > 0);
+        assert!(!events.is_empty());
         assert!(events.contains(&PostCommandAction::RequestContentChanged));
         assert!(events.contains(&PostCommandAction::ActiveCursorUpdateRequired));
     }
@@ -245,7 +246,7 @@ mod tests {
 
         let result = command.execute(&mut context);
         assert!(result.is_ok());
-        
+
         let events = result.unwrap();
         assert_eq!(events.len(), 0); // Should return empty vec for wrong mode
     }
@@ -267,14 +268,14 @@ mod tests {
 
         let result = command.execute(&mut context);
         assert!(result.is_ok());
-        
+
         let events = result.unwrap();
         assert_eq!(events.len(), 0); // Should return empty vec for response pane
     }
 
     #[test]
     fn insert_char_command_create_default_instance() {
-        let command = InsertCharCommand::default();
+        let command = InsertCharCommand;
         assert_eq!(command.name(), "InsertCharCommand");
     }
 }
