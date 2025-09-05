@@ -1,8 +1,64 @@
 # Session Notes
 
+## [2025-09-05] Issue #286 - EnterVisualBlockModeCommand Migration Complete
+
+### Successfully Completed EnterVisualBlockModeCommand Migration to Unified System
+
+- ✅ GitHub Issue #286: Migrate EnterVisualBlockModeCommand to unified command system
+- ✅ PR #326: <https://github.com/samwisely75/blueline/pull/326> (OPEN - ready for review)
+- ✅ Kanban status moved to "In Review"
+
+### Technical Implementation Completed
+
+- ✅ **Unified Command Created**: `/src/repl/unified_commands/mode/enter_visual_block_mode.rs`
+  - Handles Ctrl+V key combination in Normal mode
+  - Transitions editor to Visual Block mode for rectangular selections
+  - Uses PostCommandAction for UI updates (StatusBarUpdateRequired, ActiveCursorUpdateRequired)
+  - Uses `register_command!` macro for dynamic discovery (zero conflicts)
+
+- ✅ **Legacy Code Cleanup**:
+  - EnterVisualBlockModeCommand commented out in `/src/repl/commands/mode.rs`
+  - Legacy registry updated to exclude old command registration in `/src/repl/commands/mod.rs`
+  - Migration notes added for future reference
+
+- ✅ **Quality Assurance Completed**:
+  - 14 comprehensive unit tests for the unified command
+  - All 830 unit tests passing across the entire codebase
+  - Pre-commit checks pass (formatting, clippy, tests)
+  - Zero functional regressions confirmed
+
+### Migration Pattern Success
+
+This migration demonstrates the **proven unified command system workflow**:
+
+- ✅ **Dynamic Registration**: Uses inventory crate for zero merge conflicts
+- ✅ **Complete Business Logic Preservation**: All Ctrl+V functionality maintained  
+- ✅ **Comprehensive Test Coverage**: Thorough validation of all functionality
+- ✅ **Clean Architectural Separation**: Modern 3G framework implementation
+- ✅ **Production Ready**: Full validation and error handling
+
+### Files Modified/Created
+
+- **Created**: `src/repl/unified_commands/mode/enter_visual_block_mode.rs` (339 lines)
+- **Modified**: `src/repl/unified_commands/mode/mod.rs` (added module and export)
+- **Modified**: `src/repl/commands/mode.rs` (commented out legacy command)
+- **Modified**: `src/repl/commands/mod.rs` (commented out legacy registry entry)
+
+### Metrics
+
+- **Lines Added**: 339 (new unified command + comprehensive tests)
+- **Test Coverage**: 14 unit tests covering all edge cases and scenarios
+- **Zero Breaking Changes**: Backward compatible migration
+- **Zero Merge Conflicts**: Thanks to dynamic discovery system
+
+### Status: COMPLETE AND READY FOR REVIEW
+
+The migration of EnterVisualBlockModeCommand (issue #286) is **100% complete** and ready for review. The command is fully functional with comprehensive testing and follows all established patterns.
+
 ## [2025-08-31] Agent 3 - Issue #275 Completed
 
 ### Successfully Migrated InsertCharCommand to Unified System
+
 - ✅ Created `InsertCharCommand` in `src/repl/unified_commands/editing/insert_char.rs`
 - ✅ Ported complete business logic from legacy command
 - ✅ Added comprehensive unit tests (12 test cases)
@@ -11,12 +67,13 @@
 - ✅ Uses dynamic registration system (zero merge conflicts)
 - ✅ Commented out legacy command registration
 - ✅ Fixed compilation issues in navigation.rs and mode.rs
-- ✅ Created PR #331: https://github.com/samwisely75/blueline/pull/331
+- ✅ Created PR #331: <https://github.com/samwisely75/blueline/pull/331>
 - ✅ Moved issue to "In Review"
 
 ### Technical Challenges Solved
+
 - Fixed nested block comment issues in navigation.rs
-- Resolved EnterVisualModeCommand compilation errors 
+- Resolved EnterVisualModeCommand compilation errors
 - Bypassed segfault in integration tests (system issue, not code issue)
 - All 826 unit tests pass successfully
 
@@ -36,11 +93,13 @@
 ## [2025-08-31] Command Migration Session
 
 ### User Request Summary
+
 - Continue working on remaining command migrations
 - Focus on: AppTerminateCommand (#293), SwitchPaneCommand (#292), AppendAfterCursorCommand (#290), InsertAtBeginningOfLineCommand (#289)
 - CRITICAL: Must create actual PRs at the end of each command migration
 
 ### What We Accomplished
+
 Successfully migrated 4 commands from legacy system to unified command system:
 
 1. **AppTerminateCommand (#293)** - PR #327
@@ -62,6 +121,7 @@ Successfully migrated 4 commands from legacy system to unified command system:
    - 805 tests passing, comprehensive key combination support
 
 ### Key Improvements from Unified System
+
 - **Modern architecture**: PostCommandAction returns instead of CommandEvent emission
 - **Auto-registration**: inventory system for conflict-free parallel development
 - **Comprehensive testing**: More test cases with better coverage
@@ -70,37 +130,47 @@ Successfully migrated 4 commands from legacy system to unified command system:
 - **UI updates**: Returns appropriate PostCommandActions for UI updates
 
 ### Migration Status
+
 All 4 requested commands are now fully migrated with zero functional regressions. The legacy implementations are properly commented out with migration documentation, and comprehensive PRs have been created:
-- PR #327: AppTerminateCommand 
+
+- PR #327: AppTerminateCommand
 - PR #328: SwitchPaneCommand
 - PR #329: AppendAfterCursorCommand + InsertAtBeginningOfLineCommand
 
 ### Next Steps
+
 All requested command migrations are complete. The PRs are ready for review and merge.
 7. **REMOVE old commands from src/repl/commands** after successful migration
 
 ## [2025-08-30] BREAKTHROUGH: Dynamic Command Discovery System - The Silver Bullet
 
 ### Revolutionary Solution Summary
+
 Successfully implemented inventory-based dynamic command discovery system that completely eliminates merge conflicts during parallel agent development. This is the **silver bullet** for scaling command system refactoring with multiple agents working simultaneously.
 
 ### The Problem We Solved
+
 During parallel agent development on issues #226, #227 (3 agents working simultaneously), we discovered that **registry conflicts were inevitable**:
+
 - All agents had to modify `registry.rs` to add their commands
 - Sequential merging caused conflicts in the same file locations every time
 - The wildcard import approach reduced but didn't eliminate conflicts
 
 ### The Silver Bullet Solution
+
 **Inventory-based Dynamic Command Discovery** using compile-time registration:
 
 #### Implementation Details
+
 1. **New Dependencies**: Added `inventory = "0.3"` crate for compile-time collection
 2. **Command Registry System**: Created `src/repl/unified_commands/command_registry.rs`
 3. **Self-Registration Macro**: `register_command!(CommandName, "CommandName")`
 4. **Automatic Discovery**: Commands auto-register at compile time, zero runtime overhead
 
 #### Revolutionary Change
+
 **Before (Conflict-Prone Manual Registry):**
+
 ```rust
 // registry.rs - ALL AGENTS MODIFY THIS FILE = CONFLICTS!
 fn register_default_commands(&mut self) {
@@ -112,6 +182,7 @@ fn register_default_commands(&mut self) {
 ```
 
 **After (Zero-Conflict Dynamic Discovery):**
+
 ```rust
 // registry.rs - NO AGENT EVER TOUCHES THIS AGAIN!
 fn register_default_commands(&mut self) {
@@ -134,6 +205,7 @@ register_command!(CommandC, "CommandC");  // No conflicts!
 ```
 
 ### Production Deployment Results
+
 - ✅ **All 13 existing unified commands retrofitted** with `register_command!` macro
 - ✅ **Registry simplified**: 42 conflict-prone lines → 7 clean lines  
 - ✅ **Zero registry conflicts**: Manual registration completely eliminated
@@ -141,6 +213,7 @@ register_command!(CommandC, "CommandC");  // No conflicts!
 - ✅ **Merge to develop**: Live in production, ready for scale
 
 ### Benefits Proven
+
 1. **Eliminates Registry Conflicts**: Agents never modify shared registry files
 2. **Scales to Unlimited Agents**: Each agent works in their own command file
 3. **Zero Runtime Cost**: All discovery happens at compile time via inventory
@@ -148,6 +221,7 @@ register_command!(CommandC, "CommandC");  // No conflicts!
 5. **Backwards Compatible**: All existing functionality preserved
 
 ### Future Agent Workflow (Zero-Conflict)
+
 ```rust
 // To add a new command, agents just need:
 // 1. Create: src/repl/unified_commands/my_command.rs
@@ -158,19 +232,23 @@ register_command!(MyCommand, "MyCommand");
 ```
 
 ### Technical Architecture
+
 - **Compile-time Collection**: `inventory::collect!(CommandEntry)`  
 - **Self-Registration**: Commands submit themselves to global collection
 - **Auto-Discovery**: Registry iterates collected commands at startup
 - **Type Safety**: All registration happens through safe macro expansion
 
 ### Commit Details
+
 - **Branch**: `demo/dynamic-command-discovery` → merged to `develop`
 - **Commit**: `7a58ada` - feat: Implement inventory-based dynamic command discovery system
 - **Files Changed**: 21 files (registry simplification + all command retrofitting)
 - **Impact**: Revolutionary - enables unlimited parallel agent development
 
 ### Strategic Impact
+
 This breakthrough completely transforms our ability to scale command system refactoring:
+
 - **Before**: 2-3 agents max due to inevitable registry conflicts
 - **After**: Unlimited agents working simultaneously with zero conflicts
 - **Future**: Command system refactoring can now scale to any team size
@@ -182,6 +260,7 @@ This breakthrough completely transforms our ability to scale command system refa
 ## [2025-08-30] Command System Refactoring - Repurpose 3G Framework
 
 ### User Request Summary
+
 - Migrate all handle_* methods from AppViewModel to commands
 - Enhance first-generation command system to return ViewEvents
 - Get rid of unified_commands directory ASAP
@@ -208,12 +287,14 @@ This breakthrough completely transforms our ability to scale command system refa
 ### Architecture Analysis
 
 #### Current State
+
 - **AppViewModel**: ~1700 lines with 20+ handle_* methods
 - **1st gen commands**: Return CommandEvent, stable and working
 - **3rd gen commands**: Return ModelEvent, only 2 commands implemented
 - **Dual event loop**: Already tries 3G first, falls back to 1G
 
 #### Target State
+
 - **AppViewModel**: ~200 lines, thin orchestration layer only
 - **Commands**: Self-contained with business logic (vertical slice)
 - **Single command system**: Enhanced 3G becomes the only system
@@ -222,6 +303,7 @@ This breakthrough completely transforms our ability to scale command system refa
 ### Migration Plan
 
 #### Phase 1: Setup 3G Framework (Day 1)
+
 1. Modify Command trait in unified_commands to return ViewEvent
 2. Update HttpExecuteCommand with ViewEvents + real logic
 3. Temporarily disable YankSelectionCommand
@@ -229,7 +311,9 @@ This breakthrough completely transforms our ability to scale command system refa
 5. Test and commit
 
 #### Phase 2: Gradual Migration (Days 2-10)
+
 For each handle_* method:
+
 1. Create command in unified_commands with business logic
 2. Add to unified registry
 3. Test specific functionality
@@ -237,17 +321,20 @@ For each handle_* method:
 5. Commit after each successful migration
 
 Priority order:
+
 - Simple: ShowProfile, Settings
 - Medium: Yank/paste commands
 - Complex: Visual block, multi-cursor
 
 #### Phase 3: Cleanup (Day 11)
+
 1. Rename unified_commands → commands
 2. Delete old first-gen system
 3. Remove dual event loop
 4. Final AppViewModel cleanup
 
 ### Integration Test Impact
+
 - **Zero impact** - Tests are black-box (keyboard in, terminal out)
 - Tests provide safety net for refactoring
 - No test changes needed
@@ -255,6 +342,7 @@ Priority order:
 ### Progress Update
 
 #### Phase 1: ✅ COMPLETED (2025-08-30)
+
 - Modified Command trait in unified_commands to return ViewEvent instead of ModelEvent
 - Updated HttpExecuteCommand to work with ViewEvents (business logic placeholder)
 - Temporarily disabled YankSelectionCommand for later migration
@@ -265,6 +353,7 @@ Priority order:
 ### Architecture Guidelines for New Commands
 
 #### STRICT RULES for New Command Implementation
+
 1. **NEVER call `emit_view_event()` on AppState** - Commands return ViewEvents directly
 2. **NEVER access view-related methods** on AppState (rendering_coordinator methods)
 3. **Commands should only:**
@@ -273,17 +362,20 @@ Priority order:
    - Return ViewEvents to signal UI updates
 
 #### Migration Strategy
+
 - New commands follow clean architecture
 - Old handle_* methods still use emit_view_event (temporarily)
 - As we migrate, dependencies on emit_view_event will decrease
 - When all handle_* methods are migrated, we can safely remove rendering_coordinator
 
 #### Future Cleanup (After All Commands Migrated)
+
 - Remove `emit_view_event()` and rendering_coordinator.rs
 - Remove `pending_view_events` from AppState
 - AppState becomes pure Model with no view concerns
 
 ### Next Steps
+
 1. Begin migrating handle_* methods to unified commands one by one
 2. Start with simple commands (ShowProfile, Settings)
 3. Then move to yank/paste commands
@@ -294,6 +386,7 @@ Priority order:
 ## [2025-08-29] MVVM Architecture Deep Dive and Refactoring Plan
 
 ### User Request Summary
+
 - User identified fundamental MVVM violations in the codebase
 - Discovered 4 different components: AppController, ViewModel (old), AppViewModel (unused wrapper), AppState
 - Goal: Merge AppController + old ViewModel into new AppViewModel, fix View dependencies
@@ -301,6 +394,7 @@ Priority order:
 ### Architecture Analysis Findings
 
 #### Current Components (Problematic)
+
 1. **AppController** (`src/repl/controllers/app_controller.rs`)
    - Contains: view_model (old ViewModel), services, command registries, event_stream, view_renderer
    - Role: Main orchestrator (1941 lines)
@@ -318,6 +412,7 @@ Priority order:
    - Role: Pure data model (correct)
 
 #### MVVM Violations Discovered
+
 1. **ViewRenderer calls methods on ViewModel** - Major violation!
    - View should only receive data, not call back to ViewModel
    - Found ~30+ method calls from ViewRenderer to ViewModel
@@ -338,6 +433,7 @@ Priority order:
 ### Refactoring Plan - Incremental with Testing
 
 #### Phase 1: Fix the Model Layer (Keep App Working)
+
 1. **Add missing fields to PaneState:**
    - line_numbers_visible, wrap_enabled, tab_width, expand_tab
    - viewport boundaries
@@ -351,6 +447,7 @@ Priority order:
    - 📝 Git commit and tag
 
 #### Phase 2: Update ViewRenderer Interface (Parallel)
+
 1. **Create AppState-based render methods:**
    - Add new methods alongside old ones
    - Keep backward compatibility
@@ -363,6 +460,7 @@ Priority order:
    - 📝 Git commit and tag
 
 #### Phase 3: Create New AppViewModel (Parallel Structure)
+
 1. **Create merged AppViewModel:**
    - Merge AppController + old ViewModel properties
    - Copy all methods, fixing self.view_model references
@@ -375,6 +473,7 @@ Priority order:
    - 📝 Git commit and tag
 
 #### Phase 4: Switch Over and Clean Up
+
 1. **Make new default:**
    - Switch to new AppViewModel
    - ✅ Full integration tests
@@ -392,6 +491,7 @@ Priority order:
    - 📝 Git commit and tag
 
 ### Key Principles
+
 - **Never break compilation** - Each step must compile
 - **Test at every step** - Unit tests AND integration tests
 - **Git commit when green** - Only commit working code
@@ -399,6 +499,7 @@ Priority order:
 - **Small atomic changes** - One logical change per commit
 
 ### Expected Outcome
+
 - Clean MVVM: AppViewModel (logic) → AppState (data) → ViewRenderer (presentation)
 - ViewRenderer depends only on AppState (no method calls)
 - No god objects or backwards dependencies
@@ -407,6 +508,7 @@ Priority order:
 ### Progress Update
 
 #### Phase 1: ✅ COMPLETED (2025-08-29)
+
 - Added display settings to PaneState: line_numbers_visible, wrap_enabled, tab_width, expand_tab
 - Added viewport information to PaneState: viewport_start_row, viewport_height  
 - Updated PaneManager to delegate to PaneState fields instead of maintaining duplicates
@@ -416,6 +518,7 @@ Priority order:
 - Tagged as: phase1-model-fields-complete
 
 #### Phase 2: ✅ COMPLETED (2025-08-29)
+
 - Added new _from_state methods to ViewRenderer trait as transition step
 - Methods currently delegate to old ViewModel-based methods for compatibility
 - Updated AppController to use new _from_state methods throughout
@@ -424,6 +527,7 @@ Priority order:
 - Tagged as: phase2-viewrenderer-interface
 
 ### Next Steps
+
 1. Phase 3: Create New AppViewModel - Merge AppController + old ViewModel properties
 2. Phase 4: Switch Over and Clean Up - Delete old structures one at a time
 
@@ -432,11 +536,13 @@ Priority order:
 ## [2025-08-27] MVVM Refactoring - Events Directory Deleted
 
 ### Summary
+
 Successfully completed the reorganization of the models and events directories and deleted the old src/repl/events facade directory.
 
 ### What We Accomplished
 
 #### Directory Structure Reorganization
+
 1. **Moved pane_state and app_state to models root**
    - `src/repl/models/pane_state/` (moved from models/state/)
    - `src/repl/models/app_state.rs` (moved from models/state/)
@@ -456,6 +562,7 @@ Successfully completed the reorganization of the models and events directories a
    - Successfully removed the facade directory after updating all import references throughout the codebase
 
 ### Technical Details
+
 - Fixed all import paths from `crate::repl::events::` to appropriate new locations:
   - `crate::repl::models::events::` for EventBus, ModelEvent, ViewEvent
   - `crate::repl::models::pane_state::` for EditorMode, Pane, PaneCapabilities  
@@ -463,12 +570,15 @@ Successfully completed the reorganization of the models and events directories a
   - `crate::repl::io::` for EventSource, TerminalEventSource
 
 ### Testing Results
+
 - All 473 unit tests passing
 - Integration tests passing
 - Pre-commit checks clean (formatting, clippy)
 
 ### Current State
+
 The codebase now has a cleaner architecture with:
+
 - Models layer containing pure data structures (AppState, PaneState)
 - ViewModels layer with business logic (AppViewModel)
 - Events properly organized within models
@@ -506,6 +616,7 @@ Successfully moved state models to the proper layers in the MVVM architecture:
 ### Architecture Status
 
 The MVVM structure is now properly layered:
+
 - **Models Layer** (`src/repl/models/`): Pure data structures
   - `state/app_state.rs`: Core application state
   - `state/pane_state/`: Pane-specific state
@@ -520,12 +631,15 @@ The MVVM structure is now properly layered:
   - Currently contains ~1944 lines of business logic to be migrated
 
 ### Test Results
+
 - All 478 unit tests passing
 - Integration tests verified (application lifecycle tests passing)
 - No regressions detected
 
 ### Next Steps for Phase 6
+
 The foundation is now in place to migrate business logic from AppController to AppViewModel:
+
 1. Identify handle_* methods in AppController that contain business logic
 2. Move logic to AppViewModel, leaving only coordination in AppController
 3. Update AppController to use AppViewModel instead of direct ViewModel
@@ -536,23 +650,27 @@ The foundation is now in place to migrate business logic from AppController to A
 ## [2025-08-27] MVVM Refactoring - Phase 3 Complete
 
 ### User Request Summary
+
 - Continue MVVM refactoring after completing Phase 1 and 2
 - Move commands from view_models to unified_commands (architectural fix)
 - Complete Phase 3: Service separation and state consolidation
 
 ### What We Tried and Found
+
 - **Commands Location Issue**: User correctly identified that commands were incorrectly placed under view_models directory in MVVM architecture
 - **HTTP Client**: Successfully removed from ViewModel since it belongs in HttpService
 - **Visual Block State**: User astutely observed that visual_block_insert states were inconsistently placed in ViewModel while all other cursor states were in PaneState
 - **Selection Service**: Considered but rejected creating a SelectionService - selection logic is too tightly integrated with buffer/cursor management to separate
 
 ### Decisions Made
+
 - **Commands are Independent**: Moved all commands to unified_commands module, separate from ViewModels
 - **Services Own Resources**: HTTP client now exclusively managed by HttpService, not stored in ViewModel
 - **Consistent State Location**: All cursor/selection states including visual_block_insert now in PaneState
 - **No SelectionService**: Selection functionality remains integrated with ViewModel/PaneState due to tight coupling with buffer operations
 
 ### Completed Changes
+
 1. **Commands Reorganization** (Architectural Fix)
    - Moved src/repl/view_models/commands/ to src/repl/unified_commands/
    - Fixed all imports throughout codebase
@@ -566,17 +684,20 @@ The foundation is now in place to migrate business logic from AppController to A
    - ViewModel now delegates visual block operations through PaneManager to PaneState
 
 ### Architecture Improvements
+
 - **ViewModel is now cleaner**: No longer owns service resources or low-level cursor states
 - **Better separation of concerns**: Services manage their own resources, PaneState manages all cursor/selection states
 - **Consistent state management**: All similar states are now co-located
 
 ### Next Steps / TODO
+
 - Phase 4: Move screen buffers to ViewRenderer
 - Phase 5: The Great Consolidation  
 - Phase 6: Modularize AppViewModel
 - Phase 7: Clean up obsolete code
 
 ### Tag Created
+
 - `phase3-services-complete`: Marks completion of service separation and state consolidation
 
 ---
@@ -584,6 +705,7 @@ The foundation is now in place to migrate business logic from AppController to A
 ## [2025-08-26] MVVM Architecture Pivot - Correcting Fundamental Misunderstanding
 
 ### User Request Summary
+
 - Initially requested restarting refactoring with third-generation command system
 - Goal was to slim down AppController (1500+ lines) by moving business logic to commands
 - During implementation, discovered fundamental architecture naming issue
@@ -592,6 +714,7 @@ The foundation is now in place to migrate business logic from AppController to A
 ### What We Discovered - Critical Architecture Insight
 
 #### The Naming Problem
+
 1. **What we called "ViewModel"** is actually just the **Model** (pure state)
    - Contains only data: buffer state, cursor positions, modes
    - No business logic, just getters/setters
@@ -607,6 +730,7 @@ The foundation is now in place to migrate business logic from AppController to A
    - Should not contain business logic
 
 #### Why This Matters
+
 - The confusion led us down wrong path with 3G commands
 - Event-based (1G) commands are actually correct for MVVM
 - Commands should emit events, not directly manipulate state
@@ -650,6 +774,7 @@ The foundation is now in place to migrate business logic from AppController to A
 ### Key Technical Learnings
 
 1. **MVVM Pattern Clarity**
+
    ```
    View (ViewRenderer) ← ViewModel (AppViewModel) ← Model (AppState)
                                ↓
@@ -670,6 +795,7 @@ The foundation is now in place to migrate business logic from AppController to A
    - AppState should be pure data only
 
 ### Next Steps / TODO
+
 - Create new GitHub issues for revised refactoring phases
 - Start fresh on new base branch with proper understanding
 - Begin Phase 1: Model reorganization
@@ -678,6 +804,7 @@ The foundation is now in place to migrate business logic from AppController to A
 ## [2025-08-31] GitHub Issues #293 #292 - AppTerminateCommand and SwitchPaneCommand Migration Complete
 
 ### User Request Summary
+
 - Migrate AppTerminateCommand and SwitchPaneCommand to unified command system
 - Move AppTerminateCommand to system/app_terminate.rs and SwitchPaneCommand to navigation/switch_pane.rs
 - Convert from CommandEvent emission to PostCommandAction returns
@@ -689,9 +816,11 @@ The foundation is now in place to migrate business logic from AppController to A
 ### Implementation Completed
 
 #### ✅ AppTerminateCommand Migration (Issue #293)
+
 Successfully migrated AppTerminateCommand from legacy to unified command system:
 
 **Key Features Implemented:**
+
 - ✅ Created `AppTerminateCommand` at `src/repl/unified_commands/system/app_terminate.rs`
 - ✅ Handles Ctrl+C key combination for graceful application termination
 - ✅ Works in all editor modes for emergency exit capability
@@ -701,15 +830,18 @@ Successfully migrated AppTerminateCommand from legacy to unified command system:
 - ✅ Proper key modifier validation (rejects Shift+Ctrl+C, Alt+Ctrl+C, etc.)
 
 **Technical Architecture:**
+
 1. **Universal Relevance**: Active in ALL editor modes for emergency exit
 2. **Key Validation**: Only pure Ctrl+C (no additional modifiers)
 3. **Graceful Shutdown**: Returns PostCommandAction for proper cleanup
 4. **Auto-registration**: Uses inventory system for conflict-free parallel development
 
 #### ✅ SwitchPaneCommand Migration (Issue #292)
+
 Successfully migrated SwitchPaneCommand from legacy to unified command system:
 
 **Key Features Implemented:**
+
 - ✅ Created `SwitchPaneCommand` at `src/repl/unified_commands/navigation/switch_pane.rs`
 - ✅ Handles Tab key in Normal mode for switching between request/response panes
 - ✅ Uses `AppState.switch_to_other_pane()` method for proper state management
@@ -718,19 +850,23 @@ Successfully migrated SwitchPaneCommand from legacy to unified command system:
 - ✅ Works regardless of read-only state or selection presence
 
 **Technical Architecture:**
+
 1. **Mode-Specific Relevance**: Only active in Normal mode for Tab key
 2. **State Integration**: Uses AppState methods for proper pane switching
 3. **UI Event Returns**: Returns FocusSwitched, StatusBarUpdateRequired, ActiveCursorUpdateRequired
 4. **Comprehensive Testing**: Edge cases include modified Tab keys, different modes, etc.
 
 #### ✅ Legacy System Cleanup
+
 **Removed from Legacy Command Registry:**
+
 - Commented out `AppTerminateCommand` from legacy registry initialization
 - Commented out `SwitchPaneCommand` from legacy registry initialization  
 - Updated test `registry_should_handle_pane_switch_command` to verify Tab is no longer handled by legacy system
 - Updated test that used SwitchPaneCommand to use AppTerminateCommand instead
 
 **Dynamic Registration Success:**
+
 - Both commands auto-register using inventory crate for zero-conflict parallel development
 - Verified dynamic discovery finds both commands correctly
 - All 759 unit tests passing after migration
@@ -738,31 +874,36 @@ Successfully migrated SwitchPaneCommand from legacy to unified command system:
 ### Technical Achievements
 
 **Architecture Compliance:**
+
 - Both commands follow unified Command trait pattern perfectly
 - Use PostCommandAction returns instead of CommandEvent emission
 - Auto-register using inventory-based dynamic discovery system  
 - Located in appropriate subdirectories (system/, navigation/)
 
 **Testing Coverage:**
+
 - AppTerminateCommand: 9 comprehensive unit tests
 - SwitchPaneCommand: 11 comprehensive unit tests
 - All edge cases and error conditions covered
 - Integration with existing codebase verified
 
 **Migration Quality:**
+
 - Zero functional regressions
 - All existing functionality preserved
 - Modern registration eliminates merge conflicts
 - Production-ready implementation with proper error handling
 
 ### Files Created/Modified
+
 - `src/repl/unified_commands/system/app_terminate.rs` - New unified command (206 lines)
 - `src/repl/unified_commands/system/mod.rs` - Added module registration and re-export
-- `src/repl/unified_commands/navigation/switch_pane.rs` - New unified command (284 lines) 
+- `src/repl/unified_commands/navigation/switch_pane.rs` - New unified command (284 lines)
 - `src/repl/unified_commands/navigation/mod.rs` - Added module registration and re-export
 - `src/repl/commands/mod.rs` - Commented out legacy commands, updated tests
 
 ### Metrics
+
 - **Lines Added**: 490+ (both commands + comprehensive tests)
 - **Lines Modified**: 20+ (legacy registry updates)
 - **Test Coverage**: 20 comprehensive unit tests total
@@ -770,15 +911,18 @@ Successfully migrated SwitchPaneCommand from legacy to unified command system:
 - **Zero Merge Conflicts**: Thanks to dynamic discovery system
 
 ### Command System Status
+
 The unified command system now handles:
+
 - ✅ **8 Ex Commands** (v0.45.9) - All ex commands migrated
 - ✅ **AppTerminateCommand** - Ctrl+C graceful termination
-- ✅ **SwitchPaneCommand** - Tab key pane switching 
+- ✅ **SwitchPaneCommand** - Tab key pane switching
 - ✅ **All Navigation Commands** - Move left/right/up/down, word navigation, etc.
 - ✅ **All Yank/Paste Commands** - Full clipboard integration
 - ✅ **All Visual Block Commands** - Insert, append, selection operations
 
 ### Summary
+
 **MIGRATION COMPLETED SUCCESSFULLY** - Both AppTerminateCommand (#293) and SwitchPaneCommand (#292) are now fully migrated to the unified command system with modern registration patterns, comprehensive testing, and proper PostCommandAction integration. The inventory-based dynamic discovery system continues to prevent merge conflicts while enabling unlimited parallel development.
 
 ---
@@ -786,6 +930,7 @@ The unified command system now handles:
 ## [2025-08-31] Ex Command Migration Complete & Legacy Cleanup
 
 ### User Request Summary
+
 - Complete ex command migration to unified command system  
 - Remove legacy ExCommandRegistry and clean up handle_* functions
 - Review GitHub issues and close completed ones
@@ -794,11 +939,13 @@ The unified command system now handles:
 ### Major Accomplishments
 
 #### ✅ Ex Command Migration Complete (v0.45.9)
+
 Successfully migrated all 8 ex commands to unified system with auto-registration:
 
 **Migrated Ex Commands:**
+
 - ✅ ExSetClipboardCommand (`:set clipboard on/off/!`) - Fixed clipboard integration issue
-- ✅ ExSetDCutCommand (`:set dcut on/off/!`) 
+- ✅ ExSetDCutCommand (`:set dcut on/off/!`)
 - ✅ ExSetExpandtabCommand (`:set expandtab on/off/!`)
 - ✅ ExSetNumberCommand (`:set number on/off/!`)
 - ✅ ExSetTabstopCommand (`:set tabstop N`) - Validates 1-8 range
@@ -807,6 +954,7 @@ Successfully migrated all 8 ex commands to unified system with auto-registration
 - ✅ ExGotoLineCommand (`:g N`, `:g`) - Navigation command
 
 **Key Features Implemented:**
+
 - Toggle functionality with `!` suffix (vim convention)
 - Comprehensive unit tests for all commands  
 - Auto-registration via inventory crate (zero conflicts)
@@ -814,21 +962,26 @@ Successfully migrated all 8 ex commands to unified system with auto-registration
 - Dynamic command discovery (no manual registry updates needed)
 
 #### ✅ Legacy Code Cleanup Complete
+
 **Removed ExCommandRegistry System:**
+
 - Deleted `src/repl/commands/ex_commands.rs` (399 lines removed)
 - Removed ExCommandRegistry from AppViewModel
 - Simplified legacy ex command handling
 - All ex commands now use unified system exclusively
 
 **Commented Out Migrated handle_* Functions:**
+
 - `handle_yank_selection` → YankSelectionCommand (auto-registered)
 - `handle_paste_after` → PasteAfterCommand (handles 'p' key)  
 - `handle_paste_at_cursor` → PasteAtCursorCommand (handles 'P' key)
 - Updated call sites to ignore legacy events
 
 #### ✅ GitHub Issues Management
+
 **Closed Completed Issues:**
-- #304: `:set expandtab` ✅ 
+
+- #304: `:set expandtab` ✅
 - #305: `:set tabstop` ✅
 - #306: `:set wrap` ✅  
 - #310: `:set number` ✅
@@ -837,24 +990,28 @@ Successfully migrated all 8 ex commands to unified system with auto-registration
 - #313: `:show profile` ✅
 
 **Created Investigation Issues:**
+
 - #314: Investigate `handle_multi_cursor_text_insert` vs `VisualBlockInsertCommand`
 - #315: Investigate `handle_multi_cursor_text_delete` vs visual block delete integration
 
 ### Technical Achievements
 
 #### Architecture Improvements
+
 - **Zero-Conflict Registration**: Ex commands use inventory crate for automatic discovery
 - **Unified Command Pattern**: All ex commands follow consistent Command trait pattern
 - **Better Error Handling**: Comprehensive input validation and user feedback
 - **Cleaner Separation**: No more legacy/unified dual systems
 
 #### Code Quality Improvements  
+
 - **Removed Technical Debt**: 399+ lines of legacy code eliminated
 - **Improved Maintainability**: Consistent patterns across all ex commands
 - **Enhanced Testing**: Comprehensive test coverage for all migrated commands
 - **Better Documentation**: Clear migration paths and architectural decisions
 
 #### User Experience Improvements
+
 - **Fixed Clipboard Integration**: System clipboard now properly syncs with yank operations
 - **Vim-Compatible Toggles**: `!` suffix toggles settings as expected
 - **Better Feedback**: Clear status messages for all ex command operations
@@ -863,15 +1020,18 @@ Successfully migrated all 8 ex commands to unified system with auto-registration
 ### Current Status
 
 #### ✅ Fully Migrated & Cleaned
+
 - Ex command system: 8/8 commands migrated and legacy system removed
 - Yank/Paste commands: 3/3 functions commented out and unified commands active
 - GitHub issues: 7/7 completed issues closed
 
 #### ⚠️ Under Investigation  
+
 - Multi-cursor functions: 2 functions need investigation (issues #314, #315 created)
 - Issues #231-234 were actually about move commands (not multi-cursor operations)
 
 #### 📊 Statistics
+
 - **Lines Removed**: 500+ lines of legacy code
 - **Commands Migrated**: 11 total (8 ex + 3 yank/paste)  
 - **Tests Added**: 50+ new unit tests
@@ -879,7 +1039,9 @@ Successfully migrated all 8 ex commands to unified system with auto-registration
 - **Version Released**: v0.45.9 with git tag
 
 ### Architecture Status
+
 The unified command system is now **fully operational** with:
+
 - Dynamic command discovery via inventory crate
 - Zero manual registry conflicts  
 - Comprehensive test coverage
@@ -887,6 +1049,7 @@ The unified command system is now **fully operational** with:
 - Production-ready auto-registration
 
 ### Next Steps / TODO for Future Sessions
+
 1. **Investigate Multi-Cursor Functions** (Issues #314, #315)
    - Verify `VisualBlockInsertCommand` handles multi-cursor text insertion
    - Test visual block delete integration  
@@ -894,7 +1057,7 @@ The unified command system is now **fully operational** with:
 
 2. **Continue Legacy Command Migration**
    - Navigation commands (GoToTop, GoToBottom, etc.)
-   - Mode change commands (EnterInsert, ExitVisual, etc.) 
+   - Mode change commands (EnterInsert, ExitVisual, etc.)
    - Editing commands (InsertChar, DeleteChar, etc.)
 
 3. **Final Cleanup Phase**
@@ -903,12 +1066,14 @@ The unified command system is now **fully operational** with:
    - Rename unified_commands → commands directory
 
 ### Git Status
-- **Current Branch**: `develop` 
+
+- **Current Branch**: `develop`
 - **Latest Commits**: fcb404b (handle function cleanup), af372fd (ExCommandRegistry removal), fedb6e5 (ex command migration)
 - **Tagged Version**: `v0.45.9` - Complete Ex Command Migration to Unified System
 - **All Tests**: ✅ Passing (650 unit tests)
 
 ### Key Learnings
+
 1. **Issues #231-234 Confusion**: These were about move commands, not multi-cursor operations
 2. **PR Records**: Important to track actual implementations vs issue descriptions  
 3. **Multi-Cursor Integration**: Functionality appears integrated into VisualBlockInsertCommand
@@ -921,6 +1086,7 @@ This represents a **major architectural milestone** - the ex command migration i
 ## [2025-08-31] GitHub Issues #295 #294 - QuitCommand and GoToLineCommand Migration Complete
 
 ### User Request Summary
+
 - Migrate QuitCommand (#295) and GoToLineCommand (#294) to unified command system
 - Ensure both commands use modern registration patterns
 - Close GitHub issues after completion
@@ -928,15 +1094,18 @@ This represents a **major architectural milestone** - the ex command migration i
 ### Implementation Status
 
 #### ✅ Migration Already Complete
+
 Both commands were **already migrated** to the unified command system but were using outdated registration methods:
 
 **ExQuitCommand (#295):**
+
 - ✅ Location: `src/repl/unified_commands/system/ex_quit.rs`
 - ✅ Handles `:q` and `:q!` ex commands for quitting application
 - ✅ Returns `PostCommandAction::QuitRequested`
 - ✅ Comprehensive unit tests (7 test cases)
 
 **ExGotoLineCommand (#294):**
+
 - ✅ Location: `src/repl/unified_commands/navigation/ex_goto_line.rs`
 - ✅ Handles `:g`, `:g N`, and `:42` ex commands for line navigation
 - ✅ Supports goto last line (`:g`) and goto specific line (`:g 42`, `:42`)
@@ -944,49 +1113,58 @@ Both commands were **already migrated** to the unified command system but were u
 - ✅ Comprehensive unit tests (7 test cases)
 
 #### ✅ Modernization Complete
+
 **Problem Found**: Both commands were using legacy `inventory::submit!` registration instead of modern `register_command!` macro.
 
 **Changes Made**:
+
 - Added `new()` methods and `Default` implementations to both commands
 - Replaced `inventory::submit!` with `register_command!` macro calls
 - Added proper macro imports (`use crate::register_command`)
 - Verified all tests continue to pass
 
 #### ✅ Quality Assurance
+
 - All unit tests passing (14 total tests for both commands)
 - Integration tests verified
 - `./scripts/git-commit-precheck.sh` passes cleanly
 - Dynamic command registry discovers both commands correctly
 
 #### ✅ Legacy Cleanup Status
+
 - ✅ Legacy ExCommandRegistry already removed
 - ✅ No legacy QuitCommand/GoToLineCommand references found
 - ✅ Both commands use modern unified command system architecture
 
 #### ✅ GitHub Issues Closed
+
 - **Issue #295**: Closed with completion details
 - **Issue #294**: Closed with completion details
 
 ### Technical Achievements
 
 **Architecture Compliance:**
+
 - Both commands follow unified Command trait pattern
 - Use PostCommandAction returns instead of CommandEvent emission
 - Auto-register using inventory-based dynamic discovery system
 - Located in appropriate subdirectories (system/, navigation/)
 
 **Testing Coverage:**
+
 - ExQuitCommand: 7 comprehensive unit tests
 - ExGotoLineCommand: 7 comprehensive unit tests
 - All edge cases and error conditions covered
 
 **Migration Quality:**
+
 - Zero functional regressions
 - All existing functionality preserved
 - Modern registration eliminates merge conflicts
 - Production-ready implementation
 
 ### Summary
+
 **MIGRATION COMPLETED SUCCESSFULLY** - Both QuitCommand (#295) and GoToLineCommand (#294) are now fully migrated to the unified command system with modern registration patterns. No separate PRs were needed as the commands were already implemented. GitHub issues closed with detailed completion documentation.
 
 ---
@@ -994,6 +1172,7 @@ Both commands were **already migrated** to the unified command system but were u
 ## [2025-08-31] GitHub Issue #232 - MultiCursorTextDeleteCommand Migration Complete
 
 ### User Request Summary
+
 - Work on GitHub issue #232: "Migrate handle_multi_cursor_text_delete to MultiCursorTextDeleteCommand"
 - Create a new unified command that replicates the handle_multi_cursor_text_delete functionality
 - Follow established unified command patterns and comprehensive testing
@@ -1001,9 +1180,11 @@ Both commands were **already migrated** to the unified command system but were u
 ### Implementation Completed
 
 #### ✅ MultiCursorTextDeleteCommand Migration
+
 Successfully migrated `handle_multi_cursor_text_delete` functionality to unified command system:
 
 **Key Features Implemented:**
+
 - ✅ Created `MultiCursorTextDeleteCommand` following unified command pattern
 - ✅ Ported complete business logic from `handle_multi_cursor_text_delete` method  
 - ✅ Added comprehensive unit tests (7 test cases covering all scenarios)
@@ -1015,6 +1196,7 @@ Successfully migrated `handle_multi_cursor_text_delete` functionality to unified
 - ✅ Proper fallback to regular deletion when no cursors are set
 
 **Technical Architecture:**
+
 1. **Command Relevance**: Only active in Visual Block Insert mode for delete keys
 2. **Multi-cursor Processing**: Performs deletion at each cursor position in reverse order
 3. **Boundary Compliance**: Backspace respects Visual Block start boundaries
@@ -1022,6 +1204,7 @@ Successfully migrated `handle_multi_cursor_text_delete` functionality to unified
 5. **Error Handling**: Graceful fallback and comprehensive error messages
 
 **Testing Coverage:**
+
 - Command name verification
 - Key relevance in Visual Block Insert mode
 - Irrelevance in wrong modes/conditions  
@@ -1031,6 +1214,7 @@ Successfully migrated `handle_multi_cursor_text_delete` functionality to unified
 - Placeholder for integration tests
 
 #### ✅ Project Management
+
 - **Branch**: `feature/multi-cursor-text-delete-command-232`
 - **Pull Request**: [#318](https://github.com/samwisely75/blueline/pull/318) - "Fix #232: Migrate handle_multi_cursor_text_delete to MultiCursorTextDeleteCommand"
 - **GitHub Issue Status**: Moved to "In progress" as requested
@@ -1047,6 +1231,7 @@ Successfully migrated `handle_multi_cursor_text_delete` functionality to unified
 ### Migration Pattern Success
 
 This migration demonstrates the **successful established pattern** for command system refactoring:
+
 - ✅ **Zero merge conflicts** through dynamic discovery system
 - ✅ **Complete business logic preservation** from legacy handler
 - ✅ **Comprehensive test coverage** ensuring functionality preservation  
@@ -1054,11 +1239,13 @@ This migration demonstrates the **successful established pattern** for command s
 - ✅ **Gradual migration strategy** allowing parallel development
 
 ### Files Modified
+
 - `src/repl/unified_commands/editing/multi_cursor_text_delete.rs` - New unified command (373 lines)
 - `src/repl/unified_commands/editing/mod.rs` - Module registration and re-exports
 - `src/repl/view_models/app_view_model.rs` - Legacy method commented out, call site updated
 
 ### Metrics
+
 - **Lines Added**: 373 (new command + tests)
 - **Lines Removed**: 120+ (commented out legacy method)  
 - **Test Coverage**: 7 comprehensive unit tests
@@ -1066,6 +1253,7 @@ This migration demonstrates the **successful established pattern** for command s
 - **Zero Merge Conflicts**: Thanks to dynamic discovery system
 
 ### Next Steps
+
 - PR review and merge
 - Close GitHub issue #232
 - Continue with remaining command migrations following this proven pattern
@@ -1077,14 +1265,16 @@ This migration **validates the unified command system architecture** and demonst
 ## [2025-08-31] PR #316 Investigation - MoveCursorDownCommand Migration Status
 
 ### Investigation Summary
+
 User reported that PR #316 for MoveCursorDownCommand migration (issue #259) was missing, but agent claimed success.
 
 ### Findings
+
 1. **PR #316 EXISTS and was MERGED** ✅
    - Title: "Fix #259: Migrate MoveCursorDownCommand to unified command system"
-   - State: MERGED 
+   - State: MERGED
    - Date: 2025-08-31T08:23:30Z
-   - URL: https://github.com/samwisely75/blueline/pull/316
+   - URL: <https://github.com/samwisely75/blueline/pull/316>
 
 2. **Migration was SUCCESSFUL** ✅
    - MoveDownCommand exists in `src/repl/unified_commands/navigation/move_down.rs`
@@ -1098,12 +1288,14 @@ User reported that PR #316 for MoveCursorDownCommand migration (issue #259) was 
    - This appears to be an older state or different attempt, NOT the merged work
 
 ### Technical Verification
+
 - **On develop branch**: Migration is complete and working
 - **In feature branch**: Shows rollback/undo of the migration
 - **PR Status**: Successfully merged into develop
 - **Current Status**: MoveDownCommand is live and functional
 
 ### Conclusion
+
 **PR #316 exists, was merged successfully, and the migration is complete.** The agent DID complete the work successfully. The feature branch showing rollback changes appears to be misleading - possibly an older attempt or different branch state.
 
 **Action Required**: NONE - The work was completed correctly and is already merged into develop.
@@ -1113,17 +1305,21 @@ User reported that PR #316 for MoveCursorDownCommand migration (issue #259) was 
 ## 2025-08-31 Session Notes - P Key Fix Complete
 
 ### User Request Summary
+
 - User reported that 'P' key in Visual Block mode stopped working after command migration work
 - Problem was that 'P' was not working at all, regardless of text shape (character, line, or block)
 
 ### Root Cause Discovered
+
 - Debug log revealed terminals send uppercase 'P' with different KeyModifier states
 - Some terminals send KeyCode::Char('P') with no modifiers
 - Others send KeyCode::Char('P') with KeyModifiers::SHIFT
 - PasteBeforeCommand was only accepting empty modifiers
 
 ### Solution Implemented
+
 - Modified PasteBeforeCommand.is_relevant() to accept both modifier states:
+
 ```rust
 matches!(key_event.code, KeyCode::Char('P'))
     && (key_event.modifiers.is_empty() || key_event.modifiers == KeyModifiers::SHIFT)
@@ -1132,6 +1328,7 @@ matches!(key_event.code, KeyCode::Char('P'))
 ```
 
 ### Fix Results
+
 - ✅ P key now works in Visual Block mode across all terminals
 - ✅ Added missing KeyModifiers import to prevent compilation errors
 - ✅ All paste-related tests passing
@@ -1139,6 +1336,7 @@ matches!(key_event.code, KeyCode::Char('P'))
 - ✅ Committed with comprehensive explanation (ef35ac5)
 
 ### Technical Achievement
+
 **RESOLVED: P Key Visual Block Paste Issue** - Fixed terminal compatibility issue where different terminals send uppercase 'P' with different KeyModifier states. The unified PasteBeforeCommand now accepts both states for maximum compatibility.
 
 ---
@@ -1146,7 +1344,8 @@ matches!(key_event.code, KeyCode::Char('P'))
 ## Current Migration Status (as of 2025-08-31)
 
 ### Completed Migrations
-- ✅ YankSelectionCommand - fully migrated with YankService integration 
+
+- ✅ YankSelectionCommand - fully migrated with YankService integration
 - ✅ ShowProfileCommand - migrated, handles CommandEvent::ShowProfileRequested
 - ✅ SettingChangeCommand - migrated, handles all setting changes
 - ✅ DeleteSelectionCommand - migrated Phase 2A
@@ -1167,17 +1366,21 @@ matches!(key_event.code, KeyCode::Char('P'))
 - ✅ Removed legacy ExCommandRegistry and ex_commands.rs
 
 ### Under Investigation
+
 - ⚠️ Multi-cursor text insert/delete functions (issues #314, #315 created)
 
 ### Current Branch & Status
-- Working on: `develop` 
+
+- Working on: `develop`
 - All unit tests passing: 650+ tests
 - All integration tests passing
 - Latest version: v0.45.9 (tagged)
 - Ex command migration: **100% Complete**
 
 ### Architecture Vision
+
 The refactoring will transform the codebase from confused layers to proper MVVM:
+
 - AppViewModel: ~500 lines (from 1500+)
 - Clear separation of Model, ViewModel, View
 - Event-driven command system
@@ -1191,6 +1394,7 @@ This pivot represents a fundamental shift in understanding. What seemed like pro
 ## [2025-08-31] GitHub Issue #265 - PreviousWordCommand Migration Complete
 
 ### User Request Summary
+
 - Work on GitHub issue #265: "Migrate PreviousWordCommand to unified command system"
 - Migrate from legacy Command trait to unified Command trait
 - Move from src/repl/commands/navigation.rs to src/repl/unified_commands/navigation/previous_word.rs
@@ -1199,9 +1403,11 @@ This pivot represents a fundamental shift in understanding. What seemed like pro
 ### Implementation Completed
 
 #### ✅ PreviousWordCommand Migration
+
 Successfully migrated `PreviousWordCommand` functionality to unified command system:
 
 **Key Features Implemented:**
+
 - ✅ Created `PreviousWordCommand` following unified command pattern
 - ✅ Ported complete business logic from legacy implementation
 - ✅ Added comprehensive unit tests (19 test cases covering all scenarios)
@@ -1212,6 +1418,7 @@ Successfully migrated `PreviousWordCommand` functionality to unified command sys
 - ✅ Returns PostCommandActions instead of emitting CommandEvents
 
 **Technical Architecture:**
+
 1. **Command Relevance**: Only active in navigation modes (Normal, Visual, VisualLine, VisualBlock) for 'b' key
 2. **Word Navigation**: Calls pane manager method for previous word movement
 3. **PostCommandAction Return**: Returns movement events for UI updates
@@ -1219,6 +1426,7 @@ Successfully migrated `PreviousWordCommand` functionality to unified command sys
 5. **Error Handling**: Comprehensive error handling and fallback mechanisms
 
 **Testing Coverage:**
+
 - Command name verification
 - Key relevance in different modes
 - Irrelevance in wrong modes/conditions
@@ -1229,6 +1437,7 @@ Successfully migrated `PreviousWordCommand` functionality to unified command sys
 - 19 comprehensive unit tests total
 
 #### ✅ Project Management
+
 - **Branch**: `feature/previous-word-command-265`
 - **Pull Request**: [#322](https://github.com/samwisely75/blueline/pull/322) - "Fix #265: Migrate PreviousWordCommand to unified command system"
 - **GitHub Issue Status**: Migration complete
@@ -1245,6 +1454,7 @@ Successfully migrated `PreviousWordCommand` functionality to unified command sys
 ### Migration Pattern Success
 
 This migration demonstrates the **successful established pattern** for command system refactoring:
+
 - ✅ **Zero merge conflicts** through dynamic discovery system
 - ✅ **Complete business logic preservation** from legacy handler
 - ✅ **Comprehensive test coverage** ensuring functionality preservation
@@ -1252,12 +1462,14 @@ This migration demonstrates the **successful established pattern** for command s
 - ✅ **Gradual migration strategy** allowing parallel development
 
 ### Files Modified
+
 - `src/repl/unified_commands/navigation/previous_word.rs` - New unified command (355 lines)
 - `src/repl/unified_commands/navigation/mod.rs` - Module registration and re-exports
 - `src/repl/commands/navigation.rs` - Legacy command and tests commented out
 - `src/repl/commands/mod.rs` - Legacy registry entry commented out, tests updated
 
 ### Metrics
+
 - **Lines Added**: 355 (new command + tests)
 - **Lines Modified**: 50+ (legacy system updates)
 - **Test Coverage**: 19 comprehensive unit tests
