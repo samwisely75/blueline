@@ -93,7 +93,7 @@ impl CommandRegistry {
             // Pagination commands (high priority - Ctrl+key combinations)
             // Box::new(PageDownCommand), // Migrated to unified_commands/navigation/page_down.rs
             Box::new(PageUpCommand),
-            Box::new(HalfPageDownCommand),
+            // Box::new(HalfPageDownCommand), // Migrated to unified_commands/navigation/half_page_down.rs
             Box::new(HalfPageUpCommand),
             // Movement commands
             // MoveCursorLeftCommand and MoveCursorRightCommand migrated to unified_commands
@@ -407,24 +407,25 @@ mod tests {
         assert!(events.is_empty());
     }
 
-    #[test]
-    fn registry_should_handle_ctrl_d_half_page_down_command() {
-        let registry = CommandRegistry::new();
-        let context = create_test_context();
-
-        let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
-        let events = registry.process_event(event, &context).unwrap();
-
-        // Should produce a half page down cursor movement event
-        assert_eq!(events.len(), 1);
-        assert!(matches!(
-            events[0],
-            CommandEvent::CursorMoveRequested {
-                direction: MovementDirection::HalfPageDown,
-                amount: 1
-            }
-        ));
-    }
+    // MIGRATED: HalfPageDownCommand test - moved to unified command system
+    // #[test]
+    // fn registry_should_handle_ctrl_d_half_page_down_command() {
+    //     let registry = CommandRegistry::new();
+    //     let context = create_test_context();
+    //
+    //     let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+    //     let events = registry.process_event(event, &context).unwrap();
+    //
+    //     // Should produce a half page down cursor movement event
+    //     assert_eq!(events.len(), 1);
+    //     assert!(matches!(
+    //         events[0],
+    //         CommandEvent::CursorMoveRequested {
+    //             direction: MovementDirection::HalfPageDown,
+    //             amount: 1
+    //         }
+    //     ));
+    // }
 
     #[test]
     fn registry_should_handle_ctrl_u_half_page_up_command() {

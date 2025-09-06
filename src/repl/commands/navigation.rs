@@ -373,8 +373,8 @@ pub struct PageDownCommand;
 /// Page up navigation (Ctrl+b)
 pub struct PageUpCommand;
 
-/// Half page down navigation (Ctrl+d)
-pub struct HalfPageDownCommand;
+// Half page down navigation (Ctrl+d) - MIGRATED to unified command system
+// pub struct HalfPageDownCommand;
 
 /// Half page up navigation (Ctrl+u)
 pub struct HalfPageUpCommand;
@@ -439,37 +439,38 @@ impl Command for PageUpCommand {
     }
 }
 
-impl Command for HalfPageDownCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        let is_ctrl_d = matches!(event.code, KeyCode::Char('d'))
-            && event.modifiers.contains(KeyModifiers::CONTROL)
-            && !event.modifiers.contains(KeyModifiers::SHIFT)
-            && !event.modifiers.contains(KeyModifiers::ALT);
-
-        let is_relevant = is_ctrl_d && is_navigation_mode(context);
-
-        if is_ctrl_d {
-            tracing::debug!(
-                "HalfPageDownCommand.is_relevant(): ctrl+d={}, mode={:?}, result={}",
-                is_ctrl_d,
-                context.state.current_mode,
-                is_relevant
-            );
-        }
-
-        is_relevant
-    }
-
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::cursor_move(
-            MovementDirection::HalfPageDown,
-        )])
-    }
-
-    fn name(&self) -> &'static str {
-        "HalfPageDown"
-    }
-}
+// MIGRATED: HalfPageDownCommand moved to unified command system
+// impl Command for HalfPageDownCommand {
+//     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+//         let is_ctrl_d = matches!(event.code, KeyCode::Char('d'))
+//             && event.modifiers.contains(KeyModifiers::CONTROL)
+//             && !event.modifiers.contains(KeyModifiers::SHIFT)
+//             && !event.modifiers.contains(KeyModifiers::ALT);
+//
+//         let is_relevant = is_ctrl_d && is_navigation_mode(context);
+//
+//         if is_ctrl_d {
+//             tracing::debug!(
+//                 "HalfPageDownCommand.is_relevant(): ctrl+d={}, mode={:?}, result={}",
+//                 is_ctrl_d,
+//                 context.state.current_mode,
+//                 is_relevant
+//             );
+//         }
+//
+//         is_relevant
+//     }
+//
+//     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         Ok(vec![CommandEvent::cursor_move(
+//             MovementDirection::HalfPageDown,
+//         )])
+//     }
+//
+//     fn name(&self) -> &'static str {
+//         "HalfPageDown"
+//     }
+// }
 
 impl Command for HalfPageUpCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
