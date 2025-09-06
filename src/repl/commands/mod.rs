@@ -116,7 +116,7 @@ impl CommandRegistry {
             // Box::new(EnterVisualModeCommand), // Migrated to unified_commands
             // Box::new(EnterVisualLineModeCommand), // Migrated to unified_commands
             // Box::new(EnterVisualBlockModeCommand), // Migrated to unified_commands/mode/enter_visual_block_mode.rs
-            Box::new(VisualBlockInsertCommand),
+            // Box::new(VisualBlockInsertCommand), // Migrated to unified_commands/visual/visual_block_insert.rs
             Box::new(VisualBlockAppendCommand),
             // Box::new(AppendAfterCursorCommand), // Migrated to unified_commands/mode/append_after_cursor.rs
             // Box::new(AppendAtEndOfLineCommand), // Migrated to unified_commands/mode/append_at_end_of_line.rs
