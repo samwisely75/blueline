@@ -41,7 +41,11 @@ impl Command for ExitInsertModeCommand {
             && key_event.modifiers.is_empty()
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         tracing::debug!("ExitInsertModeCommand: returning to Normal mode");
 
         // Set the mode to Normal
@@ -173,7 +177,10 @@ mod tests {
         };
 
         // Execute the command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok(), "Command execution should succeed");
         let events = result.unwrap();
@@ -221,7 +228,10 @@ mod tests {
         };
 
         // Execute command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         // Verify mode changed

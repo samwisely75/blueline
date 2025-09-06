@@ -41,7 +41,11 @@ impl Command for YankCurrentLineCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Yank entire current line to yank buffer
         context.app_state.yank_current_line()?;
 
@@ -179,7 +183,10 @@ mod tests {
         };
 
         // Execute command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         // Should succeed and switch to Normal mode
         assert!(result.is_ok());
@@ -204,7 +211,10 @@ mod tests {
         };
 
         // Execute command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         // Should set a status message

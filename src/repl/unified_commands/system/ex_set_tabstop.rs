@@ -45,7 +45,11 @@ impl Command for ExSetTabstopCommand {
         false
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         let command = context.app_state.get_ex_command_buffer().trim();
 
         match command {

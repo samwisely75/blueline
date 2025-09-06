@@ -164,7 +164,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                     services: &mut self.services,
                 };
 
-                match unified_command.execute(&mut exec_context) {
+                // Create a dummy KeyEvent for config commands
+                let dummy_key_event = crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Null,
+                    crossterm::event::KeyModifiers::empty(),
+                );
+                match unified_command.execute(dummy_key_event, &mut exec_context) {
                     Ok(view_events) => {
                         tracing::info!(
                             "Config command '{}' executed successfully with {} view events",
@@ -308,7 +313,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 app_state: &mut self.app_state,
                 services: &mut self.services,
             };
-            let view_events = command.execute(&mut exec_context)?;
+            let view_events = command.execute(key_event, &mut exec_context)?;
 
             tracing::debug!(
                 "Command {} produced {} view events",
@@ -618,7 +623,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                     app_state: &mut self.app_state,
                     services: &mut self.services,
                 };
-                if let Ok(view_events) = command.execute(&mut exec_context) {
+                // Create a dummy KeyEvent for ShowProfile (no key event in this context)
+                let dummy_key_event = crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Null,
+                    crossterm::event::KeyModifiers::empty(),
+                );
+                if let Ok(view_events) = command.execute(dummy_key_event, &mut exec_context) {
                     self.process_view_events(view_events)?;
                 }
             }
@@ -630,7 +640,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                     app_state: &mut self.app_state,
                     services: &mut self.services,
                 };
-                if let Ok(view_events) = command.execute(&mut exec_context) {
+                // Create a dummy KeyEvent for SettingChange (no key event in this context)
+                let dummy_key_event = crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Null,
+                    crossterm::event::KeyModifiers::empty(),
+                );
+                if let Ok(view_events) = command.execute(dummy_key_event, &mut exec_context) {
                     self.process_view_events(view_events)?;
                 }
             }
@@ -1157,7 +1172,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             app_state: &mut self.app_state,
             services: &mut self.services,
         };
-        let view_events = command.execute(&mut exec_context)?;
+        // Create a dummy KeyEvent for execute_command (no key event in this context)
+        let dummy_key_event = crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Null,
+            crossterm::event::KeyModifiers::empty(),
+        );
+        let view_events = command.execute(dummy_key_event, &mut exec_context)?;
 
         tracing::debug!(
             "Command {} produced {} view events",

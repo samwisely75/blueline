@@ -44,7 +44,11 @@ impl Command for AppTerminateCommand {
             && !key_event.modifiers.contains(KeyModifiers::ALT)
     }
 
-    fn execute(&self, _context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        _context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         tracing::info!("AppTerminateCommand: Received termination request (Ctrl+C)");
 
         // Return quit requested action for graceful shutdown
@@ -197,7 +201,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();

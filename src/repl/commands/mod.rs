@@ -126,7 +126,7 @@ impl CommandRegistry {
             // Pane commands
             // Box::new(SwitchPaneCommand), // Migrated to unified_commands
             // Editing commands
-            Box::new(InsertCharCommand), // TODO: Migration exists but has architectural limitation - can't access KeyEvent
+            // InsertCharCommand removed - migrated to unified commands
             Box::new(InsertNewLineCommand),
             Box::new(InsertTabCommand),
             Box::new(DeleteCharCommand),
@@ -331,15 +331,12 @@ mod tests {
         context.state.current_mode = EditorMode::Insert;
 
         // 'i' should not be relevant in Insert mode (mode change commands are for Normal mode)
+        // Note: InsertCharCommand has been migrated to unified commands
         let event = create_test_key_event(KeyCode::Char('i'));
         let events = registry.process_event(event, &context).unwrap();
 
-        // Should produce a character insertion event instead of mode change
-        assert_eq!(events.len(), 1);
-        assert!(matches!(
-            events[0],
-            CommandEvent::TextInsertRequested { .. }
-        ));
+        // With InsertCharCommand migrated to unified commands, legacy registry returns empty
+        assert_eq!(events.len(), 0);
     }
 
     #[test]

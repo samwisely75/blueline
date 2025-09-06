@@ -74,7 +74,11 @@ impl Command for PageDownCommand {
         is_relevant
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Use the pane manager's page down method which returns PostCommandActions
         let events = context.app_state.pane_manager.move_cursor_page_down();
 

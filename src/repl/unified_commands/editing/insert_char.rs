@@ -8,9 +8,10 @@ use anyhow::Result;
 use crossterm::event::KeyEvent;
 
 use crate::register_command;
-use crate::repl::models::pane_state::EditorMode;
+use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 use crate::repl::view_models::post_command_actions::PostCommandAction;
+use crossterm::event::{KeyCode, KeyModifiers};
 
 /// Command to handle character insertion
 ///
@@ -34,30 +35,43 @@ impl Default for InsertCharCommand {
 
 impl Command for InsertCharCommand {
     fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool {
-        // TEMPORARY: Return false to let legacy system handle this
-        // The unified command system has an architectural limitation:
-        // execute() doesn't receive KeyEvent, so we can't access the character
-        // Until this is fixed, we must use the legacy system
-        _ = key_event;
-        _ = mode;
-        _ = context;
-        false
+        // Handle regular character input in Insert mode
+        // Must be in Insert or VisualBlockInsert mode, in Request pane, not read-only
+        let correct_mode = matches!(mode, EditorMode::Insert | EditorMode::VisualBlockInsert);
+        let correct_pane = context.current_pane == Pane::Request;
+        let not_read_only = !context.is_read_only;
+
+        // Check if it's a character key without control/alt modifiers
+        // Allow SHIFT for capital letters
+        let is_char = matches!(key_event.code, KeyCode::Char(_));
+        let no_control = !key_event.modifiers.contains(KeyModifiers::CONTROL);
+        let no_alt = !key_event.modifiers.contains(KeyModifiers::ALT);
+
+        correct_mode && correct_pane && not_read_only && is_char && no_control && no_alt
     }
 
-    fn execute(&self, _context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
-        // In the unified command system, we can't access the KeyEvent directly
-        // This is an architectural limitation that needs to be addressed
-        // For now, we return empty as the legacy system will handle it
+    fn execute(
+        &self,
+        key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
+        // Extract the character from the KeyEvent
+        if let KeyCode::Char(ch) = key_event.code {
+            tracing::debug!("InsertCharCommand: Inserting character '{}'", ch);
 
-        // TODO: The unified command system needs to be updated to pass KeyEvent
-        // to the execute method so we can access the character to insert
+            // Insert the character
+            context.app_state.insert_char(ch)?;
 
-        tracing::warn!(
-            "InsertCharCommand: Cannot access character from KeyEvent in unified command system"
-        );
-
-        // Return empty - the legacy system will handle this for now
-        Ok(vec![])
+            // Return appropriate post-command actions for UI updates
+            Ok(vec![
+                PostCommandAction::CurrentAreaRedrawRequired,
+                PostCommandAction::ActiveCursorUpdateRequired,
+            ])
+        } else {
+            // This shouldn't happen if is_relevant works correctly
+            tracing::warn!("InsertCharCommand: No character in KeyEvent");
+            Ok(vec![])
+        }
     }
 
     fn name(&self) -> &'static str {
@@ -230,9 +244,39 @@ mod tests {
         assert_eq!(command.name(), "InsertCharCommand");
     }
 
-    // Note: execute() test is limited due to architectural constraints
-    // The unified command system doesn't pass KeyEvent to execute()
-    // so we can't fully test character insertion without refactoring
+    #[test]
+    fn insert_char_command_execute_should_insert_character() {
+        // Now that execute() receives KeyEvent, we can test character insertion
+        let command = InsertCharCommand::new();
+        let mut app_state = crate::repl::models::AppState::new();
+        let mut services = crate::repl::services::Services::new();
+
+        // Set to Insert mode
+        app_state.change_mode(EditorMode::Insert).unwrap();
+
+        let mut exec_context = ExecutionContext {
+            app_state: &mut app_state,
+            services: &mut services,
+        };
+
+        // Create a key event for character 'a'
+        let key_event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
+
+        // Execute the command
+        let result = command.execute(key_event, &mut exec_context);
+
+        assert!(result.is_ok());
+        let events = result.unwrap();
+
+        // Should return UI update events
+        assert_eq!(events.len(), 2);
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, PostCommandAction::CurrentAreaRedrawRequired)));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, PostCommandAction::ActiveCursorUpdateRequired)));
+    }
 }
 
 // Auto-register this command using the inventory system

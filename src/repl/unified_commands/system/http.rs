@@ -39,7 +39,11 @@ impl Command for HttpExecuteCommand {
         is_enter && no_modifiers && is_normal_mode && is_request_pane
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Get request text from the app state
         let request_text = context.app_state.get_request_text();
 
@@ -172,7 +176,10 @@ mod tests {
         };
 
         let cmd = HttpExecuteCommand::new();
-        let result = cmd.execute(&mut context);
+        let result = cmd.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         // Should return events even with empty request or no HTTP service
         assert!(result.is_ok());
