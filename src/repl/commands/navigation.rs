@@ -291,7 +291,10 @@ impl Command for PreviousWordCommand {
 //     }
 // }
 
-/// Move to beginning of line (0 command)
+// Move to beginning of line (0 command)
+// MIGRATED: This command has been migrated to the unified command system.
+// See: src/repl/unified_commands/navigation/beginning_of_line.rs
+/*
 pub struct BeginningOfLineCommand;
 
 impl Command for BeginningOfLineCommand {
@@ -311,8 +314,12 @@ impl Command for BeginningOfLineCommand {
         "BeginningOfLine"
     }
 }
+*/
 
-/// Move to end of line ($ command)
+// Move to end of line ($ command)
+// MIGRATED: This command has been migrated to the unified command system.
+// See: src/repl/unified_commands/navigation/end_of_line.rs
+/*
 pub struct EndOfLineCommand;
 
 impl Command for EndOfLineCommand {
@@ -330,6 +337,7 @@ impl Command for EndOfLineCommand {
         "EndOfLine"
     }
 }
+*/
 
 /// Move to beginning of line (Home key)
 pub struct HomeKeyCommand;
@@ -837,7 +845,8 @@ mod tests {
     // Tests for BeginningOfLineCommand (0)
     // MIGRATED: These tests moved to unified_commands/navigation/beginning_of_line.rs
 
-    // Tests for EndOfLineCommand ($)
+    // Tests for EndOfLineCommand ($) - MIGRATED to unified_commands
+    /*
     #[test]
     fn end_of_line_should_be_relevant_for_dollar_in_normal_mode() {
         let context = create_test_context(EditorMode::Normal);
@@ -869,6 +878,7 @@ mod tests {
             CommandEvent::cursor_move(MovementDirection::LineEnd)
         );
     }
+    */
 
     // Tests for HomeKeyCommand
     #[test]
@@ -1016,6 +1026,7 @@ mod tests {
     }
     */
 
+    /*
     #[test]
     fn end_of_line_should_be_relevant_for_dollar_in_visual_mode() {
         let context = create_test_context(EditorMode::Visual);
@@ -1024,6 +1035,7 @@ mod tests {
 
         assert!(cmd.is_relevant(&context, &event));
     }
+    */
 
     #[test]
     fn go_to_bottom_should_be_relevant_for_uppercase_g_in_visual_mode() {

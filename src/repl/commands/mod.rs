@@ -104,8 +104,8 @@ impl CommandRegistry {
             // Box::new(EndOfWordCommand), // Migrated to unified_commands
             // Box::new(NextWordCommand), // Migrated to unified_commands
             // Box::new(PreviousWordCommand), // Migrated to unified_commands
-            Box::new(BeginningOfLineCommand),
-            Box::new(EndOfLineCommand),
+            // Box::new(BeginningOfLineCommand), // Migrated to unified_commands/navigation/beginning_of_line.rs
+            // Box::new(EndOfLineCommand), // Migrated to unified_commands/navigation/end_of_line.rs
             Box::new(HomeKeyCommand),
             Box::new(EndKeyCommand),
             // Mode commands

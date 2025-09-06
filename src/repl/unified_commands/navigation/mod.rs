@@ -8,7 +8,9 @@
 //! here won't cause merge conflicts. Add modules alphabetically to prevent conflicts.
 
 // Navigation command modules
+pub mod beginning_of_line;
 pub mod cancel_g_prefix;
+pub mod end_of_line;
 pub mod end_of_word;
 pub mod ex_goto_line;
 pub mod go_to_bottom;
@@ -25,7 +27,9 @@ pub mod scroll_right;
 pub mod switch_pane;
 
 // Re-export all command types using wildcards to prevent merge conflicts
+pub use beginning_of_line::*;
 pub use cancel_g_prefix::*;
+pub use end_of_line::*;
 pub use end_of_word::*;
 pub use ex_goto_line::*;
 pub use go_to_bottom::*;
