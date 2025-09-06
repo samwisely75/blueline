@@ -105,10 +105,12 @@ impl CommandRegistry {
             // Box::new(EndOfWordCommand), // Migrated to unified_commands
             // Box::new(NextWordCommand), // Migrated to unified_commands
             // Box::new(PreviousWordCommand), // Migrated to unified_commands
+            // MIGRATED: HomeKeyCommand moved to unified_commands/navigation/home_key.rs
+            // Box::new(HomeKeyCommand),
+            // MIGRATED: EndKeyCommand moved to unified_commands/navigation/end_key.rs
+            // Box::new(EndKeyCommand),
             // Box::new(BeginningOfLineCommand), // Migrated to unified_commands/navigation/beginning_of_line.rs
             // Box::new(EndOfLineCommand), // Migrated to unified_commands/navigation/end_of_line.rs
-            Box::new(HomeKeyCommand),
-            Box::new(EndKeyCommand),
             // Mode commands
             // Box::new(EnterInsertModeCommand), // Migrated to unified_commands/mode/enter_insert_mode.rs
             // Box::new(EnterVisualModeCommand), // Migrated to unified_commands

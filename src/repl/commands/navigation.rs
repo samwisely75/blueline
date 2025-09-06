@@ -339,41 +339,43 @@ impl Command for EndOfLineCommand {
 }
 */
 
-/// Move to beginning of line (Home key)
-pub struct HomeKeyCommand;
+// MIGRATED: HomeKeyCommand moved to unified_commands/navigation/home_key.rs
+// /// Move to beginning of line (Home key)
+// pub struct HomeKeyCommand;
 
-impl Command for HomeKeyCommand {
-    fn is_relevant(&self, _context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Home) && event.modifiers.is_empty()
-    }
+// impl Command for HomeKeyCommand {
+//     fn is_relevant(&self, _context: &CommandContext, event: &KeyEvent) -> bool {
+//         matches!(event.code, KeyCode::Home) && event.modifiers.is_empty()
+//     }
 
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::cursor_move(
-            MovementDirection::LineStart,
-        )])
-    }
+//     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         Ok(vec![CommandEvent::cursor_move(
+//             MovementDirection::LineStart,
+//         )])
+//     }
 
-    fn name(&self) -> &'static str {
-        "HomeKey"
-    }
-}
+//     fn name(&self) -> &'static str {
+//         "HomeKey"
+//     }
+// }
 
-/// Move to end of line (End key)
-pub struct EndKeyCommand;
+// MIGRATED: EndKeyCommand moved to unified_commands/navigation/end_key.rs
+// /// Move to end of line (End key)
+// pub struct EndKeyCommand;
 
-impl Command for EndKeyCommand {
-    fn is_relevant(&self, _context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::End) && event.modifiers.is_empty()
-    }
+// impl Command for EndKeyCommand {
+//     fn is_relevant(&self, _context: &CommandContext, event: &KeyEvent) -> bool {
+//         matches!(event.code, KeyCode::End) && event.modifiers.is_empty()
+//     }
 
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::cursor_move(MovementDirection::LineEnd)])
-    }
+//     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         Ok(vec![CommandEvent::cursor_move(MovementDirection::LineEnd)])
+//     }
 
-    fn name(&self) -> &'static str {
-        "EndKey"
-    }
-}
+//     fn name(&self) -> &'static str {
+//         "EndKey"
+//     }
+// }
 
 /// Page down navigation (Ctrl+f)
 pub struct PageDownCommand;
@@ -883,71 +885,72 @@ mod tests {
     }
     */
 
-    // Tests for HomeKeyCommand
-    #[test]
-    fn home_key_should_be_relevant_for_home_key() {
-        let context = create_test_context(EditorMode::Normal);
-        let cmd = HomeKeyCommand;
-        let event = create_test_key_event(KeyCode::Home);
+    // MIGRATED: HomeKeyCommand and EndKeyCommand tests moved to unified_commands/navigation/
+    // // Tests for HomeKeyCommand
+    // #[test]
+    // fn home_key_should_be_relevant_for_home_key() {
+    //     let context = create_test_context(EditorMode::Normal);
+    //     let cmd = HomeKeyCommand;
+    //     let event = create_test_key_event(KeyCode::Home);
 
-        assert!(cmd.is_relevant(&context, &event));
-    }
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
 
-    #[test]
-    fn home_key_should_be_relevant_in_insert_mode() {
-        let context = create_test_context(EditorMode::Insert);
-        let cmd = HomeKeyCommand;
-        let event = create_test_key_event(KeyCode::Home);
+    // #[test]
+    // fn home_key_should_be_relevant_in_insert_mode() {
+    //     let context = create_test_context(EditorMode::Insert);
+    //     let cmd = HomeKeyCommand;
+    //     let event = create_test_key_event(KeyCode::Home);
 
-        assert!(cmd.is_relevant(&context, &event));
-    }
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
 
-    #[test]
-    fn home_key_should_produce_line_start_event() {
-        let context = create_test_context(EditorMode::Normal);
-        let cmd = HomeKeyCommand;
-        let event = create_test_key_event(KeyCode::Home);
+    // #[test]
+    // fn home_key_should_produce_line_start_event() {
+    //     let context = create_test_context(EditorMode::Normal);
+    //     let cmd = HomeKeyCommand;
+    //     let event = create_test_key_event(KeyCode::Home);
 
-        let events = cmd.execute(event, &context).unwrap();
-        assert_eq!(events.len(), 1);
-        assert_eq!(
-            events[0],
-            CommandEvent::cursor_move(MovementDirection::LineStart)
-        );
-    }
+    //     let events = cmd.execute(event, &context).unwrap();
+    //     assert_eq!(events.len(), 1);
+    //     assert_eq!(
+    //         events[0],
+    //         CommandEvent::cursor_move(MovementDirection::LineStart)
+    //     );
+    // }
 
-    // Tests for EndKeyCommand
-    #[test]
-    fn end_key_should_be_relevant_for_end_key() {
-        let context = create_test_context(EditorMode::Normal);
-        let cmd = EndKeyCommand;
-        let event = create_test_key_event(KeyCode::End);
+    // // Tests for EndKeyCommand
+    // #[test]
+    // fn end_key_should_be_relevant_for_end_key() {
+    //     let context = create_test_context(EditorMode::Normal);
+    //     let cmd = EndKeyCommand;
+    //     let event = create_test_key_event(KeyCode::End);
 
-        assert!(cmd.is_relevant(&context, &event));
-    }
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
 
-    #[test]
-    fn end_key_should_be_relevant_in_insert_mode() {
-        let context = create_test_context(EditorMode::Insert);
-        let cmd = EndKeyCommand;
-        let event = create_test_key_event(KeyCode::End);
+    // #[test]
+    // fn end_key_should_be_relevant_in_insert_mode() {
+    //     let context = create_test_context(EditorMode::Insert);
+    //     let cmd = EndKeyCommand;
+    //     let event = create_test_key_event(KeyCode::End);
 
-        assert!(cmd.is_relevant(&context, &event));
-    }
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
 
-    #[test]
-    fn end_key_should_produce_line_end_event() {
-        let context = create_test_context(EditorMode::Normal);
-        let cmd = EndKeyCommand;
-        let event = create_test_key_event(KeyCode::End);
+    // #[test]
+    // fn end_key_should_produce_line_end_event() {
+    //     let context = create_test_context(EditorMode::Normal);
+    //     let cmd = EndKeyCommand;
+    //     let event = create_test_key_event(KeyCode::End);
 
-        let events = cmd.execute(event, &context).unwrap();
-        assert_eq!(events.len(), 1);
-        assert_eq!(
-            events[0],
-            CommandEvent::cursor_move(MovementDirection::LineEnd)
-        );
-    }
+    //     let events = cmd.execute(event, &context).unwrap();
+    //     assert_eq!(events.len(), 1);
+    //     assert_eq!(
+    //         events[0],
+    //         CommandEvent::cursor_move(MovementDirection::LineEnd)
+    //     );
+    // }
 
     // Visual mode navigation tests
     #[test]
