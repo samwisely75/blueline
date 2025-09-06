@@ -68,7 +68,10 @@ impl Command for EnterGPrefixCommand {
         // Change mode to GPrefix to await the next key in the sequence
         context.app_state.set_mode(EditorMode::GPrefix);
 
-        tracing::debug!("EnterGPrefixCommand executed: entered GPrefix mode, awaiting next key");
+        tracing::debug!(
+            "EnterGPrefixCommand executed: entered GPrefix mode, awaiting next key"
+        );
+
 
         // Return status bar update to reflect mode change
         Ok(vec![PostCommandAction::StatusBarUpdateRequired])
@@ -301,6 +304,68 @@ mod tests {
     }
 
     #[test]
+    fn execute_should_work_from_visual_line_mode() {
+        let command = EnterGPrefixCommand::new();
+        let mut app_state = AppState::new();
+        let mut services = Services::new();
+
+        // Start in VisualLine mode
+        app_state.set_mode(EditorMode::VisualLine);
+        assert_eq!(app_state.get_mode(), EditorMode::VisualLine);
+
+        let mut context = ExecutionContext {
+            app_state: &mut app_state,
+            services: &mut services,
+        };
+
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
+        assert!(result.is_ok());
+
+        let actions = result.unwrap();
+
+        // Should generate actions
+        assert!(!actions.is_empty());
+        assert!(actions.contains(&PostCommandAction::StatusBarUpdateRequired));
+
+        // Should have changed mode to GPrefix
+        assert_eq!(context.app_state.get_mode(), EditorMode::GPrefix);
+    }
+
+    #[test]
+    fn execute_should_work_from_visual_block_mode() {
+        let command = EnterGPrefixCommand::new();
+        let mut app_state = AppState::new();
+        let mut services = Services::new();
+
+        // Start in VisualBlock mode
+        app_state.set_mode(EditorMode::VisualBlock);
+        assert_eq!(app_state.get_mode(), EditorMode::VisualBlock);
+
+        let mut context = ExecutionContext {
+            app_state: &mut app_state,
+            services: &mut services,
+        };
+
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
+        assert!(result.is_ok());
+
+        let actions = result.unwrap();
+
+        // Should generate actions
+        assert!(!actions.is_empty());
+        assert!(actions.contains(&PostCommandAction::StatusBarUpdateRequired));
+
+        // Should have changed mode to GPrefix
+        assert_eq!(context.app_state.get_mode(), EditorMode::GPrefix);
+    }
+
+    #[test]
     fn default_should_create_new_instance() {
         let command = EnterGPrefixCommand;
         assert_eq!(command.name(), "EnterGPrefixCommand");
@@ -341,3 +406,4 @@ mod tests {
 
 // Auto-register this command using the inventory system
 register_command!(EnterGPrefixCommand, "EnterGPrefixCommand");
+
