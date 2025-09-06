@@ -64,42 +64,43 @@ impl Command for ExitVisualBlockInsertModeCommand {
     }
 }
 
-/// Enter visual mode (v key)
-pub struct EnterVisualModeCommand;
-
-impl Command for EnterVisualModeCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        let is_v_key = matches!(event.code, KeyCode::Char('v'));
-        let is_normal_mode = context.state.current_mode == EditorMode::Normal;
-        let no_modifiers = event.modifiers.is_empty();
-        let is_relevant = is_v_key && is_normal_mode && no_modifiers;
-
-        tracing::trace!(
-            "EnterVisualModeCommand.is_relevant(): v_key={}, normal_mode={}, no_modifiers={}, result={}",
-            is_v_key, is_normal_mode, no_modifiers, is_relevant
-        );
-
-        if !is_relevant {
-            tracing::debug!(
-                "EnterVisualModeCommand not relevant: event={:?}, mode={:?}, modifiers={:?}",
-                event.code,
-                context.state.current_mode,
-                event.modifiers
-            );
-        }
-
-        is_relevant
-    }
-
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        tracing::debug!("EnterVisualModeCommand executing - creating mode change event to Visual");
-        Ok(vec![CommandEvent::mode_change(EditorMode::Visual)])
-    }
-
-    fn name(&self) -> &'static str {
-        "EnterVisualMode"
-    }
-}
+// MIGRATED: EnterVisualModeCommand has been migrated to unified_commands/mode/enter_visual_mode.rs
+// /// Enter visual mode (v key)
+// pub struct EnterVisualModeCommand;
+//
+// impl Command for EnterVisualModeCommand {
+//     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+//         let is_v_key = matches!(event.code, KeyCode::Char('v'));
+//         let is_normal_mode = context.state.current_mode == EditorMode::Normal;
+//         let no_modifiers = event.modifiers.is_empty();
+//         let is_relevant = is_v_key && is_normal_mode && no_modifiers;
+//
+//         tracing::trace!(
+//             "EnterVisualModeCommand.is_relevant(): v_key={}, normal_mode={}, no_modifiers={}, result={}",
+//             is_v_key, is_normal_mode, no_modifiers, is_relevant
+//         );
+//
+//         if !is_relevant {
+//             tracing::debug!(
+//                 "EnterVisualModeCommand not relevant: event={:?}, mode={:?}, modifiers={:?}",
+//                 event.code,
+//                 context.state.current_mode,
+//                 event.modifiers
+//             );
+//         }
+//
+//         is_relevant
+//     }
+//
+//     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         tracing::debug!("EnterVisualModeCommand executing - creating mode change event to Visual");
+//         Ok(vec![CommandEvent::mode_change(EditorMode::Visual)])
+//     }
+//
+//     fn name(&self) -> &'static str {
+//         "EnterVisualMode"
+//     }
+// }
 
 // MIGRATED: ExitVisualModeCommand moved to unified_commands/mode/exit_visual_mode.rs
 // The unified implementation provides the same Escape key functionality with modern architecture
