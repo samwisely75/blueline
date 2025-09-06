@@ -43,7 +43,11 @@ impl Command for EnterVisualModeCommand {
             && key_event.modifiers.is_empty()
     }
 
-    fn execute(&self, _key_event: KeyEvent, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         tracing::debug!("EnterVisualModeCommand: entering Visual mode");
 
         // Change mode to Visual - this properly handles visual selection initialization via mode manager
@@ -68,8 +72,8 @@ impl Command for EnterVisualModeCommand {
 mod tests {
     use super::*;
     use crate::repl::models::pane_state::{EditorMode, Pane};
-    use crate::repl::services::Services;
     use crate::repl::models::AppState;
+    use crate::repl::services::Services;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     fn create_test_key_event(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
@@ -158,8 +162,10 @@ mod tests {
 
         for key_code in test_keys {
             let key_event = create_test_key_event(key_code, KeyModifiers::empty());
-            assert!(!command.is_relevant(key_event, EditorMode::Normal, &context),
-                   "Command should not be relevant for {key_code:?}");
+            assert!(
+                !command.is_relevant(key_event, EditorMode::Normal, &context),
+                "Command should not be relevant for {key_code:?}"
+            );
         }
     }
 
@@ -167,13 +173,18 @@ mod tests {
     fn execute_should_change_mode_to_visual() {
         let command = EnterVisualModeCommand::new();
         let (mut app_state, mut services) = create_execution_context();
-        
+
         let mut execution_context = ExecutionContext {
             app_state: &mut app_state,
             services: &mut services,
         };
 
-        let result = command.execute(KeyEvent::new(KeyCode::Null, KeyModifiers::empty()), &mut execution_context).unwrap();
+        let result = command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context,
+            )
+            .unwrap();
 
         assert_eq!(execution_context.app_state.get_mode(), EditorMode::Visual);
         assert!(!result.is_empty());
@@ -183,13 +194,18 @@ mod tests {
     fn execute_should_initialize_visual_selection() {
         let command = EnterVisualModeCommand::new();
         let (mut app_state, mut services) = create_execution_context();
-        
+
         let mut execution_context = ExecutionContext {
             app_state: &mut app_state,
             services: &mut services,
         };
 
-        command.execute(KeyEvent::new(KeyCode::Null, KeyModifiers::empty()), &mut execution_context).unwrap();
+        command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context,
+            )
+            .unwrap();
 
         // Visual selection should be initialized (the mode manager handles this internally)
         assert!(execution_context.app_state.has_visual_selection());
@@ -199,13 +215,18 @@ mod tests {
     fn execute_should_return_appropriate_post_command_actions() {
         let command = EnterVisualModeCommand::new();
         let (mut app_state, mut services) = create_execution_context();
-        
+
         let mut execution_context = ExecutionContext {
             app_state: &mut app_state,
             services: &mut services,
         };
 
-        let result = command.execute(KeyEvent::new(KeyCode::Null, KeyModifiers::empty()), &mut execution_context).unwrap();
+        let result = command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context,
+            )
+            .unwrap();
 
         // Should return UI update actions
         assert!(result.contains(&PostCommandAction::StatusBarUpdateRequired));
@@ -216,9 +237,9 @@ mod tests {
 
     #[test]
     fn default_should_create_new_instance() {
-        let command1 = EnterVisualModeCommand::default();
+        let command1 = EnterVisualModeCommand;
         let command2 = EnterVisualModeCommand::new();
-        
+
         assert_eq!(command1.name(), command2.name());
     }
 
@@ -226,14 +247,17 @@ mod tests {
     fn should_handle_execution_gracefully() {
         let command = EnterVisualModeCommand::new();
         let (mut app_state, mut services) = create_execution_context();
-        
+
         let mut execution_context = ExecutionContext {
             app_state: &mut app_state,
             services: &mut services,
         };
 
-        let result = command.execute(KeyEvent::new(KeyCode::Null, KeyModifiers::empty()), &mut execution_context);
-        
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
+
         // Should succeed
         assert!(result.is_ok());
         assert_eq!(execution_context.app_state.get_mode(), EditorMode::Visual);

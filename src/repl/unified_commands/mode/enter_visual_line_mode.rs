@@ -46,7 +46,11 @@ impl Command for EnterVisualLineModeCommand {
         is_shift_v_key && mode == EditorMode::Normal
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         tracing::debug!("EnterVisualLineModeCommand: entering Visual Line mode");
 
         // Change mode to VisualLine - this handles visual selection initialization internally
@@ -197,7 +201,12 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context).unwrap();
+        let result = command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context,
+            )
+            .unwrap();
 
         assert_eq!(
             execution_context.app_state.get_mode(),
@@ -216,7 +225,12 @@ mod tests {
             services: &mut services,
         };
 
-        command.execute(&mut execution_context).unwrap();
+        command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context,
+            )
+            .unwrap();
 
         // Visual Line mode should be set (the mode manager handles selection initialization internally)
         assert_eq!(
@@ -236,7 +250,12 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context).unwrap();
+        let result = command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context,
+            )
+            .unwrap();
 
         // Should return UI update actions
         assert!(result.contains(&PostCommandAction::StatusBarUpdateRequired));
@@ -263,7 +282,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
 
         // Should succeed
         assert!(result.is_ok());
@@ -286,7 +308,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
         assert!(result.is_ok(), "Should succeed from Normal mode");
         assert_eq!(
             execution_context.app_state.get_mode(),
