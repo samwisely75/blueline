@@ -1,8 +1,8 @@
-//! # Change Selection Command
+//! # Visual Block Change Command
 //!
-//! Command to change selected text in Visual Block mode.
-//! This command deletes the selection and enters VisualBlockInsert mode
-//! for multi-cursor text replacement.
+//! Implements vim's Visual Block Change command ('c' in Visual Block mode).
+//! This command deletes the visual block selection and enters VisualBlockInsert mode
+//! for multi-cursor text replacement across all selected lines.
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -14,22 +14,23 @@ use crate::repl::view_models::post_command_actions::PostCommandAction;
 
 /// Command to change (delete and replace) the current visual block selection
 ///
-/// This command:
+/// This command implements vim's Visual Block Change command:
 /// 1. Only works in Visual Block mode (not Visual or VisualLine)
 /// 2. Deletes the selected block text
 /// 3. Sets up multi-cursor positions for the deleted block range
-/// 4. Transitions to VisualBlockInsert mode (unique behavior)
+/// 4. Transitions to VisualBlockInsert mode for multi-line replacement
 /// 5. Provides status feedback
-pub struct ChangeSelectionCommand;
+#[derive(Default)]
+pub struct VisualBlockChangeCommand;
 
-impl ChangeSelectionCommand {
-    /// Create new ChangeSelectionCommand
+impl VisualBlockChangeCommand {
+    /// Create new VisualBlockChangeCommand
     pub fn new() -> Self {
         Self
     }
 }
 
-impl Command for ChangeSelectionCommand {
+impl Command for VisualBlockChangeCommand {
     fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool {
         // Only relevant for 'c' key in Visual Block mode without modifiers
         matches!(key_event.code, KeyCode::Char('c'))
@@ -116,13 +117,7 @@ impl Command for ChangeSelectionCommand {
     }
 
     fn name(&self) -> &'static str {
-        "ChangeSelectionCommand"
-    }
-}
-
-impl Default for ChangeSelectionCommand {
-    fn default() -> Self {
-        Self::new()
+        "VisualBlockChangeCommand"
     }
 }
 
@@ -145,8 +140,8 @@ mod tests {
     }
 
     #[test]
-    fn change_selection_should_be_relevant_for_c_key_in_visual_block_mode() {
-        let command = ChangeSelectionCommand::new();
+    fn visual_block_change_should_be_relevant_for_c_key_in_visual_block_mode() {
+        let command = VisualBlockChangeCommand::new();
         let key_event = create_key_event(KeyCode::Char('c'), KeyModifiers::NONE);
         let context = CommandContext {
             current_mode: EditorMode::VisualBlock,
@@ -160,8 +155,8 @@ mod tests {
     }
 
     #[test]
-    fn change_selection_should_not_be_relevant_for_other_keys() {
-        let command = ChangeSelectionCommand::new();
+    fn visual_block_change_should_not_be_relevant_for_other_keys() {
+        let command = VisualBlockChangeCommand::new();
         let context = CommandContext {
             current_mode: EditorMode::VisualBlock,
             current_pane: Pane::Request,
@@ -189,8 +184,8 @@ mod tests {
     }
 
     #[test]
-    fn change_selection_should_not_be_relevant_in_other_modes() {
-        let command = ChangeSelectionCommand::new();
+    fn visual_block_change_should_not_be_relevant_in_other_modes() {
+        let command = VisualBlockChangeCommand::new();
         let key_event = create_key_event(KeyCode::Char('c'), KeyModifiers::NONE);
         let context = CommandContext {
             current_mode: EditorMode::Normal,
@@ -209,8 +204,8 @@ mod tests {
     }
 
     #[test]
-    fn change_selection_should_not_be_relevant_in_read_only_mode() {
-        let command = ChangeSelectionCommand::new();
+    fn visual_block_change_should_not_be_relevant_in_read_only_mode() {
+        let command = VisualBlockChangeCommand::new();
         let key_event = create_key_event(KeyCode::Char('c'), KeyModifiers::NONE);
         let context = CommandContext {
             current_mode: EditorMode::VisualBlock,
@@ -224,8 +219,8 @@ mod tests {
     }
 
     #[test]
-    fn change_selection_should_not_be_relevant_with_modifiers() {
-        let command = ChangeSelectionCommand::new();
+    fn visual_block_change_should_not_be_relevant_with_modifiers() {
+        let command = VisualBlockChangeCommand::new();
         let context = CommandContext {
             current_mode: EditorMode::VisualBlock,
             current_pane: Pane::Request,
@@ -253,8 +248,8 @@ mod tests {
     }
 
     #[test]
-    fn change_selection_execute_should_handle_no_selection_gracefully() {
-        let command = ChangeSelectionCommand::new();
+    fn visual_block_change_execute_should_handle_no_selection_gracefully() {
+        let command = VisualBlockChangeCommand::new();
         let (mut app_state, mut services) = create_execution_context();
 
         // Set up VisualBlock mode but without actual selection
@@ -287,16 +282,16 @@ mod tests {
 
     #[test]
     fn command_name_should_return_correct_name() {
-        let command = ChangeSelectionCommand::new();
-        assert_eq!(command.name(), "ChangeSelectionCommand");
+        let command = VisualBlockChangeCommand::new();
+        assert_eq!(command.name(), "VisualBlockChangeCommand");
     }
 
     #[test]
     fn default_should_create_new_instance() {
-        let command = ChangeSelectionCommand::new();
-        assert_eq!(command.name(), "ChangeSelectionCommand");
+        let command = VisualBlockChangeCommand::new();
+        assert_eq!(command.name(), "VisualBlockChangeCommand");
     }
 }
 
 // Auto-register this command using the inventory system
-register_command!(ChangeSelectionCommand, "ChangeSelectionCommand");
+register_command!(VisualBlockChangeCommand, "VisualBlockChangeCommand");

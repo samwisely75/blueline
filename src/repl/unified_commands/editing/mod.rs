@@ -7,7 +7,6 @@
 //! won't cause merge conflicts. Just add the module declaration and re-export.
 
 // Auto-discover editing command modules - add new ones alphabetically to prevent conflicts
-pub mod change_selection;
 pub mod cut_character;
 pub mod cut_current_line;
 pub mod cut_selection;
@@ -18,7 +17,6 @@ pub mod multi_cursor_text_delete;
 pub mod multi_cursor_text_insert;
 
 // Re-export all command structs using wildcards - no merge conflicts!
-pub use change_selection::*;
 pub use cut_character::*;
 pub use cut_current_line::*;
 pub use cut_selection::*;

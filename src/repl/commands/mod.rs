@@ -144,7 +144,7 @@ impl CommandRegistry {
             Box::new(EnterYPrefixCommand),
             Box::new(YankCurrentLineCommand),
             Box::new(CancelPrefixModeCommand),
-            Box::new(ChangeSelectionCommand),
+            // Box::new(ChangeSelectionCommand), // Migrated to unified_commands/visual/visual_block_change.rs
             Box::new(PasteAfterCommand),
             // Box::new(PasteAtCursorCommand), // Migrated to unified_commands (PasteBeforeCommand)
         ];

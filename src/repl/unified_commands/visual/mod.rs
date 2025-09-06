@@ -10,10 +10,12 @@
 pub mod exit_visual_block_insert;
 pub mod repeat_visual_selection;
 pub mod visual_block_append;
+pub mod visual_block_change;
 pub mod visual_block_insert;
 
 // Re-export all commands using wildcards to prevent merge conflicts
 pub use exit_visual_block_insert::*;
 pub use repeat_visual_selection::*;
 pub use visual_block_append::*;
+pub use visual_block_change::*;
 pub use visual_block_insert::*;
