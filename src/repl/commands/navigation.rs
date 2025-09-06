@@ -152,24 +152,25 @@ impl Command for ScrollRightCommand {
     }
 }
 
-/// Enter G prefix mode on first 'g' press
-pub struct EnterGPrefixCommand;
-
-impl Command for EnterGPrefixCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Char('g'))
-            && is_navigation_mode(context)
-            && event.modifiers.is_empty()
-    }
-
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::mode_change(EditorMode::GPrefix)])
-    }
-
-    fn name(&self) -> &'static str {
-        "EnterGPrefix"
-    }
-}
+// MIGRATED: EnterGPrefixCommand has been migrated to unified_commands/navigation/enter_g_prefix.rs
+// /// Enter G prefix mode on first 'g' press
+// pub struct EnterGPrefixCommand;
+//
+// impl Command for EnterGPrefixCommand {
+//     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+//         matches!(event.code, KeyCode::Char('g'))
+//             && is_navigation_mode(context)
+//             && event.modifiers.is_empty()
+//     }
+//
+//     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         Ok(vec![CommandEvent::mode_change(EditorMode::GPrefix)])
+//     }
+//
+//     fn name(&self) -> &'static str {
+//         "EnterGPrefix"
+//     }
+// }
 
 /// Go to top of current pane (gg command)
 pub struct GoToTopCommand;
@@ -549,44 +550,45 @@ mod tests {
         CommandContext::new(snapshot)
     }
 
-    // Tests for G mode commands
-    #[test]
-    fn enter_g_mode_should_be_relevant_for_g_in_normal_mode() {
-        let context = create_test_context(EditorMode::Normal);
-        let cmd = EnterGPrefixCommand;
-        let event = create_test_key_event(KeyCode::Char('g'));
-
-        assert!(cmd.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn enter_g_mode_should_not_be_relevant_in_insert_mode() {
-        let context = create_test_context(EditorMode::Insert);
-        let cmd = EnterGPrefixCommand;
-        let event = create_test_key_event(KeyCode::Char('g'));
-
-        assert!(!cmd.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn enter_g_mode_should_not_be_relevant_in_g_mode() {
-        let context = create_test_context(EditorMode::GPrefix);
-        let cmd = EnterGPrefixCommand;
-        let event = create_test_key_event(KeyCode::Char('g'));
-
-        assert!(!cmd.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn enter_g_mode_should_produce_mode_change_event() {
-        let context = create_test_context(EditorMode::Normal);
-        let cmd = EnterGPrefixCommand;
-        let event = create_test_key_event(KeyCode::Char('g'));
-
-        let events = cmd.execute(event, &context).unwrap();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0], CommandEvent::mode_change(EditorMode::GPrefix));
-    }
+    // MIGRATED: Tests for EnterGPrefixCommand moved to unified_commands/navigation/enter_g_prefix.rs
+    // // Tests for G mode commands
+    // #[test]
+    // fn enter_g_mode_should_be_relevant_for_g_in_normal_mode() {
+    //     let context = create_test_context(EditorMode::Normal);
+    //     let cmd = EnterGPrefixCommand;
+    //     let event = create_test_key_event(KeyCode::Char('g'));
+    //
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
+    //
+    // #[test]
+    // fn enter_g_mode_should_not_be_relevant_in_insert_mode() {
+    //     let context = create_test_context(EditorMode::Insert);
+    //     let cmd = EnterGPrefixCommand;
+    //     let event = create_test_key_event(KeyCode::Char('g'));
+    //
+    //     assert!(!cmd.is_relevant(&context, &event));
+    // }
+    //
+    // #[test]
+    // fn enter_g_mode_should_not_be_relevant_in_g_mode() {
+    //     let context = create_test_context(EditorMode::GPrefix);
+    //     let cmd = EnterGPrefixCommand;
+    //     let event = create_test_key_event(KeyCode::Char('g'));
+    //
+    //     assert!(!cmd.is_relevant(&context, &event));
+    // }
+    //
+    // #[test]
+    // fn enter_g_mode_should_produce_mode_change_event() {
+    //     let context = create_test_context(EditorMode::Normal);
+    //     let cmd = EnterGPrefixCommand;
+    //     let event = create_test_key_event(KeyCode::Char('g'));
+    //
+    //     let events = cmd.execute(event, &context).unwrap();
+    //     assert_eq!(events.len(), 1);
+    //     assert_eq!(events[0], CommandEvent::mode_change(EditorMode::GPrefix));
+    // }
 
     #[test]
     fn go_to_top_should_be_relevant_for_g_in_g_mode() {
@@ -1061,14 +1063,15 @@ mod tests {
         assert!(cmd.is_relevant(&context, &event));
     }
 
-    #[test]
-    fn enter_g_prefix_should_be_relevant_for_g_in_visual_mode() {
-        let context = create_test_context(EditorMode::Visual);
-        let cmd = EnterGPrefixCommand;
-        let event = create_test_key_event(KeyCode::Char('g'));
-
-        assert!(cmd.is_relevant(&context, &event));
-    }
+    // MIGRATED: Test moved to unified_commands/navigation/enter_g_prefix.rs
+    // #[test]
+    // fn enter_g_prefix_should_be_relevant_for_g_in_visual_mode() {
+    //     let context = create_test_context(EditorMode::Visual);
+    //     let cmd = EnterGPrefixCommand;
+    //     let event = create_test_key_event(KeyCode::Char('g'));
+    //
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
 
     // Tests for PageDownCommand (Ctrl+f)
     #[test]

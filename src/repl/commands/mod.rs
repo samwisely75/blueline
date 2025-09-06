@@ -86,7 +86,7 @@ impl CommandRegistry {
             // Box::new(GoToTopCommand), // Migrated to unified_commands/navigation/go_to_top.rs
             // Box::new(GoToBottomCommand), // Migrated to unified_commands/navigation/go_to_bottom.rs
             Box::new(RepeatVisualSelectionCommand), // gv command
-            Box::new(EnterGPrefixCommand),
+            // Box::new(EnterGPrefixCommand), // Migrated to unified_commands/navigation/enter_g_prefix.rs
             // Scroll commands (higher priority than regular movement)
             // Box::new(ScrollLeftCommand), // Migrated to unified_commands
             // Box::new(ScrollRightCommand), // Migrated to unified_commands

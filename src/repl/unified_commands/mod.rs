@@ -84,7 +84,7 @@ pub mod yank;
 // pub mod enter_y_prefix;
 // Issue #262: EnterGModeCommand
 // pub mod enter_g_mode;
-// Issue #263: EnterGPrefixCommand
+// Issue #263: EnterGPrefixCommand - MOVED to navigation/enter_g_prefix.rs
 // pub mod enter_g_prefix;
 // Issue #264: ExCommand
 // pub mod ex_command;
