@@ -40,7 +40,11 @@ impl Command for SettingChangeCommand {
         false
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Handle clipboard setting through YankService
         if self.setting == Setting::Clipboard {
             let enable = self.value == SettingValue::On;
@@ -116,6 +120,7 @@ mod tests {
     use super::*;
     use crate::repl::models::AppState;
     use crate::repl::services::Services;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     #[test]
     fn setting_change_command_should_return_correct_name() {
@@ -154,7 +159,10 @@ mod tests {
         };
 
         // Execute the command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
@@ -177,7 +185,10 @@ mod tests {
         };
 
         // Execute the command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
@@ -204,7 +215,10 @@ mod tests {
         };
 
         // Execute the command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();

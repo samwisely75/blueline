@@ -24,7 +24,11 @@ impl Command for ExShowProfileCommand {
         buffer == "show profile"
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         let command = context.app_state.get_ex_command_buffer().trim();
 
         if command == "show profile" {
@@ -161,7 +165,10 @@ mod tests {
         };
 
         // Execute the command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let actions = result.unwrap();
@@ -190,7 +197,10 @@ mod tests {
         };
 
         // Execute the command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let actions = result.unwrap();

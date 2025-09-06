@@ -39,7 +39,11 @@ impl Command for EnterInsertModeCommand {
             && key_event.modifiers.is_empty()
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         tracing::debug!("EnterInsertModeCommand: entering Insert mode");
 
         // Set the mode to Insert
@@ -175,7 +179,10 @@ mod tests {
         };
 
         // Execute the command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok(), "Command execution should succeed");
         let events = result.unwrap();
@@ -229,7 +236,10 @@ mod tests {
         tracing::debug!("Initial cursor position in test: {initial_cursor:?}");
 
         // Execute command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         // Verify state changes

@@ -34,7 +34,11 @@ impl Command for ShowProfileCommand {
         false
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Get profile information from app state
         let profile_name = context.app_state.get_profile_name();
         let profile_path = context.app_state.get_profile_path();
@@ -66,6 +70,7 @@ mod tests {
     use super::*;
     use crate::repl::models::AppState;
     use crate::repl::services::Services;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     #[test]
     fn show_profile_command_should_return_correct_name() {
@@ -104,7 +109,10 @@ mod tests {
         };
 
         // Execute the command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();

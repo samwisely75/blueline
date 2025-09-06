@@ -48,7 +48,11 @@ impl Command for InsertAtBeginningOfLineCommand {
             && context.current_pane == Pane::Request
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         tracing::debug!(
             "InsertAtBeginningOfLineCommand: moving cursor to line start and entering Insert mode"
         );
@@ -250,7 +254,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
@@ -294,7 +301,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
@@ -365,7 +375,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         let events = result.unwrap();

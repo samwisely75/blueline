@@ -41,7 +41,11 @@ impl Command for CutToEndOfLineCommand {
             )
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Only allow in Request pane and Normal mode (double-check)
         if !context.app_state.is_in_request_pane() || context.app_state.mode() != EditorMode::Normal
         {
@@ -240,7 +244,10 @@ mod tests {
         };
 
         // Execute without any text or at end of line
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
@@ -263,7 +270,10 @@ mod tests {
 
         // Note: In a real scenario, the cut would happen
         // For this test, we're verifying the command structure
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
     }
 }

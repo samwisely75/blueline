@@ -45,7 +45,11 @@ impl Command for MultiCursorTextInsertCommand {
             && key_event.modifiers.is_empty() // No modifiers for plain text input
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // ARCHITECTURAL CHALLENGE: We need the character from the KeyEvent, but execute() doesn't receive it.
         //
         // Current limitation: The Command trait's execute() method doesn't provide access to the original KeyEvent.
@@ -290,7 +294,10 @@ mod tests {
         };
 
         // Should succeed but return status bar update indicating no cursor positions
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();

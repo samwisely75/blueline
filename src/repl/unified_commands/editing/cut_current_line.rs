@@ -36,7 +36,11 @@ impl Command for CutCurrentLineCommand {
             && key_event.modifiers.is_empty()
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Only allow in Request pane and DPrefix mode (double-check)
         if !context.app_state.is_in_request_pane()
             || context.app_state.mode() != EditorMode::DPrefix
@@ -210,7 +214,10 @@ mod tests {
         };
 
         // Execute without any text
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
@@ -233,7 +240,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
         let _events = result.unwrap();
 
