@@ -100,7 +100,7 @@ impl CommandRegistry {
             // MoveCursorLeftCommand and MoveCursorRightCommand migrated to unified_commands
             // Box::new(MoveCursorLeftCommand),
             // Box::new(MoveCursorRightCommand),
-            Box::new(MoveCursorUpCommand),
+            // Box::new(MoveCursorUpCommand), // Migrated to unified_commands/navigation/move_up.rs
             // Box::new(MoveCursorDownCommand), // Migrated to unified_commands
             // Box::new(EndOfWordCommand), // Migrated to unified_commands
             // Box::new(NextWordCommand), // Migrated to unified_commands
@@ -271,25 +271,27 @@ mod tests {
         assert!(registry.commands.len() > 10);
     }
 
-    #[test]
-    fn registry_should_handle_movement_command() {
-        let registry = CommandRegistry::new();
-        let context = create_test_context();
-
-        // Test with up arrow (MoveCursorUpCommand) since most movement commands are now in unified_commands
-        // Left/Right arrow movement is now handled by unified_commands
-        // 'w' key (NextWordCommand) is handled by unified_commands
-        // 'b' key (PreviousWordCommand) is handled by unified_commands
-        let event = create_test_key_event(KeyCode::Up);
-        let events = registry.process_event(event, &context).unwrap();
-
-        // Should produce a cursor move event
-        assert_eq!(events.len(), 1);
-        assert!(matches!(
-            events[0],
-            CommandEvent::CursorMoveRequested { .. }
-        ));
-    }
+    // MIGRATED: Movement command tests moved to unified_commands
+    // All movement commands (up, down, left, right) are now in unified system
+    // #[test]
+    // fn registry_should_handle_movement_command() {
+    //     let registry = CommandRegistry::new();
+    //     let context = create_test_context();
+    //
+    //     // Test with up arrow (MoveCursorUpCommand) since most movement commands are now in unified_commands
+    //     // Left/Right arrow movement is now handled by unified_commands
+    //     // 'w' key (NextWordCommand) is handled by unified_commands
+    //     // 'b' key (PreviousWordCommand) is handled by unified_commands
+    //     let event = create_test_key_event(KeyCode::Up);
+    //     let events = registry.process_event(event, &context).unwrap();
+    //
+    //     // Should produce a cursor move event
+    //     assert_eq!(events.len(), 1);
+    //     assert!(matches!(
+    //         events[0],
+    //         CommandEvent::CursorMoveRequested { .. }
+    //     ));
+    // }
 
     #[test]
     fn registry_should_handle_mode_change_command() {
@@ -432,24 +434,25 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn registry_should_handle_ctrl_u_half_page_up_command() {
-        let registry = CommandRegistry::new();
-        let context = create_test_context();
-
-        let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
-        let events = registry.process_event(event, &context).unwrap();
-
-        // Should produce a half page up cursor movement event
-        assert_eq!(events.len(), 1);
-        assert!(matches!(
-            events[0],
-            CommandEvent::CursorMoveRequested {
-                direction: MovementDirection::HalfPageUp,
-                amount: 1
-            }
-        ));
-    }
+    // MIGRATED: HalfPageUpCommand test moved to unified_commands/navigation/half_page_up.rs
+    // #[test]
+    // fn registry_should_handle_ctrl_u_half_page_up_command() {
+    //     let registry = CommandRegistry::new();
+    //     let context = create_test_context();
+    //
+    //     let event = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+    //     let events = registry.process_event(event, &context).unwrap();
+    //
+    //     // Should produce a half page up cursor movement event
+    //     assert_eq!(events.len(), 1);
+    //     assert!(matches!(
+    //         events[0],
+    //         CommandEvent::CursorMoveRequested {
+    //             direction: MovementDirection::HalfPageUp,
+    //             amount: 1
+    //         }
+    //     ));
+    // }
 
     #[test]
     fn registry_should_handle_regular_d_as_enter_d_prefix() {

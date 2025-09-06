@@ -57,26 +57,27 @@ impl Command for MoveCursorRightCommand {
     }
 }
 
-/// Move cursor up (k key or up arrow)
-pub struct MoveCursorUpCommand;
-
-impl Command for MoveCursorUpCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        match event.code {
-            KeyCode::Char('k') => is_navigation_mode(context) && event.modifiers.is_empty(),
-            KeyCode::Up => true,
-            _ => false,
-        }
-    }
-
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::cursor_move(MovementDirection::Up)])
-    }
-
-    fn name(&self) -> &'static str {
-        "MoveCursorUp"
-    }
-}
+// MIGRATED: MoveCursorUpCommand has been migrated to unified_commands/navigation/move_up.rs
+// /// Move cursor up (k key or up arrow)
+// pub struct MoveCursorUpCommand;
+//
+// impl Command for MoveCursorUpCommand {
+//     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+//         match event.code {
+//             KeyCode::Char('k') => is_navigation_mode(context) && event.modifiers.is_empty(),
+//             KeyCode::Up => true,
+//             _ => false,
+//         }
+//     }
+//
+//     fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         Ok(vec![CommandEvent::cursor_move(MovementDirection::Up)])
+//     }
+//
+//     fn name(&self) -> &'static str {
+//         "MoveCursorUp"
+//     }
+// }
 
 /// Move cursor down (j key or down arrow)
 pub struct MoveCursorDownCommand;
@@ -971,14 +972,15 @@ mod tests {
         assert!(cmd.is_relevant(&context, &event));
     }
 
-    #[test]
-    fn move_cursor_up_should_be_relevant_for_k_in_visual_mode() {
-        let context = create_test_context(EditorMode::Visual);
-        let cmd = MoveCursorUpCommand;
-        let event = create_test_key_event(KeyCode::Char('k'));
-
-        assert!(cmd.is_relevant(&context, &event));
-    }
+    // MIGRATED: Test moved to unified_commands/navigation/move_up.rs
+    // #[test]
+    // fn move_cursor_up_should_be_relevant_for_k_in_visual_mode() {
+    //     let context = create_test_context(EditorMode::Visual);
+    //     let cmd = MoveCursorUpCommand;
+    //     let event = create_test_key_event(KeyCode::Char('k'));
+    //
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
 
     #[test]
     fn move_cursor_down_should_be_relevant_for_j_in_visual_mode() {
