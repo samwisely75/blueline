@@ -126,7 +126,7 @@ impl CommandRegistry {
             // Pane commands
             // Box::new(SwitchPaneCommand), // Migrated to unified_commands
             // Editing commands
-            Box::new(InsertCharCommand),
+            Box::new(InsertCharCommand), // TODO: Migration exists but has architectural limitation - can't access KeyEvent
             Box::new(InsertNewLineCommand),
             Box::new(InsertTabCommand),
             Box::new(DeleteCharCommand),
