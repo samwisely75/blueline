@@ -123,6 +123,7 @@ mod tests {
     use crate::repl::services::Services;
     use crate::repl::unified_commands::{CommandContext, ExecutionContext};
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use serial_test::serial;
 
     fn create_test_command_context(ex_command: &str) -> CommandContext {
         use crate::repl::models::pane_state::Pane;
@@ -203,6 +204,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_execute_set_clipboard_on() {
         let command = ExSetClipboardCommand;
         let (mut app_state, mut services) = create_test_execution_context();
@@ -230,6 +232,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_execute_set_clipboard_off() {
         let command = ExSetClipboardCommand;
         let (mut app_state, mut services) = create_test_execution_context();
@@ -265,6 +268,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_execute_set_clipboard_toggle() {
         let command = ExSetClipboardCommand;
         let (mut app_state, mut services) = create_test_execution_context();

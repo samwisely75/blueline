@@ -121,6 +121,7 @@ mod tests {
     use crate::repl::models::AppState;
     use crate::repl::services::Services;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use serial_test::serial;
 
     #[test]
     fn setting_change_command_should_return_correct_name() {
@@ -148,6 +149,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn setting_change_command_should_handle_clipboard_setting() {
         let command = SettingChangeCommand::new(Setting::Clipboard, SettingValue::On);
         let mut app_state = AppState::new();
