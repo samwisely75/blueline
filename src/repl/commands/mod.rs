@@ -86,7 +86,7 @@ impl CommandRegistry {
             // Box::new(GoToTopCommand), // Migrated to unified_commands/navigation/go_to_top.rs
             // Box::new(GoToBottomCommand), // Migrated to unified_commands/navigation/go_to_bottom.rs
             Box::new(RepeatVisualSelectionCommand), // gv command
-            Box::new(EnterGPrefixCommand),
+            // Box::new(EnterGPrefixCommand), // Migrated to unified_commands/navigation/enter_g_prefix.rs
             // Scroll commands (higher priority than regular movement)
             // Box::new(ScrollLeftCommand), // Migrated to unified_commands
             // Box::new(ScrollRightCommand), // Migrated to unified_commands
@@ -116,7 +116,7 @@ impl CommandRegistry {
             // Box::new(EnterVisualModeCommand), // Migrated to unified_commands
             // Box::new(EnterVisualLineModeCommand), // Migrated to unified_commands
             // Box::new(EnterVisualBlockModeCommand), // Migrated to unified_commands/mode/enter_visual_block_mode.rs
-            Box::new(VisualBlockInsertCommand),
+            // Box::new(VisualBlockInsertCommand), // Migrated to unified_commands/visual/visual_block_insert.rs
             Box::new(VisualBlockAppendCommand),
             // Box::new(AppendAfterCursorCommand), // Migrated to unified_commands/mode/append_after_cursor.rs
             // Box::new(AppendAtEndOfLineCommand), // Migrated to unified_commands/mode/append_at_end_of_line.rs

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.13] - 2025-09-06
+
+### Changed
+
+- **Command System Migration**: Migrated multiple navigation commands to unified command system
+  - Migrated BeginningOfLineCommand (0 key) and EndOfLineCommand ($ key) (#267, #268)
+  - Migrated HomeKeyCommand and EndKeyCommand (#269, #270)
+  - Migrated HalfPageDownCommand (Ctrl+D) (#273)
+  - Migrated HalfPageUpCommand (Ctrl+U) (#274)
+  - Migrated PageUpCommand (#272)
+  - All commands now use inventory-based auto-registration system
+  - Improved test coverage with comprehensive unit tests for all migrated commands
+  - Removed legacy command implementations from registry
+
 ## [0.45.12] - 2025-09-06
 
 ### Fixed
