@@ -387,8 +387,12 @@ pub struct PageDownCommand;
 /// Half page down navigation (Ctrl+d)
 pub struct HalfPageDownCommand;
 
-/// Half page up navigation (Ctrl+u)
+// Half page up navigation (Ctrl+u)
+// MIGRATED: This command has been migrated to the unified command system.
+// See: src/repl/unified_commands/navigation/half_page_up.rs
+/*
 pub struct HalfPageUpCommand;
+*/
 
 impl Command for PageDownCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
@@ -485,6 +489,7 @@ impl Command for HalfPageDownCommand {
     }
 }
 
+/*
 impl Command for HalfPageUpCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         let is_ctrl_u = matches!(event.code, KeyCode::Char('u'))
@@ -516,6 +521,7 @@ impl Command for HalfPageUpCommand {
         "HalfPageUp"
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
