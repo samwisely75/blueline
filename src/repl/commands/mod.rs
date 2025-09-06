@@ -92,9 +92,10 @@ impl CommandRegistry {
             // Box::new(ScrollRightCommand), // Migrated to unified_commands
             // Pagination commands (high priority - Ctrl+key combinations)
             // Box::new(PageDownCommand), // Migrated to unified_commands/navigation/page_down.rs
-            Box::new(PageUpCommand),
+            // Box::new(PageUpCommand), // Migrated to unified_commands/navigation/page_up.rs
             Box::new(HalfPageDownCommand),
-            Box::new(HalfPageUpCommand),
+            // MIGRATED: HalfPageUpCommand has been migrated to unified command system
+            // Box::new(HalfPageUpCommand),
             // Movement commands
             // MoveCursorLeftCommand and MoveCursorRightCommand migrated to unified_commands
             // Box::new(MoveCursorLeftCommand),
@@ -376,6 +377,8 @@ mod tests {
         assert!(events.is_empty());
     }
 
+    // Test migrated to unified command system - see unified_commands/navigation/page_up.rs
+    /*
     #[test]
     fn registry_should_handle_ctrl_b_page_up_command() {
         let registry = CommandRegistry::new();
@@ -394,6 +397,7 @@ mod tests {
             }
         ));
     }
+    */
 
     #[test]
     fn registry_should_not_handle_regular_b_as_page_up() {
@@ -426,6 +430,9 @@ mod tests {
         ));
     }
 
+    // MIGRATED: HalfPageUpCommand test migrated to unified command system
+    // See: src/repl/unified_commands/navigation/half_page_up.rs
+    /*
     #[test]
     fn registry_should_handle_ctrl_u_half_page_up_command() {
         let registry = CommandRegistry::new();
@@ -444,6 +451,7 @@ mod tests {
             }
         ));
     }
+    */
 
     #[test]
     fn registry_should_handle_regular_d_as_enter_d_prefix() {

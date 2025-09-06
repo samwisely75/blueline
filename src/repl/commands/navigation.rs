@@ -376,8 +376,12 @@ pub struct PageUpCommand;
 /// Half page down navigation (Ctrl+d)
 pub struct HalfPageDownCommand;
 
-/// Half page up navigation (Ctrl+u)
+// Half page up navigation (Ctrl+u)
+// MIGRATED: This command has been migrated to the unified command system.
+// See: src/repl/unified_commands/navigation/half_page_up.rs
+/*
 pub struct HalfPageUpCommand;
+*/
 
 impl Command for PageDownCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
@@ -471,6 +475,7 @@ impl Command for HalfPageDownCommand {
     }
 }
 
+/*
 impl Command for HalfPageUpCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         let is_ctrl_u = matches!(event.code, KeyCode::Char('u'))
@@ -502,6 +507,7 @@ impl Command for HalfPageUpCommand {
         "HalfPageUp"
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
@@ -1133,7 +1139,9 @@ mod tests {
         assert_eq!(cmd.name(), "PageDown");
     }
 
-    // Tests for PageUpCommand (Ctrl+b)
+    // Tests for PageUpCommand (Ctrl+b) - MIGRATED to unified command system
+    // Tests moved to: src/repl/unified_commands/navigation/page_up.rs
+    /*
     #[test]
     fn page_up_should_be_relevant_for_ctrl_b_in_normal_mode() {
         let context = create_test_context(EditorMode::Normal);
@@ -1222,4 +1230,5 @@ mod tests {
         let cmd = PageUpCommand;
         assert_eq!(cmd.name(), "PageUp");
     }
+    */
 }
