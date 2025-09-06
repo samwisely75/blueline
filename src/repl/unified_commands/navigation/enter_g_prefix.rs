@@ -72,6 +72,7 @@ impl Command for EnterGPrefixCommand {
             "EnterGPrefixCommand executed: entered GPrefix mode, awaiting next key"
         );
 
+
         // Return status bar update to reflect mode change
         Ok(vec![PostCommandAction::StatusBarUpdateRequired])
     }
@@ -405,3 +406,4 @@ mod tests {
 
 // Auto-register this command using the inventory system
 register_command!(EnterGPrefixCommand, "EnterGPrefixCommand");
+
