@@ -15,6 +15,7 @@ pub mod cut_to_end_of_line;
 pub mod delete_char;
 pub mod delete_selection;
 pub mod insert_char;
+pub mod insert_tab;
 pub mod multi_cursor_text_delete;
 pub mod multi_cursor_text_insert;
 
@@ -27,5 +28,6 @@ pub use cut_to_end_of_line::*;
 pub use delete_char::*;
 pub use delete_selection::*;
 pub use insert_char::*;
+pub use insert_tab::*;
 pub use multi_cursor_text_delete::*;
 pub use multi_cursor_text_insert::*;
