@@ -60,7 +60,11 @@ impl Command for PreviousWordCommand {
         Self::is_previous_word_key(key_event) && Self::is_navigation_mode(mode)
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Get the cursor movement events from pane manager
         let events = context
             .app_state
@@ -314,7 +318,10 @@ mod tests {
         };
 
         // Should succeed and return some events (could be empty if no movement possible)
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         // We don't check exact events since they depend on internal state

@@ -25,7 +25,11 @@ impl Command for ExSetNumberCommand {
         matches!(buffer, "set number on" | "set number off" | "set number!")
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         let command = context.app_state.get_ex_command_buffer().trim();
 
         match command {

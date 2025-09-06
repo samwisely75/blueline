@@ -45,7 +45,11 @@ impl Command for ExitVisualBlockInsertCommand {
             && key_event.modifiers.is_empty()
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         tracing::info!("Exiting Visual Block Insert mode");
 
         // Preserve cursor position at the first multi-cursor position
@@ -195,7 +199,10 @@ mod tests {
         };
 
         // Execute the command
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok(), "Command execution should succeed");
         let events = result.unwrap();
@@ -263,7 +270,10 @@ mod tests {
         };
 
         // Execute the command - should succeed even without cursors
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(
             result.is_ok(),

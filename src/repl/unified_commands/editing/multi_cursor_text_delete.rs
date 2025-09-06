@@ -51,7 +51,11 @@ impl Command for MultiCursorTextDeleteCommand {
             && Self::get_delete_params(key_event).is_some()
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // This should not be called unless we're in the right mode, but double-check
         let current_mode = context.app_state.get_mode();
         if current_mode != EditorMode::VisualBlockInsert {
@@ -295,7 +299,10 @@ mod tests {
         };
 
         // Should succeed but return status bar update for wrong mode
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let actions = result.unwrap();
@@ -323,7 +330,10 @@ mod tests {
         };
 
         // Should succeed and handle fallback to regular delete
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let actions = result.unwrap();

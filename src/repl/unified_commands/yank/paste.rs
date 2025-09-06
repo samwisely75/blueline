@@ -30,7 +30,11 @@ impl Command for PasteAfterCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Get from YankService
         if let Some(yank_entry) = context.services.yank.paste() {
             // Paste the text after the current cursor position using type-aware paste
@@ -87,7 +91,11 @@ impl Command for PasteBeforeCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Get from YankService
         if let Some(yank_entry) = context.services.yank.paste() {
             tracing::debug!(

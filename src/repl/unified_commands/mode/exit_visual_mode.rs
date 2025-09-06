@@ -45,7 +45,11 @@ impl Command for ExitVisualModeCommand {
             && key_event.modifiers.is_empty()
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         tracing::debug!("ExitVisualModeCommand: exiting visual mode to Normal");
 
         // Change mode to Normal - this properly handles visual selection cleanup via mode manager
@@ -187,7 +191,12 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context).unwrap();
+        let result = command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context,
+            )
+            .unwrap();
 
         assert_eq!(execution_context.app_state.get_mode(), EditorMode::Normal);
         assert!(!result.is_empty());
@@ -206,7 +215,12 @@ mod tests {
             services: &mut services,
         };
 
-        command.execute(&mut execution_context).unwrap();
+        command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context,
+            )
+            .unwrap();
 
         // Visual selection should be cleared (mode manager handles this internally)
         // Note: The exact selection state depends on the mode manager implementation
@@ -223,7 +237,12 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context).unwrap();
+        let result = command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context,
+            )
+            .unwrap();
 
         // Should return UI update actions
         assert!(result.contains(&PostCommandAction::StatusBarUpdateRequired));
@@ -250,7 +269,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
 
         // Should succeed
         assert!(result.is_ok());
@@ -277,7 +299,10 @@ mod tests {
                 services: &mut services,
             };
 
-            let result = command.execute(&mut execution_context);
+            let result = command.execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context,
+            );
 
             assert!(result.is_ok(), "Should succeed from mode {initial_mode:?}");
             assert_eq!(
