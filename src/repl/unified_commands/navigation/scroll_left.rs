@@ -41,7 +41,11 @@ impl Command for ScrollLeftCommand {
                 || key_event.modifiers.contains(KeyModifiers::CONTROL))
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Scroll left horizontally by 5 characters (direction = -1, amount = 5)
         let actions = context
             .app_state
@@ -149,7 +153,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
         assert!(result.is_ok());
 
         let actions = result.unwrap();

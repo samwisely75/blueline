@@ -63,7 +63,11 @@ impl Command for GoToBottomCommand {
         in_navigation_mode && movement_allowed && is_g_key
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         let mut actions = Vec::new();
 
         // Move cursor to document end
@@ -251,7 +255,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         let actions = result.unwrap();
@@ -283,7 +290,12 @@ mod tests {
             services: &mut services,
         };
 
-        let _result = command.execute(&mut context).unwrap();
+        let _result = command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut context,
+            )
+            .unwrap();
 
         // Mode should remain Normal
         assert_eq!(context.app_state.get_mode(), EditorMode::Normal);
@@ -298,7 +310,12 @@ mod tests {
             services: &mut services2,
         };
 
-        let _result2 = command.execute(&mut context2).unwrap();
+        let _result2 = command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut context2,
+            )
+            .unwrap();
 
         // Mode should remain Visual
         assert_eq!(context2.app_state.get_mode(), EditorMode::Visual);
@@ -327,7 +344,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         // The exact cursor position and actions depend on pane_manager implementation,

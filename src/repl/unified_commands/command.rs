@@ -34,7 +34,15 @@ pub trait Command: Send + Sync {
     /// Commands should use Services for business logic and return PostCommandActions
     /// describing what UI updates are needed. Commands perform the business
     /// logic directly and emit view update events.
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>>;
+    ///
+    /// The key_event parameter provides access to the key that triggered this command,
+    /// which is needed for commands like InsertCharCommand that need to know which
+    /// character was pressed.
+    fn execute(
+        &self,
+        key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>>;
 
     /// Get command name for debugging and logging
     fn name(&self) -> &'static str;
@@ -98,6 +106,7 @@ impl CommandContext {
 mod tests {
     use super::*;
     use crate::repl::models::AppState;
+    use crossterm::event::{KeyCode, KeyModifiers};
 
     /// Mock command for testing the Command trait
     struct MockCommand {
@@ -125,7 +134,11 @@ mod tests {
             true
         }
 
-        fn execute(&self, _context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+        fn execute(
+            &self,
+            _key_event: KeyEvent,
+            _context: &mut ExecutionContext,
+        ) -> Result<Vec<PostCommandAction>> {
             Ok(self.events_to_return.clone())
         }
 
@@ -148,7 +161,12 @@ mod tests {
             app_state: &mut app_state,
             services: &mut services,
         };
-        let result = command.execute(&mut context).unwrap();
+        let result = command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut context,
+            )
+            .unwrap();
         assert_eq!(result, events);
     }
 

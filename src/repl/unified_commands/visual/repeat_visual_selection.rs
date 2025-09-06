@@ -44,7 +44,11 @@ impl Command for RepeatVisualSelectionCommand {
             && matches!(mode, EditorMode::GPrefix)
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         tracing::info!("Handling repeat visual selection (gv command)");
 
         // First, return to Normal mode to exit GPrefix mode
@@ -225,7 +229,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         let events = result.unwrap();
@@ -258,7 +265,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         // Should always return to Normal mode first (exiting GPrefix)

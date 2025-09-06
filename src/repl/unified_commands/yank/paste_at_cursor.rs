@@ -37,7 +37,11 @@ impl Command for PasteAtCursorCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Get from YankService, not the old app_state buffer!
         if let Some(yank_entry) = context.services.yank.paste() {
             tracing::debug!(
@@ -245,7 +249,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         // Should succeed even if nothing is in yank buffer (shows "Nothing to paste" message)
         assert!(result.is_ok());

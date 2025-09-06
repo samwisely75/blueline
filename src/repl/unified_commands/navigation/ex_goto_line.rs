@@ -76,7 +76,11 @@ impl Command for ExGotoLineCommand {
         Self::parse_goto_command(&context.ex_command_buffer).is_some()
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         let buffer = context.app_state.get_ex_command_buffer();
 
         if let Some(line_number_opt) = Self::parse_goto_command(buffer) {

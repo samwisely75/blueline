@@ -41,7 +41,11 @@ impl Command for ExSetClipboardCommand {
         )
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         let command = context.app_state.get_ex_command_buffer().trim();
 
         match command {
@@ -208,7 +212,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
         assert!(result.is_ok());
 
         let actions = result.unwrap();
@@ -240,7 +247,10 @@ mod tests {
             .unwrap();
         assert!(execution_context.services.yank.is_clipboard_enabled());
 
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
         assert!(result.is_ok());
 
         let actions = result.unwrap();
@@ -268,7 +278,10 @@ mod tests {
         assert!(!execution_context.services.yank.is_clipboard_enabled());
 
         // First toggle should enable
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
         assert!(result.is_ok());
         assert!(execution_context.services.yank.is_clipboard_enabled());
 
@@ -278,7 +291,10 @@ mod tests {
             .set_ex_command_buffer("set clipboard!".to_string());
 
         // Second toggle should disable
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
         assert!(result.is_ok());
         assert!(!execution_context.services.yank.is_clipboard_enabled());
     }

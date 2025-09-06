@@ -58,7 +58,11 @@ impl Command for MoveRightCommand {
         }
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Use PaneManager's cursor movement business logic that returns PostCommandActions
         let events = context.app_state.pane_manager.move_cursor_right();
 
@@ -307,7 +311,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         // Should succeed (AppState handles the actual movement logic)
         assert!(result.is_ok());

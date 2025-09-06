@@ -56,7 +56,11 @@ impl Command for YankSelectionCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Get selected text from current pane
         if let Some(text) = context.app_state.get_selected_text() {
             // Determine yank type based on current visual mode
@@ -122,6 +126,7 @@ impl Command for YankSelectionCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crossterm::event::KeyModifiers;
 
     #[test]
     fn yank_selection_command_should_return_correct_name() {
@@ -230,7 +235,10 @@ mod tests {
         };
 
         // Should succeed but return status bar update for "No text selected"
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
