@@ -143,10 +143,11 @@ impl PaneState {
         if self.visual_selection_start.is_some()
             && self.capabilities.contains(PaneCapabilities::SELECTABLE)
         {
+            let old_end = self.visual_selection_end;
             self.visual_selection_end = Some(new_position);
             tracing::debug!(
-                "🎯 PaneState::update_visual_selection_on_cursor_move to {:?}",
-                new_position
+                "🎯 PaneState::update_visual_selection_on_cursor_move: mode={:?}, old_end={:?}, new_end={:?}",
+                self.editor_mode, old_end, new_position
             );
             Some(PostCommandAction::CurrentAreaRedrawRequired)
         } else {
@@ -199,10 +200,17 @@ impl PaneState {
         let first_col = start.column.min(end.column);
         let last_col = start.column.max(end.column);
 
-        position.line >= first_line
+        let result = position.line >= first_line
             && position.line <= last_line
             && position.column >= first_col
-            && position.column <= last_col
+            && position.column <= last_col;
+
+        tracing::trace!(
+            "🎯 is_position_in_block_selection: pos={:?}, start={:?}, end={:?}, bounds=(lines {}..={}, cols {}..={}), result={}",
+            position, start, end, first_line, last_line, first_col, last_col, result
+        );
+
+        result
     }
 
     /// Restore the last visual selection (for 'gv' command)

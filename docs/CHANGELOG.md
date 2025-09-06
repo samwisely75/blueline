@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.12] - 2025-09-06
+
+### Fixed
+
+- **Visual Block Mode**: Fixed critical bugs preventing Visual Block mode from working
+  - Fixed visual selection initialization when entering Visual Block mode (Ctrl+v)
+  - Fixed visual selection highlighting not updating when cursor moves
+  - Changed `EnterVisualBlockModeCommand` to use `change_mode()` instead of `set_mode()`
+  - Fixed cursor movement methods to properly propagate visual selection update events
+
 ## [0.45.5] - 2025-08-30
 
 ### Changed

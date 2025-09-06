@@ -55,7 +55,7 @@ impl PaneState {
         if moved {
             // Sync logical cursor with new display position
             let new_display_pos = self.display_cursor;
-            if let Some(logical_pos) = self
+            let visual_update = if let Some(logical_pos) = self
                 .display_cache
                 .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
@@ -63,14 +63,21 @@ impl PaneState {
                 self.buffer.set_cursor(new_logical_pos);
 
                 // Update visual selection if active
-                self.update_visual_selection_on_cursor_move(new_logical_pos);
-            }
+                self.update_visual_selection_on_cursor_move(new_logical_pos)
+            } else {
+                None
+            };
 
             let mut events = vec![
                 PostCommandAction::ActiveCursorUpdateRequired,
                 PostCommandAction::PositionIndicatorUpdateRequired,
                 PostCommandAction::CurrentAreaRedrawRequired,
             ];
+
+            // Add visual selection update event if needed
+            if let Some(visual_event) = visual_update {
+                events.push(visual_event);
+            }
 
             // Ensure cursor is visible and add visibility events
             let visibility_events = self.ensure_cursor_visible_with_events(content_width);
@@ -158,7 +165,7 @@ impl PaneState {
         if moved {
             // Sync logical cursor with new display position
             let new_display_pos = self.display_cursor;
-            if let Some(logical_pos) = self
+            let visual_update = if let Some(logical_pos) = self
                 .display_cache
                 .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
@@ -166,14 +173,21 @@ impl PaneState {
                 self.buffer.set_cursor(new_logical_pos);
 
                 // Update visual selection if active
-                self.update_visual_selection_on_cursor_move(new_logical_pos);
-            }
+                self.update_visual_selection_on_cursor_move(new_logical_pos)
+            } else {
+                None
+            };
 
             let mut events = vec![
                 PostCommandAction::ActiveCursorUpdateRequired,
                 PostCommandAction::PositionIndicatorUpdateRequired,
                 PostCommandAction::CurrentAreaRedrawRequired,
             ];
+
+            // Add visual selection update event if needed
+            if let Some(visual_event) = visual_update {
+                events.push(visual_event);
+            }
 
             // Ensure cursor is visible and add visibility events
             let visibility_events = self.ensure_cursor_visible_with_events(content_width);
@@ -218,7 +232,7 @@ impl PaneState {
             self.display_cursor = new_display_pos;
 
             // Sync logical cursor with new display position
-            if let Some(logical_pos) = self
+            let visual_update = if let Some(logical_pos) = self
                 .display_cache
                 .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
@@ -226,14 +240,21 @@ impl PaneState {
                 self.buffer.set_cursor(new_logical_pos);
 
                 // Update visual selection if active
-                self.update_visual_selection_on_cursor_move(new_logical_pos);
-            }
+                self.update_visual_selection_on_cursor_move(new_logical_pos)
+            } else {
+                None
+            };
 
             let mut events = vec![
                 PostCommandAction::ActiveCursorUpdateRequired,
                 PostCommandAction::PositionIndicatorUpdateRequired,
                 PostCommandAction::CurrentAreaRedrawRequired,
             ];
+
+            // Add visual selection update event if needed
+            if let Some(visual_event) = visual_update {
+                events.push(visual_event);
+            }
 
             // Ensure cursor is visible and add visibility events
             let visibility_events = self.ensure_cursor_visible_with_events(content_width);
@@ -273,7 +294,7 @@ impl PaneState {
             self.display_cursor = new_display_pos;
 
             // Sync logical cursor with new display position
-            if let Some(logical_pos) = self
+            let visual_update = if let Some(logical_pos) = self
                 .display_cache
                 .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
@@ -281,14 +302,21 @@ impl PaneState {
                 self.buffer.set_cursor(new_logical_pos);
 
                 // Update visual selection if active
-                self.update_visual_selection_on_cursor_move(new_logical_pos);
-            }
+                self.update_visual_selection_on_cursor_move(new_logical_pos)
+            } else {
+                None
+            };
 
             let mut events = vec![
                 PostCommandAction::ActiveCursorUpdateRequired,
                 PostCommandAction::PositionIndicatorUpdateRequired,
                 PostCommandAction::CurrentAreaRedrawRequired,
             ];
+
+            // Add visual selection update event if needed
+            if let Some(visual_event) = visual_update {
+                events.push(visual_event);
+            }
 
             // Ensure cursor is visible and add visibility events
             let visibility_events = self.ensure_cursor_visible_with_events(content_width);

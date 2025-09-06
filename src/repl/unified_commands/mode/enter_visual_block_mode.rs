@@ -50,8 +50,8 @@ impl Command for EnterVisualBlockModeCommand {
     ) -> Result<Vec<PostCommandAction>> {
         tracing::debug!("EnterVisualBlockModeCommand: entering Visual Block mode");
 
-        // Change mode to Visual Block mode
-        let _mode_change = context.app_state.set_mode(EditorMode::VisualBlock);
+        // Change mode to Visual Block mode - this properly handles visual selection initialization
+        context.app_state.change_mode(EditorMode::VisualBlock)?;
 
         tracing::debug!("EnterVisualBlockModeCommand: mode changed to Visual Block");
 
@@ -59,6 +59,7 @@ impl Command for EnterVisualBlockModeCommand {
         Ok(vec![
             PostCommandAction::StatusBarUpdateRequired,
             PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired, // Visual Block mode needs redraw for selection highlighting
         ])
     }
 
@@ -258,6 +259,9 @@ mod tests {
         assert!(events
             .iter()
             .any(|e| matches!(e, PostCommandAction::ActiveCursorUpdateRequired)));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, PostCommandAction::CurrentAreaRedrawRequired)));
 
         // Should have changed to Visual Block mode
         assert_eq!(
@@ -276,7 +280,7 @@ mod tests {
         let mut services = Services::new();
 
         // Ensure we're in Normal mode
-        let _ = app_state.set_mode(EditorMode::Normal);
+        let _ = app_state.change_mode(EditorMode::Normal);
         assert_eq!(
             app_state.pane_manager.get_current_pane_mode(),
             EditorMode::Normal
@@ -319,8 +323,8 @@ mod tests {
 
         let events = result.unwrap();
 
-        // Should return exactly 2 events
-        assert_eq!(events.len(), 2);
+        // Should return exactly 3 events (status, cursor, and redraw for visual selection)
+        assert_eq!(events.len(), 3);
 
         // Verify specific events are present
         let has_status_update = events
@@ -329,6 +333,9 @@ mod tests {
         let has_cursor_update = events
             .iter()
             .any(|e| matches!(e, PostCommandAction::ActiveCursorUpdateRequired));
+        let has_redraw = events
+            .iter()
+            .any(|e| matches!(e, PostCommandAction::CurrentAreaRedrawRequired));
 
         assert!(
             has_status_update,
@@ -338,6 +345,7 @@ mod tests {
             has_cursor_update,
             "Should have ActiveCursorUpdateRequired event"
         );
+        assert!(has_redraw, "Should have CurrentAreaRedrawRequired event");
     }
 
     #[test]
