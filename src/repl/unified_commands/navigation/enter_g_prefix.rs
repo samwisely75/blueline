@@ -68,10 +68,7 @@ impl Command for EnterGPrefixCommand {
         // Change mode to GPrefix to await the next key in the sequence
         context.app_state.set_mode(EditorMode::GPrefix);
 
-        tracing::debug!(
-            "EnterGPrefixCommand executed: entered GPrefix mode, awaiting next key"
-        );
-
+        tracing::debug!("EnterGPrefixCommand executed: entered GPrefix mode, awaiting next key");
 
         // Return status bar update to reflect mode change
         Ok(vec![PostCommandAction::StatusBarUpdateRequired])
@@ -406,4 +403,3 @@ mod tests {
 
 // Auto-register this command using the inventory system
 register_command!(EnterGPrefixCommand, "EnterGPrefixCommand");
-
