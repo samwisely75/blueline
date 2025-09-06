@@ -291,7 +291,10 @@ impl Command for PreviousWordCommand {
 //     }
 // }
 
-/// Move to beginning of line (0 command)
+// Move to beginning of line (0 command)
+// MIGRATED: This command has been migrated to the unified command system.
+// See: src/repl/unified_commands/navigation/beginning_of_line.rs
+/*
 pub struct BeginningOfLineCommand;
 
 impl Command for BeginningOfLineCommand {
@@ -311,8 +314,12 @@ impl Command for BeginningOfLineCommand {
         "BeginningOfLine"
     }
 }
+*/
 
-/// Move to end of line ($ command)
+// Move to end of line ($ command)
+// MIGRATED: This command has been migrated to the unified command system.
+// See: src/repl/unified_commands/navigation/end_of_line.rs
+/*
 pub struct EndOfLineCommand;
 
 impl Command for EndOfLineCommand {
@@ -330,6 +337,7 @@ impl Command for EndOfLineCommand {
         "EndOfLine"
     }
 }
+*/
 
 // MIGRATED: HomeKeyCommand moved to unified_commands/navigation/home_key.rs
 // /// Move to beginning of line (Home key)
@@ -372,8 +380,8 @@ impl Command for EndOfLineCommand {
 /// Page down navigation (Ctrl+f)
 pub struct PageDownCommand;
 
-/// Page up navigation (Ctrl+b)
-pub struct PageUpCommand;
+// Page up navigation (Ctrl+b) - MIGRATED to unified command system
+// pub struct PageUpCommand;
 
 /// Half page down navigation (Ctrl+d)
 pub struct HalfPageDownCommand;
@@ -411,6 +419,8 @@ impl Command for PageDownCommand {
     }
 }
 
+// MIGRATED to unified command system - see src/repl/unified_commands/navigation/page_up.rs
+/*
 impl Command for PageUpCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         let is_ctrl_b = matches!(event.code, KeyCode::Char('b'))
@@ -440,6 +450,7 @@ impl Command for PageUpCommand {
         "PageUp"
     }
 }
+*/
 
 impl Command for HalfPageDownCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
@@ -839,7 +850,8 @@ mod tests {
     // Tests for BeginningOfLineCommand (0)
     // MIGRATED: These tests moved to unified_commands/navigation/beginning_of_line.rs
 
-    // Tests for EndOfLineCommand ($)
+    // Tests for EndOfLineCommand ($) - MIGRATED to unified_commands
+    /*
     #[test]
     fn end_of_line_should_be_relevant_for_dollar_in_normal_mode() {
         let context = create_test_context(EditorMode::Normal);
@@ -871,6 +883,7 @@ mod tests {
             CommandEvent::cursor_move(MovementDirection::LineEnd)
         );
     }
+    */
 
     // MIGRATED: HomeKeyCommand and EndKeyCommand tests moved to unified_commands/navigation/
     // // Tests for HomeKeyCommand
@@ -1019,6 +1032,7 @@ mod tests {
     }
     */
 
+    /*
     #[test]
     fn end_of_line_should_be_relevant_for_dollar_in_visual_mode() {
         let context = create_test_context(EditorMode::Visual);
@@ -1027,6 +1041,7 @@ mod tests {
 
         assert!(cmd.is_relevant(&context, &event));
     }
+    */
 
     #[test]
     fn go_to_bottom_should_be_relevant_for_uppercase_g_in_visual_mode() {
@@ -1136,7 +1151,9 @@ mod tests {
         assert_eq!(cmd.name(), "PageDown");
     }
 
-    // Tests for PageUpCommand (Ctrl+b)
+    // Tests for PageUpCommand (Ctrl+b) - MIGRATED to unified command system
+    // Tests moved to: src/repl/unified_commands/navigation/page_up.rs
+    /*
     #[test]
     fn page_up_should_be_relevant_for_ctrl_b_in_normal_mode() {
         let context = create_test_context(EditorMode::Normal);
@@ -1225,4 +1242,5 @@ mod tests {
         let cmd = PageUpCommand;
         assert_eq!(cmd.name(), "PageUp");
     }
+    */
 }

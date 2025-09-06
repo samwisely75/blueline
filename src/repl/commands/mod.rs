@@ -92,9 +92,10 @@ impl CommandRegistry {
             // Box::new(ScrollRightCommand), // Migrated to unified_commands
             // Pagination commands (high priority - Ctrl+key combinations)
             // Box::new(PageDownCommand), // Migrated to unified_commands/navigation/page_down.rs
-            Box::new(PageUpCommand),
+            // Box::new(PageUpCommand), // Migrated to unified_commands/navigation/page_up.rs
             Box::new(HalfPageDownCommand),
-            Box::new(HalfPageUpCommand),
+            // MIGRATED: HalfPageUpCommand has been migrated to unified command system
+            // Box::new(HalfPageUpCommand),
             // Movement commands
             // MoveCursorLeftCommand and MoveCursorRightCommand migrated to unified_commands
             // Box::new(MoveCursorLeftCommand),
@@ -104,12 +105,12 @@ impl CommandRegistry {
             // Box::new(EndOfWordCommand), // Migrated to unified_commands
             // Box::new(NextWordCommand), // Migrated to unified_commands
             // Box::new(PreviousWordCommand), // Migrated to unified_commands
-            Box::new(BeginningOfLineCommand),
-            Box::new(EndOfLineCommand),
             // MIGRATED: HomeKeyCommand moved to unified_commands/navigation/home_key.rs
             // Box::new(HomeKeyCommand),
             // MIGRATED: EndKeyCommand moved to unified_commands/navigation/end_key.rs
             // Box::new(EndKeyCommand),
+            // Box::new(BeginningOfLineCommand), // Migrated to unified_commands/navigation/beginning_of_line.rs
+            // Box::new(EndOfLineCommand), // Migrated to unified_commands/navigation/end_of_line.rs
             // Mode commands
             // Box::new(EnterInsertModeCommand), // Migrated to unified_commands/mode/enter_insert_mode.rs
             // Box::new(EnterVisualModeCommand), // Migrated to unified_commands
@@ -378,6 +379,8 @@ mod tests {
         assert!(events.is_empty());
     }
 
+    // Test migrated to unified command system - see unified_commands/navigation/page_up.rs
+    /*
     #[test]
     fn registry_should_handle_ctrl_b_page_up_command() {
         let registry = CommandRegistry::new();
@@ -396,6 +399,7 @@ mod tests {
             }
         ));
     }
+    */
 
     #[test]
     fn registry_should_not_handle_regular_b_as_page_up() {
