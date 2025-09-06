@@ -370,8 +370,8 @@ impl Command for EndKeyCommand {
 /// Page down navigation (Ctrl+f)
 pub struct PageDownCommand;
 
-/// Page up navigation (Ctrl+b)
-pub struct PageUpCommand;
+// Page up navigation (Ctrl+b) - MIGRATED to unified command system
+// pub struct PageUpCommand;
 
 /// Half page down navigation (Ctrl+d)
 pub struct HalfPageDownCommand;
@@ -409,6 +409,8 @@ impl Command for PageDownCommand {
     }
 }
 
+// MIGRATED to unified command system - see src/repl/unified_commands/navigation/page_up.rs
+/*
 impl Command for PageUpCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
         let is_ctrl_b = matches!(event.code, KeyCode::Char('b'))
@@ -438,6 +440,7 @@ impl Command for PageUpCommand {
         "PageUp"
     }
 }
+*/
 
 impl Command for HalfPageDownCommand {
     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
@@ -1133,7 +1136,9 @@ mod tests {
         assert_eq!(cmd.name(), "PageDown");
     }
 
-    // Tests for PageUpCommand (Ctrl+b)
+    // Tests for PageUpCommand (Ctrl+b) - MIGRATED to unified command system
+    // Tests moved to: src/repl/unified_commands/navigation/page_up.rs
+    /*
     #[test]
     fn page_up_should_be_relevant_for_ctrl_b_in_normal_mode() {
         let context = create_test_context(EditorMode::Normal);
@@ -1222,4 +1227,5 @@ mod tests {
         let cmd = PageUpCommand;
         assert_eq!(cmd.name(), "PageUp");
     }
+    */
 }
