@@ -13,6 +13,7 @@ pub mod events;
 pub mod editing;
 pub mod mode;
 pub mod navigation;
+pub mod request;
 pub mod system;
 pub mod visual;
 pub mod yank;
@@ -76,8 +77,7 @@ pub mod yank;
 // pub mod insert_at_beginning_of_line;
 // Issue #258: SwitchPaneCommand
 // pub mod switch_pane;
-// Issue #259: ExecuteRequestCommand
-// pub mod execute_request;
+// Issue #259: ExecuteRequestCommand - MOVED to request/execute_request.rs
 // Issue #260: EnterDPrefixCommand
 // pub mod enter_d_prefix;
 // Issue #261: EnterYPrefixCommand
