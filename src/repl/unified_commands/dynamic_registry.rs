@@ -303,6 +303,7 @@ mod tests {
 
             fn execute(
                 &self,
+                _key_event: crossterm::event::KeyEvent,
                 _context: &mut crate::repl::unified_commands::ExecutionContext,
             ) -> Result<Vec<crate::repl::view_models::post_command_actions::PostCommandAction>>
             {

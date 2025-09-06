@@ -38,7 +38,11 @@ impl Command for ChangeSelectionCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Get the visual selection before deleting it
         let (selection_start, selection_end, _pane) = context.app_state.get_visual_selection();
         if selection_start.is_none() || selection_end.is_none() {
@@ -261,7 +265,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         let events = result.unwrap();

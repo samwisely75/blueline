@@ -44,7 +44,11 @@ impl Command for ScrollRightCommand {
                 || key_event.modifiers.contains(KeyModifiers::CONTROL))
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Use PaneManager's scroll_current_horizontally business logic
         // Direction: 1 (right), Amount: 5 columns
         let events = context
@@ -261,7 +265,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         // Should succeed
         assert!(result.is_ok());

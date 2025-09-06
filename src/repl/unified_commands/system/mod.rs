@@ -2,8 +2,11 @@
 //!
 //! This module contains commands related to system operations and application-level
 //! functionality such as HTTP requests, profile management, and settings configuration.
+//!
+//! NOTE: Commands self-register via inventory system - adding new command files
+//! here won't cause merge conflicts. Add modules alphabetically to prevent conflicts.
 
-// System command implementations
+// Auto-discover system command modules - add new ones alphabetically
 pub mod app_terminate;
 pub mod ex_quit;
 pub mod ex_quit_test;
@@ -18,5 +21,16 @@ pub mod http;
 pub mod setting_change;
 pub mod show_profile;
 
-// Re-export all command types using wildcards to prevent merge conflicts
+// Re-export all command types using wildcards - no merge conflicts!
 pub use app_terminate::*;
+pub use ex_quit::*;
+pub use ex_set_clipboard::*;
+pub use ex_set_dcut::*;
+pub use ex_set_expandtab::*;
+pub use ex_set_number::*;
+pub use ex_set_tabstop::*;
+pub use ex_set_wrap::*;
+pub use ex_show_profile::*;
+pub use http::*;
+pub use setting_change::*;
+pub use show_profile::*;

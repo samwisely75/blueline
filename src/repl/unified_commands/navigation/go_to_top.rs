@@ -45,7 +45,11 @@ impl Command for GoToTopCommand {
             && mode == EditorMode::GPrefix
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Move cursor to document start and exit GPrefix mode
         let mut actions = Vec::new();
 
@@ -211,7 +215,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         let actions = result.unwrap();
@@ -244,7 +251,12 @@ mod tests {
             services: &mut services,
         };
 
-        let _result = command.execute(&mut context).unwrap();
+        let _result = command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut context,
+            )
+            .unwrap();
 
         // Mode should be changed to Normal
         assert_eq!(context.app_state.get_mode(), EditorMode::Normal);
@@ -273,7 +285,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         // The exact cursor position and actions depend on pane_manager implementation,

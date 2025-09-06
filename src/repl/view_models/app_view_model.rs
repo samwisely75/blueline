@@ -164,7 +164,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                     services: &mut self.services,
                 };
 
-                match unified_command.execute(&mut exec_context) {
+                // Create a dummy KeyEvent for config commands
+                let dummy_key_event = crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Null,
+                    crossterm::event::KeyModifiers::empty(),
+                );
+                match unified_command.execute(dummy_key_event, &mut exec_context) {
                     Ok(view_events) => {
                         tracing::info!(
                             "Config command '{}' executed successfully with {} view events",
@@ -308,7 +313,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 app_state: &mut self.app_state,
                 services: &mut self.services,
             };
-            let view_events = command.execute(&mut exec_context)?;
+            let view_events = command.execute(key_event, &mut exec_context)?;
 
             tracing::debug!(
                 "Command {} produced {} view events",
@@ -618,7 +623,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                     app_state: &mut self.app_state,
                     services: &mut self.services,
                 };
-                if let Ok(view_events) = command.execute(&mut exec_context) {
+                // Create a dummy KeyEvent for ShowProfile (no key event in this context)
+                let dummy_key_event = crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Null,
+                    crossterm::event::KeyModifiers::empty(),
+                );
+                if let Ok(view_events) = command.execute(dummy_key_event, &mut exec_context) {
                     self.process_view_events(view_events)?;
                 }
             }
@@ -630,7 +640,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                     app_state: &mut self.app_state,
                     services: &mut self.services,
                 };
-                if let Ok(view_events) = command.execute(&mut exec_context) {
+                // Create a dummy KeyEvent for SettingChange (no key event in this context)
+                let dummy_key_event = crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Null,
+                    crossterm::event::KeyModifiers::empty(),
+                );
+                if let Ok(view_events) = command.execute(dummy_key_event, &mut exec_context) {
                     self.process_view_events(view_events)?;
                 }
             }
@@ -1157,7 +1172,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             app_state: &mut self.app_state,
             services: &mut self.services,
         };
-        let view_events = command.execute(&mut exec_context)?;
+        // Create a dummy KeyEvent for execute_command (no key event in this context)
+        let dummy_key_event = crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Null,
+            crossterm::event::KeyModifiers::empty(),
+        );
+        let view_events = command.execute(dummy_key_event, &mut exec_context)?;
 
         tracing::debug!(
             "Command {} produced {} view events",
@@ -1291,109 +1311,107 @@ mod tests {
 
     #[test]
     fn app_view_model_should_create() {
-        if crossterm::terminal::size().is_ok() {
-            let cmd_args = CommandLineArgs::parse_from(["test"]);
-            let config = AppConfig::from_args(cmd_args);
-            let view_model = AppViewModel::with_io_streams(
-                config,
-                crate::repl::io::TerminalEventStream::new(),
-                crate::repl::io::TerminalRenderStream::new(),
-            );
-            assert!(view_model.is_ok());
+        use crate::repl::io::mock::{MockEventStream, MockRenderStream};
 
-            let view_model = view_model.unwrap();
-            assert_eq!(view_model.app_state().get_mode(), EditorMode::Normal);
-            assert_eq!(view_model.app_state().get_current_pane(), Pane::Request);
-        }
+        let cmd_args = CommandLineArgs::parse_from(["test"]);
+        let config = AppConfig::from_args(cmd_args);
+        let view_model = AppViewModel::with_io_streams(
+            config,
+            MockEventStream::empty(),
+            MockRenderStream::new(),
+        );
+        assert!(view_model.is_ok());
+
+        let view_model = view_model.unwrap();
+        assert_eq!(view_model.app_state().get_mode(), EditorMode::Normal);
+        assert_eq!(view_model.app_state().get_current_pane(), Pane::Request);
     }
 
     #[test]
     fn app_controller_should_execute_yank_selection_command() {
+        use crate::repl::io::mock::{MockEventStream, MockRenderStream};
         use crate::repl::unified_commands::yank::YankSelectionCommand;
 
-        if crossterm::terminal::size().is_ok() {
-            let cmd_args = CommandLineArgs::parse_from(["test"]);
-            let config = AppConfig::from_args(cmd_args);
-            let mut view_model = AppViewModel::with_io_streams(
-                config,
-                crate::repl::io::TerminalEventStream::new(),
-                crate::repl::io::TerminalRenderStream::new(),
-            )
-            .unwrap();
+        let cmd_args = CommandLineArgs::parse_from(["test"]);
+        let config = AppConfig::from_args(cmd_args);
+        let mut view_model = AppViewModel::with_io_streams(
+            config,
+            MockEventStream::empty(),
+            MockRenderStream::new(),
+        )
+        .unwrap();
 
-            // Test YankSelectionCommand in Normal mode (should succeed but with no selection message)
-            let command = Box::new(YankSelectionCommand::new());
-            let result = view_model.execute_command(command);
+        // Test YankSelectionCommand in Normal mode (should succeed but with no selection message)
+        let command = Box::new(YankSelectionCommand::new());
+        let result = view_model.execute_command(command);
 
-            // YankSelectionCommand should succeed (returns status bar update for "no selection")
-            assert!(
-                result.is_ok(),
-                "Command should succeed even without selection"
-            );
+        // YankSelectionCommand should succeed (returns status bar update for "no selection")
+        assert!(
+            result.is_ok(),
+            "Command should succeed even without selection"
+        );
 
-            // Verify we're still in Normal mode
-            assert_eq!(view_model.app_state().get_mode(), EditorMode::Normal);
-        }
+        // Verify we're still in Normal mode
+        assert_eq!(view_model.app_state().get_mode(), EditorMode::Normal);
     }
 
     #[tokio::test]
     async fn app_controller_should_use_unified_command_system() {
+        use crate::repl::io::mock::{MockEventStream, MockRenderStream};
         use crossterm::event::{KeyCode, KeyModifiers};
 
-        if crossterm::terminal::size().is_ok() {
-            let cmd_args = CommandLineArgs::parse_from(["test"]);
-            let config = AppConfig::from_args(cmd_args);
-            let mut view_model = AppViewModel::with_io_streams(
-                config,
-                crate::repl::io::TerminalEventStream::new(),
-                crate::repl::io::TerminalRenderStream::new(),
-            )
-            .unwrap();
+        let cmd_args = CommandLineArgs::parse_from(["test"]);
+        let config = AppConfig::from_args(cmd_args);
+        let mut view_model = AppViewModel::with_io_streams(
+            config,
+            MockEventStream::empty(),
+            MockRenderStream::new(),
+        )
+        .unwrap();
 
-            // Verify unified command registry is initialized
-            assert!(view_model.unified_command_registry.command_count() > 0);
+        // Verify unified command registry is initialized
+        assert!(view_model.unified_command_registry.command_count() > 0);
 
-            // Test 'y' key in Normal mode - should fall back to old system (no unified command)
-            let y_key = crossterm::event::KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
-            let result = view_model.handle_key_event_with_unified_first(y_key).await;
-            assert!(
-                result.is_ok(),
-                "Unified command system should handle key events gracefully"
-            );
+        // Test 'y' key in Normal mode - should fall back to old system (no unified command)
+        let y_key = crossterm::event::KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
+        let result = view_model.handle_key_event_with_unified_first(y_key).await;
+        assert!(
+            result.is_ok(),
+            "Unified command system should handle key events gracefully"
+        );
 
-            // Verify old system handled it (y in Normal mode goes to YPrefix mode)
-            assert_eq!(view_model.app_state().get_mode(), EditorMode::YPrefix);
-        }
+        // Verify old system handled it (y in Normal mode goes to YPrefix mode)
+        assert_eq!(view_model.app_state().get_mode(), EditorMode::YPrefix);
     }
 
     #[test]
     fn app_view_model_should_apply_config_commands() {
-        if crossterm::terminal::size().is_ok() {
-            // Create a config with initial commands
-            let test_commands = vec!["set wrap on".to_string(), "set number on".to_string()];
-            let config = AppConfig::new(
-                "test".to_string(),
-                "/nonexistent/profile/path".to_string(),
-                test_commands,
-            );
+        use crate::repl::io::mock::{MockEventStream, MockRenderStream};
 
-            let view_model = AppViewModel::with_io_streams(
-                config,
-                crate::repl::io::TerminalEventStream::new(),
-                crate::repl::io::TerminalRenderStream::new(),
-            );
+        // Create a config with initial commands
+        let test_commands = vec!["set wrap on".to_string(), "set number on".to_string()];
+        let config = AppConfig::new(
+            "test".to_string(),
+            "/nonexistent/profile/path".to_string(),
+            test_commands,
+        );
 
-            assert!(
-                view_model.is_ok(),
-                "ViewModel should be created successfully"
-            );
-            let view_model = view_model.unwrap();
+        let view_model = AppViewModel::with_io_streams(
+            config,
+            MockEventStream::empty(),
+            MockRenderStream::new(),
+        );
 
-            // Verify that wrap is enabled (this would be set by the "set wrap on" command)
-            assert!(
-                view_model.app_state().pane_manager.is_wrap_enabled(),
-                "Wrap should be enabled from config command"
-            );
-        }
+        assert!(
+            view_model.is_ok(),
+            "ViewModel should be created successfully"
+        );
+        let view_model = view_model.unwrap();
+
+        // Verify that wrap is enabled (this would be set by the "set wrap on" command)
+        assert!(
+            view_model.app_state().pane_manager.is_wrap_enabled(),
+            "Wrap should be enabled from config command"
+        );
     }
 }

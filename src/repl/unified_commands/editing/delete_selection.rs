@@ -38,7 +38,11 @@ impl Command for DeleteSelectionCommand {
             && !context.is_read_only
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // First, check if dcut is enabled (delete should also yank)
         if context.app_state.is_dcut_enabled() {
             // Get selection text and type before deleting
@@ -208,7 +212,10 @@ mod tests {
         };
 
         // Execute without selection
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
@@ -236,7 +243,10 @@ mod tests {
 
         // Note: In a real scenario, we'd have a selection set up
         // For this test, we're verifying the command structure
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
     }
 }

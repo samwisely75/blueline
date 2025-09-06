@@ -48,7 +48,11 @@ impl Command for AppendAtEndOfLineCommand {
             && context.current_pane == Pane::Request
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         tracing::debug!(
             "AppendAtEndOfLineCommand: moving cursor to line end and entering Insert mode"
         );
@@ -60,7 +64,7 @@ impl Command for AppendAtEndOfLineCommand {
             .move_cursor_to_line_end_for_append();
 
         // Then set the mode to Insert
-        let _mode_change = context.app_state.set_mode(EditorMode::Insert);
+        context.app_state.change_mode(EditorMode::Insert)?;
 
         tracing::debug!(
             "AppendAtEndOfLineCommand: cursor moved to line end for append, mode changed to Insert"
@@ -246,7 +250,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
@@ -286,7 +293,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
@@ -357,7 +367,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         let events = result.unwrap();
@@ -392,7 +405,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
         assert!(result.is_ok());
 
         // Should have changed to Insert mode

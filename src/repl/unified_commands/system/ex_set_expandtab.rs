@@ -29,7 +29,11 @@ impl Command for ExSetExpandtabCommand {
         )
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         let command = context.app_state.get_ex_command_buffer().trim();
 
         match command {
@@ -146,7 +150,7 @@ mod tests {
     use crate::repl::models::app_state::AppState;
     use crate::repl::models::pane_state::{EditorMode, Pane};
     use crate::repl::services::Services;
-    use crossterm::event::{KeyCode, KeyModifiers};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     fn create_test_context() -> CommandContext {
         CommandContext {
@@ -244,7 +248,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
 
         assert!(result.is_ok());
         let actions = result.unwrap();
@@ -290,7 +297,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
 
         assert!(result.is_ok());
         let actions = result.unwrap();
@@ -319,7 +329,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
 
         assert!(result.is_ok());
         let actions = result.unwrap();
@@ -346,7 +359,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
 
         assert!(result.is_ok());
         let actions = result.unwrap();
@@ -369,7 +385,10 @@ mod tests {
             services: &mut services,
         };
 
-        let result = command.execute(&mut execution_context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut execution_context,
+        );
 
         assert!(result.is_ok());
         let actions = result.unwrap();
@@ -390,7 +409,12 @@ mod tests {
             services: &mut services,
         };
 
-        command.execute(&mut execution_context).unwrap();
+        command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context,
+            )
+            .unwrap();
         let status = execution_context.app_state.get_status_message().unwrap();
         assert!(status.contains("enabled") && status.contains("spaces"));
 
@@ -404,7 +428,12 @@ mod tests {
             services: &mut services2,
         };
 
-        command.execute(&mut execution_context2).unwrap();
+        command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut execution_context2,
+            )
+            .unwrap();
         let status2 = execution_context2.app_state.get_status_message().unwrap();
         assert!(status2.contains("disabled") && status2.contains("tabs"));
     }

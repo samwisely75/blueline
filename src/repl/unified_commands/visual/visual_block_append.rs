@@ -47,7 +47,11 @@ impl Command for VisualBlockAppendCommand {
             )
     }
 
-    fn execute(&self, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>> {
+    fn execute(
+        &self,
+        _key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>> {
         // Verify we're in Visual Block mode
         let current_mode = context.app_state.get_mode();
         if current_mode != EditorMode::VisualBlock {
@@ -236,7 +240,10 @@ mod tests {
         };
 
         // Should succeed but return status bar update for wrong mode
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
@@ -265,7 +272,10 @@ mod tests {
         };
 
         // Should succeed but return status bar update for no selection
-        let result = command.execute(&mut context);
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
 
         assert!(result.is_ok());
         let events = result.unwrap();
