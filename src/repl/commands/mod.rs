@@ -130,7 +130,7 @@ impl CommandRegistry {
             // Box::new(SwitchPaneCommand), // Migrated to unified_commands
             // Editing commands
             // InsertCharCommand removed - migrated to unified commands
-            Box::new(InsertNewLineCommand),
+            // Box::new(InsertNewLineCommand), // Migrated to unified_commands/editing/insert_newline.rs
             Box::new(InsertTabCommand),
             Box::new(DeleteCharCommand),
             Box::new(DeleteCharAtCursorCommand),

@@ -43,28 +43,29 @@ impl Command for InsertCharCommand {
     }
 }
 
-/// Insert new line (Enter in insert mode)
-pub struct InsertNewLineCommand;
-
-impl Command for InsertNewLineCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Enter)
-            && matches!(
-                context.state.current_mode,
-                EditorMode::Insert | EditorMode::VisualBlockInsert
-            )
-            && context.state.current_pane == Pane::Request
-    }
-
-    fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        let text_event = CommandEvent::text_insert("\n".to_string(), context.state.cursor_position);
-        Ok(vec![text_event])
-    }
-
-    fn name(&self) -> &'static str {
-        "InsertNewLine"
-    }
-}
+// MIGRATED: InsertNewLineCommand moved to unified_commands/editing/insert_newline.rs
+// /// Insert new line (Enter in insert mode)
+// pub struct InsertNewLineCommand;
+//
+// impl Command for InsertNewLineCommand {
+//     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+//         matches!(event.code, KeyCode::Enter)
+//             && matches!(
+//                 context.state.current_mode,
+//                 EditorMode::Insert | EditorMode::VisualBlockInsert
+//             )
+//             && context.state.current_pane == Pane::Request
+//     }
+//
+//     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         let text_event = CommandEvent::text_insert("\n".to_string(), context.state.cursor_position);
+//         Ok(vec![text_event])
+//     }
+//
+//     fn name(&self) -> &'static str {
+//         "InsertNewLine"
+//     }
+// }
 
 /// Insert tab character (Tab key in insert mode)
 pub struct InsertTabCommand;
