@@ -31,12 +31,16 @@ impl ExCommandModeCommand {
 impl Command for ExCommandModeCommand {
     fn is_relevant(
         &self,
-        _key_event: KeyEvent,
+        key_event: KeyEvent,
         mode: EditorMode,
         _context: &CommandContext,
     ) -> bool {
-        // Only relevant in Command mode
-        mode == EditorMode::Command
+        // Only relevant in Command mode for specific keys
+        // Do NOT handle Enter - that should be handled by specific ex commands
+        mode == EditorMode::Command && matches!(
+            key_event.code,
+            KeyCode::Char(_) | KeyCode::Backspace | KeyCode::Esc
+        )
     }
 
     fn execute(
@@ -57,21 +61,6 @@ impl Command for ExCommandModeCommand {
                 context.app_state.backspace_ex_command()?;
                 // Update status bar to reflect the shortened buffer
                 Ok(vec![PostCommandAction::StatusBarUpdateRequired])
-            }
-
-            // Handle Enter to execute ex command
-            KeyCode::Enter => {
-                // The actual ex command execution is handled by specific ex commands
-                // like ExQuitCommand, ExSetCommand, etc. This just triggers the execution.
-                // The unified ex commands will check the buffer content and execute accordingly.
-                // If no specific ex command handles it, we clear the buffer and exit command mode.
-
-                let buffer = context.app_state.get_ex_command_buffer();
-                tracing::debug!("Ex command execute requested for buffer: '{}'", buffer);
-
-                // Don't clear buffer here - let specific ex commands handle it
-                // This allows the specific ex commands to process the buffer content
-                Ok(vec![])
             }
 
             // Handle Escape to cancel and return to previous mode
@@ -183,8 +172,8 @@ mod tests {
         let command = ExCommandModeCommand::new();
         let context = create_test_context();
 
-        // Test special keys that should be handled
-        let special_keys = [KeyCode::Backspace, KeyCode::Enter, KeyCode::Esc];
+        // Test special keys that should be handled (Enter is handled by specific ex commands)
+        let special_keys = [KeyCode::Backspace, KeyCode::Esc];
         for key_code in special_keys {
             let key_event = KeyEvent::new(key_code, KeyModifiers::NONE);
             assert!(
@@ -192,6 +181,13 @@ mod tests {
                 "Should be relevant for key {key_code:?}"
             );
         }
+        
+        // Enter should NOT be handled by this command
+        let enter_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        assert!(
+            !command.is_relevant(enter_event, EditorMode::Command, &context),
+            "Should NOT be relevant for Enter key (handled by specific ex commands)"
+        );
     }
 
     #[test]
@@ -235,9 +231,9 @@ mod tests {
         let command = ExCommandModeCommand::new();
         let context = create_test_context();
 
-        // Test that enter is relevant in command mode
+        // Test that enter is NOT relevant in command mode (handled by specific ex commands)
         let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
-        assert!(command.is_relevant(key_event, EditorMode::Command, &context));
+        assert!(!command.is_relevant(key_event, EditorMode::Command, &context));
     }
 
     #[test]
