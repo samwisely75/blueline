@@ -54,7 +54,7 @@ impl AppState {
             .set_http_status(status_code, status_message, duration_ms);
 
         // Update response buffer content using semantic operation
-        // self.pane_manager.set_response_content(&body);
+        self.pane_manager.set_response_content(&body);
 
         // Response content setting already resets cursor and scroll positions
 
@@ -79,7 +79,7 @@ impl AppState {
         self.response.set_body(content.clone());
 
         // Update response buffer using semantic operation
-        // self.pane_manager.set_response_content(&content);
+        self.pane_manager.set_response_content(&content);
 
         // Recalculate pane dimensions now that we have a response
         let (width, height) = self.pane_manager.terminal_dimensions;
