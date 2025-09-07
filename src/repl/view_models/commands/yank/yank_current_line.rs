@@ -32,13 +32,17 @@ impl YankCurrentLineCommand {
 }
 
 impl Command for YankCurrentLineCommand {
-    fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool {
+    fn is_relevant(
+        &self,
+        key_event: KeyEvent,
+        mode: EditorMode,
+        _context: &CommandContext,
+    ) -> bool {
         // Only relevant for 'y' key in YPrefix mode without modifiers
-        // Must be in Request pane (not read-only)
+        // Yank commands should work in both read-only and editable panes
         matches!(key_event.code, KeyCode::Char('y'))
             && key_event.modifiers.is_empty()
             && mode == EditorMode::YPrefix
-            && !context.is_read_only
     }
 
     fn execute(
@@ -141,7 +145,7 @@ mod tests {
         };
         assert!(!command.is_relevant(y_key, EditorMode::Visual, &context_visual));
 
-        // Test in read-only pane (Response pane) - should not be relevant
+        // Test in read-only pane (Response pane) - should be relevant for yank operations
         let context_readonly = CommandContext {
             current_mode: EditorMode::YPrefix,
             current_pane: Pane::Response,
@@ -149,7 +153,7 @@ mod tests {
             has_selection: false,
             ex_command_buffer: String::new(),
         };
-        assert!(!command.is_relevant(y_key, EditorMode::YPrefix, &context_readonly));
+        assert!(command.is_relevant(y_key, EditorMode::YPrefix, &context_readonly));
 
         // Test wrong key - should not be relevant
         let x_key = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE);
