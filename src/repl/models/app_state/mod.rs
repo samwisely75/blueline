@@ -8,6 +8,11 @@
 mod core;
 pub use core::{AppState, DisplayLineData};
 
+// Domain context modules
+mod editor_context;
+mod http_context;
+mod ui_context;
+
 // Business logic modules
 mod buffer_operations;
 mod cursor_manager;

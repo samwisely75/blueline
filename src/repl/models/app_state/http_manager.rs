@@ -25,7 +25,8 @@ impl AppState {
 
     /// Get session headers
     pub fn session_headers(&self) -> &HashMap<String, String> {
-        &self.http_session_headers
+        // Delegate to HTTP context for better domain separation
+        self.http_context().session_headers()
     }
 
     /// Get request text from buffer
