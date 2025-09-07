@@ -620,12 +620,12 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 // Show profile information directly (old ShowProfileCommand logic)
                 let profile_name = self.app_state.get_profile_name();
                 let profile_path = self.app_state.get_profile_path();
-                
+
                 tracing::info!("Showing profile: {} at {}", profile_name, profile_path);
-                
+
                 let message = format!("[{profile_name}] in {profile_path}");
                 self.app_state.set_status_message(message);
-                
+
                 self.process_view_events(vec![PostCommandAction::StatusBarUpdateRequired])?;
             }
             CommandEvent::SettingChangeRequested { setting, value } => {

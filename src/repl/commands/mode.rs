@@ -335,31 +335,30 @@ impl Command for AppendAfterCursorCommand {
 }
 */
 
-/// Handle all ex command mode input (typing, backspace, execute)
-pub struct ExCommandModeCommand;
+// /// Handle all ex command mode input (commenting out legacy doc comment) (typing, backspace, execute)
+// pub struct ExCommandModeCommand; // Migrated to unified_commands/mode/ex_command_mode.rs
 
-impl Command for ExCommandModeCommand {
-    fn is_relevant(&self, context: &CommandContext, _event: &KeyEvent) -> bool {
-        matches!(context.state.current_mode, EditorMode::Command)
-    }
-
-    fn execute(&self, event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        match event.code {
-            KeyCode::Char(ch) if event.modifiers == KeyModifiers::NONE => {
-                Ok(vec![CommandEvent::ExCommandCharRequested { ch }])
-            }
-            KeyCode::Backspace => Ok(vec![CommandEvent::ExCommandBackspaceRequested]),
-            KeyCode::Enter => Ok(vec![CommandEvent::ExCommandExecuteRequested]),
-            KeyCode::Esc => Ok(vec![CommandEvent::restore_previous_mode()]),
-            _ => Ok(vec![]),
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        "ExCommandMode"
-    }
-}
-
+// impl Command for ExCommandModeCommand { // Migrated to unified_commands/mode/ex_command_mode.rs
+//     fn is_relevant(&self, context: &CommandContext, _event: &KeyEvent) -> bool {
+//         matches!(context.state.current_mode, EditorMode::Command)
+//     }
+//
+//     fn execute(&self, event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         match event.code {
+//             KeyCode::Char(ch) if event.modifiers == KeyModifiers::NONE => {
+//                 Ok(vec![CommandEvent::ExCommandCharRequested { ch }])
+//             }
+//             KeyCode::Backspace => Ok(vec![CommandEvent::ExCommandBackspaceRequested]),
+//             KeyCode::Enter => Ok(vec![CommandEvent::ExCommandExecuteRequested]),
+//             KeyCode::Esc => Ok(vec![CommandEvent::restore_previous_mode()]),
+//             _ => Ok(vec![]),
+//         }
+//     }
+//
+//     fn name(&self) -> &'static str {
+//         "ExCommandMode"
+//     }
+// }
 /// Insert at beginning of Visual Block selection (Shift+I in Visual Block mode)
 pub struct VisualBlockInsertCommand;
 
@@ -476,68 +475,74 @@ mod tests {
         assert_eq!(result[1], CommandEvent::mode_change(EditorMode::Insert));
     }
 
-    #[test]
-    fn ex_command_mode_should_be_relevant_in_command_mode() {
-        let mut context = create_test_context();
-        context.state.current_mode = EditorMode::Command;
-        let cmd = ExCommandModeCommand;
-        let event = create_test_key_event(KeyCode::Char('q'));
+    //     #[test]
+    //     // fn ex_command_mode_ // Migrated to unified_commands/mode/ex_command_mode.rs
+    //     // should_be_relevant_in_command_mode() {
+    //         let mut context = create_test_context();
+    //         context.state.current_mode = EditorMode::Command;
+    //         // let cmd = ExCommandModeCommand; // Migrated to unified_commands/mode/ex_command_mode.rs
+    //         let event = create_test_key_event(KeyCode::Char('q'));
+    //
+    //         assert!(cmd.is_relevant(&context, &event));
+    //     }
 
-        assert!(cmd.is_relevant(&context, &event));
-    }
+    //     #[test]
+    //     // fn ex_command_mode_ // Migrated to unified_commands/mode/ex_command_mode.rs
+    //     // should_not_be_relevant_in_normal_mode() {
+    //         let context = create_test_context();
+    //         // let cmd = ExCommandModeCommand; // Migrated to unified_commands/mode/ex_command_mode.rs
+    //         let event = create_test_key_event(KeyCode::Char('q'));
+    //
+    //         assert!(!cmd.is_relevant(&context, &event));
+    //     }
 
-    #[test]
-    fn ex_command_mode_should_not_be_relevant_in_normal_mode() {
-        let context = create_test_context();
-        let cmd = ExCommandModeCommand;
-        let event = create_test_key_event(KeyCode::Char('q'));
+    //     #[test]
+    //     // fn ex_command_mode_ // Migrated to unified_commands/mode/ex_command_mode.rs
+    //     // should_handle_character_input() {
+    //         let context = create_test_context();
+    //         // let cmd = ExCommandModeCommand; // Migrated to unified_commands/mode/ex_command_mode.rs
+    //         let event = create_test_key_event(KeyCode::Char('q'));
+    //
+    //         let result = cmd.execute(event, &context).unwrap();
+    //         assert_eq!(result.len(), 1);
+    //         assert_eq!(result[0], CommandEvent::ExCommandCharRequested { ch: 'q' });
+    //     }
 
-        assert!(!cmd.is_relevant(&context, &event));
-    }
+    //     #[test]
+    //     // fn ex_command_mode_ // Migrated to unified_commands/mode/ex_command_mode.rs
+    //     // should_handle_backspace() {
+    //         let context = create_test_context();
+    //         // let cmd = ExCommandModeCommand; // Migrated to unified_commands/mode/ex_command_mode.rs
+    //         let event = create_test_key_event(KeyCode::Backspace);
+    //
+    //         let result = cmd.execute(event, &context).unwrap();
+    //         assert_eq!(result.len(), 1);
+    //         assert_eq!(result[0], CommandEvent::ExCommandBackspaceRequested);
+    //     }
 
-    #[test]
-    fn ex_command_mode_should_handle_character_input() {
-        let context = create_test_context();
-        let cmd = ExCommandModeCommand;
-        let event = create_test_key_event(KeyCode::Char('q'));
+    //     #[test]
+    //     // fn ex_command_mode_ // Migrated to unified_commands/mode/ex_command_mode.rs
+    //     // should_handle_enter() {
+    //         let context = create_test_context();
+    //         // let cmd = ExCommandModeCommand; // Migrated to unified_commands/mode/ex_command_mode.rs
+    //         let event = create_test_key_event(KeyCode::Enter);
+    //
+    //         let result = cmd.execute(event, &context).unwrap();
+    //         assert_eq!(result.len(), 1);
+    //         assert_eq!(result[0], CommandEvent::ExCommandExecuteRequested);
+    //     }
 
-        let result = cmd.execute(event, &context).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], CommandEvent::ExCommandCharRequested { ch: 'q' });
-    }
-
-    #[test]
-    fn ex_command_mode_should_handle_backspace() {
-        let context = create_test_context();
-        let cmd = ExCommandModeCommand;
-        let event = create_test_key_event(KeyCode::Backspace);
-
-        let result = cmd.execute(event, &context).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], CommandEvent::ExCommandBackspaceRequested);
-    }
-
-    #[test]
-    fn ex_command_mode_should_handle_enter() {
-        let context = create_test_context();
-        let cmd = ExCommandModeCommand;
-        let event = create_test_key_event(KeyCode::Enter);
-
-        let result = cmd.execute(event, &context).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], CommandEvent::ExCommandExecuteRequested);
-    }
-
-    #[test]
-    fn ex_command_mode_should_handle_escape() {
-        let context = create_test_context();
-        let cmd = ExCommandModeCommand;
-        let event = create_test_key_event(KeyCode::Esc);
-
-        let result = cmd.execute(event, &context).unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], CommandEvent::restore_previous_mode());
-    }
+    //     #[test]
+    //     // fn ex_command_mode_ // Migrated to unified_commands/mode/ex_command_mode.rs
+    //     // should_handle_escape() {
+    //         let context = create_test_context();
+    //         // let cmd = ExCommandModeCommand; // Migrated to unified_commands/mode/ex_command_mode.rs
+    //         let event = create_test_key_event(KeyCode::Esc);
+    //
+    //         let result = cmd.execute(event, &context).unwrap();
+    //         assert_eq!(result.len(), 1);
+    //         assert_eq!(result[0], CommandEvent::restore_previous_mode());
+    //     }
 
     // Legacy tests for InsertAtBeginningOfLineCommand - MIGRATED to unified_commands/mode/insert_at_beginning_of_line.rs
     // Comprehensive unit tests now exist in the unified implementation
