@@ -42,57 +42,90 @@ impl Command for MultiCursorTextInsertCommand {
         mode == EditorMode::VisualBlockInsert
             && !context.is_read_only
             && matches!(key_event.code, KeyCode::Char(_))
-            && key_event.modifiers.is_empty() // No modifiers for plain text input
+            && !key_event
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL)
+            && !key_event
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::ALT)
+        // Allow SHIFT for capital letters, or no modifiers for plain text
     }
 
     fn execute(
         &self,
-        _key_event: KeyEvent,
+        key_event: KeyEvent,
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
-        // ARCHITECTURAL CHALLENGE: We need the character from the KeyEvent, but execute() doesn't receive it.
-        //
-        // Current limitation: The Command trait's execute() method doesn't provide access to the original KeyEvent.
-        // This is a fundamental architectural issue for commands that need to handle arbitrary character input.
-        //
-        // For now, we'll implement a fallback approach that demonstrates the multi-cursor logic
-        // but doesn't provide the full functionality. This represents the core migration challenge
-        // that needs to be addressed at the architecture level.
+        // Extract the character from the KeyEvent
+        let KeyCode::Char(ch) = key_event.code else {
+            // This shouldn't happen as is_relevant checks for Char(_)
+            tracing::warn!("MultiCursorTextInsertCommand: Non-character key event received");
+            return Ok(vec![]);
+        };
 
-        tracing::warn!("MultiCursorTextInsertCommand: KeyEvent not available in execute() - architectural limitation");
+        // Convert character to string for insertion
+        let text = ch.to_string();
 
-        // Get cursor positions to validate we're in the right context
+        // Get cursor positions for multi-cursor insertion
         let cursor_positions = context.app_state.get_visual_block_insert_cursors().to_vec();
 
         if cursor_positions.is_empty() {
-            // No multi-cursor positions set, this shouldn't happen in VisualBlockInsert mode
-            tracing::warn!("No multi-cursor positions found in VisualBlockInsert mode");
-            context.app_state.set_status_message(
-                "Multi-cursor insertion: No cursor positions found".to_string(),
-            );
-            return Ok(vec![PostCommandAction::StatusBarUpdateRequired]);
+            // No multi-cursor positions set, fallback to regular insert
+            tracing::debug!("No multi-cursor positions found, falling back to regular insert");
+            context.app_state.insert_text(&text)?;
+            return Ok(vec![
+                PostCommandAction::CurrentAreaRedrawRequired,
+                PostCommandAction::ActiveCursorUpdateRequired,
+            ]);
         }
 
-        // Since we can't get the actual character typed, we can't perform the insertion.
-        // However, we can demonstrate that we successfully intercepted the character input
-        // and show how many cursor positions we would insert at.
-        let msg = format!(
-            "Multi-cursor insert ready: {} cursor positions (character unavailable due to architectural limitation)",
+        tracing::debug!(
+            "Multi-cursor text insert: '{}' at {} positions",
+            text,
             cursor_positions.len()
         );
 
-        context.app_state.set_status_message(msg);
+        // Save the original cursor position (currently unused but may be needed for future enhancements)
+        let _original_cursor = context.app_state.get_cursor_position();
 
-        tracing::info!(
-            "MultiCursorTextInsertCommand executed with {} cursor positions",
-            cursor_positions.len()
-        );
+        // Insert text at each cursor position
+        // We need to process from bottom to top to avoid position shifts
+        let mut sorted_positions = cursor_positions.clone();
+        sorted_positions.sort_by(|a, b| b.line.cmp(&a.line));
 
-        // Return appropriate PostCommandActions for UI updates
+        for position in sorted_positions.iter() {
+            // Move cursor to position and insert text
+            context.app_state.set_cursor_position(*position)?;
+
+            // Insert text character by character
+            for ch in text.chars() {
+                context.app_state.insert_char(ch)?;
+            }
+        }
+
+        // Update all cursor positions to reflect the inserted text
+        let text_len = text.chars().count(); // Handle multi-byte characters correctly
+        let updated_positions: Vec<LogicalPosition> = cursor_positions
+            .iter()
+            .map(|pos| LogicalPosition::new(pos.line, pos.column + text_len))
+            .collect();
+
+        // Set cursor to the first updated position (top-most line)
+        if let Some(first_pos) = updated_positions.first() {
+            context.app_state.set_cursor_position(*first_pos)?;
+        }
+
+        context
+            .app_state
+            .update_visual_block_insert_cursors(updated_positions);
+
+        tracing::debug!("Multi-cursor text insert completed, updated cursor positions");
+
+        // Return PostCommandActions for UI updates
         Ok(vec![
+            PostCommandAction::CurrentAreaRedrawRequired,
+            PostCommandAction::ActiveCursorUpdateRequired,
             PostCommandAction::StatusBarUpdateRequired,
-            // Note: We would normally also include CurrentAreaRedrawRequired and ActiveCursorUpdateRequired
-            // after performing the actual insertion, but we can't insert without the character
         ])
     }
 
@@ -261,7 +294,7 @@ mod tests {
         };
         assert!(!command.is_relevant(enter_event, EditorMode::VisualBlockInsert, &context_valid));
 
-        // Test character with modifiers - should not be relevant (reserved for other commands)
+        // Test character with CONTROL modifier - should not be relevant
         let char_ctrl_event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL);
         assert!(!command.is_relevant(
             char_ctrl_event,
@@ -269,8 +302,9 @@ mod tests {
             &context_valid
         ));
 
+        // Test character with SHIFT modifier - should be relevant (for capital letters)
         let char_shift_event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT);
-        assert!(!command.is_relevant(
+        assert!(command.is_relevant(
             char_shift_event,
             EditorMode::VisualBlockInsert,
             &context_valid
@@ -293,18 +327,22 @@ mod tests {
             services: &mut services,
         };
 
-        // Should succeed but return status bar update indicating no cursor positions
+        // Should succeed and fall back to regular insert when no cursor positions are set
         let result = command.execute(
-            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()),
             &mut context,
         );
 
         assert!(result.is_ok());
         let events = result.unwrap();
         assert!(!events.is_empty());
+        // Should have redraw and cursor update events from fallback to regular insert
         assert!(events
             .iter()
-            .any(|e| matches!(e, PostCommandAction::StatusBarUpdateRequired)));
+            .any(|e| matches!(e, PostCommandAction::CurrentAreaRedrawRequired)));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, PostCommandAction::ActiveCursorUpdateRequired)));
     }
 
     #[test]

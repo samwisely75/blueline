@@ -1,4 +1,4 @@
-//! # Exit Visual Block Insert Command
+//! # Exit Visual Block Insert Mode Command
 //!
 //! Implements vim's escape from Visual Block Insert mode.
 //! This command handles the Escape key in VisualBlockInsert mode, applying
@@ -23,16 +23,16 @@ use crate::repl::view_models::post_command_actions::PostCommandAction;
 /// 6. Clears status messages
 /// 7. Emits PostCommandActions for UI updates
 #[derive(Default)]
-pub struct ExitVisualBlockInsertCommand;
+pub struct ExitVisualBlockInsertModeCommand;
 
-impl ExitVisualBlockInsertCommand {
-    /// Create new ExitVisualBlockInsertCommand
+impl ExitVisualBlockInsertModeCommand {
+    /// Create new ExitVisualBlockInsertModeCommand
     pub fn new() -> Self {
         Self
     }
 }
 
-impl Command for ExitVisualBlockInsertCommand {
+impl Command for ExitVisualBlockInsertModeCommand {
     fn is_relevant(
         &self,
         key_event: KeyEvent,
@@ -88,7 +88,7 @@ impl Command for ExitVisualBlockInsertCommand {
     }
 
     fn name(&self) -> &'static str {
-        "ExitVisualBlockInsertCommand"
+        "ExitVisualBlockInsertModeCommand"
     }
 }
 
@@ -102,14 +102,14 @@ mod tests {
 
     #[test]
     fn exit_visual_block_insert_command_should_return_correct_name() {
-        let command = ExitVisualBlockInsertCommand::new();
-        assert_eq!(command.name(), "ExitVisualBlockInsertCommand");
+        let command = ExitVisualBlockInsertModeCommand::new();
+        assert_eq!(command.name(), "ExitVisualBlockInsertModeCommand");
     }
 
     #[test]
     fn exit_visual_block_insert_command_should_be_relevant_for_escape_in_visual_block_insert_mode()
     {
-        let command = ExitVisualBlockInsertCommand::new();
+        let command = ExitVisualBlockInsertModeCommand::new();
 
         // Create test context for VisualBlockInsert mode
         let context = CommandContext {
@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn exit_visual_block_insert_command_should_not_be_relevant_in_wrong_conditions() {
-        let command = ExitVisualBlockInsertCommand::new();
+        let command = ExitVisualBlockInsertModeCommand::new();
 
         // Test in Normal mode - should not be relevant
         let context_normal = CommandContext {
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn exit_visual_block_insert_command_should_exit_mode_successfully() {
-        let command = ExitVisualBlockInsertCommand::new();
+        let command = ExitVisualBlockInsertModeCommand::new();
         let mut app_state = AppState::new();
         let mut services = Services::new();
 
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn exit_visual_block_insert_command_should_handle_no_cursors_gracefully() {
-        let command = ExitVisualBlockInsertCommand::new();
+        let command = ExitVisualBlockInsertModeCommand::new();
         let mut app_state = AppState::new();
         let mut services = Services::new();
 
@@ -294,4 +294,7 @@ mod tests {
 }
 
 // Auto-register this command using the inventory system
-register_command!(ExitVisualBlockInsertCommand, "ExitVisualBlockInsertCommand");
+register_command!(
+    ExitVisualBlockInsertModeCommand,
+    "ExitVisualBlockInsertModeCommand"
+);

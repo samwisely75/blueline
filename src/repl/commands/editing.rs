@@ -67,6 +67,9 @@ impl Command for InsertCharCommand {
 //     }
 // }
 
+// LEGACY: InsertTabCommand migrated to unified command system
+// See src/repl/unified_commands/editing/insert_tab.rs
+/*
 /// Insert tab character (Tab key in insert mode)
 pub struct InsertTabCommand;
 
@@ -99,6 +102,7 @@ impl Command for InsertTabCommand {
         "InsertTab"
     }
 }
+*/
 
 /// Delete character before cursor (Backspace in insert mode)
 pub struct DeleteCharCommand;
@@ -312,6 +316,9 @@ mod tests {
         assert!(cmd.is_relevant(&context, &event));
     }
 
+    // LEGACY: InsertTabCommand tests migrated to unified command system
+    // See src/repl/unified_commands/editing/insert_tab.rs
+    /*
     #[test]
     fn insert_tab_should_insert_tab_character_when_expandtab_off() {
         let mut context = create_test_context();
@@ -328,7 +335,9 @@ mod tests {
             panic!("Expected TextInsertRequested event");
         }
     }
+    */
 
+    /*
     #[test]
     fn insert_tab_should_insert_spaces_when_expandtab_on() {
         let mut context = create_test_context();
@@ -345,7 +354,9 @@ mod tests {
             panic!("Expected TextInsertRequested event");
         }
     }
+    */
 
+    /*
     #[test]
     fn insert_tab_should_use_correct_tab_width() {
         let mut context = create_test_context();
@@ -362,6 +373,7 @@ mod tests {
             panic!("Expected TextInsertRequested event");
         }
     }
+    */
 
     #[test]
     fn delete_char_at_cursor_should_not_be_relevant_in_normal_mode() {
@@ -392,6 +404,9 @@ mod tests {
         }
     }
 
+    // LEGACY: Tab command tests migrated to unified command system
+    // See src/repl/unified_commands/editing/insert_tab.rs
+    /*
     // Tab command tests
     #[test]
     fn insert_tab_should_be_relevant_for_tab_key_in_insert_mode() {
@@ -401,7 +416,9 @@ mod tests {
 
         assert!(cmd.is_relevant(&context, &event));
     }
+    */
 
+    /*
     #[test]
     fn insert_tab_should_not_be_relevant_in_normal_mode() {
         let mut context = create_test_context();
@@ -411,7 +428,9 @@ mod tests {
 
         assert!(!cmd.is_relevant(&context, &event));
     }
+    */
 
+    /*
     #[test]
     fn insert_tab_should_not_be_relevant_with_modifiers() {
         let context = create_test_context();
@@ -420,7 +439,9 @@ mod tests {
 
         assert!(!cmd.is_relevant(&context, &event));
     }
+    */
 
+    /*
     #[test]
     fn insert_tab_should_execute_tab_character_insertion() {
         let context = create_test_context();
@@ -436,4 +457,5 @@ mod tests {
             panic!("Expected TextInsertRequested event");
         }
     }
+    */
 }

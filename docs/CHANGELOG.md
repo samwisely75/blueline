@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.14] - 2025-09-07
+
+### Fixed
+
+- **Visual Block Insert**: Fixed multi-line insertion in Visual Block modes
+  - Visual Block Insert (I), Append (A), and Change (c) now properly affect all selected lines
+  - Fixed command precedence issue where InsertCharCommand was incorrectly handling VisualBlockInsert mode
+  - MultiCursorTextInsertCommand now exclusively handles character insertion in VisualBlockInsert mode
+  - Both commands now properly handle SHIFT modifier for capital letters
+
 ## [0.45.13] - 2025-09-06
 
 ### Changed

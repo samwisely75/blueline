@@ -386,31 +386,8 @@ impl Command for VisualBlockInsertCommand {
     }
 }
 
-/// Append at end of Visual Block selection (Shift+A in Visual Block mode)
-pub struct VisualBlockAppendCommand;
-
-impl Command for VisualBlockAppendCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        context.state.current_mode == EditorMode::VisualBlock
-            && context.state.current_pane == Pane::Request
-            && (
-                // Case 1: Uppercase 'A' without modifiers
-                (matches!(event.code, KeyCode::Char('A')) && event.modifiers.is_empty())
-                // Case 2: Lowercase 'a' with SHIFT modifier
-                || (matches!(event.code, KeyCode::Char('a')) && event.modifiers.contains(KeyModifiers::SHIFT))
-                // Case 3: Uppercase 'A' with SHIFT modifier (some terminals send this)
-                || (matches!(event.code, KeyCode::Char('A')) && event.modifiers.contains(KeyModifiers::SHIFT))
-            )
-    }
-
-    fn execute(&self, _event: KeyEvent, _context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        Ok(vec![CommandEvent::visual_block_append()])
-    }
-
-    fn name(&self) -> &'static str {
-        "VisualBlockAppend"
-    }
-}
+// MIGRATED: VisualBlockAppendCommand moved to unified_commands/visual/visual_block_append.rs
+// The unified implementation provides the same Shift+A functionality in Visual Block mode with modern architecture
 
 #[cfg(test)]
 mod tests {

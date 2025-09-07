@@ -1,8 +1,8 @@
 //! # Insert Character Command
 //!
-//! This command handles character insertion in Insert and VisualBlockInsert modes.
+//! This command handles character insertion in Insert mode only.
 //! It processes printable characters typed by the user and inserts them at the
-//! current cursor position.
+//! current cursor position. VisualBlockInsert mode is handled by MultiCursorTextInsertCommand.
 
 use anyhow::Result;
 use crossterm::event::KeyEvent;
@@ -16,8 +16,9 @@ use crossterm::event::{KeyCode, KeyModifiers};
 /// Command to handle character insertion
 ///
 /// This command handles the insertion of printable characters when the editor
-/// is in Insert or VisualBlockInsert mode. It supports all printable characters
-/// including ASCII, Unicode, and special characters like space.
+/// is in Insert mode. It supports all printable characters including ASCII,
+/// Unicode, and special characters like space. VisualBlockInsert mode is
+/// handled by the MultiCursorTextInsertCommand for multi-line insertion.
 pub struct InsertCharCommand;
 
 impl InsertCharCommand {
@@ -35,9 +36,9 @@ impl Default for InsertCharCommand {
 
 impl Command for InsertCharCommand {
     fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool {
-        // Handle regular character input in Insert mode
-        // Must be in Insert or VisualBlockInsert mode, in Request pane, not read-only
-        let correct_mode = matches!(mode, EditorMode::Insert | EditorMode::VisualBlockInsert);
+        // Handle regular character input ONLY in Insert mode
+        // VisualBlockInsert mode is handled by MultiCursorTextInsertCommand
+        let correct_mode = mode == EditorMode::Insert;
         let correct_pane = context.current_pane == Pane::Request;
         let not_read_only = !context.is_read_only;
 
@@ -150,12 +151,13 @@ mod tests {
     }
 
     #[test]
-    fn insert_char_command_should_be_relevant_in_visual_block_insert_mode() {
+    fn insert_char_command_should_not_be_relevant_in_visual_block_insert_mode() {
+        // VisualBlockInsert mode is now handled by MultiCursorTextInsertCommand
         let command = InsertCharCommand::new();
         let context = create_test_context();
 
         let key_event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE);
-        assert!(command.is_relevant(key_event, EditorMode::VisualBlockInsert, &context));
+        assert!(!command.is_relevant(key_event, EditorMode::VisualBlockInsert, &context));
     }
 
     #[test]

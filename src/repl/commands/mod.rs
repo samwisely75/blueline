@@ -117,7 +117,7 @@ impl CommandRegistry {
             // Box::new(EnterVisualLineModeCommand), // Migrated to unified_commands
             // Box::new(EnterVisualBlockModeCommand), // Migrated to unified_commands/mode/enter_visual_block_mode.rs
             // Box::new(VisualBlockInsertCommand), // Migrated to unified_commands/visual/visual_block_insert.rs
-            Box::new(VisualBlockAppendCommand),
+            // Box::new(VisualBlockAppendCommand), // Migrated to unified_commands/visual/visual_block_append.rs
             // Box::new(AppendAfterCursorCommand), // Migrated to unified_commands/mode/append_after_cursor.rs
             // Box::new(AppendAtEndOfLineCommand), // Migrated to unified_commands/mode/append_at_end_of_line.rs
             // Box::new(InsertAtBeginningOfLineCommand), // Migrated to unified_commands/mode/insert_at_beginning_of_line.rs
@@ -131,8 +131,8 @@ impl CommandRegistry {
             // Editing commands
             // InsertCharCommand removed - migrated to unified commands
             // Box::new(InsertNewLineCommand), // Migrated to unified_commands/editing/insert_newline.rs
-            Box::new(InsertTabCommand),
-            Box::new(DeleteCharCommand),
+            // Box::new(InsertTabCommand), // Migrated to unified_commands/editing/insert_tab.rs
+            // Box::new(DeleteCharCommand), // Migrated to unified_commands/editing/delete_char.rs
             Box::new(DeleteCharAtCursorCommand),
             // YankCommand migrated to unified_commands/yank.rs as YankSelectionCommand
             // DeleteSelectionCommand migrated to unified_commands/delete_selection.rs
@@ -144,7 +144,7 @@ impl CommandRegistry {
             Box::new(EnterYPrefixCommand),
             Box::new(YankCurrentLineCommand),
             Box::new(CancelPrefixModeCommand),
-            Box::new(ChangeSelectionCommand),
+            // Box::new(ChangeSelectionCommand), // Migrated to unified_commands/visual/visual_block_change.rs
             Box::new(PasteAfterCommand),
             // Box::new(PasteAtCursorCommand), // Migrated to unified_commands (PasteBeforeCommand)
         ];
