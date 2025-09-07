@@ -9,11 +9,9 @@
 
 // Navigation command modules
 pub mod beginning_of_line;
-pub mod cancel_g_prefix;
 pub mod end_key;
 pub mod end_of_line;
 pub mod end_of_word;
-pub mod enter_g_prefix;
 pub mod ex_goto_line;
 pub mod go_to_bottom;
 pub mod go_to_top;
@@ -34,11 +32,9 @@ pub mod switch_pane;
 
 // Re-export all command types using wildcards to prevent merge conflicts
 pub use beginning_of_line::*;
-pub use cancel_g_prefix::*;
 pub use end_key::*;
 pub use end_of_line::*;
 pub use end_of_word::*;
-pub use enter_g_prefix::*;
 pub use ex_goto_line::*;
 pub use go_to_bottom::*;
 pub use go_to_top::*;
