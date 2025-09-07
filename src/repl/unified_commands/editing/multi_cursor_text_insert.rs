@@ -42,7 +42,13 @@ impl Command for MultiCursorTextInsertCommand {
         mode == EditorMode::VisualBlockInsert
             && !context.is_read_only
             && matches!(key_event.code, KeyCode::Char(_))
-            && key_event.modifiers.is_empty() // No modifiers for plain text input
+            && !key_event
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL)
+            && !key_event
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::ALT)
+        // Allow SHIFT for capital letters, or no modifiers for plain text
     }
 
     fn execute(
@@ -288,7 +294,7 @@ mod tests {
         };
         assert!(!command.is_relevant(enter_event, EditorMode::VisualBlockInsert, &context_valid));
 
-        // Test character with modifiers - should not be relevant (reserved for other commands)
+        // Test character with CONTROL modifier - should not be relevant
         let char_ctrl_event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL);
         assert!(!command.is_relevant(
             char_ctrl_event,
@@ -296,8 +302,9 @@ mod tests {
             &context_valid
         ));
 
+        // Test character with SHIFT modifier - should be relevant (for capital letters)
         let char_shift_event = KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT);
-        assert!(!command.is_relevant(
+        assert!(command.is_relevant(
             char_shift_event,
             EditorMode::VisualBlockInsert,
             &context_valid
