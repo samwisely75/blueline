@@ -10,7 +10,6 @@ use super::{EditorMode, PaneCapabilities};
 use crate::repl::models::coordinates::geometry::Position;
 use crate::repl::models::events::ModelEvent;
 use crate::repl::models::{LogicalPosition, LogicalRange};
-use crate::repl::view_models::PostCommandAction;
 
 use super::PaneState;
 
@@ -174,17 +173,16 @@ impl PaneState {
     /// - `tab_width`: Tab stop width for character display
     ///
     /// # Returns
-    /// Vector of PostCommandActions to update the display, or empty if operation not allowed
     pub fn insert_char(
         &mut self,
         ch: char,
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<PostCommandAction> {
+    ) {
         // Check if editing is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
-            return vec![]; // Editing not allowed on this pane
+            return; // Editing not allowed on this pane
         }
 
         // Insert character into buffer
@@ -212,11 +210,6 @@ impl PaneState {
         }
 
         // Return events for view updates - caller will handle cursor visibility
-        vec![
-            PostCommandAction::RequestContentChanged,
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ]
     }
 
     /// Delete character before cursor with capability checking
@@ -232,16 +225,15 @@ impl PaneState {
     /// - `tab_width`: Tab stop width for formatting
     ///
     /// # Returns
-    /// Vector of PostCommandActions to update the display, or empty if operation not allowed
     pub fn delete_char_before_cursor(
         &mut self,
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<PostCommandAction> {
+    ) {
         // Check if editing is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
-            return vec![]; // Editing not allowed on this pane
+            return; // Editing not allowed on this pane
         }
 
         let current_cursor = self.buffer.cursor();
@@ -258,7 +250,6 @@ impl PaneState {
             self.join_with_previous_line(current_cursor, content_width, wrap_enabled, tab_width)
         } else {
             tracing::debug!("🗑️  No deletion performed - at start of buffer");
-            vec![]
         }
     }
 
@@ -268,10 +259,10 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<PostCommandAction> {
+    ) {
         // Check if editing is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
-            return vec![]; // Editing not allowed on this pane
+            return; // Editing not allowed on this pane
         }
 
         let current_cursor = self.buffer.cursor();
@@ -296,11 +287,9 @@ impl PaneState {
                 self.join_with_next_line(current_cursor, content_width, wrap_enabled, tab_width)
             } else {
                 tracing::debug!("🗑️  No deletion performed - at end of buffer");
-                vec![] // Nothing to delete (at end of buffer)
             }
         } else {
             tracing::debug!("🗑️  No deletion performed - invalid line");
-            vec![]
         }
     }
 
@@ -310,10 +299,10 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<PostCommandAction> {
+    ) {
         // Check if editing is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::EDITABLE) {
-            return vec![]; // Editing not allowed on this pane
+            return; // Editing not allowed on this pane
         }
 
         let current_cursor = self.buffer.cursor();
@@ -338,11 +327,9 @@ impl PaneState {
                 tracing::debug!(
                     "🗑️  No deletion performed - at end of line (Visual Block Insert mode)"
                 );
-                vec![] // No line joining allowed
             }
         } else {
             tracing::debug!("🗑️  No deletion performed - invalid line");
-            vec![]
         }
     }
 
@@ -760,7 +747,7 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<PostCommandAction> {
+    ) {
         tracing::debug!("🗑️  Deleting character before cursor in same line");
 
         let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
@@ -774,7 +761,7 @@ impl PaneState {
             .content_mut()
             .delete_range(pane_type, delete_range)
         else {
-            return vec![];
+            return;
         };
 
         // Move cursor left after successful deletion
@@ -788,12 +775,6 @@ impl PaneState {
 
         // Rebuild display cache and sync cursor
         self.rebuild_display_and_sync_cursor(new_cursor, content_width, wrap_enabled, tab_width);
-
-        vec![
-            PostCommandAction::RequestContentChanged,
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::CurrentAreaRedrawRequired,
-        ]
     }
 
     /// Delete a character after cursor within the current line
@@ -803,7 +784,7 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<PostCommandAction> {
+    ) {
         tracing::debug!("🗑️  Deleting character after cursor in same line");
 
         let delete_start = LogicalPosition::new(current_cursor.line, current_cursor.column);
@@ -817,7 +798,7 @@ impl PaneState {
             .content_mut()
             .delete_range(pane_type, delete_range)
         else {
-            return vec![];
+            return;
         };
 
         // Cursor stays at same position after forward deletion
@@ -833,12 +814,6 @@ impl PaneState {
             wrap_enabled,
             tab_width,
         );
-
-        vec![
-            PostCommandAction::RequestContentChanged,
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::CurrentAreaRedrawRequired,
-        ]
     }
 
     /// Join current line with previous line (backspace at beginning of line)
@@ -848,7 +823,7 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<PostCommandAction> {
+    ) {
         tracing::debug!("🗑️  Joining current line with previous line");
 
         // Get length of previous line to position cursor correctly
@@ -871,7 +846,7 @@ impl PaneState {
             .content_mut()
             .delete_range(pane_type, delete_range)
         else {
-            return vec![];
+            return;
         };
 
         // Position cursor at end of previous line (where lines joined)
@@ -882,12 +857,6 @@ impl PaneState {
 
         // Rebuild display cache and sync cursor
         self.rebuild_display_and_sync_cursor(new_cursor, content_width, wrap_enabled, tab_width);
-
-        vec![
-            PostCommandAction::RequestContentChanged,
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::CurrentAreaRedrawRequired,
-        ]
     }
 
     /// Join current line with next line (delete at end of line)
@@ -897,7 +866,7 @@ impl PaneState {
         content_width: usize,
         wrap_enabled: bool,
         tab_width: usize,
-    ) -> Vec<PostCommandAction> {
+    ) {
         tracing::debug!("🗑️  Joining current line with next line");
 
         // Delete the newline character between current and next line
@@ -912,7 +881,7 @@ impl PaneState {
             .content_mut()
             .delete_range(pane_type, delete_range)
         else {
-            return vec![];
+            return;
         };
 
         // Cursor stays at same position
@@ -925,12 +894,6 @@ impl PaneState {
             wrap_enabled,
             tab_width,
         );
-
-        vec![
-            PostCommandAction::RequestContentChanged,
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::CurrentAreaRedrawRequired,
-        ]
     }
 
     /// Helper to rebuild display cache and sync cursor position
@@ -1086,13 +1049,9 @@ impl PaneState {
 
     /// Insert text block-wise at specific positions (for block paste operations)
     /// This inserts each line at the same column on successive lines without affecting cursor
-    pub fn insert_block_wise(
-        &mut self,
-        start_position: LogicalPosition,
-        block_lines: &[&str],
-    ) -> Vec<PostCommandAction> {
+    pub fn insert_block_wise(&mut self, start_position: LogicalPosition, block_lines: &[&str]) {
         if block_lines.is_empty() {
-            return vec![];
+            return;
         }
 
         let pane_type = self.buffer.pane();
@@ -1158,10 +1117,6 @@ impl PaneState {
         self.sync_display_cursor_with_logical();
 
         // Return view events for full redraw to ensure the block paste is visible
-        vec![
-            PostCommandAction::CurrentAreaRedrawRequired,
-            PostCommandAction::ActiveCursorUpdateRequired,
-        ]
     }
 }
 

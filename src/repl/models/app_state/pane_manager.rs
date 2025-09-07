@@ -29,14 +29,13 @@
 //! 1. Layout Management: Computes pane dimensions and content width based on terminal size
 //! 2. Pane Switching: Manages current pane state and provides semantic pane operations
 //! 3. Pure Delegation: Forwards business logic operations to appropriate PaneState instances
-//! 4. Event Coordination: Aggregates PostCommandActions from PaneState operations for rendering
+//! 4. Event Coordination: Coordinates state changes for rendering
 //! 5. Settings Management: Handles display settings (wrap, line numbers, tab width) that affect all panes
 
 use crate::repl::models::coordinates::geometry::Position;
+use crate::repl::models::pane_state::PaneState;
 use crate::repl::models::pane_state::{EditorMode, Pane, PaneCapabilities};
-use crate::repl::models::pane_state::{PaneState, VisualSelectionRestoreResult};
 use crate::repl::models::LogicalPosition;
-use crate::repl::view_models::PostCommandAction;
 
 /// Type alias for visual selection state to reduce complexity
 type VisualSelectionState = (
@@ -46,7 +45,7 @@ type VisualSelectionState = (
 );
 
 /// Type alias for delete operation result to reduce complexity
-type DeleteResult = Option<(String, Vec<PostCommandAction>)>;
+type DeleteResult = Option<String>;
 
 /// PaneManager encapsulates all pane-related state and operations
 /// This eliminates the need for array indexing operations throughout the codebase
@@ -127,50 +126,21 @@ impl PaneManager {
     }
 
     /// Switch to other area (semantic operation - no pane exposure)
-    pub fn switch_to_other_area(&mut self) -> Vec<PostCommandAction> {
-        let old_pane = self.current_pane;
+    pub fn switch_to_other_area(&mut self) {
         self.current_pane = match self.current_pane {
             Pane::Request => Pane::Response,
             Pane::Response => Pane::Request,
         };
-
-        if old_pane != self.current_pane {
-            vec![
-                PostCommandAction::FocusSwitched,
-                PostCommandAction::StatusBarUpdateRequired,
-                PostCommandAction::ActiveCursorUpdateRequired,
-            ]
-        } else {
-            vec![]
-        }
     }
 
     /// Switch to Request pane
-    pub fn switch_to_request_pane(&mut self) -> Vec<PostCommandAction> {
-        if self.current_pane != Pane::Request {
-            self.current_pane = Pane::Request;
-            vec![
-                PostCommandAction::FocusSwitched,
-                PostCommandAction::StatusBarUpdateRequired,
-                PostCommandAction::ActiveCursorUpdateRequired,
-            ]
-        } else {
-            vec![]
-        }
+    pub fn switch_to_request_pane(&mut self) {
+        self.current_pane = Pane::Request;
     }
 
     /// Switch to Response pane
-    pub fn switch_to_response_pane(&mut self) -> Vec<PostCommandAction> {
-        if self.current_pane != Pane::Response {
-            self.current_pane = Pane::Response;
-            vec![
-                PostCommandAction::FocusSwitched,
-                PostCommandAction::StatusBarUpdateRequired,
-                PostCommandAction::ActiveCursorUpdateRequired,
-            ]
-        } else {
-            vec![]
-        }
+    pub fn switch_to_response_pane(&mut self) {
+        self.current_pane = Pane::Response;
     }
 
     /// Check if currently in Request pane
@@ -215,19 +185,19 @@ impl PaneManager {
     }
 
     /// Start visual selection in current area
-    pub fn start_visual_selection(&mut self) -> Vec<PostCommandAction> {
+    pub fn start_visual_selection(&mut self) {
         // Delegate to current pane
         self.panes[self.current_pane].start_visual_selection()
     }
 
     /// End visual selection in current area
-    pub fn end_visual_selection(&mut self) -> Vec<PostCommandAction> {
+    pub fn end_visual_selection(&mut self) {
         // Delegate to current pane
         self.panes[self.current_pane].end_visual_selection()
     }
 
     /// Update visual selection end position
-    pub fn update_visual_selection(&mut self, position: LogicalPosition) -> Vec<PostCommandAction> {
+    pub fn update_visual_selection(&mut self, position: LogicalPosition) {
         // Delegate to current pane
         self.panes[self.current_pane].update_visual_selection(position)
     }
@@ -239,38 +209,25 @@ impl PaneManager {
 
     /// Update visual selection during cursor movement if active
     /// Helper method to be called from cursor movement operations
-    pub fn update_visual_selection_on_cursor_move(
-        &mut self,
-        new_position: LogicalPosition,
-    ) -> Option<PostCommandAction> {
-        self.panes[self.current_pane].update_visual_selection_on_cursor_move(new_position)
+    pub fn update_visual_selection_on_cursor_move(&mut self, new_position: LogicalPosition) {
+        self.panes[self.current_pane].update_visual_selection_on_cursor_move(new_position);
     }
 
     /// Restore the last visual selection (for 'gv' command)
-    /// Returns the mode and view events if restoration successful
-    pub fn restore_last_visual_selection(&mut self) -> VisualSelectionRestoreResult {
+    /// Returns the mode if restoration successful
+    pub fn restore_last_visual_selection(&mut self) -> Option<EditorMode> {
         self.panes[self.current_pane].restore_last_visual_selection()
     }
 
     /// Delete selected text from the current pane
-    /// Returns (deleted_text, view_events) if successful
+    /// Returns deleted_text if successful
     pub fn delete_selected_text(&mut self) -> DeleteResult {
-        if let Some((deleted_text, model_event)) =
+        if let Some((deleted_text, _model_event)) =
             self.panes[self.current_pane].delete_selected_text()
         {
-            // Process the model event and return appropriate view events
-            let view_events = match model_event {
-                crate::repl::models::events::ModelEvent::TextDeleted { .. } => {
-                    // Rebuild display cache for the affected pane
-                    let visibility_events = self.rebuild_display_caches_and_sync();
-                    let mut events = vec![PostCommandAction::CurrentAreaRedrawRequired];
-                    events.extend(visibility_events);
-                    events
-                }
-                _ => vec![PostCommandAction::CurrentAreaRedrawRequired],
-            };
-
-            Some((deleted_text, view_events))
+            // Rebuild display cache for the affected pane
+            self.rebuild_display_caches_and_sync();
+            Some(deleted_text)
         } else {
             // No selection to delete
             None
@@ -278,12 +235,8 @@ impl PaneManager {
     }
 
     /// Insert text block-wise at specific positions (for block paste operations)
-    pub fn insert_block_wise(
-        &mut self,
-        start_position: LogicalPosition,
-        block_lines: &[&str],
-    ) -> Vec<PostCommandAction> {
-        self.panes[self.current_pane].insert_block_wise(start_position, block_lines)
+    pub fn insert_block_wise(&mut self, start_position: LogicalPosition, block_lines: &[&str]) {
+        self.panes[self.current_pane].insert_block_wise(start_position, block_lines);
     }
 
     /// Get the length of the current line in the current pane
@@ -485,7 +438,7 @@ impl PaneManager {
     }
 
     /// Rebuild display caches for both panes and sync cursors (complete rebuild process)
-    pub fn rebuild_display_caches_and_sync(&mut self) -> Vec<PostCommandAction> {
+    pub fn rebuild_display_caches_and_sync(&mut self) {
         tracing::debug!(
             "🔄 PaneManager::rebuild_display_caches_and_sync: starting with wrap_enabled={}",
             self.wrap_enabled
@@ -535,28 +488,8 @@ impl PaneManager {
     }
 
     /// Ensure cursor is visible in current area
-    pub fn ensure_current_cursor_visible(
-        &mut self,
-        content_width: usize,
-    ) -> Vec<PostCommandAction> {
-        let result = self.panes[self.current_pane].ensure_cursor_visible(content_width);
-
-        if result.vertical_changed || result.horizontal_changed {
-            // For horizontal scrolling, use horizontal offsets; for vertical scrolling, use vertical offsets
-            // If both changed, prioritize horizontal since it's more common in response navigation
-            let (old_offset, new_offset) = if result.horizontal_changed {
-                (result.old_horizontal_offset, result.new_horizontal_offset)
-            } else {
-                (result.old_vertical_offset, result.new_vertical_offset)
-            };
-
-            vec![PostCommandAction::CurrentAreaScrollChanged {
-                old_offset,
-                new_offset,
-            }]
-        } else {
-            vec![]
-        }
+    pub fn ensure_current_cursor_visible(&mut self, content_width: usize) {
+        self.panes[self.current_pane].ensure_cursor_visible(content_width);
     }
 
     /// Get text content for current pane
@@ -590,31 +523,26 @@ impl PaneManager {
     ///
     /// This method delegates to the current pane's insert_char() method,
     /// which handles capability checking and text insertion logic.
-    pub fn insert_char(&mut self, ch: char) -> Vec<PostCommandAction> {
+    pub fn insert_char(&mut self, ch: char) {
         let content_width = self.get_content_width();
 
         // Delegate to current pane with capability checking
-        let mut events = self.panes[self.current_pane].insert_char(
+        self.panes[self.current_pane].insert_char(
             ch,
             content_width,
             self.wrap_enabled,
             self.tab_width,
         );
 
-        // Ensure cursor is visible after insertion if events were generated
-        if !events.is_empty() {
-            let visibility_events = self.ensure_current_cursor_visible(content_width);
-            events.extend(visibility_events);
-        }
-
-        events
+        // Ensure cursor is visible after insertion
+        self.ensure_current_cursor_visible(content_width);
     }
 
     /// Delete character before cursor using generic delegation
     ///
     /// This method delegates to the current pane's delete_char_before_cursor() method,
     /// which handles capability checking and deletion logic.
-    pub fn delete_char_before_cursor(&mut self) -> Vec<PostCommandAction> {
+    pub fn delete_char_before_cursor(&mut self) {
         let content_width = self.get_content_width();
 
         // Delegate to current pane with capability checking
@@ -622,11 +550,11 @@ impl PaneManager {
             content_width,
             self.wrap_enabled,
             self.tab_width,
-        )
+        );
     }
 
     /// Delete character after cursor (generic method for any pane)
-    pub fn delete_char_after_cursor(&mut self) -> Vec<PostCommandAction> {
+    pub fn delete_char_after_cursor(&mut self) {
         let content_width = self.get_content_width();
 
         // Delegate to current pane with capability checking
@@ -634,11 +562,11 @@ impl PaneManager {
             content_width,
             self.wrap_enabled,
             self.tab_width,
-        )
+        );
     }
 
     /// Delete character after cursor without line joining (safe for Visual Block Insert mode)
-    pub fn delete_char_after_cursor_visual_block_safe(&mut self) -> Vec<PostCommandAction> {
+    pub fn delete_char_after_cursor_visual_block_safe(&mut self) {
         let content_width = self.get_content_width();
 
         // Delegate to current pane with line joining disabled
@@ -646,7 +574,7 @@ impl PaneManager {
             content_width,
             self.wrap_enabled,
             self.tab_width,
-        )
+        );
     }
 
     /// Cut (delete and yank) character at cursor position, returning deleted character
@@ -696,26 +624,23 @@ impl PaneManager {
     }
 
     /// Set cursor position in current area
-    pub fn set_current_cursor_position(
-        &mut self,
-        position: LogicalPosition,
-    ) -> Vec<PostCommandAction> {
-        self.panes[self.current_pane].set_current_cursor_position(position)
+    pub fn set_current_cursor_position(&mut self, position: LogicalPosition) {
+        self.panes[self.current_pane].set_current_cursor_position(position);
     }
 
     /// Clear editable content (semantic operation)
-    pub fn clear_editable_content(&mut self) -> Vec<PostCommandAction> {
+    pub fn clear_editable_content(&mut self) {
         self.panes[Pane::Request].clear_editable_content()
     }
 
     /// Set Request pane content
-    pub fn set_request_content(&mut self, text: &str) -> Vec<PostCommandAction> {
+    pub fn set_request_content(&mut self, text: &str) {
         self.panes[Pane::Request].set_request_content(text)
     }
 
     /// Set Response pane content
-    pub fn set_response_content(&mut self, text: &str) -> Vec<PostCommandAction> {
-        let events = self.panes[Pane::Response].set_response_content(text);
+    pub fn set_response_content(&mut self, text: &str) {
+        self.panes[Pane::Response].set_response_content(text);
 
         // Rebuild display cache to ensure rendering sees the updated content
         let content_width = if self.show_line_numbers {
@@ -728,8 +653,6 @@ impl PaneManager {
             self.wrap_enabled,
             self.tab_width,
         );
-
-        events
     }
 
     /// Get display cache for current pane
@@ -761,19 +684,13 @@ impl PaneManager {
     }
 
     /// Sync display cursor with logical cursor for current pane
-    pub fn sync_current_display_cursor_with_logical(&mut self) -> Vec<PostCommandAction> {
-        let _result = self.panes[self.current_pane].sync_display_cursor_with_logical();
-        vec![]
+    pub fn sync_current_display_cursor_with_logical(&mut self) {
+        self.panes[self.current_pane].sync_display_cursor_with_logical();
     }
 
     /// Set display cursor position for current area
-    pub fn set_current_display_cursor(&mut self, position: Position) -> Vec<PostCommandAction> {
-        let _result = self.panes[self.current_pane].set_display_cursor(position);
-
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
+    pub fn set_current_display_cursor(&mut self, position: Position) {
+        self.panes[self.current_pane].set_display_cursor(position);
 
         // CRITICAL FIX: Update visual selection end if in visual mode (same pattern as other cursor movements)
         if self.panes[self.current_pane]
@@ -782,55 +699,37 @@ impl PaneManager {
         {
             let new_cursor_pos = self.panes[self.current_pane].buffer.cursor();
             self.panes[self.current_pane].visual_selection_end = Some(new_cursor_pos);
-            events.push(PostCommandAction::CurrentAreaRedrawRequired); // Redraw for visual selection
             tracing::debug!(
                 "Display cursor movement updated visual selection end to {:?}",
                 new_cursor_pos
             );
         }
-
-        events
     }
 
     /// Handle horizontal scrolling in current area
-    pub fn scroll_current_horizontally(
-        &mut self,
-        direction: i32,
-        amount: usize,
-    ) -> Vec<PostCommandAction> {
-        let result = self.panes[self.current_pane].scroll_horizontally(direction, amount);
-
-        let mut events = vec![PostCommandAction::CurrentAreaScrollChanged {
-            old_offset: result.old_offset,
-            new_offset: result.new_offset,
-        }];
-
-        if result.cursor_moved {
-            events.push(PostCommandAction::ActiveCursorUpdateRequired);
-        }
-
-        events
+    pub fn scroll_current_horizontally(&mut self, direction: i32, amount: usize) {
+        self.panes[self.current_pane].scroll_horizontally(direction, amount);
     }
 
     /// Move cursor to next word in current pane
-    pub fn move_cursor_to_next_word(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_next_word(&mut self) {
         // Delegate to current pane with capability checking
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_to_next_word(content_width)
+        self.panes[self.current_pane].move_cursor_to_next_word(content_width);
     }
 
     /// Move cursor to previous word in current pane
-    pub fn move_cursor_to_previous_word(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_previous_word(&mut self) {
         // Delegate to current pane with capability checking
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_to_previous_word(content_width)
+        self.panes[self.current_pane].move_cursor_to_previous_word(content_width);
     }
 
     /// Move cursor to end of word in current pane
-    pub fn move_cursor_to_end_of_word(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_end_of_word(&mut self) {
         // Delegate to current pane with capability checking
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_to_end_of_word(content_width)
+        self.panes[self.current_pane].move_cursor_to_end_of_word(content_width);
     }
 
     /// Get content width for current pane (temporary - will be moved to internal calculation)
@@ -847,9 +746,9 @@ impl PaneManager {
     /// Move cursor left in current area
     ///
     /// Delegates to PaneState for business logic with capability checking.
-    pub fn move_cursor_left(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_left(&mut self) {
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_left(content_width)
+        self.panes[self.current_pane].move_cursor_left(content_width);
     }
 
     /// Move cursor right in current area
@@ -859,35 +758,35 @@ impl PaneManager {
     /// 2. If not, check if cursor can move to next line (line wrap navigation)
     /// 3. Perform the actual cursor movement using character-aware positioning
     /// 4. Sync display cursor with logical cursor and update visual selections
-    pub fn move_cursor_right(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_right(&mut self) {
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_right(content_width)
+        self.panes[self.current_pane].move_cursor_right(content_width);
     }
 
     /// Move cursor up in current area
     ///
     /// Delegates to PaneState for business logic with capability checking.
-    pub fn move_cursor_up(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_up(&mut self) {
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_up(content_width)
+        self.panes[self.current_pane].move_cursor_up(content_width);
     }
 
     /// Move cursor down in current area
     ///
     /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_down() directly for new code.
-    pub fn move_cursor_down(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_down(&mut self) {
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_down(content_width)
+        self.panes[self.current_pane].move_cursor_down(content_width);
     }
 
     /// Move cursor to start of current line
     ///
     /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_start_of_line() directly for new code.
-    pub fn move_cursor_to_start_of_line(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_start_of_line(&mut self) {
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_to_start_of_line(content_width)
+        self.panes[self.current_pane].move_cursor_to_start_of_line(content_width);
     }
 
     /// Move cursor to end of current line for append (A command)
@@ -895,36 +794,36 @@ impl PaneManager {
     ///
     /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_line_end_for_append() directly for new code.
-    pub fn move_cursor_to_line_end_for_append(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_line_end_for_append(&mut self) {
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_to_line_end_for_append(content_width)
+        self.panes[self.current_pane].move_cursor_to_line_end_for_append(content_width);
     }
 
     /// Move cursor to end of current line
     ///
     /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_end_of_line() directly for new code.
-    pub fn move_cursor_to_end_of_line(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_end_of_line(&mut self) {
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_to_end_of_line(content_width)
+        self.panes[self.current_pane].move_cursor_to_end_of_line(content_width);
     }
 
     /// Move cursor to start of document
     ///
     /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_document_start() directly for new code.
-    pub fn move_cursor_to_document_start(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_document_start(&mut self) {
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_to_document_start(content_width)
+        self.panes[self.current_pane].move_cursor_to_document_start(content_width);
     }
 
     /// Move cursor to end of document
     ///
     /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_document_end() directly for new code.
-    pub fn move_cursor_to_document_end(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_document_end(&mut self) {
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_to_document_end(content_width)
+        self.panes[self.current_pane].move_cursor_to_document_end(content_width);
     }
 
     /// Move cursor to specific line number (1-based)
@@ -932,29 +831,29 @@ impl PaneManager {
     ///
     /// Delegates to PaneState for business logic with capability checking.
     /// Use PaneState::move_cursor_to_line() directly for new code.
-    pub fn move_cursor_to_line(&mut self, line_number: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_line(&mut self, line_number: usize) {
         let content_width = self.get_content_width();
-        self.panes[self.current_pane].move_cursor_to_line(line_number, content_width)
+        self.panes[self.current_pane].move_cursor_to_line(line_number, content_width);
     }
 
     /// Move cursor down one page (Ctrl+f)
-    pub fn move_cursor_page_down(&mut self) -> Vec<PostCommandAction> {
-        self.panes[self.current_pane].move_cursor_page_down()
+    pub fn move_cursor_page_down(&mut self) {
+        self.panes[self.current_pane].move_cursor_page_down();
     }
 
     /// Move cursor up one page (Ctrl+b)
-    pub fn move_cursor_page_up(&mut self) -> Vec<PostCommandAction> {
-        self.panes[self.current_pane].move_cursor_page_up()
+    pub fn move_cursor_page_up(&mut self) {
+        self.panes[self.current_pane].move_cursor_page_up();
     }
 
     /// Move cursor down half a page (Ctrl+d)
-    pub fn move_cursor_half_page_down(&mut self) -> Vec<PostCommandAction> {
-        self.panes[self.current_pane].move_cursor_half_page_down()
+    pub fn move_cursor_half_page_down(&mut self) {
+        self.panes[self.current_pane].move_cursor_half_page_down();
     }
 
     /// Move cursor up half a page (Ctrl+u)
-    pub fn move_cursor_half_page_up(&mut self) -> Vec<PostCommandAction> {
-        self.panes[self.current_pane].move_cursor_half_page_up()
+    pub fn move_cursor_half_page_up(&mut self) {
+        self.panes[self.current_pane].move_cursor_half_page_up();
     }
 
     /// Calculate pane boundaries for rendering
@@ -1073,26 +972,14 @@ mod tests {
         );
 
         // Perform page down
-        let events = manager.move_cursor_page_down();
+        manager.move_cursor_page_down();
 
-        // Debug: print events if empty
-        if events.is_empty() {
-            tracing::warn!("Test: Page down returned empty events");
-        }
-
-        tracing::debug!("Test: events.len()={}", events.len());
+        // Page down operation completed
 
         // Check if there's actually room to page down
         if line_count > pane_height {
             // Should have generated events for cursor update
-            assert!(
-                !events.is_empty(),
-                "Expected events for page down but got none. pane_height={pane_height}, line_count={line_count}"
-            );
-            assert!(events.iter().any(|e| matches!(
-                e,
-                crate::repl::view_models::PostCommandAction::ActiveCursorUpdateRequired
-            )));
+            // Page down operation completed
 
             // Cursor should have moved down by page size (pane height)
             let new_cursor = manager.get_current_cursor_position();
@@ -1118,10 +1005,10 @@ mod tests {
         manager.set_request_content(content);
 
         // Try to page down - should not move since we're already at the last possible position
-        let events = manager.move_cursor_page_down();
+        manager.move_cursor_page_down();
 
         // Should return empty events since no movement occurred
-        assert!(events.is_empty());
+        // No events to check
 
         // Cursor should stay at line 0
         let cursor = manager.get_current_cursor_position();
@@ -1135,10 +1022,10 @@ mod tests {
         // Empty content (use default empty content)
 
         // Try to page down
-        let events = manager.move_cursor_page_down();
+        manager.move_cursor_page_down();
 
         // Should return empty events since there's no content
-        assert!(events.is_empty());
+        // No events to check
 
         // Cursor should remain at origin
         let cursor = manager.get_current_cursor_position();
@@ -1170,10 +1057,10 @@ mod tests {
         tracing::debug!("Test (doublebyte): line_count={}", line_count);
 
         // Perform page down
-        let events = manager.move_cursor_page_down();
+        manager.move_cursor_page_down();
 
         // Should have moved the cursor
-        assert!(!events.is_empty());
+        // Operation completed
 
         // Cursor should have moved to a new position
         let new_cursor = manager.get_current_cursor_position();
@@ -1225,8 +1112,8 @@ mod tests {
         );
 
         // Move cursor down to "Short" line (line 1) - should clamp to end of short line
-        let events = manager.move_cursor_down();
-        assert!(!events.is_empty());
+        manager.move_cursor_down();
+        // Operation completed
 
         let cursor_after_short = manager.get_current_cursor_position();
         tracing::debug!("After moving to short line: {:?}", cursor_after_short);
@@ -1246,8 +1133,8 @@ mod tests {
         );
 
         // Move down again to medium line - should be positioned further right than on short line
-        let events = manager.move_cursor_down();
-        assert!(!events.is_empty());
+        manager.move_cursor_down();
+        // Operation completed
 
         let cursor_after_medium = manager.get_current_cursor_position();
         tracing::debug!("After moving to medium line: {:?}", cursor_after_medium);
@@ -1260,8 +1147,8 @@ mod tests {
         );
 
         // Move down to very short line "X" - should clamp to position 0 (only one character)
-        let events = manager.move_cursor_down();
-        assert!(!events.is_empty());
+        manager.move_cursor_down();
+        // Operation completed
 
         let cursor_after_x = manager.get_current_cursor_position();
         tracing::debug!("After moving to 'X' line: {:?}", cursor_after_x);
@@ -1281,8 +1168,8 @@ mod tests {
         );
 
         // Move down to the last long line - should restore to near original position
-        let events = manager.move_cursor_down();
-        assert!(!events.is_empty());
+        manager.move_cursor_down();
+        // Operation completed
 
         let cursor_after_long = manager.get_current_cursor_position();
         tracing::debug!("After moving to long line: {:?}", cursor_after_long);
@@ -1352,17 +1239,10 @@ mod tests {
         );
 
         // Perform page up
-        let events = manager.move_cursor_page_up();
+        manager.move_cursor_page_up();
 
         // Should have generated events for cursor update
-        assert!(
-            !events.is_empty(),
-            "Expected events for page up but got none. pane_height={pane_height}, line_count={line_count}"
-        );
-        assert!(events.iter().any(|e| matches!(
-            e,
-            crate::repl::view_models::PostCommandAction::ActiveCursorUpdateRequired
-        )));
+        // Page up operation completed
 
         // Cursor should have moved up by page size (pane height)
         let new_cursor = manager.get_current_cursor_position();
@@ -1399,10 +1279,10 @@ mod tests {
         assert_eq!(initial_cursor.line, 0);
 
         // Try to page up - should not move since we're already at the top
-        let events = manager.move_cursor_page_up();
+        manager.move_cursor_page_up();
 
         // Should return empty events since no movement occurred
-        assert!(events.is_empty());
+        // No events to check
 
         // Cursor should stay at line 0
         let cursor = manager.get_current_cursor_position();
@@ -1416,10 +1296,10 @@ mod tests {
         // Empty content (use default empty content)
 
         // Try to page up
-        let events = manager.move_cursor_page_up();
+        manager.move_cursor_page_up();
 
         // Should return empty events since there's no content
-        assert!(events.is_empty());
+        // No events to check
 
         // Cursor should remain at origin
         let cursor = manager.get_current_cursor_position();
@@ -1471,8 +1351,8 @@ mod tests {
         }
 
         // Perform page up
-        let events = manager.move_cursor_page_up();
-        assert!(!events.is_empty());
+        manager.move_cursor_page_up();
+        // Operation completed
 
         // Virtual column should be preserved
         assert_eq!(
@@ -1544,8 +1424,8 @@ mod tests {
         );
 
         // Perform page down - this should jump multiple lines down
-        let events = manager.move_cursor_page_down();
-        assert!(!events.is_empty(), "Page down should produce events");
+        manager.move_cursor_page_down();
+        // Operation completed
 
         let cursor_after_page_down = manager.get_current_cursor_position();
         tracing::debug!("After page down: {:?}", cursor_after_page_down);
@@ -1626,8 +1506,8 @@ mod tests {
         );
 
         // Perform page down - should jump to the Japanese line and snap to character boundary
-        let events = manager.move_cursor_page_down();
-        assert!(!events.is_empty(), "Page down should produce events");
+        manager.move_cursor_page_down();
+        // Operation completed
 
         let cursor_after_page_down = manager.get_current_cursor_position();
         tracing::debug!("After page down with DBCS: {:?}", cursor_after_page_down);
@@ -1708,10 +1588,10 @@ mod tests {
         );
 
         // Perform page down - should land on a shorter line and clamp the column
-        let events = manager.move_cursor_page_down();
+        manager.move_cursor_page_down();
 
         // Should have moved
-        assert!(!events.is_empty());
+        // Operation completed
 
         // Get the new cursor position
         let new_cursor = manager.get_current_cursor_position();

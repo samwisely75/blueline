@@ -8,16 +8,15 @@
 
 use crate::repl::models::coordinates::geometry::Position;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
-use crate::repl::view_models::PostCommandAction;
 
 use super::PaneState;
 
 impl PaneState {
     /// Move cursor left with capability checking and visual selection support
-    pub fn move_cursor_left(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_left(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         let current_display_pos = self.display_cursor;
@@ -55,7 +54,7 @@ impl PaneState {
         if moved {
             // Sync logical cursor with new display position
             let new_display_pos = self.display_cursor;
-            let visual_update = if let Some(logical_pos) = self
+            if let Some(logical_pos) = self
                 .display_cache
                 .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
@@ -63,37 +62,19 @@ impl PaneState {
                 self.buffer.set_cursor(new_logical_pos);
 
                 // Update visual selection if active
-                self.update_visual_selection_on_cursor_move(new_logical_pos)
-            } else {
-                None
-            };
-
-            let mut events = vec![
-                PostCommandAction::ActiveCursorUpdateRequired,
-                PostCommandAction::PositionIndicatorUpdateRequired,
-                PostCommandAction::CurrentAreaRedrawRequired,
-            ];
-
-            // Add visual selection update event if needed
-            if let Some(visual_event) = visual_update {
-                events.push(visual_event);
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
             }
 
-            // Ensure cursor is visible and add visibility events
-            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
+            // Ensure cursor is visible
+            self.ensure_cursor_visible(content_width);
         }
     }
 
     /// Move cursor right with capability checking and visual selection support
-    pub fn move_cursor_right(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_right(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         let current_display_pos = self.display_cursor;
@@ -165,7 +146,7 @@ impl PaneState {
         if moved {
             // Sync logical cursor with new display position
             let new_display_pos = self.display_cursor;
-            let visual_update = if let Some(logical_pos) = self
+            if let Some(logical_pos) = self
                 .display_cache
                 .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
@@ -173,37 +154,19 @@ impl PaneState {
                 self.buffer.set_cursor(new_logical_pos);
 
                 // Update visual selection if active
-                self.update_visual_selection_on_cursor_move(new_logical_pos)
-            } else {
-                None
-            };
-
-            let mut events = vec![
-                PostCommandAction::ActiveCursorUpdateRequired,
-                PostCommandAction::PositionIndicatorUpdateRequired,
-                PostCommandAction::CurrentAreaRedrawRequired,
-            ];
-
-            // Add visual selection update event if needed
-            if let Some(visual_event) = visual_update {
-                events.push(visual_event);
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
             }
 
-            // Ensure cursor is visible and add visibility events
-            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
+            // Ensure cursor is visible
+            self.ensure_cursor_visible(content_width);
         }
     }
 
     /// Move cursor up with capability checking and virtual column support
-    pub fn move_cursor_up(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_up(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         let current_display_pos = self.display_cursor;
@@ -232,7 +195,7 @@ impl PaneState {
             self.display_cursor = new_display_pos;
 
             // Sync logical cursor with new display position
-            let visual_update = if let Some(logical_pos) = self
+            if let Some(logical_pos) = self
                 .display_cache
                 .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
@@ -240,37 +203,19 @@ impl PaneState {
                 self.buffer.set_cursor(new_logical_pos);
 
                 // Update visual selection if active
-                self.update_visual_selection_on_cursor_move(new_logical_pos)
-            } else {
-                None
-            };
-
-            let mut events = vec![
-                PostCommandAction::ActiveCursorUpdateRequired,
-                PostCommandAction::PositionIndicatorUpdateRequired,
-                PostCommandAction::CurrentAreaRedrawRequired,
-            ];
-
-            // Add visual selection update event if needed
-            if let Some(visual_event) = visual_update {
-                events.push(visual_event);
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
             }
 
-            // Ensure cursor is visible and add visibility events
-            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
+            // Ensure cursor is visible
+            self.ensure_cursor_visible(content_width);
         }
     }
 
     /// Move cursor down with capability checking and virtual column support
-    pub fn move_cursor_down(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_down(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         let current_display_pos = self.display_cursor;
@@ -294,7 +239,7 @@ impl PaneState {
             self.display_cursor = new_display_pos;
 
             // Sync logical cursor with new display position
-            let visual_update = if let Some(logical_pos) = self
+            if let Some(logical_pos) = self
                 .display_cache
                 .display_to_logical_position(new_display_pos.row, new_display_pos.col)
             {
@@ -302,40 +247,19 @@ impl PaneState {
                 self.buffer.set_cursor(new_logical_pos);
 
                 // Update visual selection if active
-                self.update_visual_selection_on_cursor_move(new_logical_pos)
-            } else {
-                None
-            };
-
-            let mut events = vec![
-                PostCommandAction::ActiveCursorUpdateRequired,
-                PostCommandAction::PositionIndicatorUpdateRequired,
-                PostCommandAction::CurrentAreaRedrawRequired,
-            ];
-
-            // Add visual selection update event if needed
-            if let Some(visual_event) = visual_update {
-                events.push(visual_event);
+                self.update_visual_selection_on_cursor_move(new_logical_pos);
             }
 
-            // Ensure cursor is visible and add visibility events
-            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
+            // Ensure cursor is visible
+            self.ensure_cursor_visible(content_width);
         }
     }
 
     /// Set cursor to specific position with capability checking
-    pub fn set_current_cursor_position(
-        &mut self,
-        position: LogicalPosition,
-    ) -> Vec<PostCommandAction> {
+    pub fn set_current_cursor_position(&mut self, position: LogicalPosition) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         // Clamp position to valid bounds (same as original implementation)
@@ -369,17 +293,9 @@ impl PaneState {
             self.visual_selection_end = Some(clamped_position);
         }
 
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
-
-        // Ensure cursor is visible and add visibility events
+        // Ensure cursor is visible
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.ensure_cursor_visible(content_width);
     }
 }
 
@@ -405,7 +321,7 @@ mod tests {
 
         // Set cursor to specific position (line 1, column 4)
         let target_position = LogicalPosition::new(1, 4);
-        let _ = pane_state.set_current_cursor_position(target_position);
+        pane_state.set_current_cursor_position(target_position);
 
         // Verify that virtual column matches the cursor position
         assert_eq!(pane_state.virtual_column, 4,
@@ -429,13 +345,13 @@ mod tests {
 
         // Set cursor to position on longer line
         let target_position = LogicalPosition::new(1, 7); // "longer |line"
-        let _ = pane_state.set_current_cursor_position(target_position);
+        pane_state.set_current_cursor_position(target_position);
 
         // Verify virtual column is set
         assert_eq!(pane_state.virtual_column, 7);
 
         // Move down to shorter line - should clamp but preserve virtual column intent
-        let _ = pane_state.move_cursor_down(80);
+        pane_state.move_cursor_down(80);
 
         // Virtual column should still be 7 (preserved for future movements)
         assert_eq!(

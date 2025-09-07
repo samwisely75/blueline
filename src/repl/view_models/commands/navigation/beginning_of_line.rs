@@ -65,18 +65,20 @@ impl Command for BeginningOfLineCommand {
         _key_event: KeyEvent,
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
-        // Get the cursor movement events from pane manager
-        let events = context
+        // Move cursor to start of line
+        context
             .app_state
             .pane_manager
             .move_cursor_to_start_of_line();
 
-        tracing::debug!(
-            "BeginningOfLineCommand executed, generated {} events",
-            events.len()
-        );
+        tracing::debug!("BeginningOfLineCommand executed");
 
-        Ok(events)
+        // Generate view update events based on what this command did
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

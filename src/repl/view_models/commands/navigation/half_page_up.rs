@@ -80,14 +80,15 @@ impl Command for HalfPageUpCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Use the pane manager's half page up method which returns PostCommandActions
-        let events = context.app_state.pane_manager.move_cursor_half_page_up();
+        context.app_state.pane_manager.move_cursor_half_page_up();
 
-        tracing::debug!(
-            "HalfPageUpCommand executed, generated {} events",
-            events.len()
-        );
+        tracing::debug!("HalfPageUpCommand executed, generated {} events", 0);
 
-        Ok(events)
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

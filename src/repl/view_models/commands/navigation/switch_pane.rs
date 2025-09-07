@@ -53,13 +53,13 @@ impl Command for SwitchPaneCommand {
 
         tracing::debug!("SwitchPaneCommand: switching from {:?} pane", current_pane);
 
-        // Switch to the other pane using AppState method
+        // Switch to the other pane
         context.app_state.switch_to_other_pane();
 
         let new_pane = context.app_state.get_current_pane();
         tracing::debug!("SwitchPaneCommand: switched to {:?} pane", new_pane);
 
-        // Return appropriate PostCommandActions for UI updates
+        // Command determines what view updates are needed for pane switching
         Ok(vec![
             PostCommandAction::FocusSwitched,
             PostCommandAction::StatusBarUpdateRequired,

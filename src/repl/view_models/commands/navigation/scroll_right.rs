@@ -51,18 +51,17 @@ impl Command for ScrollRightCommand {
     ) -> Result<Vec<PostCommandAction>> {
         // Use PaneManager's scroll_current_horizontally business logic
         // Direction: 1 (right), Amount: 5 columns
-        let events = context
+        context
             .app_state
             .pane_manager
             .scroll_current_horizontally(1, Self::SCROLL_AMOUNT);
 
         tracing::debug!(
-            "ScrollRightCommand executed, scrolled right by {} columns, generated {} events",
-            Self::SCROLL_AMOUNT,
-            events.len()
+            "ScrollRightCommand executed, scrolled right by {} columns",
+            Self::SCROLL_AMOUNT
         );
 
-        Ok(events)
+        Ok(vec![PostCommandAction::CurrentAreaRedrawRequired])
     }
 
     fn name(&self) -> &'static str {

@@ -5,7 +5,7 @@
 use super::AppState;
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::LogicalPosition;
-use crate::repl::view_models::PostCommandAction;
+
 use anyhow::Result;
 
 /// Type alias for visual selection state to reduce complexity
@@ -42,7 +42,7 @@ impl AppState {
         // CURSOR & SCROLL PULLBACK: When switching from Insert to Normal/Visual mode,
         // pull cursor back if it's at the "new character position" (past last character)
         // and also pull back horizontal scrolling if needed
-        let mut mode_change_events = Vec::new();
+        // Mode change completed
         if old_mode == EditorMode::Insert
             && matches!(
                 mode,
@@ -71,8 +71,7 @@ impl AppState {
                         );
 
                         // Pull cursor back by moving left
-                        let pullback_events = self.pane_manager.move_cursor_left();
-                        mode_change_events.extend(pullback_events);
+                        self.pane_manager.move_cursor_left();
 
                         // After cursor pullback, check if we need to pull back horizontal scrolling too
                         let new_cursor_pos = self.pane_manager.get_current_display_cursor();
@@ -89,10 +88,8 @@ impl AppState {
 
                             // Trigger horizontal scroll adjustment by calling ensure_cursor_visible
                             // This will automatically pull back the scroll since we're now in Normal mode
-                            let scroll_events = self
-                                .pane_manager
+                            self.pane_manager
                                 .ensure_current_cursor_visible(content_width);
-                            mode_change_events.extend(scroll_events);
                         }
                     }
                 }
@@ -125,7 +122,6 @@ impl AppState {
         }
 
         // Handle visual mode selection state using PaneManager
-        let mut events = mode_change_events; // Start with any cursor pullback events
         let entering_visual_mode = matches!(
             mode,
             EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
@@ -139,21 +135,15 @@ impl AppState {
             // Entering any visual mode from non-visual mode
             // Only start a new selection if one doesn't already exist (e.g., not restoring via 'gv')
             if !self.pane_manager.has_visual_selection() {
-                events.extend(self.pane_manager.start_visual_selection());
+                self.pane_manager.start_visual_selection();
             }
         } else if exiting_visual_mode && !entering_visual_mode {
             // Exiting visual mode to non-visual mode
-            events.extend(self.pane_manager.end_visual_selection());
+            self.pane_manager.end_visual_selection();
         }
         // Note: switching between visual modes (v ↔ V ↔ Ctrl+V) maintains selection
 
-        // Add standard mode change events
-        events.extend([
-            PostCommandAction::StatusBarUpdateRequired,
-            PostCommandAction::ActiveCursorUpdateRequired,
-        ]);
-
-        let _ = self.emit_view_event(events);
+        // Mode change complete
 
         tracing::info!(
             "Successfully changed mode from {:?} to {:?} for current pane",
@@ -174,12 +164,12 @@ impl AppState {
     }
 
     /// Start a new visual selection at current cursor
-    pub fn start_visual_selection(&mut self) -> Vec<PostCommandAction> {
+    pub fn start_visual_selection(&mut self) {
         self.pane_manager.start_visual_selection()
     }
 
     /// Update visual selection to new position
-    pub fn update_visual_selection(&mut self, position: LogicalPosition) -> Vec<PostCommandAction> {
+    pub fn update_visual_selection(&mut self, position: LogicalPosition) {
         self.pane_manager.update_visual_selection(position)
     }
 
@@ -190,8 +180,7 @@ impl AppState {
 
     /// Clear visual selection (used by yank/delete operations)
     pub fn clear_visual_selection(&mut self) -> Result<()> {
-        let events = self.pane_manager.end_visual_selection();
-        self.emit_view_event(events)?;
+        self.pane_manager.end_visual_selection();
         Ok(())
     }
 }

@@ -68,22 +68,19 @@ impl Command for GoToBottomCommand {
         _key_event: KeyEvent,
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
-        let mut actions = Vec::new();
-
         // Move cursor to document end
-        let cursor_actions = context.app_state.pane_manager.move_cursor_to_document_end();
-        actions.extend(cursor_actions);
+        context.app_state.pane_manager.move_cursor_to_document_end();
 
         // No mode change needed - stay in current mode (Normal or Visual)
 
-        actions.push(PostCommandAction::StatusBarUpdateRequired);
+        tracing::debug!("GoToBottomCommand executed: moved to document end");
 
-        tracing::debug!(
-            "GoToBottomCommand executed: moved to document end, generated {} actions",
-            actions.len()
-        );
-
-        Ok(actions)
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+            PostCommandAction::StatusBarUpdateRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {
@@ -263,7 +260,7 @@ mod tests {
 
         let actions = result.unwrap();
 
-        // Should generate at least one action (StatusBarUpdateRequired)
+        // Should generate at least one action
         assert!(!actions.is_empty());
 
         // Should stay in Normal mode (no mode change)

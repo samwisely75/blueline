@@ -44,7 +44,7 @@ impl Command for ExSetNumberCommand {
                     .app_state
                     .pane_manager
                     .set_line_numbers_visible(true);
-                let visibility_events = context
+                context
                     .app_state
                     .pane_manager
                     .rebuild_display_caches_and_sync();
@@ -52,11 +52,11 @@ impl Command for ExSetNumberCommand {
 
                 tracing::info!("Line numbers enabled");
 
-                let mut events = vec![
+                let events = vec![
                     PostCommandAction::FullRedrawRequired,
                     PostCommandAction::StatusBarUpdateRequired,
                 ];
-                events.extend(visibility_events);
+                // events.extend(visibility_events);
                 Ok(events)
             }
             "set number off" => {
@@ -70,7 +70,7 @@ impl Command for ExSetNumberCommand {
                     .app_state
                     .pane_manager
                     .set_line_numbers_visible(false);
-                let visibility_events = context
+                context
                     .app_state
                     .pane_manager
                     .rebuild_display_caches_and_sync();
@@ -80,11 +80,11 @@ impl Command for ExSetNumberCommand {
 
                 tracing::info!("Line numbers disabled");
 
-                let mut events = vec![
+                let events = vec![
                     PostCommandAction::FullRedrawRequired,
                     PostCommandAction::StatusBarUpdateRequired,
                 ];
-                events.extend(visibility_events);
+                // events.extend(visibility_events);
                 Ok(events)
             }
             "set number!" => {
@@ -99,7 +99,7 @@ impl Command for ExSetNumberCommand {
                     .app_state
                     .pane_manager
                     .set_line_numbers_visible(!current_visible);
-                let visibility_events = context
+                context
                     .app_state
                     .pane_manager
                     .rebuild_display_caches_and_sync();
@@ -117,11 +117,11 @@ impl Command for ExSetNumberCommand {
                     !current_visible
                 );
 
-                let mut events = vec![
+                let events = vec![
                     PostCommandAction::FullRedrawRequired,
                     PostCommandAction::StatusBarUpdateRequired,
                 ];
-                events.extend(visibility_events);
+                // events.extend(visibility_events);
                 Ok(events)
             }
             _ => {

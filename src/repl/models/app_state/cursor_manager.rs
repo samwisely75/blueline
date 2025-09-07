@@ -21,110 +21,110 @@ impl AppState {
 
     /// Move cursor left in current area
     pub fn move_cursor_left(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_left();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_left();
+        Ok(())
     }
 
     /// Move cursor right in current area
     pub fn move_cursor_right(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_right();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_right();
+        Ok(())
     }
 
     /// Move cursor up in current area
     pub fn move_cursor_up(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_up();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_up();
+        Ok(())
     }
 
     /// Move cursor down in current area
     pub fn move_cursor_down(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_down();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_down();
+        Ok(())
     }
 
     /// Move cursor to end of current line
     pub fn move_cursor_to_end_of_line(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_to_end_of_line();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_to_end_of_line();
+        Ok(())
     }
 
     /// Move cursor to end of current line for append (A command)
     pub fn move_cursor_to_line_end_for_append(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_to_line_end_for_append();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_to_line_end_for_append();
+        Ok(())
     }
 
     /// Move cursor to start of current line
     pub fn move_cursor_to_start_of_line(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_to_start_of_line();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_to_start_of_line();
+        Ok(())
     }
 
     /// Move cursor to start of document
     pub fn move_cursor_to_document_start(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_to_document_start();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_to_document_start();
+        Ok(())
     }
 
     /// Move cursor to end of document
     pub fn move_cursor_to_document_end(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_to_document_end();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_to_document_end();
+        Ok(())
     }
 
     /// Set cursor position in current area
     pub fn set_cursor_position(&mut self, position: LogicalPosition) -> Result<()> {
-        let events = self.pane_manager.set_current_cursor_position(position);
-        self.emit_view_event(events)
+        self.pane_manager.set_current_cursor_position(position);
+        Ok(())
     }
 
     /// Move cursor to next word in current area
     pub fn move_cursor_to_next_word(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_to_next_word();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_to_next_word();
+        Ok(())
     }
 
     /// Move cursor to previous word in current area
     pub fn move_cursor_to_previous_word(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_to_previous_word();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_to_previous_word();
+        Ok(())
     }
 
     /// Move cursor to end of word in current area
     pub fn move_cursor_to_end_of_word(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_to_end_of_word();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_to_end_of_word();
+        Ok(())
     }
 
     /// Move cursor to specific line number (1-based)
     pub fn move_cursor_to_line(&mut self, line_number: usize) -> Result<()> {
-        let events = self.pane_manager.move_cursor_to_line(line_number);
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_to_line(line_number);
+        Ok(())
     }
 
     /// Move cursor down one page in current area (Ctrl+f)
     pub fn move_cursor_page_down(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_page_down();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_page_down();
+        Ok(())
     }
 
     /// Move cursor up one page in current area (Ctrl+b)
     pub fn move_cursor_page_up(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_page_up();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_page_up();
+        Ok(())
     }
 
     /// Move cursor down half a page in current area (Ctrl+d)
     pub fn move_cursor_half_page_down(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_half_page_down();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_half_page_down();
+        Ok(())
     }
 
     /// Move cursor up half a page in current area (Ctrl+u)
     pub fn move_cursor_half_page_up(&mut self) -> Result<()> {
-        let events = self.pane_manager.move_cursor_half_page_up();
-        self.emit_view_event(events)
+        self.pane_manager.move_cursor_half_page_up();
+        Ok(())
     }
 
     /// Get display line count for the current pane

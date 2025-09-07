@@ -41,12 +41,12 @@ impl Command for ExSetWrapCommand {
 
                 // Enable word wrap
                 context.app_state.pane_manager.set_wrap_enabled(true);
-                let visibility_events = context
+                context
                     .app_state
                     .pane_manager
                     .rebuild_display_caches_and_sync();
-                let mut events = vec![PostCommandAction::FullRedrawRequired];
-                events.extend(visibility_events);
+                let events = vec![PostCommandAction::FullRedrawRequired];
+                // events.extend(visibility_events);
                 Ok(events)
             }
             "set wrap off" => {
@@ -57,12 +57,12 @@ impl Command for ExSetWrapCommand {
 
                 // Disable word wrap
                 context.app_state.pane_manager.set_wrap_enabled(false);
-                let visibility_events = context
+                context
                     .app_state
                     .pane_manager
                     .rebuild_display_caches_and_sync();
-                let mut events = vec![PostCommandAction::FullRedrawRequired];
-                events.extend(visibility_events);
+                let events = vec![PostCommandAction::FullRedrawRequired];
+                // events.extend(visibility_events);
                 Ok(events)
             }
             "set wrap!" => {
@@ -77,12 +77,12 @@ impl Command for ExSetWrapCommand {
                     .app_state
                     .pane_manager
                     .set_wrap_enabled(!current_wrap);
-                let visibility_events = context
+                context
                     .app_state
                     .pane_manager
                     .rebuild_display_caches_and_sync();
-                let mut events = vec![PostCommandAction::FullRedrawRequired];
-                events.extend(visibility_events);
+                let events = vec![PostCommandAction::FullRedrawRequired];
+                // events.extend(visibility_events);
                 Ok(events)
             }
             _ => {

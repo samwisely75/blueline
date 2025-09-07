@@ -30,14 +30,17 @@
 //! ## Usage Pattern
 //!
 //! ```rust,no_run
-//! use blueline::AppViewModel;
+//! use blueline::repl::view_models::AppViewModel;
+//! use blueline::config::AppConfig;
 //! use blueline::cmd_args::CommandLineArgs;
 //! use blueline::repl::io::{TerminalEventStream, TerminalRenderStream};
+//! use clap::Parser;
 //!
 //! let cmd_args = CommandLineArgs::parse_from(["blueline"]);
+//! let config = AppConfig::from_args(cmd_args);
 //! let event_stream = TerminalEventStream::new();
 //! let render_stream = TerminalRenderStream::new();
-//! let app_view_model = AppViewModel::with_io_streams(cmd_args, event_stream, render_stream).unwrap();
+//! let app_view_model = AppViewModel::with_io_streams(config, event_stream, render_stream).unwrap();
 //! ```
 //!
 //! This abstraction enables comprehensive integration testing while maintaining

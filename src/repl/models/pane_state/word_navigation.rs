@@ -8,7 +8,6 @@
 
 use crate::repl::models::coordinates::geometry::Position;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
-use crate::repl::view_models::PostCommandAction;
 
 use super::{OptionalPosition, PaneState};
 
@@ -138,10 +137,10 @@ impl PaneState {
     // ========================================
 
     /// Move cursor to next word with capability checking and Visual Block restrictions
-    pub fn move_cursor_to_next_word(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_next_word(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         let current_display_pos = self.display_cursor;
@@ -150,7 +149,7 @@ impl PaneState {
         if let Some(new_pos) = self.find_next_word_start_position(current_display_pos) {
             // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
             if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
-                return vec![]; // Don't move if it would cross lines
+                return; // Don't move if it would cross lines
             }
 
             // Update display cursor
@@ -170,27 +169,15 @@ impl PaneState {
                 self.update_visual_selection_on_cursor_move(new_logical_pos);
             }
 
-            let mut events = vec![
-                PostCommandAction::ActiveCursorUpdateRequired,
-                PostCommandAction::PositionIndicatorUpdateRequired,
-                PostCommandAction::CurrentAreaRedrawRequired,
-            ];
-
-            // Ensure cursor is visible and add visibility events
-            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
+            self.ensure_cursor_visible_with_events(content_width);
         }
     }
 
     /// Move cursor to previous word with capability checking and Visual Block restrictions
-    pub fn move_cursor_to_previous_word(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_previous_word(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         let current_display_pos = self.display_cursor;
@@ -199,7 +186,7 @@ impl PaneState {
         if let Some(new_pos) = self.find_previous_word_start_position(current_display_pos) {
             // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
             if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
-                return vec![]; // Don't move if it would cross lines
+                return; // Don't move if it would cross lines
             }
 
             // Update display cursor
@@ -219,27 +206,15 @@ impl PaneState {
                 self.update_visual_selection_on_cursor_move(new_logical_pos);
             }
 
-            let mut events = vec![
-                PostCommandAction::ActiveCursorUpdateRequired,
-                PostCommandAction::PositionIndicatorUpdateRequired,
-                PostCommandAction::CurrentAreaRedrawRequired,
-            ];
-
-            // Ensure cursor is visible and add visibility events
-            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
+            self.ensure_cursor_visible_with_events(content_width);
         }
     }
 
     /// Move cursor to end of word with capability checking and Visual Block restrictions
-    pub fn move_cursor_to_end_of_word(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_end_of_word(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         let current_display_pos = self.display_cursor;
@@ -248,7 +223,7 @@ impl PaneState {
         if let Some(new_pos) = self.find_next_word_end_position(current_display_pos) {
             // VISUAL BLOCK FIX: In Visual Block mode, prevent moving to different lines
             if current_mode == EditorMode::VisualBlock && new_pos.row != current_display_pos.row {
-                return vec![]; // Don't move if it would cross lines
+                return; // Don't move if it would cross lines
             }
 
             // Update display cursor
@@ -268,19 +243,7 @@ impl PaneState {
                 self.update_visual_selection_on_cursor_move(new_logical_pos);
             }
 
-            let mut events = vec![
-                PostCommandAction::ActiveCursorUpdateRequired,
-                PostCommandAction::PositionIndicatorUpdateRequired,
-                PostCommandAction::CurrentAreaRedrawRequired,
-            ];
-
-            // Ensure cursor is visible and add visibility events
-            let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-            events.extend(visibility_events);
-
-            events
-        } else {
-            vec![]
+            self.ensure_cursor_visible_with_events(content_width);
         }
     }
 }

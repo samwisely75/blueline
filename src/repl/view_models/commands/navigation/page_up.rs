@@ -80,11 +80,15 @@ impl Command for PageUpCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Use the pane manager's page up method which returns PostCommandActions
-        let events = context.app_state.pane_manager.move_cursor_page_up();
+        context.app_state.pane_manager.move_cursor_page_up();
 
-        tracing::debug!("PageUpCommand executed, generated {} events", events.len());
+        tracing::debug!("PageUpCommand executed, generated {} events", 0);
 
-        Ok(events)
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

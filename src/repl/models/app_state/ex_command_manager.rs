@@ -3,7 +3,7 @@
 //! Handles ex command buffer operations and command execution.
 
 use super::AppState;
-use crate::repl::view_models::PostCommandAction;
+
 use anyhow::Result;
 
 impl AppState {
@@ -15,27 +15,23 @@ impl AppState {
     /// Add character to ex command buffer
     pub fn add_ex_command_char(&mut self, ch: char) -> Result<()> {
         self.status_line.append_to_command_buffer(ch);
-        let _ = self.emit_view_event([PostCommandAction::StatusBarUpdateRequired]);
         Ok(())
     }
 
     /// Remove last character from ex command buffer
     pub fn backspace_ex_command(&mut self) -> Result<()> {
         self.status_line.backspace_command_buffer();
-        let _ = self.emit_view_event([PostCommandAction::StatusBarUpdateRequired]);
         Ok(())
     }
 
     /// Clear the ex command buffer
     pub fn clear_ex_command_buffer(&mut self) {
         self.status_line.clear_command_buffer();
-        let _ = self.emit_view_event([PostCommandAction::StatusBarUpdateRequired]);
     }
 
     /// Set the ex command buffer
     pub fn set_ex_command_buffer(&mut self, content: String) {
         self.status_line.set_command_buffer(content);
-        let _ = self.emit_view_event([PostCommandAction::StatusBarUpdateRequired]);
     }
 
     /// Execute ex command (deprecated - now handled by unified command system)

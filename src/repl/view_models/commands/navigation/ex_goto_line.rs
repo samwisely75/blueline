@@ -90,21 +90,25 @@ impl Command for ExGotoLineCommand {
             context.app_state.change_mode(previous_mode)?;
 
             // Execute the cursor movement using PaneManager methods
-            let events = match line_number_opt {
+            match line_number_opt {
                 Some(line_number) => {
                     // Goto specific line number
                     context
                         .app_state
                         .pane_manager
-                        .move_cursor_to_line(line_number)
+                        .move_cursor_to_line(line_number);
                 }
                 None => {
                     // Goto last line - use move_cursor_to_document_end
-                    context.app_state.pane_manager.move_cursor_to_document_end()
+                    context.app_state.pane_manager.move_cursor_to_document_end();
                 }
-            };
+            }
 
-            Ok(events)
+            Ok(vec![
+                PostCommandAction::ActiveCursorUpdateRequired,
+                PostCommandAction::PositionIndicatorUpdateRequired,
+                PostCommandAction::CurrentAreaRedrawRequired,
+            ])
         } else {
             // This shouldn't happen given our is_relevant check, but handle gracefully
             tracing::warn!(

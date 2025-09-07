@@ -81,11 +81,15 @@ impl Command for MoveUpCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Get the cursor movement events from pane manager
-        let events = context.app_state.pane_manager.move_cursor_up();
+        context.app_state.pane_manager.move_cursor_up();
 
-        tracing::debug!("MoveUpCommand executed, generated {} events", events.len());
+        tracing::debug!("MoveUpCommand executed, generated {} events", 0);
 
-        Ok(events)
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

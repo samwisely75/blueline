@@ -80,14 +80,15 @@ impl Command for PageDownCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Use the pane manager's page down method which returns PostCommandActions
-        let events = context.app_state.pane_manager.move_cursor_page_down();
+        context.app_state.pane_manager.move_cursor_page_down();
 
-        tracing::debug!(
-            "PageDownCommand executed, generated {} events",
-            events.len()
-        );
+        tracing::debug!("PageDownCommand executed, generated {} events", 0);
 
-        Ok(events)
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

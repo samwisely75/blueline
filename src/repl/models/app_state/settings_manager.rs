@@ -4,7 +4,7 @@
 
 use super::AppState;
 use crate::repl::models::settings::{Setting, SettingValue};
-use crate::repl::view_models::PostCommandAction;
+
 use anyhow::Result;
 
 impl AppState {
@@ -14,19 +14,15 @@ impl AppState {
             Setting::Wrap => {
                 let enable = value == SettingValue::On;
                 self.pane_manager.set_wrap_enabled(enable);
-                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![PostCommandAction::FullRedrawRequired];
-                events.extend(visibility_events);
-                let _ = self.emit_view_event(events);
+                // self.pane_manager.rebuild_display_caches_and_sync();
+                // extend(visibility_events);
                 Ok(())
             }
             Setting::LineNumbers => {
                 let enable = value == SettingValue::On;
                 self.pane_manager.set_line_numbers_visible(enable);
-                let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                let mut events = vec![PostCommandAction::FullRedrawRequired];
-                events.extend(visibility_events);
-                let _ = self.emit_view_event(events);
+                // self.pane_manager.rebuild_display_caches_and_sync();
+                // extend(visibility_events);
                 Ok(())
             }
             Setting::Clipboard => {
@@ -37,10 +33,8 @@ impl AppState {
             Setting::TabStop => {
                 if let SettingValue::Number(width) = value {
                     self.pane_manager.set_tab_width(width);
-                    let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                    let mut events = vec![PostCommandAction::FullRedrawRequired];
-                    events.extend(visibility_events);
-                    let _ = self.emit_view_event(events);
+                    // self.pane_manager.rebuild_display_caches_and_sync();
+                    // extend(visibility_events);
                 }
                 Ok(())
             }
@@ -51,10 +45,8 @@ impl AppState {
                 // If enabling expandtab, convert existing tabs to spaces
                 if enable {
                     self.convert_tabs_to_spaces()?;
-                    let visibility_events = self.pane_manager.rebuild_display_caches_and_sync();
-                    let mut events = vec![PostCommandAction::FullRedrawRequired];
-                    events.extend(visibility_events);
-                    let _ = self.emit_view_event(events);
+                    // self.pane_manager.rebuild_display_caches_and_sync();
+                    // extend(visibility_events);
                 }
                 Ok(())
             }

@@ -51,25 +51,26 @@ impl Command for GoToTopCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Move cursor to document start and exit GPrefix mode
-        let mut actions = Vec::new();
 
         // Move cursor to the top of the buffer
-        let cursor_actions = context
+        context
             .app_state
             .pane_manager
             .move_cursor_to_document_start();
-        actions.extend(cursor_actions);
 
         // Exit GPrefix mode back to Normal mode
         context.app_state.set_mode(EditorMode::Normal);
-        actions.push(PostCommandAction::StatusBarUpdateRequired);
 
         tracing::debug!(
-            "GoToTopCommand executed: moved to document start and returned to Normal mode, generated {} actions",
-            actions.len()
+            "GoToTopCommand executed: moved to document start and returned to Normal mode"
         );
 
-        Ok(actions)
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+            PostCommandAction::StatusBarUpdateRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {
@@ -223,7 +224,7 @@ mod tests {
 
         let actions = result.unwrap();
 
-        // Should generate at least one action (StatusBarUpdateRequired)
+        // Should generate at least one action
         assert!(!actions.is_empty());
 
         // Should have returned to Normal mode

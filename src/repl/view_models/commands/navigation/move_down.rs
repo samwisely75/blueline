@@ -81,14 +81,15 @@ impl Command for MoveDownCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Get the cursor movement events from pane manager
-        let events = context.app_state.pane_manager.move_cursor_down();
+        context.app_state.pane_manager.move_cursor_down();
 
-        tracing::debug!(
-            "MoveDownCommand executed, generated {} events",
-            events.len()
-        );
+        tracing::debug!("MoveDownCommand executed, generated {} events", 0);
 
-        Ok(events)
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

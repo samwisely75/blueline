@@ -13,7 +13,6 @@ use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::{
     ClipboardYankBuffer, LogicalPosition, MemoryYankBuffer, ResponseModel, StatusLine, YankBuffer,
 };
-use crate::repl::view_models::PostCommandAction;
 use std::collections::HashMap;
 
 /// Type alias for event bus option to reduce complexity
@@ -41,7 +40,6 @@ pub struct AppState {
 
     // Event management
     pub(crate) event_bus: EventBusOption,
-    pub(crate) pending_view_events: Vec<PostCommandAction>,
     pub(crate) pending_model_events: Vec<ModelEvent>,
 
     // Yank buffer for copy/paste operations
@@ -73,7 +71,6 @@ impl AppState {
             status_line: StatusLine::new(),
             http_session_headers: HashMap::new(),
             event_bus: None,
-            pending_view_events: Vec::new(),
             pending_model_events: Vec::new(),
             yank_buffer: Box::new(MemoryYankBuffer::new()),
             clipboard_enabled: false,
@@ -223,31 +220,22 @@ impl AppState {
 
     /// Switch to the other pane
     pub fn switch_to_other_pane(&mut self) {
-        let events = self.pane_manager.switch_to_other_area();
-        if !events.is_empty() {
-            // Update status line pane
-            self.status_line
-                .set_current_pane(self.pane_manager.current_pane_type());
-            let _ = self.emit_view_event(events);
-        }
+        self.pane_manager.switch_to_other_area();
+        // Update status line pane
+        self.status_line
+            .set_current_pane(self.pane_manager.current_pane_type());
     }
 
     /// Switch to Request pane
     pub fn switch_to_request_pane(&mut self) {
-        let events = self.pane_manager.switch_to_request_pane();
-        if !events.is_empty() {
-            self.status_line.set_current_pane(Pane::Request);
-            let _ = self.emit_view_event(events);
-        }
+        self.pane_manager.switch_to_request_pane();
+        self.status_line.set_current_pane(Pane::Request);
     }
 
     /// Switch to Response pane
     pub fn switch_to_response_pane(&mut self) {
-        let events = self.pane_manager.switch_to_response_pane();
-        if !events.is_empty() {
-            self.status_line.set_current_pane(Pane::Response);
-            let _ = self.emit_view_event(events);
-        }
+        self.pane_manager.switch_to_response_pane();
+        self.status_line.set_current_pane(Pane::Response);
     }
 
     /// Set a temporary status message for display
@@ -305,11 +293,7 @@ impl AppState {
     pub fn restore_last_visual_selection(&mut self) -> anyhow::Result<Option<EditorMode>> {
         // Delegate to the pane manager to restore selection in current pane
         match self.pane_manager.restore_last_visual_selection() {
-            Some((mode, events)) => {
-                // Emit the view events
-                self.emit_view_event(events)?;
-                Ok(Some(mode))
-            }
+            Some(mode) => Ok(Some(mode)),
             None => Ok(None),
         }
     }

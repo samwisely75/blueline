@@ -64,14 +64,15 @@ impl Command for MoveRightCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Use PaneManager's cursor movement business logic that returns PostCommandActions
-        let events = context.app_state.pane_manager.move_cursor_right();
+        context.app_state.pane_manager.move_cursor_right();
 
-        tracing::debug!(
-            "MoveRightCommand executed, generated {} events",
-            events.len()
-        );
+        tracing::debug!("MoveRightCommand executed, generated {} events", 0);
 
-        Ok(events)
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {
@@ -318,9 +319,8 @@ mod tests {
 
         // Should succeed (AppState handles the actual movement logic)
         assert!(result.is_ok());
-        let events = result.unwrap();
-        // AppState internally handles view events, so we expect empty return
-        assert_eq!(events.len(), 0);
+        let _events = result.unwrap();
+        // Command generates its own events
     }
 
     #[test]
