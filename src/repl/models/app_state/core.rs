@@ -14,6 +14,7 @@ use crate::repl::models::pane_state::{EditorMode, Pane, PaneState};
 use crate::repl::models::{
     LogicalPosition, MemoryYankBuffer, ResponseModel, StatusLine, YankBuffer,
 };
+use anyhow::Result;
 use std::collections::HashMap;
 
 /// Type alias for display line rendering data: (content, line_number, is_continuation, logical_start_col, logical_line)
@@ -199,7 +200,7 @@ impl AppState {
     }
 
     /// Enable or disable system clipboard integration
-    pub fn set_clipboard_enabled(&mut self, enabled: bool) -> anyhow::Result<()> {
+    pub fn set_clipboard_enabled(&mut self, enabled: bool) -> Result<()> {
         // Delegate to editor context
         let result = self.editor_context.set_clipboard_enabled(enabled);
 
@@ -359,7 +360,7 @@ impl AppState {
 
     /// Restore the last visual selection (for 'gv' command)
     /// Returns the mode to enter if restoration successful
-    pub fn restore_last_visual_selection(&mut self) -> anyhow::Result<Option<EditorMode>> {
+    pub fn restore_last_visual_selection(&mut self) -> Result<Option<EditorMode>> {
         // Delegate to the pane manager to restore selection in current pane
         match self.pane_manager.restore_last_visual_selection() {
             Some(mode) => Ok(Some(mode)),

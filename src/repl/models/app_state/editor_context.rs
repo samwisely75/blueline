@@ -8,6 +8,7 @@
 //! This provides a clean separation of editor concerns from HTTP and UI domains.
 
 use crate::repl::models::{ClipboardYankBuffer, MemoryYankBuffer, YankBuffer};
+use anyhow::{Context, Result};
 
 /// Editor context managing editor-specific state and operations
 ///
@@ -35,7 +36,7 @@ impl EditorContext {
     }
 
     /// Enable or disable system clipboard integration
-    pub fn set_clipboard_enabled(&mut self, enabled: bool) -> anyhow::Result<()> {
+    pub fn set_clipboard_enabled(&mut self, enabled: bool) -> Result<()> {
         if enabled == self.clipboard_enabled {
             // No change needed
             return Ok(());
@@ -55,7 +56,7 @@ impl EditorContext {
                 }
                 Err(e) => {
                     tracing::error!("Failed to enable clipboard: {}", e);
-                    return Err(anyhow::anyhow!("Failed to access system clipboard: {}", e));
+                    return Err(e).context("Failed to access system clipboard");
                 }
             }
         } else {

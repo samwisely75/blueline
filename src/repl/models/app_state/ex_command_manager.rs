@@ -3,7 +3,6 @@
 //! Handles ex command buffer operations and command execution.
 
 use super::AppState;
-
 use anyhow::Result;
 
 impl AppState {

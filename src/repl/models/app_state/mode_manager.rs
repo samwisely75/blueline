@@ -5,7 +5,6 @@
 use super::AppState;
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::LogicalPosition;
-
 use anyhow::Result;
 
 // Use the VisualSelectionState struct for better type safety
