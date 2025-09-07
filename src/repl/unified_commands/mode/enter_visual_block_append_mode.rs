@@ -1,4 +1,4 @@
-//! # Visual Block Append Command
+//! # Enter Visual Block Append Mode Command
 //!
 //! Implements vim's Visual Block Append command ('A' in Visual Block mode).
 //! This command enters Visual Block Insert mode where text typed on the first line
@@ -13,7 +13,7 @@ use crate::repl::models::LogicalPosition;
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 use crate::repl::view_models::post_command_actions::PostCommandAction;
 
-/// Command to enter Visual Block Append mode
+/// Command to enter Visual Block Append mode from Visual Block mode
 ///
 /// This command implements vim's Visual Block Append command:
 /// 1. Verifies we're in Visual Block mode with a valid selection
@@ -23,16 +23,16 @@ use crate::repl::view_models::post_command_actions::PostCommandAction;
 /// 5. Switches to VisualBlockInsert mode
 /// 6. Emits PostCommandActions for UI updates
 #[derive(Default)]
-pub struct VisualBlockAppendCommand;
+pub struct EnterVisualBlockAppendModeCommand;
 
-impl VisualBlockAppendCommand {
-    /// Create new VisualBlockAppendCommand
+impl EnterVisualBlockAppendModeCommand {
+    /// Create new EnterVisualBlockAppendModeCommand
     pub fn new() -> Self {
         Self
     }
 }
 
-impl Command for VisualBlockAppendCommand {
+impl Command for EnterVisualBlockAppendModeCommand {
     fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool {
         // Only relevant for 'A' key (uppercase or Shift+a) in Visual Block mode in writable pane
         mode == EditorMode::VisualBlock
@@ -130,7 +130,7 @@ impl Command for VisualBlockAppendCommand {
     }
 
     fn name(&self) -> &'static str {
-        "VisualBlockAppendCommand"
+        "EnterVisualBlockAppendModeCommand"
     }
 }
 
@@ -141,15 +141,15 @@ mod tests {
 
     #[test]
     fn visual_block_append_command_should_return_correct_name() {
-        let command = VisualBlockAppendCommand::new();
-        assert_eq!(command.name(), "VisualBlockAppendCommand");
+        let command = EnterVisualBlockAppendModeCommand::new();
+        assert_eq!(command.name(), "EnterVisualBlockAppendModeCommand");
     }
 
     #[test]
     fn visual_block_append_command_should_be_relevant_for_a_in_visual_block_mode() {
         use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-        let command = VisualBlockAppendCommand::new();
+        let command = EnterVisualBlockAppendModeCommand::new();
 
         // Create test context for Visual Block mode
         let context = CommandContext {
@@ -177,7 +177,7 @@ mod tests {
     fn visual_block_append_command_should_not_be_relevant_in_wrong_conditions() {
         use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-        let command = VisualBlockAppendCommand::new();
+        let command = EnterVisualBlockAppendModeCommand::new();
 
         // Test in Normal mode - should not be relevant
         let context_normal = CommandContext {
@@ -231,7 +231,7 @@ mod tests {
         use crate::repl::models::AppState;
         use crate::repl::services::Services;
 
-        let command = VisualBlockAppendCommand::new();
+        let command = EnterVisualBlockAppendModeCommand::new();
         let mut app_state = AppState::new();
         let mut services = Services::new();
         let mut context = ExecutionContext {
@@ -259,7 +259,7 @@ mod tests {
         use crate::repl::models::AppState;
         use crate::repl::services::Services;
 
-        let command = VisualBlockAppendCommand::new();
+        let command = EnterVisualBlockAppendModeCommand::new();
         let mut app_state = AppState::new();
         let mut services = Services::new();
 
@@ -308,4 +308,4 @@ mod tests {
 }
 
 // Auto-register this command using the inventory system
-register_command!(VisualBlockAppendCommand, "VisualBlockAppendCommand");
+register_command!(EnterVisualBlockAppendModeCommand, "EnterVisualBlockAppendModeCommand");

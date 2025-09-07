@@ -149,8 +149,8 @@ mod tests {
             "Should discover HttpExecuteCommand"
         );
         assert!(
-            command_names.contains(&"VisualBlockChangeCommand"),
-            "Should discover VisualBlockChangeCommand"
+            command_names.contains(&"EnterVisualBlockChangeModeCommand"),
+            "Should discover EnterVisualBlockChangeModeCommand"
         );
         assert!(
             command_names.contains(&"MoveLeftCommand"),
