@@ -7,10 +7,12 @@
 //! - AppState contains all application state and business logic
 //! - Views depend only on AppState for rendering
 
-use super::PaneManager;
+use super::{
+    editor_context::EditorContext, http_context::HttpContext, ui_context::UIContext, PaneManager,
+};
 use crate::repl::models::pane_state::{EditorMode, Pane, PaneState};
 use crate::repl::models::{
-    ClipboardYankBuffer, LogicalPosition, MemoryYankBuffer, ResponseModel, StatusLine, YankBuffer,
+    LogicalPosition, MemoryYankBuffer, ResponseModel, StatusLine, YankBuffer,
 };
 use std::collections::HashMap;
 
@@ -21,6 +23,11 @@ pub type DisplayLineData = (String, Option<usize>, bool, usize, usize);
 ///
 /// This struct merges the functionality that was previously split between
 /// ViewModel and PaneManager, providing a unified state management interface.
+///
+/// Domain contexts provide better organization of responsibilities:
+/// - EditorContext: Editor-specific state (yank buffer, settings)
+/// - HttpContext: HTTP-related state (session headers)
+/// - UIContext: UI-specific state (profile info, display settings)
 pub struct AppState {
     // Core state
     pub(crate) response: ResponseModel,
@@ -31,16 +38,27 @@ pub struct AppState {
     // Status line model - encapsulates all status bar state
     pub(crate) status_line: StatusLine,
 
-    // HTTP session configuration
+    // Domain contexts for better separation of concerns
+    editor_context: EditorContext,
+    http_context: HttpContext,
+    ui_context: UIContext,
+
+    // DEPRECATED: Legacy fields maintained for backward compatibility
+    // These delegate to the appropriate contexts
+    #[deprecated(note = "Use http_context.session_headers() instead")]
+    #[allow(dead_code)]
     pub(crate) http_session_headers: HashMap<String, String>,
 
-    // Yank buffer for copy/paste operations
+    #[deprecated(note = "Use editor_context.yank_buffer() instead")]
+    #[allow(dead_code)]
     pub(crate) yank_buffer: Box<dyn YankBuffer>,
 
-    // Whether clipboard integration is enabled
+    #[deprecated(note = "Use editor_context.is_clipboard_enabled() instead")]
+    #[allow(dead_code)]
     pub(crate) clipboard_enabled: bool,
 
-    // Whether d/dd/D commands should cut (yank) instead of just delete
+    #[deprecated(note = "Use editor_context.is_dcut_enabled() instead")]
+    #[allow(dead_code)]
     pub(crate) dcut_enabled: bool,
 }
 
@@ -57,13 +75,29 @@ impl AppState {
         // Default terminal size
         let terminal_dimensions = (80, 24);
 
+        // Initialize domain contexts
+        let editor_context = EditorContext::new();
+        let http_context = HttpContext::new();
+        let ui_context = UIContext::new();
+
         Self {
             response,
             pane_manager: PaneManager::new(terminal_dimensions),
             status_line: StatusLine::new(),
+
+            // Initialize domain contexts
+            editor_context,
+            http_context,
+            ui_context,
+
+            // Legacy fields for backward compatibility - delegate to contexts
+            #[allow(deprecated)]
             http_session_headers: HashMap::new(),
+            #[allow(deprecated)]
             yank_buffer: Box::new(MemoryYankBuffer::new()),
+            #[allow(deprecated)]
             clipboard_enabled: false,
+            #[allow(deprecated)]
             dcut_enabled: true, // Default to true for cut behavior
         }
     }
@@ -126,54 +160,71 @@ impl AppState {
         self.current_pane().is_in_visual_block_insert_mode()
     }
 
+    // === Context Access Methods ===
+
+    /// Get reference to editor context
+    #[allow(dead_code)]
+    pub(crate) fn editor_context(&self) -> &EditorContext {
+        &self.editor_context
+    }
+
+    /// Get mutable reference to editor context
+    pub(crate) fn editor_context_mut(&mut self) -> &mut EditorContext {
+        &mut self.editor_context
+    }
+
+    /// Get reference to HTTP context
+    pub(crate) fn http_context(&self) -> &HttpContext {
+        &self.http_context
+    }
+
+    /// Get mutable reference to HTTP context
+    #[allow(dead_code)]
+    pub(crate) fn http_context_mut(&mut self) -> &mut HttpContext {
+        &mut self.http_context
+    }
+
+    /// Get reference to UI context
+    #[allow(dead_code)]
+    pub(crate) fn ui_context(&self) -> &UIContext {
+        &self.ui_context
+    }
+
+    /// Get mutable reference to UI context  
+    #[allow(dead_code)]
+    pub(crate) fn ui_context_mut(&mut self) -> &mut UIContext {
+        &mut self.ui_context
+    }
+
     /// Enable or disable system clipboard integration
     pub fn set_clipboard_enabled(&mut self, enabled: bool) -> anyhow::Result<()> {
-        if enabled == self.clipboard_enabled {
-            // No change needed
-            return Ok(());
+        // Delegate to editor context
+        let result = self.editor_context.set_clipboard_enabled(enabled);
+
+        // Update deprecated field for backward compatibility
+        #[allow(deprecated)]
+        {
+            self.clipboard_enabled = self.editor_context.is_clipboard_enabled();
         }
 
-        // Save any existing content before switching
-        let existing_content = self.yank_buffer.paste().map(|s| s.to_string());
-
-        // Switch yank buffer implementation
-        if enabled {
-            // Try to create clipboard buffer
-            match ClipboardYankBuffer::new() {
-                Ok(clipboard_buffer) => {
-                    self.yank_buffer = Box::new(clipboard_buffer);
-                    self.clipboard_enabled = true;
-                    tracing::info!("Switched to system clipboard yank buffer");
-                }
-                Err(e) => {
-                    tracing::error!("Failed to enable clipboard: {}", e);
-                    return Err(anyhow::anyhow!("Failed to access system clipboard: {}", e));
-                }
-            }
-        } else {
-            // Switch back to memory buffer
-            self.yank_buffer = Box::new(MemoryYankBuffer::new());
-            self.clipboard_enabled = false;
-            tracing::info!("Switched to memory yank buffer");
-        }
-
-        // Restore existing content if any
-        if let Some(content) = existing_content {
-            let _ = self.yank_buffer.yank(content);
-        }
-
-        Ok(())
+        result
     }
 
     /// Enable or disable cut behavior for d/dd/D commands
     pub fn set_dcut_enabled(&mut self, enabled: bool) {
-        self.dcut_enabled = enabled;
-        tracing::info!("DCut mode set to: {}", if enabled { "on" } else { "off" });
+        // Delegate to editor context
+        self.editor_context.set_dcut_enabled(enabled);
+
+        // Update deprecated field for backward compatibility
+        #[allow(deprecated)]
+        {
+            self.dcut_enabled = self.editor_context.is_dcut_enabled();
+        }
     }
 
     /// Get whether cut behavior is enabled for d/dd/D commands
     pub fn is_dcut_enabled(&self) -> bool {
-        self.dcut_enabled
+        self.editor_context.is_dcut_enabled()
     }
 
     /// Update terminal size and resize screen buffers
@@ -197,17 +248,24 @@ impl AppState {
 
     /// Set the profile information for display
     pub fn set_profile_info(&mut self, profile_name: String, profile_path: String) {
+        // Update UI context first for better organization
+        self.ui_context
+            .set_profile_info(profile_name.clone(), profile_path.clone());
+
+        // Still update status line for rendering (for now)
         self.status_line.set_profile(profile_name, profile_path);
     }
 
     /// Get the current profile name
     pub fn get_profile_name(&self) -> &str {
-        self.status_line.profile_name()
+        // Delegate to UI context for better domain separation
+        self.ui_context.profile_name()
     }
 
     /// Get the current profile path
     pub fn get_profile_path(&self) -> &str {
-        self.status_line.profile_path()
+        // Delegate to UI context for better domain separation
+        self.ui_context.profile_path()
     }
 
     // === Pane Methods (Semantic Operations) ===

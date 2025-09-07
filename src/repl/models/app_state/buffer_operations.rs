@@ -55,22 +55,31 @@ impl AppState {
 
     /// Yank text to yank buffer with type information
     pub fn yank_to_buffer_with_type(&mut self, text: String, yank_type: YankType) -> Result<()> {
-        self.yank_buffer.yank_with_type(text, yank_type)
+        // Delegate to editor context for better domain separation
+        self.editor_context_mut()
+            .yank_buffer_mut()
+            .yank_with_type(text, yank_type)
     }
 
     /// Yank text to yank buffer (defaults to Character type for backward compatibility)
     pub fn yank_to_buffer(&mut self, text: String) -> Result<()> {
-        self.yank_buffer.yank(text)
+        // Delegate to editor context for better domain separation
+        self.editor_context_mut().yank_buffer_mut().yank(text)
     }
 
     /// Get yank entry with type information from yank buffer
     pub fn get_yanked_entry(&mut self) -> Option<YankEntry> {
-        self.yank_buffer.paste_entry()
+        // Delegate to editor context for better domain separation
+        self.editor_context_mut().yank_buffer_mut().paste_entry()
     }
 
     /// Get text from yank buffer (for backward compatibility)
     pub fn get_yanked_text(&mut self) -> Option<String> {
-        self.yank_buffer.paste().map(|s| s.to_string())
+        // Delegate to editor context for better domain separation
+        self.editor_context_mut()
+            .yank_buffer_mut()
+            .paste()
+            .map(|s| s.to_string())
     }
 
     /// Paste text at current cursor position (for P command)
