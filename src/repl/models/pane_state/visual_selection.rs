@@ -7,7 +7,6 @@
 //! - Updating selections during cursor movement
 
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
-use crate::repl::view_models::PostCommandAction;
 
 use super::PaneState;
 
@@ -15,14 +14,14 @@ use super::PaneState;
 type VisualSelection = (Option<LogicalPosition>, Option<LogicalPosition>);
 
 // Type alias for visual selection restoration result
-pub type VisualSelectionRestoreResult = Option<(EditorMode, Vec<PostCommandAction>)>;
+pub type VisualSelectionRestoreResult = Option<EditorMode>;
 
 impl PaneState {
     /// Start visual selection at current cursor position
-    pub fn start_visual_selection(&mut self) -> Vec<PostCommandAction> {
+    pub fn start_visual_selection(&mut self) {
         // Check if visual selection is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::SELECTABLE) {
-            return vec![]; // Selection not allowed on this pane
+            return; // Selection not allowed on this pane
         }
 
         let current_cursor = self.buffer.cursor();
@@ -33,16 +32,10 @@ impl PaneState {
             "🎯 PaneState::start_visual_selection at position {:?}",
             current_cursor
         );
-
-        vec![
-            PostCommandAction::CurrentAreaRedrawRequired,
-            PostCommandAction::StatusBarUpdateRequired,
-            PostCommandAction::ActiveCursorUpdateRequired,
-        ]
     }
 
     /// End visual selection and clear selection state
-    pub fn end_visual_selection(&mut self) -> Vec<PostCommandAction> {
+    pub fn end_visual_selection(&mut self) {
         // Save the last visual selection for 'gv' command before clearing
         if self.visual_selection_start.is_some() && self.visual_selection_end.is_some() {
             self.last_visual_selection_start = self.visual_selection_start;
@@ -67,19 +60,13 @@ impl PaneState {
         self.visual_selection_end = None;
 
         tracing::info!("🎯 PaneState::end_visual_selection - cleared selection state");
-
-        vec![
-            PostCommandAction::CurrentAreaRedrawRequired,
-            PostCommandAction::StatusBarUpdateRequired,
-            PostCommandAction::ActiveCursorUpdateRequired,
-        ]
     }
 
     /// Update visual selection end position
-    pub fn update_visual_selection(&mut self, position: LogicalPosition) -> Vec<PostCommandAction> {
+    pub fn update_visual_selection(&mut self, position: LogicalPosition) {
         // Check if visual selection is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::SELECTABLE) {
-            return vec![]; // Selection not allowed on this pane
+            return; // Selection not allowed on this pane
         }
 
         if self.visual_selection_start.is_some() {
@@ -88,9 +75,6 @@ impl PaneState {
                 "🎯 PaneState::update_visual_selection end position to {:?}",
                 position
             );
-            vec![PostCommandAction::CurrentAreaRedrawRequired]
-        } else {
-            vec![]
         }
     }
 
@@ -134,11 +118,11 @@ impl PaneState {
     }
 
     /// Update visual selection end position during cursor movement
-    /// Returns Some(PostCommandAction) if visual selection was updated, None otherwise
+    /// Returns true if visual selection was updated, false otherwise
     pub fn update_visual_selection_on_cursor_move(
         &mut self,
         new_position: LogicalPosition,
-    ) -> Option<PostCommandAction> {
+    ) -> bool {
         // Only update if we have an active selection and selection is allowed
         if self.visual_selection_start.is_some()
             && self.capabilities.contains(PaneCapabilities::SELECTABLE)
@@ -149,9 +133,9 @@ impl PaneState {
                 "🎯 PaneState::update_visual_selection_on_cursor_move: mode={:?}, old_end={:?}, new_end={:?}",
                 self.editor_mode, old_end, new_position
             );
-            Some(PostCommandAction::CurrentAreaRedrawRequired)
+            true
         } else {
-            None
+            false
         }
     }
 
@@ -241,13 +225,6 @@ impl PaneState {
             mode
         );
 
-        Some((
-            mode,
-            vec![
-                PostCommandAction::CurrentAreaRedrawRequired,
-                PostCommandAction::StatusBarUpdateRequired,
-                PostCommandAction::ActiveCursorUpdateRequired,
-            ],
-        ))
+        Some(mode)
     }
 }

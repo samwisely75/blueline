@@ -17,7 +17,6 @@ use super::AppState;
 use crate::repl::models::buffer::{YankEntry, YankType};
 use crate::repl::models::pane_state::EditorMode;
 use crate::repl::models::LogicalPosition;
-use crate::repl::view_models::PostCommandAction;
 use anyhow::Result;
 
 /// Type alias for selection text with its yank type
@@ -51,12 +50,7 @@ impl AppState {
     /// Delete selected text from current pane
     /// Returns the deleted text if successful
     pub fn delete_selected_text(&mut self) -> Result<Option<String>> {
-        if let Some((deleted_text, events)) = self.pane_manager.delete_selected_text() {
-            self.emit_view_event(events)?;
-            Ok(Some(deleted_text))
-        } else {
-            Ok(None)
-        }
+        Ok(self.pane_manager.delete_selected_text())
     }
 
     /// Yank text to yank buffer with type information
@@ -92,8 +86,7 @@ impl AppState {
 
         // Insert each character
         for ch in text.chars() {
-            let events = self.pane_manager.insert_char(ch);
-            self.emit_view_event(events)?;
+            self.pane_manager.insert_char(ch);
         }
 
         // Switch back to original mode
@@ -132,8 +125,7 @@ impl AppState {
 
         // Insert each character
         for ch in text.chars() {
-            let events = self.pane_manager.insert_char(ch);
-            self.emit_view_event(events)?;
+            self.pane_manager.insert_char(ch);
         }
 
         // Switch back to original mode
@@ -183,8 +175,7 @@ impl AppState {
 
         // Insert the text (dd already includes the newline)
         for ch in text.chars() {
-            let events = self.pane_manager.insert_char(ch);
-            self.emit_view_event(events)?;
+            self.pane_manager.insert_char(ch);
         }
 
         // Switch back to original mode
@@ -216,15 +207,13 @@ impl AppState {
         self.change_mode(EditorMode::Insert)?;
 
         // Insert newline first to move to next line, then the text (without its trailing newline)
-        let events = self.pane_manager.insert_char('\n');
-        self.emit_view_event(events)?;
+        self.pane_manager.insert_char('\n');
 
         // Insert text but skip the trailing newline that dd added
         let text_without_trailing_newline = text.strip_suffix('\n').unwrap_or(text);
 
         for ch in text_without_trailing_newline.chars() {
-            let events = self.pane_manager.insert_char(ch);
-            self.emit_view_event(events)?;
+            self.pane_manager.insert_char(ch);
         }
 
         // Switch back to original mode
@@ -256,8 +245,7 @@ impl AppState {
         tracing::debug!("Calling insert_block_wise with {} lines", lines.len());
 
         // Use the new block-wise insertion method that handles positioning correctly
-        let events = self.pane_manager.insert_block_wise(current_pos, &lines);
-        self.emit_view_event(events)?;
+        self.pane_manager.insert_block_wise(current_pos, &lines);
 
         Ok(())
     }
@@ -288,8 +276,7 @@ impl AppState {
         }
 
         // Use semantic insertion from PaneManager (handles visibility and all events)
-        let events = self.pane_manager.insert_char(ch);
-        self.emit_view_event(events)?;
+        self.pane_manager.insert_char(ch);
 
         Ok(())
     }
@@ -343,13 +330,8 @@ impl AppState {
         tracing::debug!("✅ Delete operation allowed, proceeding with deletion");
 
         // Use semantic deletion from PaneManager
-        let events = self.pane_manager.delete_char_before_cursor();
-        tracing::debug!(
-            "🗑️  PaneManager returned {} events from delete operation",
-            events.len()
-        );
-
-        self.emit_view_event(events)?;
+        self.pane_manager.delete_char_before_cursor();
+        tracing::debug!("🗑️  Delete operation completed");
 
         tracing::debug!("🗑️  delete_char_before_cursor completed successfully");
         Ok(())
@@ -368,13 +350,12 @@ impl AppState {
         }
 
         // In Visual Block Insert mode, use restricted deletion (no line joining)
-        let events = if self.mode() == EditorMode::VisualBlockInsert {
+        if self.mode() == EditorMode::VisualBlockInsert {
             self.pane_manager
-                .delete_char_after_cursor_visual_block_safe()
+                .delete_char_after_cursor_visual_block_safe();
         } else {
-            self.pane_manager.delete_char_after_cursor()
-        };
-        self.emit_view_event(events)?;
+            self.pane_manager.delete_char_after_cursor();
+        }
 
         Ok(())
     }
@@ -394,11 +375,7 @@ impl AppState {
             }
 
             // Emit view events for display update
-            self.emit_view_event(vec![
-                PostCommandAction::RequestContentChanged,
-                PostCommandAction::ActiveCursorUpdateRequired,
-                PostCommandAction::CurrentAreaRedrawRequired,
-            ])?;
+            // Operation completed
         }
 
         Ok(())
@@ -419,11 +396,7 @@ impl AppState {
             }
 
             // Emit view events for display update
-            self.emit_view_event(vec![
-                PostCommandAction::RequestContentChanged,
-                PostCommandAction::ActiveCursorUpdateRequired,
-                PostCommandAction::CurrentAreaRedrawRequired,
-            ])?;
+            // Operation completed
         }
 
         Ok(())
@@ -446,11 +419,7 @@ impl AppState {
             }
 
             // Emit view events for display update
-            self.emit_view_event(vec![
-                PostCommandAction::RequestContentChanged,
-                PostCommandAction::ActiveCursorUpdateRequired,
-                PostCommandAction::CurrentAreaRedrawRequired,
-            ])?;
+            // Operation completed
         }
 
         Ok(())
@@ -497,8 +466,7 @@ impl AppState {
         // Only update if there were actual changes
         if converted_text != request_text {
             // Update the request buffer with the converted text
-            let events = self.pane_manager.set_request_content(&converted_text);
-            self.emit_view_event(events)?;
+            self.pane_manager.set_request_content(&converted_text);
         }
 
         Ok(())

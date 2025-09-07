@@ -67,14 +67,15 @@ impl Command for EndOfWordCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Get the cursor movement events from pane manager
-        let events = context.app_state.pane_manager.move_cursor_to_end_of_word();
+        context.app_state.pane_manager.move_cursor_to_end_of_word();
 
-        tracing::debug!(
-            "EndOfWordCommand executed, generated {} events",
-            events.len()
-        );
+        tracing::debug!("EndOfWordCommand executed, generated {} events", 0);
 
-        Ok(events)
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

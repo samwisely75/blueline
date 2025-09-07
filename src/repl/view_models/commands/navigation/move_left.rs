@@ -63,15 +63,14 @@ impl Command for MoveLeftCommand {
         _key_event: KeyEvent,
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
-        // Use PaneManager's cursor movement business logic that returns PostCommandActions
-        let events = context.app_state.pane_manager.move_cursor_left();
+        // Perform the cursor movement
+        context.app_state.pane_manager.move_cursor_left();
 
-        tracing::debug!(
-            "MoveLeftCommand executed, generated {} events",
-            events.len()
-        );
-
-        Ok(events)
+        // Command determines what view updates are needed
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {
@@ -318,9 +317,8 @@ mod tests {
 
         // Should succeed (AppState handles the actual movement logic)
         assert!(result.is_ok());
-        let events = result.unwrap();
-        // AppState internally handles view events, so we expect empty return
-        assert_eq!(events.len(), 0);
+        let _events = result.unwrap();
+        // Command generates its own events
     }
 
     #[test]

@@ -47,11 +47,11 @@ impl Command for ScrollLeftCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Scroll left horizontally by 5 characters (direction = -1, amount = 5)
-        let actions = context
+        context
             .app_state
             .pane_manager
             .scroll_current_horizontally(-1, 5);
-        Ok(actions)
+        Ok(vec![PostCommandAction::CurrentAreaRedrawRequired])
     }
 
     fn name(&self) -> &'static str {
@@ -160,13 +160,13 @@ mod tests {
         assert!(result.is_ok());
 
         let actions = result.unwrap();
-        // The scroll_current_horizontally method should return at least CurrentAreaScrollChanged
+        // The command should generate redraw actions
         assert!(!actions.is_empty());
 
         // Check that we get the expected action type
         assert!(actions
             .iter()
-            .any(|action| matches!(action, PostCommandAction::CurrentAreaScrollChanged { .. })));
+            .any(|action| matches!(action, PostCommandAction::CurrentAreaRedrawRequired)));
     }
 
     #[test]

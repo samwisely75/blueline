@@ -43,18 +43,19 @@ impl Command for HomeKeyCommand {
         _key_event: KeyEvent,
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
-        // Use PaneManager's cursor movement business logic that returns PostCommandActions
-        let actions = context
+        // Move cursor to start of line
+        context
             .app_state
             .pane_manager
             .move_cursor_to_start_of_line();
 
-        tracing::debug!(
-            "HomeKeyCommand executed, generated {} actions",
-            actions.len()
-        );
+        tracing::debug!("HomeKeyCommand executed");
 
-        Ok(actions)
+        // Generate view update events based on what this command did
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

@@ -43,15 +43,16 @@ impl Command for EndKeyCommand {
         _key_event: KeyEvent,
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
-        // Use PaneManager's cursor movement business logic that returns PostCommandActions
-        let actions = context.app_state.pane_manager.move_cursor_to_end_of_line();
+        // Move cursor to end of line
+        context.app_state.pane_manager.move_cursor_to_end_of_line();
 
-        tracing::debug!(
-            "EndKeyCommand executed, generated {} actions",
-            actions.len()
-        );
+        tracing::debug!("EndKeyCommand executed");
 
-        Ok(actions)
+        // Generate view update events based on what this command did
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

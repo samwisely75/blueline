@@ -58,7 +58,7 @@ impl Command for AppendAtEndOfLineCommand {
         );
 
         // First, move cursor to the end of the current line (for append)
-        let cursor_events = context
+        context
             .app_state
             .pane_manager
             .move_cursor_to_line_end_for_append();
@@ -70,14 +70,12 @@ impl Command for AppendAtEndOfLineCommand {
             "AppendAtEndOfLineCommand: cursor moved to line end for append, mode changed to Insert"
         );
 
-        // Combine cursor movement events with mode change event
-        let mut events = cursor_events;
-        events.extend(vec![
+        // Generate view update events based on what this command did
+        Ok(vec![
             PostCommandAction::StatusBarUpdateRequired,
             PostCommandAction::ActiveCursorUpdateRequired,
-        ]);
-
-        Ok(events)
+            PostCommandAction::PositionIndicatorUpdateRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

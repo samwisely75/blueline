@@ -49,21 +49,19 @@ impl Command for AppendAfterCursorCommand {
         tracing::debug!("AppendAfterCursorCommand: moving cursor right and entering Insert mode");
 
         // First, move cursor one position to the right
-        let cursor_events = context.app_state.pane_manager.move_cursor_right();
+        context.app_state.pane_manager.move_cursor_right();
 
         // Then set the mode to Insert
         context.app_state.change_mode(EditorMode::Insert)?;
 
         tracing::debug!("AppendAfterCursorCommand: cursor moved right, mode changed to Insert");
 
-        // Combine cursor movement events with mode change event
-        let mut events = cursor_events;
-        events.extend(vec![
+        // Generate view update events based on what this command did
+        Ok(vec![
             PostCommandAction::StatusBarUpdateRequired,
             PostCommandAction::ActiveCursorUpdateRequired,
-        ]);
-
-        Ok(events)
+            PostCommandAction::PositionIndicatorUpdateRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

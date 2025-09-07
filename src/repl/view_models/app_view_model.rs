@@ -365,8 +365,9 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             return Ok(());
         }
 
-        let view_events = self.app_state.collect_pending_view_events();
-        self.process_view_events(view_events)?;
+        // Since we're not executing a command here, there are no PostCommandActions to process
+        // This method is called for periodic rendering updates
+        // Commands generate their own PostCommandActions which are processed after execution
         self.last_render_time = now;
 
         Ok(())

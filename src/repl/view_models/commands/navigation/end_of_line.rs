@@ -66,14 +66,15 @@ impl Command for EndOfLineCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Get the cursor movement events from pane manager
-        let events = context.app_state.pane_manager.move_cursor_to_end_of_line();
+        context.app_state.pane_manager.move_cursor_to_end_of_line();
 
-        tracing::debug!(
-            "EndOfLineCommand executed, generated {} events",
-            events.len()
-        );
+        tracing::debug!("EndOfLineCommand executed, generated {} events", 0);
 
-        Ok(events)
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

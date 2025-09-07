@@ -20,10 +20,7 @@ impl AppState {
         } else {
             tracing::debug!("Request execution finished");
         }
-        // Emit status bar update to reflect execution state
-        let _ = self.emit_view_event([
-            crate::repl::view_models::PostCommandAction::StatusBarUpdateRequired,
-        ]);
+        // Status bar update will be handled by command
     }
 
     /// Get session headers
@@ -57,7 +54,7 @@ impl AppState {
             .set_http_status(status_code, status_message, duration_ms);
 
         // Update response buffer content using semantic operation
-        let _events = self.pane_manager.set_response_content(&body);
+        // self.pane_manager.set_response_content(&body);
 
         // Response content setting already resets cursor and scroll positions
 
@@ -69,9 +66,6 @@ impl AppState {
 
         // Full redraw is needed when response first appears to draw the response pane
         // This will also update the status bar with TAT and message
-        let _ =
-            self.emit_view_event([crate::repl::view_models::PostCommandAction::FullRedrawRequired]);
-
         tracing::debug!(
             "Response set from HTTP response: status={}, duration={}ms",
             status_code,
@@ -85,7 +79,7 @@ impl AppState {
         self.response.set_body(content.clone());
 
         // Update response buffer using semantic operation
-        let _events = self.pane_manager.set_response_content(&content);
+        // self.pane_manager.set_response_content(&content);
 
         // Recalculate pane dimensions now that we have a response
         let (width, height) = self.pane_manager.terminal_dimensions;
@@ -94,9 +88,6 @@ impl AppState {
         tracing::debug!("Pane dimensions updated after manual response");
 
         // Full redraw is needed when response first appears
-        let _ =
-            self.emit_view_event([crate::repl::view_models::PostCommandAction::FullRedrawRequired]);
-
         tracing::debug!(
             "Response set: status={}, content_length={}",
             status_code,

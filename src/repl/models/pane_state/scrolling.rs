@@ -8,7 +8,6 @@
 
 use crate::repl::models::coordinates::geometry::Position;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
-use crate::repl::view_models::PostCommandAction;
 
 use super::{CursorMoveResult, PaneState, ScrollAdjustResult, ScrollResult};
 
@@ -265,28 +264,8 @@ impl PaneState {
     }
 
     /// Ensure cursor is visible and return view events (wrapper around ensure_cursor_visible)
-    pub fn ensure_cursor_visible_with_events(
-        &mut self,
-        content_width: usize,
-    ) -> Vec<PostCommandAction> {
-        let result = self.ensure_cursor_visible(content_width);
-
-        if result.vertical_changed || result.horizontal_changed {
-            // For horizontal scrolling, use horizontal offsets; for vertical scrolling, use vertical offsets
-            // If both changed, prioritize horizontal since it's more common in response navigation
-            let (old_offset, new_offset) = if result.horizontal_changed {
-                (result.old_horizontal_offset, result.new_horizontal_offset)
-            } else {
-                (result.old_vertical_offset, result.new_vertical_offset)
-            };
-
-            vec![PostCommandAction::CurrentAreaScrollChanged {
-                old_offset,
-                new_offset,
-            }]
-        } else {
-            vec![]
-        }
+    pub fn ensure_cursor_visible_with_events(&mut self, content_width: usize) {
+        self.ensure_cursor_visible(content_width);
     }
 
     // ========================================
@@ -351,21 +330,21 @@ impl PaneState {
     // ========================================
 
     /// Move cursor down one page with capability checking
-    pub fn move_cursor_page_down(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_page_down(&mut self) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         let max_line_count = self.display_cache.display_line_count();
         if max_line_count == 0 {
-            return vec![]; // No lines to navigate
+            return; // No lines to navigate
         }
 
         // Calculate page size based on current pane height
         let page_size = self.pane_dimensions.height;
         if page_size == 0 {
-            return vec![];
+            return;
         }
 
         let current_line = self.display_cursor.row;
@@ -373,7 +352,7 @@ impl PaneState {
 
         // Only move if there's a significant change
         if target_line == current_line {
-            return vec![]; // No movement needed
+            return; // No movement needed
         }
 
         // Get the display line at the target position to handle virtual column properly
@@ -429,40 +408,27 @@ impl PaneState {
             }
         }
 
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
-
-        // Add redraw event for visual selection if active
-        if self.visual_selection_start.is_some() {
-            events.push(PostCommandAction::CurrentAreaRedrawRequired);
-        }
-
-        // Ensure cursor is visible and add visibility events
+        // Ensure cursor is visible
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.ensure_cursor_visible(content_width);
     }
 
     /// Move cursor up one page with capability checking
-    pub fn move_cursor_page_up(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_page_up(&mut self) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         let max_line_count = self.display_cache.display_line_count();
         if max_line_count == 0 {
-            return vec![]; // No lines to navigate
+            return; // No lines to navigate
         }
 
         // Calculate page size based on current pane height
         let page_size = self.pane_dimensions.height;
         if page_size == 0 {
-            return vec![];
+            return;
         }
 
         let current_line = self.display_cursor.row;
@@ -470,7 +436,7 @@ impl PaneState {
 
         // Only move if there's a significant change
         if target_line == current_line {
-            return vec![]; // No movement needed
+            return; // No movement needed
         }
 
         // Get the display line at the target position to handle virtual column properly
@@ -526,40 +492,27 @@ impl PaneState {
             }
         }
 
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
-
-        // Add redraw event for visual selection if active
-        if self.visual_selection_start.is_some() {
-            events.push(PostCommandAction::CurrentAreaRedrawRequired);
-        }
-
-        // Ensure cursor is visible and add visibility events
+        // Ensure cursor is visible
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.ensure_cursor_visible(content_width);
     }
 
     /// Move cursor down half a page with capability checking
-    pub fn move_cursor_half_page_down(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_half_page_down(&mut self) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         let max_line_count = self.display_cache.display_line_count();
         if max_line_count == 0 {
-            return vec![]; // No lines to navigate
+            return; // No lines to navigate
         }
 
         // Calculate half page size based on current pane height
         let page_size = self.pane_dimensions.height;
         if page_size == 0 {
-            return vec![];
+            return;
         }
         let half_page_size = page_size.div_ceil(2); // Round up for odd numbers
 
@@ -568,7 +521,7 @@ impl PaneState {
 
         // Only move if there's a significant change
         if target_line == current_line {
-            return vec![]; // No movement needed
+            return; // No movement needed
         }
 
         // Get the display line at the target position to handle virtual column properly
@@ -624,40 +577,27 @@ impl PaneState {
             }
         }
 
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
-
-        // Add redraw event for visual selection if active
-        if self.visual_selection_start.is_some() {
-            events.push(PostCommandAction::CurrentAreaRedrawRequired);
-        }
-
-        // Ensure cursor is visible and add visibility events
+        // Ensure cursor is visible
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.ensure_cursor_visible(content_width);
     }
 
     /// Move cursor up half a page with capability checking
-    pub fn move_cursor_half_page_up(&mut self) -> Vec<PostCommandAction> {
+    pub fn move_cursor_half_page_up(&mut self) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         let max_line_count = self.display_cache.display_line_count();
         if max_line_count == 0 {
-            return vec![]; // No lines to navigate
+            return; // No lines to navigate
         }
 
         // Calculate half page size based on current pane height
         let page_size = self.pane_dimensions.height;
         if page_size == 0 {
-            return vec![];
+            return;
         }
         let half_page_size = page_size.div_ceil(2); // Round up for odd numbers
 
@@ -666,7 +606,7 @@ impl PaneState {
 
         // Only move if there's a significant change
         if target_line == current_line {
-            return vec![]; // No movement needed
+            return; // No movement needed
         }
 
         // Get the display line at the target position to handle virtual column properly
@@ -722,21 +662,8 @@ impl PaneState {
             }
         }
 
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
-
-        // Add redraw event for visual selection if active
-        if self.visual_selection_start.is_some() {
-            events.push(PostCommandAction::CurrentAreaRedrawRequired);
-        }
-
-        // Ensure cursor is visible and add visibility events
+        // Ensure cursor is visible
         let content_width = self.get_content_width();
-        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.ensure_cursor_visible(content_width);
     }
 }

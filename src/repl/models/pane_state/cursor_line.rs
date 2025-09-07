@@ -8,16 +8,15 @@
 
 use crate::repl::models::coordinates::geometry::Position;
 use crate::repl::models::pane_state::{EditorMode, LogicalPosition, PaneCapabilities};
-use crate::repl::view_models::PostCommandAction;
 
 use super::PaneState;
 
 impl PaneState {
     /// Move cursor to start of current line with capability checking
-    pub fn move_cursor_to_start_of_line(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_start_of_line(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         // Get current logical position
@@ -35,41 +34,21 @@ impl PaneState {
         // Update visual selection if active
         self.update_visual_selection_on_cursor_move(new_logical);
 
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
+        // Visual selection handling is done by commands
 
-        // Add redraw event for visual selection if active
-        if self.visual_selection_start.is_some() {
-            events.push(PostCommandAction::CurrentAreaRedrawRequired);
-        }
-
-        // Ensure cursor is visible and add visibility events
-        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.ensure_cursor_visible_with_events(content_width);
     }
 
     /// Move cursor to end of current line for append (A command) with capability checking
     /// This positions the cursor AFTER the last character for insert mode
-    pub fn move_cursor_to_line_end_for_append(
-        &mut self,
-        content_width: usize,
-    ) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_line_end_for_append(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         // Get current logical position
         let current_logical = self.buffer.cursor();
-
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
 
         // Get the current line content to find its length
         if let Some(line) = self.buffer.content().get_line(current_logical.line) {
@@ -90,9 +69,7 @@ impl PaneState {
             self.update_visual_selection_on_cursor_move(new_logical);
 
             // Add redraw event for visual selection if active
-            if self.visual_selection_start.is_some() {
-                events.push(PostCommandAction::CurrentAreaRedrawRequired);
-            }
+            if self.visual_selection_start.is_some() {}
         }
 
         // Ensure cursor is visible with Insert-mode scrolling logic
@@ -102,30 +79,21 @@ impl PaneState {
 
         // Temporarily set to Insert mode for proper scrolling calculation
         self.editor_mode = EditorMode::Insert;
-        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
+        self.ensure_cursor_visible_with_events(content_width);
 
         // Restore original mode
         self.editor_mode = original_mode;
-
-        events.extend(visibility_events);
-
-        events
     }
 
     /// Move cursor to end of current line with capability checking
-    pub fn move_cursor_to_end_of_line(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_end_of_line(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         // Get current logical position
         let current_logical = self.buffer.cursor();
-
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
 
         // Get the current line content to find its end position
         if let Some(line) = self.buffer.content().get_line(current_logical.line) {
@@ -154,26 +122,17 @@ impl PaneState {
             self.update_visual_selection_on_cursor_move(new_logical);
 
             // Add redraw event for visual selection if active
-            if self.visual_selection_start.is_some() {
-                events.push(PostCommandAction::CurrentAreaRedrawRequired);
-            }
+            if self.visual_selection_start.is_some() {}
         }
 
-        // Ensure cursor is visible and add visibility events
-        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.ensure_cursor_visible_with_events(content_width);
     }
 
     /// Move cursor to start of document with capability checking
-    pub fn move_cursor_to_document_start(
-        &mut self,
-        content_width: usize,
-    ) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_document_start(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         // Use proper cursor positioning method to ensure logical/display sync
@@ -183,32 +142,20 @@ impl PaneState {
         // Reset virtual column to 0 (vim gg behavior)
         self.virtual_column = 0;
 
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
-
         // Update visual selection if active
         let new_cursor_pos = self.buffer.cursor();
         self.update_visual_selection_on_cursor_move(new_cursor_pos);
 
-        // Add redraw event for visual selection if active
-        if self.visual_selection_start.is_some() {
-            events.push(PostCommandAction::CurrentAreaRedrawRequired);
-        }
+        // Visual selection handling is done by commands
 
-        // Ensure cursor is visible and add visibility events
-        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.ensure_cursor_visible_with_events(content_width);
     }
 
     /// Move cursor to end of document with capability checking
-    pub fn move_cursor_to_document_end(&mut self, content_width: usize) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_document_end(&mut self, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         // Find the last valid display line by iterating
@@ -218,11 +165,6 @@ impl PaneState {
             last_line_idx = idx;
             idx += 1;
         }
-
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
 
         // Move to end of the last line (end of document)
         let last_line_length =
@@ -241,38 +183,27 @@ impl PaneState {
         let new_cursor_pos = self.buffer.cursor();
         self.update_visual_selection_on_cursor_move(new_cursor_pos);
 
-        // Add redraw event for visual selection if active
-        if self.visual_selection_start.is_some() {
-            events.push(PostCommandAction::CurrentAreaRedrawRequired);
-        }
+        // Visual selection handling is done by commands
 
-        // Ensure cursor is visible and add visibility events
-        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.ensure_cursor_visible_with_events(content_width);
     }
 
     /// Move cursor to specific line number (1-based) with capability checking
     /// If line_number is out of bounds, clamps to the last available line (vim behavior)
-    pub fn move_cursor_to_line(
-        &mut self,
-        line_number: usize,
-        content_width: usize,
-    ) -> Vec<PostCommandAction> {
+    pub fn move_cursor_to_line(&mut self, line_number: usize, content_width: usize) {
         // Check if navigation is allowed on this pane
         if !self.capabilities.contains(PaneCapabilities::NAVIGABLE) {
-            return vec![]; // Navigation not allowed on this pane
+            return; // Navigation not allowed on this pane
         }
 
         if line_number == 0 {
-            return vec![];
+            return;
         }
 
         let max_line_count = self.display_cache.display_line_count();
 
         if max_line_count == 0 {
-            return vec![]; // No lines to navigate to
+            return; // No lines to navigate to
         }
 
         // Clamp to valid range (1 to max_line_count)
@@ -294,20 +225,8 @@ impl PaneState {
             self.update_visual_selection_on_cursor_move(new_logical_pos);
         }
 
-        let mut events = vec![
-            PostCommandAction::ActiveCursorUpdateRequired,
-            PostCommandAction::PositionIndicatorUpdateRequired,
-        ];
+        // Visual selection handling is done by commands
 
-        // Add redraw event for visual selection if active
-        if self.visual_selection_start.is_some() {
-            events.push(PostCommandAction::CurrentAreaRedrawRequired);
-        }
-
-        // Ensure cursor is visible and add visibility events
-        let visibility_events = self.ensure_cursor_visible_with_events(content_width);
-        events.extend(visibility_events);
-
-        events
+        self.ensure_cursor_visible_with_events(content_width);
     }
 }

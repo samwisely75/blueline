@@ -65,18 +65,19 @@ impl Command for PreviousWordCommand {
         _key_event: KeyEvent,
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
-        // Get the cursor movement events from pane manager
-        let events = context
+        // Move cursor to previous word
+        context
             .app_state
             .pane_manager
             .move_cursor_to_previous_word();
 
-        tracing::debug!(
-            "PreviousWordCommand executed, generated {} events",
-            events.len()
-        );
+        tracing::debug!("PreviousWordCommand executed");
 
-        Ok(events)
+        Ok(vec![
+            PostCommandAction::ActiveCursorUpdateRequired,
+            PostCommandAction::PositionIndicatorUpdateRequired,
+            PostCommandAction::CurrentAreaRedrawRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {

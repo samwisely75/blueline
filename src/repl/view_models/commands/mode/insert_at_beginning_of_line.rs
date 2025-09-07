@@ -58,7 +58,7 @@ impl Command for InsertAtBeginningOfLineCommand {
         );
 
         // First, move cursor to the beginning of the current line
-        let cursor_events = context
+        context
             .app_state
             .pane_manager
             .move_cursor_to_start_of_line();
@@ -70,14 +70,12 @@ impl Command for InsertAtBeginningOfLineCommand {
             "InsertAtBeginningOfLineCommand: cursor moved to line start, mode changed to Insert"
         );
 
-        // Combine cursor movement events with mode change event
-        let mut events = cursor_events;
-        events.extend(vec![
+        // Generate view update events based on what this command did
+        Ok(vec![
             PostCommandAction::StatusBarUpdateRequired,
             PostCommandAction::ActiveCursorUpdateRequired,
-        ]);
-
-        Ok(events)
+            PostCommandAction::PositionIndicatorUpdateRequired,
+        ])
     }
 
     fn name(&self) -> &'static str {
@@ -240,7 +238,7 @@ mod tests {
         app_state.insert_text("Hello World").unwrap();
         // Move cursor to position 5 (middle of "Hello World")
         for _ in 0..5 {
-            let _ = app_state.pane_manager.move_cursor_right();
+            app_state.pane_manager.move_cursor_right();
         }
 
         // Verify initial state is Normal mode
