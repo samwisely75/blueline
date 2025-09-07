@@ -37,15 +37,12 @@ use crate::repl::models::pane_state::PaneState;
 use crate::repl::models::pane_state::{EditorMode, Pane, PaneCapabilities};
 use crate::repl::models::LogicalPosition;
 
-/// Type alias for visual selection state to reduce complexity
-type VisualSelectionState = (
+/// Visual selection state return type
+pub type VisualSelectionState = (
     Option<LogicalPosition>,
     Option<LogicalPosition>,
     Option<Pane>,
 );
-
-/// Type alias for delete operation result to reduce complexity
-type DeleteResult = Option<String>;
 
 /// PaneManager encapsulates all pane-related state and operations
 /// This eliminates the need for array indexing operations throughout the codebase
@@ -56,8 +53,8 @@ type DeleteResult = Option<String>;
 /// improving type safety and preventing index-related bugs throughout the application.
 #[derive(Debug)]
 pub struct PaneManager {
-    panes: [PaneState; 2], // Private - no external access
-    current_pane: Pane,
+    pub(crate) panes: [PaneState; 2], // Accessible within app_state module
+    pub(crate) current_pane: Pane,
     wrap_enabled: bool,
     show_line_numbers: bool,
     tab_width: usize,                    // Number of spaces per tab stop (default 4)
@@ -221,7 +218,7 @@ impl PaneManager {
 
     /// Delete selected text from the current pane
     /// Returns deleted_text if successful
-    pub fn delete_selected_text(&mut self) -> DeleteResult {
+    pub fn delete_selected_text(&mut self) -> Option<String> {
         if let Some(deleted_text) = self.panes[self.current_pane].delete_selected_text() {
             // Rebuild display cache for the affected pane
             self.rebuild_display_caches_and_sync();
