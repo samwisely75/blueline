@@ -55,34 +55,6 @@ impl VisualSelectionState {
         self.end = None;
         self.pane = None;
     }
-
-    /// Get the selection as a tuple for backward compatibility
-    #[allow(clippy::type_complexity)]
-    pub fn as_tuple(
-        &self,
-    ) -> (
-        Option<LogicalPosition>,
-        Option<LogicalPosition>,
-        Option<Pane>,
-    ) {
-        (self.start, self.end, self.pane)
-    }
-
-    /// Create from tuple for backward compatibility
-    #[allow(clippy::type_complexity)]
-    pub fn from_tuple(
-        tuple: (
-            Option<LogicalPosition>,
-            Option<LogicalPosition>,
-            Option<Pane>,
-        ),
-    ) -> Self {
-        Self {
-            start: tuple.0,
-            end: tuple.1,
-            pane: tuple.2,
-        }
-    }
 }
 
 impl Default for VisualSelectionState {
@@ -125,19 +97,6 @@ impl YankSelection {
     /// Create a block-wise yank selection
     pub fn block(text: String) -> Self {
         Self::new(text, YankType::Block)
-    }
-
-    /// Get the selection as a tuple for backward compatibility
-    pub fn as_tuple(&self) -> (String, YankType) {
-        (self.text.clone(), self.yank_type)
-    }
-
-    /// Create from tuple for backward compatibility
-    pub fn from_tuple(tuple: (String, YankType)) -> Self {
-        Self {
-            text: tuple.0,
-            yank_type: tuple.1,
-        }
     }
 }
 
@@ -191,29 +150,5 @@ impl DisplayLine {
     /// Create a continuation line
     pub fn continuation(content: String, logical_start_col: usize, logical_line: usize) -> Self {
         Self::new(content, None, true, logical_start_col, logical_line)
-    }
-
-    /// Get the display line as a tuple for backward compatibility
-    #[allow(clippy::type_complexity)]
-    pub fn as_tuple(&self) -> (String, Option<usize>, bool, usize, usize) {
-        (
-            self.content.clone(),
-            self.line_number,
-            self.is_continuation,
-            self.logical_start_col,
-            self.logical_line,
-        )
-    }
-
-    /// Create from tuple for backward compatibility
-    #[allow(clippy::type_complexity)]
-    pub fn from_tuple(tuple: (String, Option<usize>, bool, usize, usize)) -> Self {
-        Self {
-            content: tuple.0,
-            line_number: tuple.1,
-            is_continuation: tuple.2,
-            logical_start_col: tuple.3,
-            logical_line: tuple.4,
-        }
     }
 }

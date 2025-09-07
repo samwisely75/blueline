@@ -19,7 +19,6 @@ use std::collections::HashMap;
 /// Type alias for display line rendering data: (content, line_number, is_continuation, logical_start_col, logical_line)
 ///
 /// Note: Consider migrating to the DisplayLine struct for better type safety and clarity.
-/// Use `DisplayLine::from_tuple()` and `DisplayLine::as_tuple()` for conversion.
 pub type DisplayLineData = (String, Option<usize>, bool, usize, usize);
 
 /// Core application state containing all data models and business logic
