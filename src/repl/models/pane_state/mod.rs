@@ -84,7 +84,7 @@ bitflags! {
     /// # Examples
     ///
     /// ```rust
-    /// use blueline::repl::events::PaneCapabilities;
+    /// use blueline::repl::models::pane_state::PaneCapabilities;
     ///
     /// // Request pane with full access
     /// let request_caps = PaneCapabilities::FULL_ACCESS;

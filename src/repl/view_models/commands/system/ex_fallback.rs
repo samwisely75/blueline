@@ -10,7 +10,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// Command for handling unrecognized ex commands
-/// 
+///
 /// This is a fallback handler that:
 /// 1. Only activates when Enter is pressed in Command mode
 /// 2. Has lowest priority (checked after all specific ex commands)
@@ -24,33 +24,50 @@ impl Command for ExFallbackCommand {
         if key_event.code != KeyCode::Enter || mode != EditorMode::Command {
             return false;
         }
-        
+
         // Check if this is a known command - if so, don't handle it
         let buffer = context.ex_command_buffer.trim();
-        
+
         // List of known ex commands that have their own handlers
         let known_commands = [
-            "q", "q!", "quit", "quit!",
-            "w", "w!", "write", "write!",
-            "wq", "wq!",
-            "set wrap on", "set wrap off", "set wrap!",
-            "set number on", "set number off", "set number!",
-            "set expandtab on", "set expandtab off", "set expandtab!",
-            "set clipboard on", "set clipboard off", "set clipboard!",
-            "set dcut on", "set dcut off", "set dcut!",
+            "q",
+            "q!",
+            "quit",
+            "quit!",
+            "w",
+            "w!",
+            "write",
+            "write!",
+            "wq",
+            "wq!",
+            "set wrap on",
+            "set wrap off",
+            "set wrap!",
+            "set number on",
+            "set number off",
+            "set number!",
+            "set expandtab on",
+            "set expandtab off",
+            "set expandtab!",
+            "set clipboard on",
+            "set clipboard off",
+            "set clipboard!",
+            "set dcut on",
+            "set dcut off",
+            "set dcut!",
             "profile",
         ];
-        
+
         // Also check for patterns like "set tabstop N" and goto line commands
         if buffer.starts_with("set tabstop ") {
             return false;
         }
-        
+
         // Check for goto line commands (numbers or $)
         if buffer.chars().all(|c| c.is_ascii_digit()) || buffer == "$" {
             return false;
         }
-        
+
         // Handle both unknown commands and empty buffer
         !known_commands.contains(&buffer)
     }
@@ -61,19 +78,19 @@ impl Command for ExFallbackCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         let command = context.app_state.get_ex_command_buffer().trim();
-        
+
         // Log the unknown command for debugging
         if !command.is_empty() {
             tracing::warn!("Unknown ex command: {}", command);
             // Don't set a status message for unknown commands - just clear the bar
         }
-        
+
         // Clear the command buffer and exit command mode
         context.app_state.clear_ex_command_buffer();
         context.app_state.clear_status_message(); // Clear any existing status message
         let previous_mode = context.app_state.get_previous_mode();
         context.app_state.change_mode(previous_mode)?;
-        
+
         Ok(vec![
             PostCommandAction::StatusBarUpdateRequired,
             PostCommandAction::FullRedrawRequired,
@@ -109,11 +126,11 @@ mod tests {
             has_selection: false,
             ex_command_buffer: "unknown".to_string(),
         };
-        
+
         let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
         assert!(command.is_relevant(key_event, EditorMode::Command, &context));
     }
-    
+
     #[test]
     fn fallback_command_should_not_be_relevant_in_normal_mode() {
         let command = ExFallbackCommand;
@@ -124,11 +141,11 @@ mod tests {
             has_selection: false,
             ex_command_buffer: String::new(),
         };
-        
+
         let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
         assert!(!command.is_relevant(key_event, EditorMode::Normal, &context));
     }
-    
+
     #[test]
     fn fallback_command_should_not_be_relevant_for_other_keys() {
         let command = ExFallbackCommand;
@@ -139,11 +156,11 @@ mod tests {
             has_selection: false,
             ex_command_buffer: "unknown".to_string(),
         };
-        
+
         let key_event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
         assert!(!command.is_relevant(key_event, EditorMode::Command, &context));
     }
-    
+
     #[test]
     fn fallback_command_should_return_correct_name() {
         let command = ExFallbackCommand;

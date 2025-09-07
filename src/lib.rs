@@ -34,7 +34,8 @@ pub mod repl;
 /// Macro for self-registering commands
 ///
 /// Usage in command modules:
-/// ```rust
+/// ```rust,ignore
+/// # // This is a compile-time macro that requires inventory setup
 /// register_command!(YankSelectionCommand, "YankSelectionCommand");
 /// ```
 #[macro_export]
