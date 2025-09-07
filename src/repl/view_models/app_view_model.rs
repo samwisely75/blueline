@@ -18,6 +18,7 @@ use crate::repl::{
         events::YankType as NewYankType, Command, DynamicCommandRegistry, ExecutionContext,
         ModelEvent,
     },
+    view_models::post_command_actions::PostCommandAction,
     views::{TerminalRenderer, ViewRenderer},
 };
 use anyhow::Result;
@@ -616,21 +617,16 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 self.app_state.change_mode(previous_mode)?;
             }
             CommandEvent::ShowProfileRequested => {
-                // Now handled by ShowProfileCommand
-                use crate::repl::unified_commands::system::show_profile::ShowProfileCommand;
-                let command = ShowProfileCommand::new();
-                let mut exec_context = ExecutionContext {
-                    app_state: &mut self.app_state,
-                    services: &mut self.services,
-                };
-                // Create a dummy KeyEvent for ShowProfile (no key event in this context)
-                let dummy_key_event = crossterm::event::KeyEvent::new(
-                    crossterm::event::KeyCode::Null,
-                    crossterm::event::KeyModifiers::empty(),
-                );
-                if let Ok(view_events) = command.execute(dummy_key_event, &mut exec_context) {
-                    self.process_view_events(view_events)?;
-                }
+                // Show profile information directly (old ShowProfileCommand logic)
+                let profile_name = self.app_state.get_profile_name();
+                let profile_path = self.app_state.get_profile_path();
+                
+                tracing::info!("Showing profile: {} at {}", profile_name, profile_path);
+                
+                let message = format!("[{profile_name}] in {profile_path}");
+                self.app_state.set_status_message(message);
+                
+                self.process_view_events(vec![PostCommandAction::StatusBarUpdateRequired])?;
             }
             CommandEvent::SettingChangeRequested { setting, value } => {
                 // Now handled by SettingChangeCommand

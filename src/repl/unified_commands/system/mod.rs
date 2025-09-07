@@ -19,7 +19,6 @@ pub mod ex_set_wrap;
 pub mod ex_show_profile;
 pub mod http;
 pub mod setting_change;
-pub mod show_profile;
 
 // Re-export all command types using wildcards - no merge conflicts!
 pub use app_terminate::*;
@@ -33,4 +32,3 @@ pub use ex_set_wrap::*;
 pub use ex_show_profile::*;
 pub use http::*;
 pub use setting_change::*;
-pub use show_profile::*;
