@@ -6,7 +6,6 @@
 pub mod io;
 pub mod models;
 pub mod services;
-pub mod unified_commands;
 pub mod view_models;
 pub mod views;
 

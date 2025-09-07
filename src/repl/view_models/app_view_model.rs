@@ -11,7 +11,7 @@ use crate::repl::{
     models::pane_state::Pane,
     models::LogicalPosition,
     services::{HttpResponseMessage, Services},
-    unified_commands::{DynamicCommandRegistry, ExecutionContext},
+    view_models::commands::{DynamicCommandRegistry, ExecutionContext},
     views::{TerminalRenderer, ViewRenderer},
 };
 use anyhow::Result;
@@ -135,7 +135,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
             // Create command context after setting the ex command buffer
             let context =
-                crate::repl::unified_commands::CommandContext::from_app_state(&self.app_state);
+                crate::repl::view_models::commands::CommandContext::from_app_state(&self.app_state);
 
             // Try to find a unified command that matches this ex command
             if let Some(unified_command) = self.unified_command_registry.process_key_event(
@@ -254,7 +254,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
         // Create command context from current state
         let context =
-            crate::repl::unified_commands::CommandContext::from_app_state(&self.app_state);
+            crate::repl::view_models::commands::CommandContext::from_app_state(&self.app_state);
         let current_mode = self.app_state.get_mode();
 
         // Find the first relevant command

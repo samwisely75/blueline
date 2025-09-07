@@ -41,7 +41,7 @@ pub mod repl;
 macro_rules! register_command {
     ($command_type:ty, $name:literal) => {
         inventory::submit! {
-            $crate::repl::unified_commands::CommandEntry {
+            $crate::repl::view_models::commands::CommandEntry {
                 name: $name,
                 factory: || Box::new(<$command_type>::new()),
             }

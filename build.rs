@@ -8,9 +8,9 @@ use std::path::Path;
 fn main() {
     #[allow(clippy::disallowed_methods)]
     let out_dir = env::var("OUT_DIR").unwrap();
-    let commands_dir = "src/repl/unified_commands";
+    let commands_dir = "src/repl/view_models/commands";
 
-    // Tell Cargo to rerun this build script if the unified_commands directory changes
+    // Tell Cargo to rerun this build script if the commands directory changes
     println!("cargo:rerun-if-changed={commands_dir}");
 
     // Auto-generate module declarations for all command files
