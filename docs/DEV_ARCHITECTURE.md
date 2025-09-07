@@ -1,565 +1,312 @@
-# System Architecture
+# BlueLine System Architecture
 
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
 2. [Core Components](#core-components)
 3. [Models Layer](#models-layer)
-4. [ViewModel Layer](#viewmodel-layer)
-5. [Event System](#event-system)
-6. [Rendering System](#rendering-system)
-7. [Data Flow](#data-flow)
-8. [Key Patterns](#key-patterns)
+4. [ViewModels Layer](#viewmodels-layer)
+5. [Views Layer](#views-layer)
+6. [Commands System](#commands-system)
+7. [Services Layer](#services-layer)
+8. [Event System](#event-system)
+9. [Data Flow](#data-flow)
+10. [Key Design Principles](#key-design-principles)
 
 ## Architecture Overview
 
-Blueline implements a **Model-View-ViewModel (MVVM)** architecture pattern enhanced with an **event-driven system** for reactive UI updates. This architecture provides clear separation of concerns between data management, display logic, and user interaction.
+BlueLine follows a clean **Model-View-ViewModel (MVVM)** architecture pattern with clear separation of concerns and event-driven communication between components.
 
 ```text
-┌─────────────┐     Commands     ┌──────────────┐     Events      ┌──────────────┐
-│ Controller  │ ───────────────> │    Models    │ ──────────────> │  ViewModel   │
-│  (Input)    │                  │ (Pure Data)  │                 │  (Display)   │
-└─────────────┘                  └──────────────┘                 └──────────────┘
-       ↑                                ↑                                │
-       │                                │                                ↓
-       │                                │         View Events     ┌──────────────┐
-       └─────── User Input ─────────────┼────────────────────────│ Rendering    │
-                                        │                        │   System     │
-                                        │                        └──────────────┘
-                                        │
-                               ┌─────────────┐
-                               │ Event Bus   │
-                               │ (Pub/Sub)   │
-                               └─────────────┘
+┌─────────────┐     Events      ┌──────────────┐     Events      ┌──────────────┐
+│   Models    │ ──────────────> │  ViewModels  │ ──────────────> │    Views     │
+│ (Pure Data) │                 │(Orchestration)│                 │  (Rendering) │
+└─────────────┘                 └──────────────┘                 └──────────────┘
+       ↑                                │                                ↓
+       │                                │                                │
+       └────────── Commands ────────────┴──────── User Input ───────────┘
 ```
-
-## Component Architecture
-
-The following diagram shows the detailed breakdown of major components and their relationships:
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                                 Blueline MVVM                                      │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ┌─────────────┐              ┌─────────────────────────────────────────────┐   │
-│  │AppController│──Commands───>│                ViewModel                    │   │
-│  │             │              │  ┌─────────────────────────────────────────┐ │   │
-│  │ • Input     │              │  │              Core                      │ │   │
-│  │ • Commands  │<─ViewEvents──│  │ • Central Coordinator                  │ │   │
-│  │ • Rendering │              │  │ • Screen Buffer Management             │ │   │
-│  │             │              │  │ • Terminal Size Handling               │ │   │
-│  └─────────────┘              │  └─────────────────────────────────────────┘ │   │
-│                               │                                             │ │   │
-│                               │  ┌─────────────────────────────────────────┐ │   │
-│                               │  │           PaneManager                   │ │   │
-│                               │  │ • Complete Pane Abstraction             │ │   │
-│                               │  │ • Semantic Operations                   │ │   │
-│                               │  │ • Layout Calculations                   │ │   │
-│                               │  │ • Focus Management                      │ │   │
-│                               │  │                                         │ │   │
-│                               │  │    ┌──────────┐  ┌──────────┐          │ │   │
-│                               │  │    │PaneState │  │PaneState │          │ │   │
-│                               │  │    │(Request) │  │(Response)│          │ │   │
-│                               │  │    │          │  │          │          │ │   │
-│                               │  │    │•Buffer   │  │•Buffer   │          │ │   │
-│                               │  │    │•Display  │  │•Display  │          │ │   │
-│                               │  │    │•Cursor   │  │•Cursor   │          │ │   │
-│                               │  │    │•Selection│  │•Selection│          │ │   │
-│                               │  │    └──────────┘  └──────────┘          │ │   │
-│                               │  └─────────────────────────────────────────┘ │   │
-│                               │                                             │ │   │
-│                               │  ┌─────────────────────────────────────────┐ │   │
-│                               │  │            StatusLine                   │ │   │
-│                               │  │ • Mode Display                          │ │   │
-│                               │  │ • Position Indicator                    │ │   │
-│                               │  │ • Command Buffer                        │ │   │
-│                               │  │ • Status Messages                       │ │   │
-│                               │  └─────────────────────────────────────────┘ │   │
-│                               │                                             │ │   │
-│                               │  ┌─────────────────────────────────────────┐ │   │
-│                               │  │         Specialized Modules             │ │   │
-│                               │  │                                         │ │   │
-│                               │  │ ┌─────────────┐ ┌─────────────────────┐ │ │   │
-│                               │  │ │ModeManager  │ │ExCommandManager     │ │ │   │
-│                               │  │ │•Mode Trans  │ │•Command Parsing     │ │ │   │
-│                               │  │ │•Visual Mode │ │•Buffer Operations   │ │ │   │
-│                               │  │ └─────────────┘ └─────────────────────┘ │ │   │
-│                               │  │                                         │ │   │
-│                               │  │ ┌─────────────┐ ┌─────────────────────┐ │ │   │
-│                               │  │ │CursorMgr    │ │BufferOperations     │ │ │   │
-│                               │  │ │•Movement    │ │•Text Insert/Delete  │ │ │   │
-│                               │  │ │•Navigation  │ │•Content Management  │ │ │   │
-│                               │  │ └─────────────┘ └─────────────────────┘ │ │   │
-│                               │  └─────────────────────────────────────────┘ │   │
-│                               └─────────────────────────────────────────────┘   │
-│                                                                                 │
-│  ┌─────────────────────────────────────────────────────────────────────────┐   │
-│  │                          Event System                                   │   │
-│  │                                                                         │   │
-│  │ ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────────┐   │   │
-│  │ │ViewEvents   │    │ModelEvents  │    │        EventBus             │   │   │
-│  │ │             │    │             │    │                             │   │   │
-│  │ │•Redraw      │    │•Data Change │    │ • Pub/Sub Coordinator       │   │   │
-│  │ │•Cursor      │    │•Mode Change │    │ • Event Routing             │   │   │
-│  │ │•Focus       │    │•Pane Switch │    │ • Decoupled Communication   │   │   │
-│  │ │•Content     │    │•Text Modify │    │                             │   │   │
-│  │ └─────────────┘    └─────────────┘    └─────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────────────────┘   │
-│                                                                                 │
-│  ┌─────────────────────────────────────────────────────────────────────────┐   │
-│  │                         Models Layer                                    │   │
-│  │                                                                         │   │
-│  │ ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │   │
-│  │ │BufferModel  │  │ResponseModel│  │DisplayCache │  │     Other       │  │   │
-│  │ │             │  │             │  │             │  │    Models       │  │   │
-│  │ │•Content     │  │•HTTP Data   │  │•Line Wrap   │  │                 │  │   │
-│  │ │•Cursor      │  │•Status Code │  │•Coordinates │  │•StatusLineModel │  │   │
-│  │ │•Text Ops    │  │•Timing      │  │•Mapping     │  │•HttpConfig      │  │   │
-│  │ └─────────────┘  └─────────────┘  └─────────────┘  └─────────────────┘  │   │
-│  └─────────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────────┘
-
-Key Relationships:
-• AppController orchestrates input and coordinates with ViewModel
-• ViewModel delegates to specialized modules for focused responsibilities  
-• PaneManager provides complete abstraction - no external pane array access
-• StatusLine encapsulates all status bar state and operations
-• EventBus enables decoupled communication between all components
-• Models contain pure data with no view logic or display calculations
-```
-
-### Design Principles
-
-1. **Separation of Concerns**: Each layer has a distinct responsibility
-2. **Event-Driven**: Components communicate through events, not direct coupling
-3. **Reactive Updates**: UI automatically responds to model changes
-4. **Testability**: Business logic is isolated from view concerns
-5. **Performance**: Efficient partial updates minimize rendering overhead
 
 ## Core Components
 
-### 1. Models Layer (`src/repl/models/`)
+### Models (`src/repl/models/`)
+**Pure data structures and business logic**
+- `AppState`: Central application state containing all data
+  - Merged from former ViewModel and PaneManager for simplified architecture
+  - Contains request/response buffers, pane management, settings
+- `PaneState`: Individual pane state (cursor, selection, mode)
+- `BufferModel`: Text buffer with multi-byte character support
+- `Settings`: Shared enums for settings and movement directions
+- `Events`: Event types for inter-component communication
 
-- **Pure data structures** containing application state
-- **No view logic** or display calculations
-- **Immutable operations** where possible
-- **Domain-focused** business logic
+### ViewModels (`src/repl/view_models/`)
+**Orchestration and coordination layer**
+- `AppViewModel`: Main MVVM orchestrator
+  - Manages the event loop
+  - Coordinates between View and Model layers
+  - Handles command execution via the unified command system
+  - Integrates with services (HTTP, clipboard, etc.)
+- `Commands`: Unified command system (moved from `unified_commands`)
+  - Self-registering commands using inventory system
+  - Event-driven command execution
+  - Support for modal editing (Normal, Insert, Visual, Command modes)
+- `PostCommandActions`: Events emitted after command execution
 
-### 2. ViewModel Layer (`src/repl/view_models/`)
+### Views (`src/repl/views/`)
+**Rendering and display layer**
+- `ViewRenderer`: Trait defining view rendering interface
+- `TerminalRenderer`: Terminal-based implementation
+  - Renders panes, status bar, and command line
+  - Handles terminal-specific display logic
+  - Efficient partial updates to minimize flickering
 
-- **Modular ViewModel architecture** split into focused responsibilities
-- **PaneManager** for complete pane abstraction and semantic operations
-- **Display state management** (scroll positions, cursor coordinates)
-- **Coordinate transformations** (logical ↔ display positions)
-- **Event handling** and propagation
-- **Display cache management** for text wrapping and line mapping
+### Commands (`src/repl/view_models/commands/`)
+**Unified command system for handling user input**
+- **Dynamic Registry**: Auto-discovers and registers commands at compile time
+- **Command Categories**:
+  - `editing/`: Text manipulation (insert, delete, cut, paste)
+  - `mode/`: Mode transitions (Normal, Insert, Visual, Command)
+  - `navigation/`: Cursor and viewport movement
+  - `system/`: Application control (quit, settings, HTTP requests)
+  - `visual/`: Visual mode operations
+  - `yank/`: Copy/paste operations
+- **Key Features**:
+  - Commands emit PostCommandActions rather than directly modifying state
+  - Self-registration using inventory crate
+  - Supports complex key sequences and modal editing
 
-### 3. Event System (`src/repl/events/`)
+### Services (`src/repl/services/`)
+**Business logic and external integrations**
+- `HttpService`: HTTP request execution
+- `YankService`: Clipboard operations (system and internal)
+- `WordSegmenter`: Text boundary detection for navigation
 
-- **Model Events**: Data change notifications
-- **View Events**: Rendering update requests
-- **Input Events**: User interaction handling
-- **Event Bus**: Central pub/sub coordinator
-
-### 4. Rendering System (`src/repl/views/`)
-
-- **Terminal output** using crossterm
-- **Efficient partial updates** to minimize flickering
-- **Cursor management** and styling
-- **Status bar rendering**
+### I/O Layer (`src/repl/io/`)
+**Input/output abstractions**
+- `EventStream`: Abstraction for input events
+- `RenderStream`: Abstraction for rendering output
+- Supports both terminal and mock implementations for testing
 
 ## Models Layer
 
-The Models layer contains pure data structures representing the application's business state.
+The Models layer contains pure data structures representing application state:
 
-### Core Models
-
-#### BufferModel (`src/repl/models/buffer_model.rs`)
-
-```rust
-pub struct BufferModel {
-    content: BufferContent,         // Text lines
-    cursor: LogicalPosition,        // Cursor in logical coordinates
-    pane: Pane,                    // Which pane this buffer belongs to
-}
-```
-
-- Manages text content as logical lines
-- Maintains cursor position in document coordinates
-- Provides text manipulation operations (insert, delete)
-- No awareness of display or wrapping
-
-#### ResponseModel (`src/repl/models/response_model.rs`)
-
-```rust
-pub struct ResponseModel {
-    status_code: Option<u16>,       // HTTP status code
-    status_message: Option<String>, // HTTP status message
-    body: String,                   // Response body content
-    duration_ms: Option<u64>,       // Request duration
-}
-```
-
-- Stores HTTP response data
-- Tracks request execution timing
-- Immutable once set
-
-#### DisplayCache (`src/repl/models/display_cache.rs`)
-
-```rust
-pub struct DisplayCache {
-    display_lines: Vec<DisplayLine>, // Wrapped/processed lines
-    logical_mapping: Vec<LineMapping>, // Logical ↔ Display coordinate mapping
-}
-```
-
-- Handles text wrapping and line breaking
-- Provides coordinate conversion between logical and display positions
-- Optimized for efficient lookups during rendering
+### AppState (`src/repl/models/app_state/`)
+Central application state with modular organization:
+- **Core State Management**: Mode, panes, settings
+- **Buffer Operations**: Text manipulation, visual selections
+- **Cursor Management**: Movement and positioning
+- **Display Management**: Line rendering, wrapping
+- **Ex Command Manager**: Command mode operations
+- **Pane Manager**: Multi-pane layout and focus
 
 ### Key Model Characteristics
+1. **Pure Data**: No UI logic or rendering concerns
+2. **Event Emission**: State changes generate events
+3. **Multi-byte Support**: Full Unicode text handling
+4. **Logical Coordinates**: Document-based positioning
 
-1. **Logical Coordinates**: Models work with document line/column positions
-2. **Pure Functions**: Operations return events rather than mutating state
-3. **Domain Focus**: Models understand business concepts, not UI concerns
-4. **Event Emission**: State changes generate events for reactive updates
+## ViewModels Layer
 
-## ViewModel Layer
+The ViewModels layer orchestrates the application:
 
-The ViewModel layer bridges the gap between pure model data and display requirements.
-
-### Core ViewModel (`src/repl/view_models/core.rs`)
-
+### AppViewModel
 ```rust
-pub struct ViewModel {
-    // Core state
-    editor_mode: EditorMode,
-    response: ResponseModel,
-    
-    // Pane management - complete abstraction through PaneManager
-    pane_manager: PaneManager,
-    
-    // Status line model - encapsulates all status bar state
-    status_line: StatusLine,
-    
-    // HTTP client and configuration
-    http_client: Option<HttpClient>,
-    http_session_headers: HashMap<String, String>,
-    http_verbose: bool,
-    
-    // Event management
-    event_bus: EventBusOption,
-    pending_view_events: Vec<ViewEvent>,
-    pending_model_events: Vec<ModelEvent>,
-    
-    // Double buffering for efficient rendering
-    current_screen_buffer: ScreenBuffer,
-    previous_screen_buffer: ScreenBuffer,
+pub struct AppViewModel<ES: EventStream, RS: RenderStream> {
+    app_state: AppState,
+    view_renderer: TerminalRenderer<RS>,
+    services: Services,
+    unified_command_registry: DynamicCommandRegistry,
+    event_bus: SimpleEventBus,
+    event_stream: ES,
+    // ... other fields
 }
 ```
 
-### PaneManager Architecture
+### Key Responsibilities
+1. **Event Loop Management**: Process input, execute commands, render output
+2. **Command Routing**: Match keys to commands based on current mode
+3. **Service Integration**: Coordinate HTTP, clipboard, and other services
+4. **State Coordination**: Synchronize model updates with view rendering
 
-The `PaneManager` encapsulates all pane-related state and operations, providing complete abstraction where external components never directly access pane-specific identifiers:
+## Views Layer
 
+The Views layer handles all rendering:
+
+### TerminalRenderer
+- **Double Buffering**: Compare screen states to minimize updates
+- **Partial Rendering**: Update only changed regions
+- **Cursor Management**: Hide during updates to prevent flickering
+- **Status Bar**: Mode indicators, position, messages
+
+## Commands System
+
+The unified command system provides flexible, extensible input handling:
+
+### Command Structure
 ```rust
-pub struct PaneManager {
-    panes: [PaneState; 2],           // Private - no external access
-    current_pane: Pane,
-    wrap_enabled: bool,
-    terminal_dimensions: (u16, u16),
-    request_pane_height: u16,
+pub trait Command: Send + Sync {
+    fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool;
+    fn execute(&self, key_event: KeyEvent, context: &mut ExecutionContext) -> Result<Vec<PostCommandAction>>;
+    fn name(&self) -> &'static str;
 }
 ```
 
-#### PaneManager Responsibilities
-
-1. **Complete Pane Abstraction**: External components use semantic operations like `switch_to_request_pane()` instead of pane indexing
-2. **Pane Layout Management**: Calculates pane boundaries and heights based on terminal size
-3. **Semantic Operations**: Provides domain-specific methods like `insert_char_in_request()`, `is_in_request_pane()`
-4. **Display State Coordination**: Manages cursor positions, scroll offsets, and visual selection across panes
-5. **Event Emission**: Returns semantic ViewEvents like `RequestContentChanged`, `FocusSwitched`
-
-### PaneState Structure (Internal to PaneManager)
-
+### Command Registration
+Commands self-register using the inventory system:
 ```rust
-pub struct PaneState {
-    buffer: BufferModel,                    // Text content and logical cursor
-    display_cache: DisplayCache,            // Wrapped lines and coordinate mapping
-    display_cursor: (usize, usize),         // Cursor in display coordinates
-    scroll_offset: (usize, usize),          // Viewport scroll position
-    visual_selection_start: Option<LogicalPosition>, // Visual mode selection
-    visual_selection_end: Option<LogicalPosition>,
-    pane_dimensions: (usize, usize),        // Pane width/height
-}
+register_command!(YankSelectionCommand, "YankSelectionCommand");
 ```
 
-### ViewModel Specialized Modules
+### Command Categories
 
-The ViewModel is split into focused modules for better maintainability:
+#### Editing Commands
+- Insert/delete characters and lines
+- Cut/copy/paste operations
+- Multi-cursor support for Visual Block mode
 
-#### Core (`src/repl/view_models/core.rs`)
-
-- Main ViewModel struct and basic initialization
-- Terminal size management and screen buffer coordination
-- Central coordinator that delegates to specialized managers
-
-#### Mode Manager (`src/repl/view_models/mode_manager.rs`)
-
-- Editor mode transitions (Normal, Insert, Visual, Command)
-- Visual mode selection state management
-- Mode-related event handling
-
-#### Ex Command Manager (`src/repl/view_models/ex_command_manager.rs`)
-
-- Ex command buffer operations (`:q`, `:set wrap on`, etc.)
-- Command parsing and execution
-- Command mode state management
-
-#### Buffer Operations (`src/repl/view_models/buffer_operations.rs`)
-
-- Text insertion and deletion
-- Character and line manipulation
-- Display cache synchronization
-- Event emission for content changes
-
-#### Cursor Manager (`src/repl/view_models/cursor_manager.rs`)
-
-- Cursor movement commands (up, down, left, right)
+#### Navigation Commands
+- Cursor movement (h, j, k, l)
 - Word navigation (w, b, e)
+- Page navigation (Ctrl+D, Ctrl+U)
 - Line navigation (0, $, gg, G)
-- Auto-scrolling to keep cursor visible
 
-#### Display Manager (`src/repl/view_models/display_manager.rs`)
+#### Mode Commands
+- Mode transitions (i, a, v, Esc)
+- Visual mode variants (V, Ctrl+V)
+- Command mode (:)
 
-- Display line rendering for terminal output
-- Line number calculation and formatting
-- Text wrapping and overflow handling
-- Visual selection highlighting
+#### System Commands
+- Application control (:q, Ctrl+C)
+- Settings management (:set wrap, :set number)
+- HTTP request execution (Ctrl+Enter)
 
-#### PaneManager (`src/repl/view_models/pane_manager.rs`)
+## Services Layer
 
-- **Complete pane abstraction** - external components never directly access pane arrays
-- **Semantic operations** - `switch_to_request_pane()`, `insert_char_in_request()` instead of pane indexing
-- **Pane layout management** - calculates boundaries, heights, and handles terminal resizing
-- **Event abstraction** - emits semantic events like `RequestContentChanged`, `FocusSwitched`
+Services encapsulate business logic and external integrations:
 
-#### Rendering Coordinator (`src/repl/view_models/rendering_coordinator.rs`)
+### HttpService
+- Profile-based configuration
+- Session header management
+- Async request execution
+- Response streaming
 
-- Screen buffer management for double buffering
-- Differential rendering for performance
-- View event emission and batching
-- Render optimization strategies
-
-### Key ViewModel Responsibilities
-
-1. **Display State**: Manages cursor positions, scroll offsets, selection state
-2. **Coordinate Translation**: Converts between logical and display coordinates
-3. **Event Handling**: Responds to model events and emits view events
-4. **Display Cache**: Maintains text wrapping and line mapping
-5. **Auto-scrolling**: Ensures cursor remains visible during navigation
-6. **Performance Optimization**: Uses double buffering and partial updates
+### YankService
+- System clipboard integration (optional)
+- Internal yank buffer
+- Line-wise and character-wise yanking
+- Visual mode support
 
 ## Event System
 
-The event system enables reactive, decoupled communication between components.
+Events enable decoupled communication between components:
 
-### Event Types
-
-#### Model Events (`src/repl/events/model_events.rs`)
-
+### PostCommandActions
 ```rust
-pub enum ModelEvent {
-    CursorMoved { pane: Pane, old_pos: LogicalPosition, new_pos: LogicalPosition },
-    TextInserted { pane: Pane, position: LogicalPosition, text: String },
-    TextDeleted { pane: Pane, range: LogicalRange },
-    ModeChanged { old_mode: EditorMode, new_mode: EditorMode },
-    PaneSwitched { old_pane: Pane, new_pane: Pane },
-    RequestExecuted { method: String, url: String },
-    ResponseReceived { status_code: u16, body: String },
+pub enum PostCommandAction {
+    FullRedrawRequired,
+    CurrentAreaRedrawRequired,
+    StatusBarUpdateRequired,
+    ActiveCursorUpdateRequired,
+    ModeChanged { new_mode: EditorMode },
+    ExecuteHttpRequest,
+    Quit,
+    // ... more actions
 }
 ```
 
-#### View Events (`src/repl/events/view_events.rs`)
-
-The ViewEvent system has been abstracted to eliminate pane parameter leakage:
-
-```rust
-pub enum ViewEvent {
-    FullRedrawRequired,                                    // Complete screen refresh
-    CurrentAreaRedrawRequired,                             // Redraw currently active pane
-    SecondaryAreaRedrawRequired,                          // Redraw inactive pane
-    ActiveCursorUpdateRequired,                           // Update cursor in active pane
-    StatusBarUpdateRequired,                              // Status bar refresh
-    PositionIndicatorUpdateRequired,                      // Position indicator only
-    RequestContentChanged,                                // Request pane content changed
-    ResponseContentChanged,                               // Response pane content changed
-    FocusSwitched,                                        // Active pane changed
-    CurrentAreaScrollChanged { old_offset: usize, new_offset: usize },
-}
-```
-
-#### Input Events (`src/repl/events/view_events.rs`)
-
-```rust
-pub enum InputEvent {
-    KeyPressed(KeyEvent),                     // User key input
-    TerminalResized { width: u16, height: u16 }, // Terminal size change
-}
-```
-
-### Event Bus (`src/repl/events/event_bus.rs`)
-
-The EventBus provides a centralized pub/sub mechanism:
-
-```rust
-pub trait EventBus {
-    fn emit_model_event(&mut self, event: ModelEvent);
-    fn emit_view_event(&mut self, event: ViewEvent);
-    fn subscribe_to_model_events(&mut self, handler: Box<dyn Fn(&ModelEvent)>);
-    fn subscribe_to_view_events(&mut self, handler: Box<dyn Fn(&ViewEvent)>);
-}
-```
-
-### Event Flow Patterns
-
-1. **Command → Model Event**: Commands modify model state and emit events
-2. **Model Event → ViewModel**: ViewModel reacts to model changes
-3. **ViewModel → View Event**: ViewModel emits rendering instructions
-4. **View Event → Rendering**: Terminal renderer updates display
-
-## Rendering System
-
-The rendering system efficiently updates the terminal display based on view events.
-
-### Terminal Renderer (`src/repl/views/terminal_renderer.rs`)
-
-```rust
-pub struct TerminalRenderer {
-    stdout: io::Stdout,
-    terminal_size: (u16, u16),
-}
-
-pub trait ViewRenderer {
-    fn render_full(&mut self, view_model: &ViewModel) -> Result<()>;
-    fn render_pane(&mut self, view_model: &ViewModel, pane: Pane) -> Result<()>;
-    fn render_pane_partial(&mut self, view_model: &ViewModel, pane: Pane, start_line: usize) -> Result<()>;
-    fn render_cursor(&mut self, view_model: &ViewModel) -> Result<()>;
-    fn render_status_bar(&mut self, view_model: &ViewModel) -> Result<()>;
-}
-```
-
-### Rendering Efficiency
-
-1. **Partial Updates**: Only redraw changed areas
-2. **Double Buffering**: Compare screen states to minimize updates
-3. **Cursor Management**: Hide cursor during updates to prevent flickering
-4. **Event-Driven**: React only to necessary changes
-
-### Visual Features
-
-1. **Line Numbers**: Dynamic width calculation and vim-style formatting
-2. **Syntax Highlighting**: Prepared for HTTP syntax highlighting
-3. **Visual Selection**: Text selection highlighting in visual mode
-4. **Status Bar**: Mode indicators, HTTP status, cursor position
-5. **Cursor Styles**: Different shapes for different modes (block, bar, underline)
+### Event Flow
+1. User input → Command execution
+2. Command → PostCommandActions
+3. AppViewModel processes actions
+4. State updates → View rendering
 
 ## Data Flow
 
-### Typical Command Execution Flow
+### Typical Command Execution
 
-1. **User Input**: Key press captured by controller
-2. **Command Lookup**: Controller maps key to command based on current mode
-3. **Command Execution**: Command modifies model state
-4. **Model Event**: Command emits model event describing the change
-5. **ViewModel Reaction**: ViewModel receives model event via event bus
-6. **Display Update**: ViewModel calculates display changes and emits view events
-7. **Rendering**: Terminal renderer processes view events and updates display
+1. **Input Capture**: Terminal event stream provides KeyEvent
+2. **Command Lookup**: Registry finds relevant command for key + mode
+3. **Command Execution**: Command modifies AppState via ExecutionContext
+4. **Action Emission**: Command returns PostCommandActions
+5. **Action Processing**: AppViewModel handles actions
+6. **Rendering**: View updates based on state changes
 
-### Example: Cursor Movement Flow
-
-```rust
-// 1. User presses 'j' key
-InputEvent::KeyPressed(KeyEvent { code: KeyCode::Char('j'), .. })
-
-// 2. Controller maps to MoveCursorDownCommand
-controller.handle_key_event('j') -> MoveCursorDownCommand
-
-// 3. Command moves cursor in model
-command.execute() -> model.move_cursor_down()
-
-// 4. Model emits event
-ModelEvent::CursorMoved { 
-    pane: Pane::Request, 
-    old_pos: LogicalPosition(5, 10), 
-    new_pos: LogicalPosition(6, 10) 
-}
-
-// 5. ViewModel handles event
-view_model.handle_cursor_moved() -> {
-    // Convert to display coordinates
-    // Check if scrolling needed
-    // Update display cursor position
-}
-
-// 6. ViewModel emits view events
-ViewEvent::CursorUpdateRequired { pane: Pane::Request }
-ViewEvent::PositionIndicatorUpdateRequired  // Update status bar
-
-// 7. Renderer updates display
-terminal_renderer.render_cursor()
-terminal_renderer.render_position_indicator()
+### Example: Text Insertion
+```
+User types 'a' in Insert mode
+    ↓
+InsertCharCommand.is_relevant() → true
+    ↓
+InsertCharCommand.execute()
+    ↓
+AppState.insert_char('a')
+    ↓
+Returns [CurrentAreaRedrawRequired, ActiveCursorUpdateRequired]
+    ↓
+AppViewModel processes actions
+    ↓
+TerminalRenderer updates display
 ```
 
-## Key Patterns
+## Key Design Principles
 
-### 1. Event-Driven Updates
+### 1. Separation of Concerns
+- **Models**: Pure data and business logic
+- **ViewModels**: Orchestration and coordination
+- **Views**: Rendering and display
+- **Commands**: Input handling
+- **Services**: External integrations
 
-- All component communication happens through events
-- Enables loose coupling and reactive behavior
-- Facilitates testing by capturing event streams
+### 2. Event-Driven Architecture
+- Components communicate through events
+- Loose coupling between layers
+- Reactive UI updates
 
-### 2. Coordinate System Separation
+### 3. Testability
+- Dependency injection (EventStream, RenderStream)
+- Mock implementations for testing
+- Pure functions where possible
 
-- **Logical Coordinates**: Document line/column positions (models)
-- **Display Coordinates**: Terminal row/column positions (view model)
-- **Viewport Coordinates**: Visible area relative positions (rendering)
+### 4. Extensibility
+- Self-registering command system
+- Plugin-like architecture for new features
+- Clear extension points
 
-### 3. Complete Pane Abstraction
+### 5. Performance
+- Efficient partial rendering
+- Display caching for wrapped text
+- Minimal allocations in hot paths
 
-- `PaneManager` provides complete encapsulation of pane-related state
-- External components use semantic operations: `switch_to_request_pane()`, `is_in_request_pane()`
-- ViewEvents use semantic naming: `RequestContentChanged`, `FocusSwitched` instead of pane parameters
-- Eliminates pane leakage throughout the architecture
+### 6. Multi-byte Character Support
+- Full Unicode support throughout
+- Correct handling of wide characters
+- Proper text boundary detection
 
-### 4. Partial Update Optimization
+## Recent Refactoring
 
-- Multiple view event granularities for efficiency
-- `FullRedrawRequired` → `CurrentAreaRedrawRequired` → `ActiveCursorUpdateRequired` → `PositionIndicatorUpdateRequired`
-- Semantic events reduce coupling and improve performance
+### Command System Migration (Phase 4)
+The architecture recently underwent major cleanup:
+1. **Removed old command system** completely
+2. **Unified commands** became the sole command system
+3. **Moved to view_models**: Commands now at `src/repl/view_models/commands/`
+4. **Simplified AppViewModel**: Removed ~250 lines of legacy code
+5. **Cleaned up imports**: Consistent paths throughout codebase
 
-### 5. Display Cache Management
-
-- Pre-computed text wrapping and line mapping
-- Efficient coordinate conversions during navigation
-- Background updates for large content handling
-
-### 6. Double Buffering
-
-- `ScreenBuffer` abstraction for comparing render states
-- Only update changed terminal regions
-- Reduces flickering and improves perceived performance
+### Architecture Improvements
+- **Cleaner separation**: Commands clearly part of ViewModel layer
+- **Reduced complexity**: Single command system instead of dual
+- **Better organization**: Commands alongside their orchestrator
+- **Improved maintainability**: Less code, clearer structure
 
 ## Benefits of This Architecture
 
-1. **Testability**: Business logic separated from UI concerns
-2. **Maintainability**: Modular ViewModel with clear component boundaries and responsibilities
-3. **Encapsulation**: Complete pane abstraction eliminates component coupling
-4. **Performance**: Efficient partial updates and semantic event system
-5. **Flexibility**: Easy to add new features without affecting existing code
-6. **Debuggability**: Event streams provide clear audit trail of state changes
-7. **Extensibility**: Plugin-like architecture for adding new commands and features
-8. **Domain-Driven Design**: Operations match domain concepts (Request vs Response panes)
+1. **Maintainability**: Clear component boundaries and responsibilities
+2. **Testability**: Mockable interfaces and dependency injection
+3. **Performance**: Efficient rendering and minimal updates
+4. **Extensibility**: Easy to add new commands and features
+5. **Debuggability**: Event-driven flow provides clear audit trail
+6. **International Support**: Full Unicode/multi-byte character handling
+7. **Modal Editing**: Vim-style efficiency with clear mode separation
 
-This modular MVVM architecture with complete pane abstraction enables Blueline to provide a responsive, efficient terminal-based HTTP client with vim-like editing capabilities while maintaining clean, testable, and maintainable code.
+This MVVM architecture enables BlueLine to provide a responsive, efficient terminal-based HTTP client with vim-like editing capabilities while maintaining clean, testable, and maintainable code.
