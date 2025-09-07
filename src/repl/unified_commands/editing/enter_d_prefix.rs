@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn enter_d_prefix_command_should_create_default_instance() {
-        let command = EnterDPrefixCommand::default();
+        let command = EnterDPrefixCommand;
         assert_eq!(command.name(), "EnterDPrefixCommand");
     }
 

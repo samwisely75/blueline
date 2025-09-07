@@ -81,11 +81,11 @@ impl CommandRegistry {
             // App control commands (highest priority - process first)
             // Box::new(AppTerminateCommand), // Migrated to unified_commands
             // Request commands (high priority - must intercept Enter before other commands)
-            Box::new(ExecuteRequestCommand),
+            // Box::new(ExecuteRequestCommand),
             // G mode commands (high priority - must be processed before regular g handling)
             // Box::new(GoToTopCommand), // Migrated to unified_commands/navigation/go_to_top.rs
             // Box::new(GoToBottomCommand), // Migrated to unified_commands/navigation/go_to_bottom.rs
-            Box::new(RepeatVisualSelectionCommand), // gv command
+            // Box::new(RepeatVisualSelectionCommand), // gv command
             // Box::new(EnterGPrefixCommand), // Migrated to unified_commands/navigation/enter_g_prefix.rs
             // Scroll commands (higher priority than regular movement)
             // Box::new(ScrollLeftCommand), // Migrated to unified_commands
@@ -125,7 +125,7 @@ impl CommandRegistry {
             // Box::new(ExitVisualBlockInsertModeCommand), // Migrated to unified_commands/visual/exit_visual_block_insert.rs
             // Box::new(ExitVisualModeCommand), // Migrated to unified_commands
             // Box::new(EnterCommandModeCommand), // Migrated to unified_commands/mode/enter_command_mode.rs
-            Box::new(ExCommandModeCommand),
+            // Box::new(ExCommandModeCommand),
             // Pane commands
             // Box::new(SwitchPaneCommand), // Migrated to unified_commands
             // Editing commands
@@ -267,8 +267,15 @@ mod tests {
     fn registry_should_create_with_all_commands() {
         let registry = CommandRegistry::new();
         assert!(!registry.commands.is_empty());
-        // Should have at least the core commands
-        assert!(registry.commands.len() > 10);
+        // Most commands have been migrated to unified_commands
+        // Only 6 legacy commands remain: DeleteCharAtCursorCommand,
+        // EnterDPrefixCommand, EnterYPrefixCommand, YankCurrentLineCommand,
+        // CancelPrefixModeCommand, PasteAfterCommand
+        assert_eq!(
+            registry.commands.len(),
+            6,
+            "Should have exactly 6 remaining legacy commands"
+        );
     }
 
     // MIGRATED: Movement command tests moved to unified_commands

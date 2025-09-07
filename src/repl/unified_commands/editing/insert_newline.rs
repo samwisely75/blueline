@@ -281,7 +281,7 @@ mod tests {
         for modifier in modifiers.iter() {
             let key_event = KeyEvent::new(KeyCode::Enter, *modifier);
             let should_be_relevant = *modifier == KeyModifiers::NONE;
-            
+
             assert_eq!(
                 command.is_relevant(key_event, EditorMode::Insert, &context),
                 should_be_relevant,
@@ -303,7 +303,7 @@ mod tests {
             context.current_pane = *pane;
 
             let should_be_relevant = *pane == Pane::Request;
-            
+
             assert_eq!(
                 command.is_relevant(key_event, EditorMode::Insert, &context),
                 should_be_relevant,

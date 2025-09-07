@@ -133,12 +133,19 @@ mod tests {
         // Should have discovered commands automatically
         assert!(
             registry.command_count() >= 13,
-            "Should discover at least 13 commands"
+            "Should discover at least 13 commands, found: {}",
+            registry.command_count()
         );
 
         // Verify some key commands are discovered
         let commands = registry.get_all_commands();
         let command_names: Vec<_> = commands.iter().map(|cmd| cmd.name()).collect();
+
+        // Debug: Print all discovered commands
+        println!("Discovered {} commands:", command_names.len());
+        for name in &command_names {
+            println!("  - {name}");
+        }
 
         assert!(
             command_names.contains(&"YankSelectionCommand"),
