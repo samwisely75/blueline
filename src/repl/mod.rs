@@ -5,6 +5,7 @@
 
 pub mod commands;
 pub mod io;
+pub mod mode;
 pub mod models;
 pub mod services;
 pub mod unified_commands;
