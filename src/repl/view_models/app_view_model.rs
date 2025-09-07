@@ -11,10 +11,7 @@ use crate::repl::{
     models::pane_state::Pane,
     models::LogicalPosition,
     services::{HttpResponseMessage, Services},
-    unified_commands::{
-        events::YankType as NewYankType, Command, DynamicCommandRegistry, ExecutionContext,
-        ModelEvent,
-    },
+    unified_commands::{DynamicCommandRegistry, ExecutionContext},
     views::{TerminalRenderer, ViewRenderer},
 };
 use anyhow::Result;
@@ -297,7 +294,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
     /// Handle HTTP response received from the service
     fn handle_http_response(&mut self, response_msg: HttpResponseMessage) -> Result<()> {
-        let event = match response_msg {
+        match response_msg {
             HttpResponseMessage::Success {
                 request,
                 response,
@@ -308,10 +305,9 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 self.app_state.set_executing_request(false);
 
                 let status = response.status().as_u16();
-                let body = response.body().to_string();
+                let duration_ms = response.duration_ms();
 
                 // Log the completion
-                let duration_ms = response.duration_ms();
                 tracing::info!(
                     "HTTP {} {} completed with status {} in {}ms",
                     request.method().unwrap_or(&"GET".to_string()),
@@ -320,7 +316,13 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                     duration_ms
                 );
 
-                ModelEvent::HttpResponseReceived { status, body }
+                // Set status message
+                let status_msg = if (200..300).contains(&status) {
+                    format!("Request completed: {status}")
+                } else {
+                    format!("Request failed: {status}")
+                };
+                self.app_state.set_status_message(status_msg);
             }
             HttpResponseMessage::Error { message } => {
                 // Update response with error message
@@ -329,12 +331,11 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
 
                 tracing::error!("HTTP request failed: {}", message);
 
-                ModelEvent::StatusMessageSet { message }
+                // Set status message
+                self.app_state
+                    .set_status_message(format!("Request failed: {message}"));
             }
-        };
-
-        // Process the event through the normal flow
-        self.process_model_event_internal(event)?;
+        }
 
         // Switch to response pane to show results
         self.app_state.switch_to_response_pane();
@@ -385,16 +386,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     /// - Request execution is fully asynchronous
     /// - UI remains responsive during network operations
     ///
-    /// Get reference to view model (for testing)
-    pub fn app_state(&self) -> &AppState {
-        &self.app_state
-    }
-
-    /// Get mutable reference to view model (for testing)
-    pub fn app_state_mut(&mut self) -> &mut AppState {
-        &mut self.app_state
-    }
-
     /// Process view events for selective rendering instead of always doing full redraws
     ///
     /// HIGH-LEVEL LOGIC FLOW:
@@ -744,163 +735,9 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     }
     */
 
-    /// Process a single key event without running the full event loop (for testing)
-    pub async fn process_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
-        tracing::debug!("Processing key event: {:?}", key_event);
-
-        // Use the same handle_key_event method that the main loop uses
-        self.handle_key_event(key_event).await?;
-
-        // Render after processing key events
-        self.view_renderer.render_full(&self.app_state)?;
-
-        Ok(())
-    }
-
     /// Check if the application should quit (for testing)
     pub fn should_quit(&self) -> bool {
         self.should_quit
-    }
-
-    /// Execute a Command using the new Command Pattern
-    ///
-    /// This method allows execution of Commands that emit PostCommandActions
-    /// alongside the existing command system. This enables gradual migration.
-    pub fn execute_command(&mut self, command: Box<dyn Command>) -> Result<()> {
-        tracing::debug!("Executing command: {}", command.name());
-
-        let mut exec_context = ExecutionContext {
-            app_state: &mut self.app_state,
-            services: &mut self.services,
-        };
-        // Create a dummy KeyEvent for execute_command (no key event in this context)
-        let dummy_key_event = crossterm::event::KeyEvent::new(
-            crossterm::event::KeyCode::Null,
-            crossterm::event::KeyModifiers::empty(),
-        );
-        let view_events = command.execute(dummy_key_event, &mut exec_context)?;
-
-        tracing::debug!(
-            "Command {} produced {} view events",
-            command.name(),
-            view_events.len()
-        );
-
-        // Process PostCommandActions directly without storing in AppState
-        if !view_events.is_empty() {
-            self.process_view_events(view_events)?;
-        }
-
-        Ok(())
-    }
-
-    /// Process a ModelEvent and convert it to actual state changes
-    ///
-    /// This is the bridge between semantic ModelEvents and the actual
-    /// application state changes. It handles status messages, logging,
-    /// and any necessary side effects.
-    #[cfg(test)]
-    pub fn process_model_event(&mut self, event: ModelEvent) -> Result<()> {
-        self.process_model_event_internal(event)
-    }
-
-    /// Internal implementation of process_model_event
-    fn process_model_event_internal(&mut self, event: ModelEvent) -> Result<()> {
-        match event {
-            ModelEvent::TextYanked {
-                pane,
-                text,
-                yank_type,
-            } => {
-                // Store in yank buffer using YankService
-                // (No need to convert types anymore - yank_type is already NewYankType)
-                self.services.yank.yank(text.clone(), yank_type)?;
-
-                // Create appropriate status message
-                let char_count = text.chars().count();
-                let line_count = text.lines().count();
-                let message = match yank_type {
-                    NewYankType::Character => {
-                        if line_count > 1 {
-                            format!("{line_count} lines yanked (character-wise)")
-                        } else {
-                            format!("{char_count} characters yanked")
-                        }
-                    }
-                    NewYankType::Line => {
-                        format!("{line_count} lines yanked")
-                    }
-                    NewYankType::Block => {
-                        format!("Block yanked ({line_count} lines, {char_count} chars)")
-                    }
-                };
-
-                self.app_state.set_status_message(message);
-
-                tracing::info!(
-                    "Yanked {} characters ({} lines) to buffer as {:?} from {:?}",
-                    char_count,
-                    line_count,
-                    yank_type,
-                    pane
-                );
-            }
-
-            ModelEvent::ModeChanged { old_mode, new_mode } => {
-                self.app_state.change_mode(new_mode)?;
-                tracing::debug!("Mode changed from {:?} to {:?}", old_mode, new_mode);
-            }
-
-            ModelEvent::SelectionCleared { pane } => {
-                // Clear the visual selection in the ViewModel
-                self.app_state.clear_visual_selection()?;
-                tracing::debug!("Selection cleared for {:?}", pane);
-            }
-
-            ModelEvent::StatusMessageSet { message } => {
-                self.app_state.set_status_message(message);
-            }
-
-            ModelEvent::StatusMessageCleared => {
-                self.app_state.set_status_message(String::new());
-            }
-
-            ModelEvent::HttpRequestStarted { method, url } => {
-                // Execute the HTTP request through the service
-                if let Some(http_service) = self.services.http.as_mut() {
-                    // Get the full request text and execute it
-                    let request_text = self.app_state.get_request_text();
-                    self.app_state.set_executing_request(true);
-                    http_service.execute_async(request_text);
-                    tracing::info!("HTTP request initiated: {method} {url}");
-                } else {
-                    tracing::error!("HTTP service not available");
-                    self.app_state
-                        .set_status_message("HTTP service not configured".to_string());
-                }
-            }
-
-            ModelEvent::HttpResponseReceived { status, body } => {
-                // Update response pane with received data
-                self.app_state.set_response(status, body);
-                self.app_state.set_executing_request(false);
-                self.app_state.switch_to_response_pane();
-
-                let status_msg = if (200..300).contains(&status) {
-                    format!("Request completed: {status}")
-                } else {
-                    format!("Request failed: {status}")
-                };
-                self.app_state.set_status_message(status_msg);
-            }
-
-            // Handle other events as we implement them
-            _ => {
-                tracing::debug!("ModelEvent not yet implemented: {:?}", event);
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -924,65 +761,8 @@ mod tests {
         assert!(view_model.is_ok());
 
         let view_model = view_model.unwrap();
-        assert_eq!(view_model.app_state().get_mode(), EditorMode::Normal);
-        assert_eq!(view_model.app_state().get_current_pane(), Pane::Request);
-    }
-
-    #[test]
-    fn app_controller_should_execute_yank_selection_command() {
-        use crate::repl::io::mock::{MockEventStream, MockRenderStream};
-        use crate::repl::unified_commands::yank::YankSelectionCommand;
-
-        let cmd_args = CommandLineArgs::parse_from(["test"]);
-        let config = AppConfig::from_args(cmd_args);
-        let mut view_model = AppViewModel::with_io_streams(
-            config,
-            MockEventStream::empty(),
-            MockRenderStream::new(),
-        )
-        .unwrap();
-
-        // Test YankSelectionCommand in Normal mode (should succeed but with no selection message)
-        let command = Box::new(YankSelectionCommand::new());
-        let result = view_model.execute_command(command);
-
-        // YankSelectionCommand should succeed (returns status bar update for "no selection")
-        assert!(
-            result.is_ok(),
-            "Command should succeed even without selection"
-        );
-
-        // Verify we're still in Normal mode
-        assert_eq!(view_model.app_state().get_mode(), EditorMode::Normal);
-    }
-
-    #[tokio::test]
-    async fn app_controller_should_use_unified_command_system() {
-        use crate::repl::io::mock::{MockEventStream, MockRenderStream};
-        use crossterm::event::{KeyCode, KeyModifiers};
-
-        let cmd_args = CommandLineArgs::parse_from(["test"]);
-        let config = AppConfig::from_args(cmd_args);
-        let mut view_model = AppViewModel::with_io_streams(
-            config,
-            MockEventStream::empty(),
-            MockRenderStream::new(),
-        )
-        .unwrap();
-
-        // Verify unified command registry is initialized
-        assert!(view_model.unified_command_registry.command_count() > 0);
-
-        // Test 'y' key in Normal mode - should trigger YPrefix mode via unified command
-        let y_key = crossterm::event::KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
-        let result = view_model.handle_key_event(y_key).await;
-        assert!(
-            result.is_ok(),
-            "Unified command system should handle key events gracefully"
-        );
-
-        // Verify unified command handled it (y in Normal mode goes to YPrefix mode)
-        assert_eq!(view_model.app_state().get_mode(), EditorMode::YPrefix);
+        assert_eq!(view_model.app_state.get_mode(), EditorMode::Normal);
+        assert_eq!(view_model.app_state.get_current_pane(), Pane::Request);
     }
 
     #[test]
@@ -1011,7 +791,7 @@ mod tests {
 
         // Verify that wrap is enabled (this would be set by the "set wrap on" command)
         assert!(
-            view_model.app_state().pane_manager.is_wrap_enabled(),
+            view_model.app_state.pane_manager.is_wrap_enabled(),
             "Wrap should be enabled from config command"
         );
     }

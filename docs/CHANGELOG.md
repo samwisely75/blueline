@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.16] - 2025-09-07
+
+### Removed
+
+- **AppViewModel Cleanup**: Major cleanup of AppViewModel removing legacy code
+  - Removed ModelEvent enum and all related processing methods
+  - Removed execute_command method and related tests
+  - Consolidated handle_key_event by removing process_key_event
+  - Removed process_model_event and process_model_event_internal methods
+  - Removed app_state() and app_state_mut() accessor methods
+  - Simplified HTTP response handling to directly update state
+  - Total reduction of ~250 lines of legacy code
+
 ## [0.45.14] - 2025-09-07
 
 ### Fixed
