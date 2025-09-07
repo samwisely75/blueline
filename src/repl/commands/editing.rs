@@ -147,38 +147,39 @@ impl Command for DeleteCharCommand {
     }
 }
 
-/// Delete character at cursor (Delete key)
-pub struct DeleteCharAtCursorCommand;
+// MIGRATED: DeleteCharAtCursorCommand moved to unified_commands/editing/delete_char_at_cursor.rs
+// /// Delete character at cursor (Delete key)
+// pub struct DeleteCharAtCursorCommand;
 
-impl Command for DeleteCharAtCursorCommand {
-    fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
-        matches!(event.code, KeyCode::Delete)
-            && matches!(
-                context.state.current_mode,
-                EditorMode::Insert | EditorMode::VisualBlockInsert
-            )
-            && context.state.current_pane == Pane::Request
-    }
-
-    fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
-        use super::MovementDirection;
-        let delete_event = CommandEvent::TextDeleteRequested {
-            position: context.state.cursor_position,
-            amount: 1,
-            direction: MovementDirection::Right,
-        };
-        Ok(vec![delete_event])
-    }
-
-    fn name(&self) -> &'static str {
-        "DeleteCharAtCursor"
-    }
-}
+// impl Command for DeleteCharAtCursorCommand {
+//     fn is_relevant(&self, context: &CommandContext, event: &KeyEvent) -> bool {
+//         matches!(event.code, KeyCode::Delete)
+//             && matches!(
+//                 context.state.current_mode,
+//                 EditorMode::Insert | EditorMode::VisualBlockInsert
+//             )
+//             && context.state.current_pane == Pane::Request
+//     }
+//
+//     fn execute(&self, _event: KeyEvent, context: &CommandContext) -> Result<Vec<CommandEvent>> {
+//         use super::MovementDirection;
+//         let delete_event = CommandEvent::TextDeleteRequested {
+//             position: context.state.cursor_position,
+//             amount: 1,
+//             direction: MovementDirection::Right,
+//         };
+//         Ok(vec![delete_event])
+//     }
+//
+//     fn name(&self) -> &'static str {
+//         "DeleteCharAtCursor"
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::commands::{AppStateSnapshot, CommandContext, MovementDirection};
+    use crate::repl::commands::{AppStateSnapshot, CommandContext};
     use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
     use crossterm::event::KeyModifiers;
 
@@ -307,14 +308,15 @@ mod tests {
         assert!(cmd.is_relevant(&context, &event));
     }
 
-    #[test]
-    fn delete_char_at_cursor_should_be_relevant_for_delete_key() {
-        let context = create_test_context();
-        let cmd = DeleteCharAtCursorCommand;
-        let event = create_test_key_event(KeyCode::Delete);
-
-        assert!(cmd.is_relevant(&context, &event));
-    }
+    // MIGRATED: DeleteCharAtCursorCommand tests moved to unified_commands/editing/delete_char_at_cursor.rs
+    // #[test]
+    // fn delete_char_at_cursor_should_be_relevant_for_delete_key() {
+    //     let context = create_test_context();
+    //     let cmd = DeleteCharAtCursorCommand;
+    //     let event = create_test_key_event(KeyCode::Delete);
+    //
+    //     assert!(cmd.is_relevant(&context, &event));
+    // }
 
     // LEGACY: InsertTabCommand tests migrated to unified command system
     // See src/repl/unified_commands/editing/insert_tab.rs
@@ -375,34 +377,34 @@ mod tests {
     }
     */
 
-    #[test]
-    fn delete_char_at_cursor_should_not_be_relevant_in_normal_mode() {
-        let mut context = create_test_context();
-        context.state.current_mode = EditorMode::Normal;
-        let cmd = DeleteCharAtCursorCommand;
-        let event = create_test_key_event(KeyCode::Delete);
+    // #[test]
+    // fn delete_char_at_cursor_should_not_be_relevant_in_normal_mode() {
+    //     let mut context = create_test_context();
+    //     context.state.current_mode = EditorMode::Normal;
+    //     let cmd = DeleteCharAtCursorCommand;
+    //     let event = create_test_key_event(KeyCode::Delete);
+    //
+    //     assert!(!cmd.is_relevant(&context, &event));
+    // }
 
-        assert!(!cmd.is_relevant(&context, &event));
-    }
-
-    #[test]
-    fn delete_char_at_cursor_should_execute_right_deletion() {
-        let context = create_test_context();
-        let cmd = DeleteCharAtCursorCommand;
-        let event = create_test_key_event(KeyCode::Delete);
-
-        let result = cmd.execute(event, &context).unwrap();
-        assert_eq!(result.len(), 1);
-        if let CommandEvent::TextDeleteRequested {
-            direction, amount, ..
-        } = &result[0]
-        {
-            assert_eq!(*direction, MovementDirection::Right);
-            assert_eq!(*amount, 1);
-        } else {
-            panic!("Expected TextDeleteRequested event");
-        }
-    }
+    // #[test]
+    // fn delete_char_at_cursor_should_execute_right_deletion() {
+    //     let context = create_test_context();
+    //     let cmd = DeleteCharAtCursorCommand;
+    //     let event = create_test_key_event(KeyCode::Delete);
+    //
+    //     let result = cmd.execute(event, &context).unwrap();
+    //     assert_eq!(result.len(), 1);
+    //     if let CommandEvent::TextDeleteRequested {
+    //         direction, amount, ..
+    //     } = &result[0]
+    //     {
+    //         assert_eq!(*direction, MovementDirection::Right);
+    //         assert_eq!(*amount, 1);
+    //     } else {
+    //         panic!("Expected TextDeleteRequested event");
+    //     }
+    // }
 
     // LEGACY: Tab command tests migrated to unified command system
     // See src/repl/unified_commands/editing/insert_tab.rs

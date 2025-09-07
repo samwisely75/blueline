@@ -133,7 +133,7 @@ impl CommandRegistry {
             // Box::new(InsertNewLineCommand), // Migrated to unified_commands/editing/insert_newline.rs
             // Box::new(InsertTabCommand), // Migrated to unified_commands/editing/insert_tab.rs
             // Box::new(DeleteCharCommand), // Migrated to unified_commands/editing/delete_char.rs
-            Box::new(DeleteCharAtCursorCommand),
+            // Box::new(DeleteCharAtCursorCommand), // Migrated to unified_commands/editing/delete_char_at_cursor.rs
             // YankCommand migrated to unified_commands/yank.rs as YankSelectionCommand
             // DeleteSelectionCommand migrated to unified_commands/delete_selection.rs
             // CutSelectionCommand migrated to unified_commands/cut_selection.rs
@@ -268,13 +268,13 @@ mod tests {
         let registry = CommandRegistry::new();
         assert!(!registry.commands.is_empty());
         // Most commands have been migrated to unified_commands
-        // Only 6 legacy commands remain: DeleteCharAtCursorCommand,
+        // Only 5 legacy commands remain:
         // EnterDPrefixCommand, EnterYPrefixCommand, YankCurrentLineCommand,
         // CancelPrefixModeCommand, PasteAfterCommand
         assert_eq!(
             registry.commands.len(),
-            6,
-            "Should have exactly 6 remaining legacy commands"
+            5,
+            "Should have exactly 5 remaining legacy commands"
         );
     }
 
