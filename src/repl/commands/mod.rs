@@ -131,8 +131,8 @@ impl CommandRegistry {
             // Editing commands
             // InsertCharCommand removed - migrated to unified commands
             Box::new(InsertNewLineCommand),
-            Box::new(InsertTabCommand),
-            Box::new(DeleteCharCommand),
+            // Box::new(InsertTabCommand), // Migrated to unified_commands/editing/insert_tab.rs
+            // Box::new(DeleteCharCommand), // Migrated to unified_commands/editing/delete_char.rs
             Box::new(DeleteCharAtCursorCommand),
             // YankCommand migrated to unified_commands/yank.rs as YankSelectionCommand
             // DeleteSelectionCommand migrated to unified_commands/delete_selection.rs
