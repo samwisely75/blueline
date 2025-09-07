@@ -17,11 +17,29 @@ pub mod enter_visual_block_insert_mode;
 pub mod enter_visual_block_mode;
 pub mod enter_visual_line_mode;
 pub mod enter_visual_mode;
+pub mod ex_command_mode;
 pub mod enter_y_prefix;
 pub mod exit_insert_mode;
 pub mod exit_visual_block_insert_mode;
 pub mod exit_visual_mode;
 pub mod insert_at_beginning_of_line;
+
+// Re-export all commands using glob imports to prevent merge conflicts
+pub use append_after_cursor::*;
+pub use append_at_end_of_line::*;
+pub use enter_command_mode::*;
+pub use enter_insert_mode::*;
+pub use enter_visual_block_append_mode::*;
+pub use enter_visual_block_change_mode::*;
+pub use enter_visual_block_insert_mode::*;
+pub use enter_visual_block_mode::*;
+pub use enter_visual_line_mode::*;
+pub use enter_visual_mode::*;
+pub use ex_command_mode::*;
+pub use exit_insert_mode::*;
+pub use exit_visual_block_insert_mode::*;
+pub use exit_visual_mode::*;
+pub use insert_at_beginning_of_line::*;
 pub use append_after_cursor::AppendAfterCursorCommand;
 pub use append_at_end_of_line::AppendAtEndOfLineCommand;
 pub use cancel_g_prefix::CancelGPrefixCommand;
@@ -41,3 +59,4 @@ pub use exit_insert_mode::ExitInsertModeCommand;
 pub use exit_visual_block_insert_mode::ExitVisualBlockInsertModeCommand;
 pub use exit_visual_mode::ExitVisualModeCommand;
 pub use insert_at_beginning_of_line::InsertAtBeginningOfLineCommand;
+
