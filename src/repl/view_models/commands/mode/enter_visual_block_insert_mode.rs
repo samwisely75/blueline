@@ -63,8 +63,10 @@ impl Command for EnterVisualBlockInsertModeCommand {
         }
 
         // Get the visual selection coordinates
-        let (start_pos, end_pos, pane) = context.app_state.get_visual_selection();
-        if let (Some(start), Some(end), Some(selected_pane)) = (start_pos, end_pos, pane) {
+        let selection = context.app_state.get_visual_selection();
+        if let (Some(start), Some(end), Some(selected_pane)) =
+            (selection.start, selection.end, selection.pane)
+        {
             if selected_pane != context.app_state.get_current_pane() {
                 tracing::warn!("Visual selection is not in current pane");
                 context

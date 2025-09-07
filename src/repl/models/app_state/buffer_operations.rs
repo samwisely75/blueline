@@ -19,8 +19,8 @@ use crate::repl::models::pane_state::EditorMode;
 use crate::repl::models::LogicalPosition;
 use anyhow::Result;
 
-/// Type alias for selection text with its yank type
-type SelectionWithType = (String, YankType);
+// Use the YankSelection struct for better type safety
+use super::types::YankSelection;
 
 impl AppState {
     /// Get selected text from current pane
@@ -29,7 +29,7 @@ impl AppState {
     }
 
     /// Get selected text and determine YankType based on current visual mode
-    pub fn get_selection_text_and_type(&self) -> Result<Option<SelectionWithType>> {
+    pub fn get_selection_text_and_type(&self) -> Result<Option<YankSelection>> {
         // Get the selected text
         let text = match self.get_selected_text() {
             Some(t) => t,
@@ -44,7 +44,7 @@ impl AppState {
             _ => YankType::Character, // Default fallback
         };
 
-        Ok(Some((text, yank_type)))
+        Ok(Some(YankSelection::new(text, yank_type)))
     }
 
     /// Delete selected text from current pane
@@ -596,7 +596,7 @@ mod tests {
         vm.change_mode(EditorMode::VisualBlock).unwrap();
         let selection = vm.get_visual_selection();
         assert!(
-            selection.0.is_some(),
+            selection.start.is_some(),
             "Should have visual selection in VisualBlock mode"
         );
 
@@ -607,7 +607,7 @@ mod tests {
         // Verify selection is cleared
         let selection_after = vm.get_visual_selection();
         assert!(
-            selection_after.0.is_none(),
+            selection_after.start.is_none(),
             "Visual selection should be cleared"
         );
     }

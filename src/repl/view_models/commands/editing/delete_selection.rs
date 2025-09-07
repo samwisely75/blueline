@@ -46,7 +46,9 @@ impl Command for DeleteSelectionCommand {
         // First, check if dcut is enabled (delete should also yank)
         if context.app_state.is_dcut_enabled() {
             // Get selection text and type before deleting
-            if let Some((text, yank_type)) = context.app_state.get_selection_text_and_type()? {
+            if let Some(selection) = context.app_state.get_selection_text_and_type()? {
+                let text = selection.text;
+                let yank_type = selection.yank_type;
                 // Store in YankService
                 context.services.yank.yank(text.clone(), yank_type)?;
                 tracing::info!("Yanked selection to buffer before delete (dcut enabled)");
