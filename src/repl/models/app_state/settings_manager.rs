@@ -3,7 +3,7 @@
 //! Handles settings changes from ex commands.
 
 use super::AppState;
-use crate::repl::commands::{Setting, SettingValue};
+use crate::repl::models::settings::{Setting, SettingValue};
 use crate::repl::view_models::PostCommandAction;
 use anyhow::Result;
 

@@ -3,8 +3,8 @@
 //! Handles `:set tabstop=N` and `:set tabstop!` ex commands for configuring tab width.
 //! This command supports both explicit numeric values and toggling between common values.
 
-use crate::repl::commands::events::{Setting, SettingValue};
 use crate::repl::models::pane_state::EditorMode;
+use crate::repl::models::settings::{Setting, SettingValue};
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 use crate::repl::view_models::post_command_actions::PostCommandAction;
 use anyhow::Result;

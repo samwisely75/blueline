@@ -11,6 +11,7 @@ pub mod coordinates;
 pub mod display;
 pub mod events;
 pub mod pane_state;
+pub mod settings;
 
 // Re-export all models for easy access (maintaining backward compatibility)
 pub use buffer::buffer_char::{BufferChar, BufferLine, CharacterBuffer};

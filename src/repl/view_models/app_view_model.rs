@@ -5,9 +5,6 @@
 
 use crate::config::AppConfig;
 use crate::repl::{
-    commands::{
-        AppStateSnapshot, CommandContext, CommandEvent, CommandRegistry, MovementDirection,
-    },
     io::{EventStream, RenderStream},
     models::app_state::AppState,
     models::events::SimpleEventBus,
@@ -18,7 +15,6 @@ use crate::repl::{
         events::YankType as NewYankType, Command, DynamicCommandRegistry, ExecutionContext,
         ModelEvent,
     },
-    view_models::post_command_actions::PostCommandAction,
     views::{TerminalRenderer, ViewRenderer},
 };
 use anyhow::Result;
@@ -31,8 +27,6 @@ pub struct AppViewModel<ES: EventStream, RS: RenderStream> {
     view_renderer: TerminalRenderer<RS>,
     // Services layer for business logic
     services: Services,
-    // Old command system (being phased out)
-    command_registry: CommandRegistry,
     // New dynamic command system (checks first, falls back to old system)
     unified_command_registry: DynamicCommandRegistry,
     #[allow(dead_code)]
@@ -61,7 +55,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             tracing::warn!("Failed to configure HTTP service: {}", e);
         }
 
-        let command_registry = CommandRegistry::new();
         let unified_command_registry = DynamicCommandRegistry::new();
         let event_bus = SimpleEventBus::new();
 
@@ -77,7 +70,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             app_state,
             view_renderer,
             services,
-            command_registry,
             unified_command_registry,
             event_bus,
             event_stream,
@@ -251,7 +243,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         }
 
         match self.event_stream.read()? {
-            Event::Key(key_event) => self.handle_key_event_with_unified_first(key_event).await?,
+            Event::Key(key_event) => self.handle_key_event(key_event).await?,
             Event::Resize(width, height) => self.handle_resize_event(width, height)?,
             _ => {} // Ignore other events for now
         }
@@ -259,42 +251,8 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         Ok(())
     }
 
-    /// Handle keyboard input events
+    /// Handle key events with unified command system
     async fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
-        tracing::debug!("Received key event: {:?}", key_event);
-
-        // Create command context snapshot for command processing
-        let context = CommandContext::new(AppStateSnapshot::from_app_state(&self.app_state));
-
-        // Convert key event to command events via registry
-        let Ok(events) = self.command_registry.process_event(key_event, &context) else {
-            return Ok(());
-        };
-
-        tracing::debug!("Command events generated: {:?}", events);
-
-        if events.is_empty() {
-            return Ok(());
-        }
-
-        // Apply command events to ViewModel
-        for event in events {
-            self.apply_command_event(event).await?;
-        }
-
-        // Perform throttled rendering if needed
-        if !self.should_quit {
-            self.render_if_needed()?;
-        }
-
-        Ok(())
-    }
-
-    /// Handle key events with unified command system first, then fall back to old system
-    ///
-    /// This allows gradual migration by checking unified commands first, then
-    /// falling back to the existing command system if no unified command matches.
-    async fn handle_key_event_with_unified_first(&mut self, key_event: KeyEvent) -> Result<()> {
         tracing::debug!("Processing key event with unified system: {:?}", key_event);
 
         // Create command context from current state
@@ -332,8 +290,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 key_event,
                 current_mode
             );
-            // Fall back to old system for now
-            self.handle_key_event(key_event).await?;
         }
 
         Ok(())
@@ -411,317 +367,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         let view_events = self.app_state.collect_pending_view_events();
         self.process_view_events(view_events)?;
         self.last_render_time = now;
-
-        Ok(())
-    }
-
-    /// Apply a command event to the view model
-    ///
-    /// HIGH-LEVEL LOGIC FLOW:
-    /// This method serves as the command processor that translates semantic commands
-    /// into specific ViewModel operations. Each CommandEvent type maps to one or more
-    /// ViewModel method calls that modify application state and emit PostCommandActions.
-    ///
-    /// ARCHITECTURAL PATTERN:
-    /// - Commands are processed atomically (all-or-nothing)
-    /// - State changes emit PostCommandActions for selective rendering
-    /// - Complex commands (like ex commands) can generate nested events
-    /// - HTTP requests are handled asynchronously with status updates
-    async fn apply_command_event(&mut self, event: CommandEvent) -> Result<()> {
-        match event {
-            CommandEvent::CursorMoveRequested { direction, amount } => {
-                for _ in 0..amount {
-                    match direction {
-                        MovementDirection::Left => self.app_state.move_cursor_left()?,
-                        MovementDirection::Right => self.app_state.move_cursor_right()?,
-                        MovementDirection::Up => self.app_state.move_cursor_up()?,
-                        MovementDirection::Down => self.app_state.move_cursor_down()?,
-                        MovementDirection::LineEnd => {
-                            self.app_state.move_cursor_to_end_of_line()?
-                        }
-                        MovementDirection::LineEndForAppend => {
-                            self.app_state.move_cursor_to_line_end_for_append()?
-                        }
-                        MovementDirection::LineStart => {
-                            self.app_state.move_cursor_to_start_of_line()?
-                        }
-                        MovementDirection::ScrollLeft => {
-                            self.app_state.scroll_horizontally(-1, amount)?
-                        }
-                        MovementDirection::ScrollRight => {
-                            self.app_state.scroll_horizontally(1, amount)?
-                        }
-                        MovementDirection::DocumentStart => {
-                            self.app_state.move_cursor_to_document_start()?
-                        }
-                        MovementDirection::DocumentEnd => {
-                            self.app_state.move_cursor_to_document_end()?
-                        }
-                        MovementDirection::WordForward => {
-                            self.app_state.move_cursor_to_next_word()?
-                        }
-                        MovementDirection::WordBackward => {
-                            self.app_state.move_cursor_to_previous_word()?
-                        }
-                        MovementDirection::WordEnd => {
-                            self.app_state.move_cursor_to_end_of_word()?
-                        }
-                        MovementDirection::LineNumber(line_number) => {
-                            self.app_state.move_cursor_to_line(line_number)?
-                        }
-                        MovementDirection::PageDown => self.app_state.move_cursor_page_down()?,
-                        MovementDirection::PageUp => self.app_state.move_cursor_page_up()?,
-                        MovementDirection::HalfPageDown => {
-                            self.app_state.move_cursor_half_page_down()?
-                        }
-                        MovementDirection::HalfPageUp => {
-                            self.app_state.move_cursor_half_page_up()?
-                        }
-                    }
-                }
-            }
-            CommandEvent::CursorPositionRequested { position } => {
-                self.app_state.set_cursor_position(position)?;
-            }
-            CommandEvent::TextInsertRequested { text, position: _ } => {
-                // Check if we're in Visual Block Insert mode with multiple cursors
-                // NOTE: Multi-cursor text insertion is now handled by MultiCursorTextInsertCommand
-                // in the unified command system, which intercepts character input before
-                // it reaches this legacy TextInsertRequested event.
-                if self.app_state.is_in_visual_block_insert_mode() {
-                    // Legacy multi-cursor insertion temporarily disabled during migration
-                    tracing::debug!("VisualBlockInsert mode detected - should be handled by MultiCursorTextInsertCommand");
-                    // For now, fall back to regular insertion to prevent breaking functionality
-                    self.app_state.insert_text(&text)?;
-                } else {
-                    self.app_state.insert_text(&text)?;
-                }
-            }
-            CommandEvent::TextDeleteRequested {
-                position: _,
-                amount,
-                direction,
-            } => {
-                tracing::debug!(
-                    "🗑️  Processing TextDeleteRequested: amount={}, direction={:?}",
-                    amount,
-                    direction
-                );
-
-                // Check if we're in Visual Block Insert mode with multiple cursors
-                // NOTE: Multi-cursor text deletion is now handled by MultiCursorTextDeleteCommand
-                // in the unified command system, which intercepts delete keys in VisualBlockInsert mode
-                if self.app_state.is_in_visual_block_insert_mode() {
-                    // Multi-cursor deletion now handled by unified command system
-                    tracing::debug!("TextDeleteRequested in VisualBlockInsert mode - should be handled by MultiCursorTextDeleteCommand");
-                } else {
-                    for i in 0..amount {
-                        match direction {
-                            MovementDirection::Left => {
-                                tracing::debug!(
-                                    "🗑️  Attempting delete_char_before_cursor (iteration {})",
-                                    i + 1
-                                );
-                                match self.app_state.delete_char_before_cursor() {
-                                    Ok(_) => {
-                                        tracing::debug!("✅ delete_char_before_cursor succeeded")
-                                    }
-                                    Err(e) => {
-                                        tracing::error!(
-                                            "❌ delete_char_before_cursor failed: {}",
-                                            e
-                                        )
-                                    }
-                                }
-                            }
-                            MovementDirection::Right => {
-                                tracing::debug!(
-                                    "🗑️  Attempting delete_char_after_cursor (iteration {})",
-                                    i + 1
-                                );
-                                match self.app_state.delete_char_after_cursor() {
-                                    Ok(_) => {
-                                        tracing::debug!("✅ delete_char_after_cursor succeeded")
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("❌ delete_char_after_cursor failed: {}", e)
-                                    }
-                                }
-                            }
-                            _ => {
-                                tracing::warn!("Unsupported delete direction: {:?}", direction);
-                            }
-                        }
-                    }
-                }
-                tracing::debug!("🗑️  TextDeleteRequested processing completed");
-            }
-            CommandEvent::ModeChangeRequested { new_mode } => {
-                tracing::debug!("Applying mode change request: {:?}", new_mode);
-                match self.app_state.change_mode(new_mode) {
-                    Ok(_) => {
-                        tracing::info!("Mode successfully changed to: {:?}", new_mode);
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to change mode to {:?}: {}", new_mode, e);
-                        return Err(e);
-                    }
-                }
-            }
-            CommandEvent::RestorePreviousModeRequested => {
-                let previous_mode = self.app_state.get_previous_mode();
-                tracing::debug!("Restoring previous mode: {:?}", previous_mode);
-                match self.app_state.change_mode(previous_mode) {
-                    Ok(_) => {
-                        tracing::info!("Successfully restored previous mode: {:?}", previous_mode);
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "Failed to restore previous mode {:?}: {}",
-                            previous_mode,
-                            e
-                        );
-                        return Err(e);
-                    }
-                }
-            }
-            CommandEvent::PaneSwitchRequested { target_pane } => match target_pane {
-                Pane::Request => self.app_state.switch_to_request_pane(),
-                Pane::Response => self.app_state.switch_to_response_pane(),
-            },
-            CommandEvent::HttpRequestRequested { .. } => {
-                // This is now handled by HttpExecuteCommand
-                tracing::debug!("HTTP request received via old command path - ignoring");
-            }
-            CommandEvent::TerminalResizeRequested { width, height } => {
-                self.app_state.update_terminal_size(width, height);
-                self.view_renderer.update_size(width, height);
-            }
-            CommandEvent::QuitRequested => {
-                self.should_quit = true;
-            }
-            CommandEvent::ExCommandCharRequested { ch } => {
-                self.app_state.add_ex_command_char(ch)?;
-            }
-            CommandEvent::ExCommandBackspaceRequested => {
-                self.app_state.backspace_ex_command()?;
-            }
-            CommandEvent::ExCommandExecuteRequested => {
-                // Ex commands are now handled by the unified command system
-                // This legacy handler just clears the buffer and exits command mode
-                tracing::debug!(
-                    "Legacy ex command execute request - clearing buffer and exiting command mode"
-                );
-                self.app_state.clear_ex_command_buffer();
-                let previous_mode = self.app_state.get_previous_mode();
-                self.app_state.change_mode(previous_mode)?;
-            }
-            CommandEvent::ShowProfileRequested => {
-                // Show profile information directly (old ShowProfileCommand logic)
-                let profile_name = self.app_state.get_profile_name();
-                let profile_path = self.app_state.get_profile_path();
-
-                tracing::info!("Showing profile: {} at {}", profile_name, profile_path);
-
-                let message = format!("[{profile_name}] in {profile_path}");
-                self.app_state.set_status_message(message);
-
-                self.process_view_events(vec![PostCommandAction::StatusBarUpdateRequired])?;
-            }
-            CommandEvent::SettingChangeRequested { setting, value } => {
-                // Now handled by SettingChangeCommand
-                use crate::repl::unified_commands::system::setting_change::SettingChangeCommand;
-                let command = SettingChangeCommand::new(setting, value);
-                let mut exec_context = ExecutionContext {
-                    app_state: &mut self.app_state,
-                    services: &mut self.services,
-                };
-                // Create a dummy KeyEvent for SettingChange (no key event in this context)
-                let dummy_key_event = crossterm::event::KeyEvent::new(
-                    crossterm::event::KeyCode::Null,
-                    crossterm::event::KeyModifiers::empty(),
-                );
-                if let Ok(view_events) = command.execute(dummy_key_event, &mut exec_context) {
-                    self.process_view_events(view_events)?;
-                }
-            }
-            CommandEvent::YankSelectionRequested => {
-                // Now handled by YankSelectionCommand in unified_commands
-                // self.handle_yank_selection()?;
-            }
-            CommandEvent::DeleteSelectionRequested => {
-                // Now handled by DeleteSelectionCommand in unified_commands
-                tracing::debug!(
-                    "DeleteSelectionRequested received via old command path - ignoring"
-                );
-            }
-            CommandEvent::CutSelectionRequested => {
-                // Now handled by CutSelectionCommand in unified_commands
-                tracing::debug!("CutSelectionRequested received via old command path - ignoring");
-            }
-            CommandEvent::CutCharacterRequested => {
-                // Now handled by CutCharacterCommand in unified_commands
-                tracing::debug!("CutCharacterRequested received via old command path - ignoring");
-            }
-            CommandEvent::CutToEndOfLineRequested => {
-                // Now handled by CutToEndOfLineCommand in unified_commands
-                tracing::debug!("CutToEndOfLineRequested received via old command path - ignoring");
-            }
-            CommandEvent::CutCurrentLineRequested => {
-                // Now handled by CutCurrentLineCommand in unified_commands
-                tracing::debug!("CutCurrentLineRequested received via old command path - ignoring");
-            }
-            CommandEvent::YankCurrentLineRequested => {
-                tracing::debug!(
-                    "YankCurrentLineRequested received via old command path - ignoring"
-                );
-            }
-            CommandEvent::VisualBlockInsertRequested => {
-                // Now handled by VisualBlockInsertCommand in unified_commands
-                tracing::debug!(
-                    "VisualBlockInsertRequested received via old command path - ignoring"
-                );
-            }
-            CommandEvent::VisualBlockAppendRequested => {
-                // Now handled by VisualBlockAppendCommand in unified_commands
-                tracing::debug!(
-                    "VisualBlockAppendRequested received via old command path - ignoring"
-                );
-            }
-            CommandEvent::ExitVisualBlockInsertRequested => {
-                // Now handled by ExitVisualBlockInsertCommand in unified commands
-                tracing::debug!(
-                    "ExitVisualBlockInsertRequested received via old command path - ignoring"
-                );
-            }
-            CommandEvent::RepeatVisualSelectionRequested => {
-                // Now handled by RepeatVisualSelectionCommand in unified_commands
-                tracing::debug!(
-                    "RepeatVisualSelectionRequested received via old command path - ignoring"
-                );
-            }
-            CommandEvent::PasteAfterRequested => {
-                // Now handled by PasteAfterCommand in unified_commands
-                tracing::debug!(
-                    "PasteAfterRequested received via old command path - ignoring (handled by unified system)"
-                );
-            }
-            CommandEvent::PasteAtCursorRequested => {
-                // Now handled by PasteAtCursorCommand in unified_commands
-                tracing::debug!(
-                    "PasteAtCursorRequested received via old command path - ignoring (handled by unified system)"
-                );
-            }
-            CommandEvent::ChangeSelectionRequested => {
-                // Now handled by ChangeSelectionCommand in unified commands
-                tracing::debug!(
-                    "ChangeSelectionRequested received via old command path - ignoring"
-                );
-            }
-            CommandEvent::NoAction => {
-                // Do nothing
-            }
-        }
 
         Ok(())
     }
@@ -1102,53 +747,13 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     /// Process a single key event without running the full event loop (for testing)
     pub async fn process_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         tracing::debug!("Processing key event: {:?}", key_event);
-        tracing::debug!("AppViewModel: process_key_event called with {key_event:?}");
 
-        // Create command context from current state
-        tracing::debug!("AppViewModel: Creating command context");
-        let context = CommandContext::new(AppStateSnapshot::from_app_state(&self.app_state));
-        tracing::debug!("AppViewModel: Command context created");
+        // Use the same handle_key_event method that the main loop uses
+        self.handle_key_event(key_event).await?;
 
-        // Process through command registry
-        tracing::debug!("AppViewModel: About to call command_registry.process_event");
-        if let Ok(events) = self.command_registry.process_event(key_event, &context) {
-            tracing::debug!(
-                "AppViewModel: Command events generated: {} events",
-                events.len()
-            );
-            tracing::debug!("Command events generated: {:?}", events);
-            if !events.is_empty() {
-                // Apply events to view model (this will emit appropriate PostCommandActions)
-                tracing::debug!(
-                    "AppViewModel: About to apply {} command events",
-                    events.len()
-                );
-                for (i, event) in events.iter().enumerate() {
-                    tracing::debug!(
-                        "AppViewModel: Applying event {}/{}: {:?}",
-                        i + 1,
-                        events.len(),
-                        event
-                    );
-                    self.apply_command_event(event.clone()).await?;
-                    tracing::debug!(
-                        "AppViewModel: Applied event {}/{} successfully",
-                        i + 1,
-                        events.len()
-                    );
-                }
-                tracing::debug!("AppViewModel: All command events applied successfully");
+        // Render after processing key events
+        self.view_renderer.render_full(&self.app_state)?;
 
-                // Render after processing key events
-                self.view_renderer.render_full(&self.app_state)?;
-            } else {
-                tracing::debug!("AppViewModel: No command events generated");
-            }
-        } else {
-            tracing::warn!("AppViewModel: Failed to process key event: {key_event:?}");
-        }
-
-        tracing::debug!("AppViewModel: process_key_event completed successfully");
         Ok(())
     }
 
@@ -1368,15 +973,15 @@ mod tests {
         // Verify unified command registry is initialized
         assert!(view_model.unified_command_registry.command_count() > 0);
 
-        // Test 'y' key in Normal mode - should fall back to old system (no unified command)
+        // Test 'y' key in Normal mode - should trigger YPrefix mode via unified command
         let y_key = crossterm::event::KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
-        let result = view_model.handle_key_event_with_unified_first(y_key).await;
+        let result = view_model.handle_key_event(y_key).await;
         assert!(
             result.is_ok(),
             "Unified command system should handle key events gracefully"
         );
 
-        // Verify old system handled it (y in Normal mode goes to YPrefix mode)
+        // Verify unified command handled it (y in Normal mode goes to YPrefix mode)
         assert_eq!(view_model.app_state().get_mode(), EditorMode::YPrefix);
     }
 

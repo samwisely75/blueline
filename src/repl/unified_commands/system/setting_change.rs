@@ -5,8 +5,8 @@
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
-use crate::repl::commands::events::{Setting, SettingValue};
 use crate::repl::models::pane_state::EditorMode;
+use crate::repl::models::settings::{Setting, SettingValue};
 use crate::repl::unified_commands::{Command, CommandContext, ExecutionContext};
 use crate::repl::view_models::post_command_actions::PostCommandAction;
 

@@ -3,7 +3,6 @@
 //! Handles ex command buffer operations and command execution.
 
 use super::AppState;
-use crate::repl::commands::CommandEvent;
 use crate::repl::view_models::PostCommandAction;
 use anyhow::Result;
 
@@ -39,10 +38,9 @@ impl AppState {
         let _ = self.emit_view_event([PostCommandAction::StatusBarUpdateRequired]);
     }
 
-    /// Execute ex command and return resulting command events
-    pub fn execute_ex_command(&mut self) -> Result<Vec<CommandEvent>> {
+    /// Execute ex command (deprecated - now handled by unified command system)
+    pub fn execute_ex_command(&mut self) -> Result<()> {
         let command = self.status_line.command_buffer().trim().to_string();
-        let events = Vec::new();
 
         // Handle ex commands
         match command.as_str() {
@@ -61,6 +59,6 @@ impl AppState {
         let previous_mode = self.get_previous_mode();
         self.change_mode(previous_mode)?;
 
-        Ok(events)
+        Ok(())
     }
 }
