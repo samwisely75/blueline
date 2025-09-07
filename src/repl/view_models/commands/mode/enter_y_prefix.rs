@@ -7,6 +7,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::register_command;
+#[allow(unused_imports)] // Pane is used in tests
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::view_models::commands::{Command, CommandContext, ExecutionContext};
 use crate::repl::view_models::post_command_actions::PostCommandAction;
@@ -31,11 +32,16 @@ impl Default for EnterYPrefixCommand {
 }
 
 impl Command for EnterYPrefixCommand {
-    fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool {
-        // Handle first 'y' key press in Normal mode for Request pane only
+    fn is_relevant(
+        &self,
+        key_event: KeyEvent,
+        mode: EditorMode,
+        _context: &CommandContext,
+    ) -> bool {
+        // Handle first 'y' key press in Normal mode for both Request and Response panes
+        // Yank operations should be allowed in read-only panes
         matches!(key_event.code, KeyCode::Char('y'))
             && mode == EditorMode::Normal
-            && context.current_pane == Pane::Request
             && key_event.modifiers.is_empty()
     }
 
@@ -163,18 +169,19 @@ mod tests {
     }
 
     #[test]
-    fn enter_y_prefix_command_should_not_be_relevant_in_response_pane() {
+    fn enter_y_prefix_command_should_be_relevant_in_response_pane() {
         let command = EnterYPrefixCommand::new();
         let context = CommandContext {
             current_mode: EditorMode::Normal,
             current_pane: Pane::Response,
-            is_read_only: false,
+            is_read_only: true, // Response pane is read-only
             has_selection: false,
             ex_command_buffer: String::new(),
         };
 
         let key_event = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
-        assert!(!command.is_relevant(key_event, EditorMode::Normal, &context));
+        // Yank prefix mode should now be available in read-only panes
+        assert!(command.is_relevant(key_event, EditorMode::Normal, &context));
     }
 
     #[test]

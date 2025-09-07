@@ -44,16 +44,20 @@ impl YankSelectionCommand {
 }
 
 impl Command for YankSelectionCommand {
-    fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool {
+    fn is_relevant(
+        &self,
+        key_event: KeyEvent,
+        mode: EditorMode,
+        _context: &CommandContext,
+    ) -> bool {
         // Only relevant for 'y' key in visual modes without modifiers
-        // Note: Removed has_selection check as visual mode always has a selection
+        // Yank commands should work in both read-only and editable panes
         matches!(key_event.code, KeyCode::Char('y'))
             && key_event.modifiers.is_empty()
             && matches!(
                 mode,
                 EditorMode::Visual | EditorMode::VisualLine | EditorMode::VisualBlock
             )
-            && !context.is_read_only
     }
 
     fn execute(
@@ -179,7 +183,7 @@ mod tests {
         let y_key = KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE);
         assert!(!command.is_relevant(y_key, EditorMode::Normal, &context_normal));
 
-        // Test in read-only pane - should not be relevant
+        // Test in read-only pane - should be relevant for yank operations
         let context_readonly = CommandContext {
             current_mode: EditorMode::Visual,
             current_pane: Pane::Response,
@@ -187,7 +191,7 @@ mod tests {
             has_selection: true,
             ex_command_buffer: String::new(),
         };
-        assert!(!command.is_relevant(y_key, EditorMode::Visual, &context_readonly));
+        assert!(command.is_relevant(y_key, EditorMode::Visual, &context_readonly));
 
         // Test wrong key - should not be relevant
         let x_key = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE);
