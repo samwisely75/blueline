@@ -45,8 +45,8 @@ impl Command for EnterVisualBlockChangeModeCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Get the visual selection before deleting it
-        let (selection_start, selection_end, _pane) = context.app_state.get_visual_selection();
-        if selection_start.is_none() || selection_end.is_none() {
+        let selection = context.app_state.get_visual_selection();
+        if selection.start.is_none() || selection.end.is_none() {
             tracing::warn!("No visual selection for change operation");
             context
                 .app_state
@@ -54,8 +54,8 @@ impl Command for EnterVisualBlockChangeModeCommand {
             return Ok(vec![PostCommandAction::StatusBarUpdateRequired]);
         }
 
-        let start = selection_start.unwrap();
-        let end = selection_end.unwrap();
+        let start = selection.start.unwrap();
+        let end = selection.end.unwrap();
 
         // Calculate the cursor positions for Visual Block Insert mode
         // This is similar to Visual Block Insert, but we start from the deleted block

@@ -45,7 +45,9 @@ impl Command for CutSelectionCommand {
         context: &mut ExecutionContext,
     ) -> Result<Vec<PostCommandAction>> {
         // Get selection text and determine yank type based on current visual mode
-        if let Some((text, yank_type)) = context.app_state.get_selection_text_and_type()? {
+        if let Some(selection) = context.app_state.get_selection_text_and_type()? {
+            let text = selection.text;
+            let yank_type = selection.yank_type;
             // First yank to buffer using YankService
             context.services.yank.yank(text.clone(), yank_type)?;
             tracing::info!("Yanked selection to buffer before cut");

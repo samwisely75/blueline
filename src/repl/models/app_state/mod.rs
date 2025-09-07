@@ -8,6 +8,10 @@
 mod core;
 pub use core::{AppState, DisplayLineData};
 
+// Common types
+mod types;
+pub use types::{DisplayLine, VisualSelectionState, YankSelection};
+
 // Domain context modules
 mod editor_context;
 mod http_context;

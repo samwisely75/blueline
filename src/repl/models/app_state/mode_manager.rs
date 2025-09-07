@@ -8,12 +8,8 @@ use crate::repl::models::LogicalPosition;
 
 use anyhow::Result;
 
-/// Type alias for visual selection state to reduce complexity
-type VisualSelectionState = (
-    Option<LogicalPosition>,
-    Option<LogicalPosition>,
-    Option<Pane>,
-);
+// Use the VisualSelectionState struct for better type safety
+use super::types::VisualSelectionState;
 
 impl AppState {
     /// Get current editor mode

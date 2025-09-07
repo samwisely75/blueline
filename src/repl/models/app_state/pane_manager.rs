@@ -37,12 +37,8 @@ use crate::repl::models::pane_state::PaneState;
 use crate::repl::models::pane_state::{EditorMode, Pane, PaneCapabilities};
 use crate::repl::models::LogicalPosition;
 
-/// Visual selection state return type
-pub type VisualSelectionState = (
-    Option<LogicalPosition>,
-    Option<LogicalPosition>,
-    Option<Pane>,
-);
+// Re-export the VisualSelectionState struct for better type safety
+pub use super::types::VisualSelectionState;
 
 /// PaneManager encapsulates all pane-related state and operations
 /// This eliminates the need for array indexing operations throughout the codebase
@@ -158,15 +154,15 @@ impl PaneManager {
     /// Get visual selection state for current pane
     pub fn get_visual_selection(&self) -> VisualSelectionState {
         let (start, end) = self.panes[self.current_pane].get_visual_selection();
-        (
+        VisualSelectionState {
             start,
             end,
-            if start.is_some() {
+            pane: if start.is_some() {
                 Some(self.current_pane)
             } else {
                 None
             },
-        )
+        }
     }
 
     /// Check if a position is within visual selection
