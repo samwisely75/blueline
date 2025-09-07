@@ -294,4 +294,7 @@ mod tests {
 }
 
 // Auto-register this command using the inventory system
-register_command!(ExitVisualBlockInsertModeCommand, "ExitVisualBlockInsertModeCommand");
+register_command!(
+    ExitVisualBlockInsertModeCommand,
+    "ExitVisualBlockInsertModeCommand"
+);

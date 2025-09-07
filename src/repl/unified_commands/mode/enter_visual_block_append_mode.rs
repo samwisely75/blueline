@@ -308,4 +308,7 @@ mod tests {
 }
 
 // Auto-register this command using the inventory system
-register_command!(EnterVisualBlockAppendModeCommand, "EnterVisualBlockAppendModeCommand");
+register_command!(
+    EnterVisualBlockAppendModeCommand,
+    "EnterVisualBlockAppendModeCommand"
+);
