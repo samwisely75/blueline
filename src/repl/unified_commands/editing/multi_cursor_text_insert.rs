@@ -79,12 +79,22 @@ impl Command for MultiCursorTextInsertCommand {
             cursor_positions.len()
         );
 
+        // Save the original cursor position (currently unused but may be needed for future enhancements)
+        let _original_cursor = context.app_state.get_cursor_position();
+
         // Insert text at each cursor position
-        // We need to process in reverse order to maintain position validity
-        for position in cursor_positions.iter().rev() {
-            // Temporarily set cursor to this position and insert text
+        // We need to process from bottom to top to avoid position shifts
+        let mut sorted_positions = cursor_positions.clone();
+        sorted_positions.sort_by(|a, b| b.line.cmp(&a.line));
+
+        for position in sorted_positions.iter() {
+            // Move cursor to position and insert text
             context.app_state.set_cursor_position(*position)?;
-            context.app_state.insert_text(&text)?;
+
+            // Insert text character by character
+            for ch in text.chars() {
+                context.app_state.insert_char(ch)?;
+            }
         }
 
         // Update all cursor positions to reflect the inserted text
@@ -94,7 +104,7 @@ impl Command for MultiCursorTextInsertCommand {
             .map(|pos| LogicalPosition::new(pos.line, pos.column + text_len))
             .collect();
 
-        // Set the primary cursor to the first position before updating positions
+        // Set cursor to the first updated position (top-most line)
         if let Some(first_pos) = updated_positions.first() {
             context.app_state.set_cursor_position(*first_pos)?;
         }
