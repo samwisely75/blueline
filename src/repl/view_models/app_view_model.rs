@@ -12,6 +12,7 @@ use crate::repl::{
     models::LogicalPosition,
     services::{HttpResponseMessage, Services},
     view_models::commands::{DynamicCommandRegistry, ExecutionContext},
+    view_models::post_command_actions::PostCommandAction,
     views::{TerminalRenderer, ViewRenderer},
 };
 use anyhow::Result;
@@ -30,7 +31,6 @@ pub struct AppViewModel<ES: EventStream, RS: RenderStream> {
     event_bus: SimpleEventBus,
     event_stream: ES,
     should_quit: bool,
-    last_render_time: std::time::Instant,
 }
 
 impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
@@ -71,7 +71,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             event_bus,
             event_stream,
             should_quit: false,
-            last_render_time: std::time::Instant::now(),
         };
 
         // Apply initial commands from config file
@@ -340,8 +339,15 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         // Switch to response pane to show results
         self.app_state.switch_to_response_pane();
 
-        // Trigger re-render to show the response
-        self.render_if_needed()?;
+        // Generate PostCommandActions for the response update
+        let post_actions = vec![
+            PostCommandAction::SecondaryAreaRedrawRequired,
+            PostCommandAction::StatusBarUpdateRequired,
+            PostCommandAction::FullRedrawRequired,
+        ];
+
+        // Process the actions to trigger rendering
+        self.process_view_events(post_actions)?;
 
         Ok(())
     }
@@ -353,23 +359,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         self.view_renderer.update_size(width, height);
         // Full redraw required after resize to handle layout changes
         self.view_renderer.render_full(&self.app_state)?;
-        Ok(())
-    }
-
-    /// Perform rendering with throttling to prevent ghost cursors
-    fn render_if_needed(&mut self) -> Result<()> {
-        let now = std::time::Instant::now();
-        let min_render_interval = Duration::from_micros(500);
-
-        if now.duration_since(self.last_render_time) < min_render_interval {
-            return Ok(());
-        }
-
-        // Since we're not executing a command here, there are no PostCommandActions to process
-        // This method is called for periodic rendering updates
-        // Commands generate their own PostCommandActions which are processed after execution
-        self.last_render_time = now;
-
         Ok(())
     }
 
@@ -400,12 +389,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     /// - Selective rendering only updates changed screen regions
     /// - Cursor management prevents flickering and ghost cursors
     /// - Full redraw overrides all other events for simplicity
-    fn process_view_events(
-        &mut self,
-        view_events: Vec<crate::repl::view_models::PostCommandAction>,
-    ) -> Result<()> {
-        use crate::repl::view_models::PostCommandAction;
-
+    fn process_view_events(&mut self, view_events: Vec<PostCommandAction>) -> Result<()> {
         // Group events to avoid redundant renders
         let mut needs_full_redraw = false;
         let mut needs_status_bar = false;
