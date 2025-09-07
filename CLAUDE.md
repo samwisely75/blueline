@@ -2,7 +2,7 @@
 
 ## CRITICAL: Read and Follow These Documents
 
-PLEASE READ AND STRICTLY FOLLOW THE GUIDANCE IN `docs/DEV_GUIDE.md`, `docs/DEV_CODING.md`, AND `docs/DEV_WORKFLOW.md`.
+PLEASE READ AND STRICTLY FOLLOW THE GUIDANCE IN `docs/DEV_GUIDE.md`, `docs/DEV_CODING.md`, AND `docs/DEV_WORKFLOW.md`. If you are a agent working on the Command migration, please read `docs/AGENT_MIGRATION_GUIDE.md`.
 
 **Especially important**: Follow the formatting macro guidelines in `docs/DEV_CODING.md` - use embedded expressions like `format!("Hello, {name}")` and `assert_eq!(result, expected, "Expected {expected}, got {result}")` instead of old positional syntax.
 
@@ -154,9 +154,9 @@ You are working with a complex, functioning application. Your job is to make min
 
 ### Always Check for Previous Session Context
 
-When starting any conversation, IMMEDIATELY:
+When starting any conversation, or compact the conversation, IMMEDIATELY:
 
-1. Check if `SESSION_NOTES.md` exists and read it completely
+1. Reload `SESSION_NOTES.md`, `docs/DEV_GUIDE.md` and `docs/DEV_WORKFLOW.md`.
 2. Review recent git commits to understand what was recently changed
 3. Ask user about current context if unclear from notes
 

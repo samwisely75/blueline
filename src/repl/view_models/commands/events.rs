@@ -7,7 +7,7 @@
 //! Model Events represent business logic changes and maintain the separation
 //! between business logic (Commands) and display logic (ViewRenderer).
 
-use crate::repl::events::{EditorMode, LogicalPosition, Pane};
+use crate::repl::models::pane_state::{EditorMode, LogicalPosition, Pane};
 
 /// Semantic events describing state changes in the application
 ///
@@ -74,10 +74,13 @@ pub enum ModelEvent {
 
     /// HTTP response was received
     HttpResponseReceived { status: u16, body: String },
+
+    /// Application quit was requested
+    QuitRequested,
 }
 
 // Re-export YankType from models to avoid duplication
-pub use crate::repl::models::yank_buffer::YankType;
+pub use crate::repl::models::buffer::yank_buffer::YankType;
 
 #[cfg(test)]
 mod tests {

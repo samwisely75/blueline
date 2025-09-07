@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.16] - 2025-09-07
+
+### Removed
+
+- **AppViewModel Cleanup**: Major cleanup of AppViewModel removing legacy code
+  - Removed ModelEvent enum and all related processing methods
+  - Removed execute_command method and related tests
+  - Consolidated handle_key_event by removing process_key_event
+  - Removed process_model_event and process_model_event_internal methods
+  - Removed app_state() and app_state_mut() accessor methods
+  - Simplified HTTP response handling to directly update state
+  - Total reduction of ~250 lines of legacy code
+
+## [0.45.14] - 2025-09-07
+
+### Fixed
+
+- **Visual Block Insert**: Fixed multi-line insertion in Visual Block modes
+  - Visual Block Insert (I), Append (A), and Change (c) now properly affect all selected lines
+  - Fixed command precedence issue where InsertCharCommand was incorrectly handling VisualBlockInsert mode
+  - MultiCursorTextInsertCommand now exclusively handles character insertion in VisualBlockInsert mode
+  - Both commands now properly handle SHIFT modifier for capital letters
+
+## [0.45.13] - 2025-09-06
+
+### Changed
+
+- **Command System Migration**: Migrated multiple navigation commands to unified command system
+  - Migrated BeginningOfLineCommand (0 key) and EndOfLineCommand ($ key) (#267, #268)
+  - Migrated HomeKeyCommand and EndKeyCommand (#269, #270)
+  - Migrated HalfPageDownCommand (Ctrl+D) (#273)
+  - Migrated HalfPageUpCommand (Ctrl+U) (#274)
+  - Migrated PageUpCommand (#272)
+  - All commands now use inventory-based auto-registration system
+  - Improved test coverage with comprehensive unit tests for all migrated commands
+  - Removed legacy command implementations from registry
+
+## [0.45.12] - 2025-09-06
+
+### Fixed
+
+- **Visual Block Mode**: Fixed critical bugs preventing Visual Block mode from working
+  - Fixed visual selection initialization when entering Visual Block mode (Ctrl+v)
+  - Fixed visual selection highlighting not updating when cursor moves
+  - Changed `EnterVisualBlockModeCommand` to use `change_mode()` instead of `set_mode()`
+  - Fixed cursor movement methods to properly propagate visual selection update events
+
+## [0.45.5] - 2025-08-30
+
+### Changed
+
+- **Word Segmentation**: Migrated word segmenter to services layer
+  - Moved all word segmentation implementation from text module to services
+  - Deleted obsolete text folder
+  - Improved alignment with MVVM architecture
+  - Maintains full backward compatibility
+
+## [0.45.4] - 2025-08-30
+
+### Changed
+
+- **Architecture**: Complete MVVM refactoring (Phases 1-7)
+  - Merged ViewModel and PaneManager into unified AppState
+  - Renamed AppController to AppViewModel to reflect true MVVM pattern
+  - Moved AppViewModel from controllers/ to view_models/ directory
+  - ViewRenderer now receives AppState directly instead of ViewModel
+  - Improved separation of concerns with proper Model-View-ViewModel layers
+  - Added comprehensive architecture documentation
+
 ## [0.45.3] - 2025-08-23
 
 ### Fixed

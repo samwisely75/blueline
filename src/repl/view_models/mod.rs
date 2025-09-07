@@ -1,30 +1,12 @@
 //! # ViewModel Module
 //!
-//! Modular ViewModel implementation split into focused responsibilities.
-//! This replaces the monolithic view_models.rs with a clean, maintainable architecture.
 
-mod buffer_operations;
+pub mod app_view_model;
 pub mod commands;
-mod core;
-mod cursor_manager;
-mod display_manager;
-mod ex_command_manager;
-mod http_manager;
-mod mode_manager;
-mod pane_manager;
-mod pane_state;
-mod rendering_coordinator;
-// screen_buffer moved to models/
-// selection moved to models/
-mod settings_manager;
-// yank_buffer moved to models/
+pub mod post_command_actions;
 
-// Re-export the main ViewModel
-pub use core::ViewModel;
-
-// Re-export types that other modules need
-pub use core::DisplayLineData;
-pub use pane_manager::PaneManager;
-pub use pane_state::PaneState;
-// Selection and YankBuffer types now imported from models
-pub use crate::repl::models::{Selection, YankEntry, YankType};
+pub use crate::repl::models::app_state::AppState;
+pub use crate::repl::models::app_state::AppState as ViewModel;
+pub use crate::repl::models::app_state::DisplayLineData;
+pub use app_view_model::AppViewModel;
+pub use post_command_actions::{InputEvent, PostCommandAction};

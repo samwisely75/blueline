@@ -1,0 +1,153 @@
+//! # Cursor Management
+//!
+//! Handles all cursor movement and positioning logic using semantic operations from PaneManager.
+//! This module provides high-level cursor operations that work with the current/other area abstraction.
+
+use super::AppState;
+use crate::repl::models::coordinates::geometry::Position;
+use crate::repl::models::LogicalPosition;
+use anyhow::Result;
+
+impl AppState {
+    /// Get current logical cursor position for the active area
+    pub fn get_cursor_position(&self) -> LogicalPosition {
+        self.pane_manager.get_current_cursor_position()
+    }
+
+    /// Get current display cursor position for the active area
+    pub fn get_display_cursor_position(&self) -> Position {
+        self.pane_manager.get_current_display_cursor()
+    }
+
+    /// Move cursor left in current area
+    pub fn move_cursor_left(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_left();
+        Ok(())
+    }
+
+    /// Move cursor right in current area
+    pub fn move_cursor_right(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_right();
+        Ok(())
+    }
+
+    /// Move cursor up in current area
+    pub fn move_cursor_up(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_up();
+        Ok(())
+    }
+
+    /// Move cursor down in current area
+    pub fn move_cursor_down(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_down();
+        Ok(())
+    }
+
+    /// Move cursor to end of current line
+    pub fn move_cursor_to_end_of_line(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_to_end_of_line();
+        Ok(())
+    }
+
+    /// Move cursor to end of current line for append (A command)
+    pub fn move_cursor_to_line_end_for_append(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_to_line_end_for_append();
+        Ok(())
+    }
+
+    /// Move cursor to start of current line
+    pub fn move_cursor_to_start_of_line(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_to_start_of_line();
+        Ok(())
+    }
+
+    /// Move cursor to start of document
+    pub fn move_cursor_to_document_start(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_to_document_start();
+        Ok(())
+    }
+
+    /// Move cursor to end of document
+    pub fn move_cursor_to_document_end(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_to_document_end();
+        Ok(())
+    }
+
+    /// Set cursor position in current area
+    pub fn set_cursor_position(&mut self, position: LogicalPosition) -> Result<()> {
+        self.pane_manager.set_current_cursor_position(position);
+        Ok(())
+    }
+
+    /// Move cursor to next word in current area
+    pub fn move_cursor_to_next_word(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_to_next_word();
+        Ok(())
+    }
+
+    /// Move cursor to previous word in current area
+    pub fn move_cursor_to_previous_word(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_to_previous_word();
+        Ok(())
+    }
+
+    /// Move cursor to end of word in current area
+    pub fn move_cursor_to_end_of_word(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_to_end_of_word();
+        Ok(())
+    }
+
+    /// Move cursor to specific line number (1-based)
+    pub fn move_cursor_to_line(&mut self, line_number: usize) -> Result<()> {
+        self.pane_manager.move_cursor_to_line(line_number);
+        Ok(())
+    }
+
+    /// Move cursor down one page in current area (Ctrl+f)
+    pub fn move_cursor_page_down(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_page_down();
+        Ok(())
+    }
+
+    /// Move cursor up one page in current area (Ctrl+b)
+    pub fn move_cursor_page_up(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_page_up();
+        Ok(())
+    }
+
+    /// Move cursor down half a page in current area (Ctrl+d)
+    pub fn move_cursor_half_page_down(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_half_page_down();
+        Ok(())
+    }
+
+    /// Move cursor up half a page in current area (Ctrl+u)
+    pub fn move_cursor_half_page_up(&mut self) -> Result<()> {
+        self.pane_manager.move_cursor_half_page_up();
+        Ok(())
+    }
+
+    /// Get display line count for the current pane
+    pub fn get_display_line_count(&self) -> usize {
+        if let Some(pane_state) = self.pane_manager.get_current_pane_state() {
+            pane_state.display_cache.display_line_count()
+        } else {
+            0
+        }
+    }
+
+    /// Get display line length for a specific line index in the current pane
+    pub fn get_display_line_length(&self, line_index: usize) -> usize {
+        if let Some(pane_state) = self.pane_manager.get_current_pane_state() {
+            if let Some(display_line) = pane_state.display_cache.get_display_line(line_index) {
+                display_line.display_width()
+            } else {
+                0
+            }
+        } else {
+            0
+        }
+    }
+
+    // Scrolling methods are implemented elsewhere - avoiding duplication
+}

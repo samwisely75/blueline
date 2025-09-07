@@ -1,21 +1,22 @@
 //! # Command Pattern Infrastructure
 //!
-//! Command Pattern where Commands use Services for business logic and emit ModelEvents.
-//! Commands receive both ViewModel and Services through an ExecutionContext.
+//! Command Pattern where Commands use Services for business logic and emit PostCommandActions.
+//! Commands receive both AppState and Services through an ExecutionContext.
 
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
 use crate::repl::{
-    events::{EditorMode, Pane},
+    models::pane_state::{EditorMode, Pane},
+    models::AppState,
     services::Services,
-    view_models::{commands::events::ModelEvent, ViewModel},
+    view_models::post_command_actions::PostCommandAction,
 };
 
 /// Command trait for the new Command Pattern architecture
 ///
-/// Commands use Services for business logic and emit ModelEvents describing
-/// what state changes occurred. Commands receive both ViewModel and Services
+/// Commands use Services for business logic and emit PostCommandActions describing
+/// what UI updates are needed. Commands receive both AppState and Services
 /// through an ExecutionContext.
 pub trait Command: Send + Sync {
     /// Check if this command should handle the given key event
@@ -28,24 +29,32 @@ pub trait Command: Send + Sync {
     /// Only one command should return true for any given input.
     fn is_relevant(&self, key_event: KeyEvent, mode: EditorMode, context: &CommandContext) -> bool;
 
-    /// Execute the command with access to ViewModel and Services
+    /// Execute the command with access to AppState and Services
     ///
-    /// Commands should use Services for business logic and return ModelEvents
-    /// describing what state changes occurred. The events are semantic
-    /// (describe WHAT happened) rather than display-specific.
-    fn handle(&self, context: &mut ExecutionContext) -> Result<Vec<ModelEvent>>;
+    /// Commands should use Services for business logic and return PostCommandActions
+    /// describing what UI updates are needed. Commands perform the business
+    /// logic directly and emit view update events.
+    ///
+    /// The key_event parameter provides access to the key that triggered this command,
+    /// which is needed for commands like InsertCharCommand that need to know which
+    /// character was pressed.
+    fn execute(
+        &self,
+        key_event: KeyEvent,
+        context: &mut ExecutionContext,
+    ) -> Result<Vec<PostCommandAction>>;
 
     /// Get command name for debugging and logging
     fn name(&self) -> &'static str;
 }
 
-/// Execution context for Commands containing ViewModel and Services
+/// Execution context for Commands containing AppState and Services
 ///
-/// This provides Commands with access to both state (ViewModel) and
+/// This provides Commands with access to both state (AppState) and
 /// business logic services for performing operations.
 pub struct ExecutionContext<'a> {
-    /// Mutable access to the ViewModel for state management
-    pub view_model: &'a mut ViewModel,
+    /// Mutable access to the AppState for state management
+    pub app_state: &'a mut AppState,
     /// Mutable access to Services for business operations
     pub services: &'a mut Services,
 }
@@ -64,16 +73,31 @@ pub struct CommandContext {
     pub is_read_only: bool,
     /// Whether there's an active visual selection
     pub has_selection: bool,
+    /// Current ex command buffer content
+    pub ex_command_buffer: String,
 }
 
 impl CommandContext {
-    /// Create CommandContext from current ViewModel state
-    pub fn from_view_model(view_model: &ViewModel) -> Self {
+    /// Create CommandContext from current AppState state
+    pub fn from_app_state(app_state: &AppState) -> Self {
         Self {
-            current_mode: view_model.get_mode(),
-            current_pane: view_model.get_current_pane(),
-            is_read_only: view_model.is_in_response_pane(), // Response pane is read-only
-            has_selection: view_model.get_selected_text().is_some(),
+            current_mode: app_state.get_mode(),
+            current_pane: app_state.get_current_pane(),
+            is_read_only: app_state.is_in_response_pane(), // Response pane is read-only
+            has_selection: app_state.get_selected_text().is_some(),
+            ex_command_buffer: app_state.get_ex_command_buffer().to_string(),
+        }
+    }
+
+    /// Create test CommandContext with default values
+    #[cfg(test)]
+    pub fn test_default() -> Self {
+        Self {
+            current_mode: EditorMode::Normal,
+            current_pane: Pane::Request,
+            is_read_only: false,
+            has_selection: false,
+            ex_command_buffer: String::new(),
         }
     }
 }
@@ -81,16 +105,17 @@ impl CommandContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repl::view_models::ViewModel;
+    use crate::repl::models::AppState;
+    use crossterm::event::{KeyCode, KeyModifiers};
 
     /// Mock command for testing the Command trait
     struct MockCommand {
         name: &'static str,
-        events_to_return: Vec<ModelEvent>,
+        events_to_return: Vec<PostCommandAction>,
     }
 
     impl MockCommand {
-        fn new(name: &'static str, events: Vec<ModelEvent>) -> Self {
+        fn new(name: &'static str, events: Vec<PostCommandAction>) -> Self {
             Self {
                 name,
                 events_to_return: events,
@@ -109,7 +134,11 @@ mod tests {
             true
         }
 
-        fn handle(&self, _context: &mut ExecutionContext) -> Result<Vec<ModelEvent>> {
+        fn execute(
+            &self,
+            _key_event: KeyEvent,
+            _context: &mut ExecutionContext,
+        ) -> Result<Vec<PostCommandAction>> {
             Ok(self.events_to_return.clone())
         }
 
@@ -120,35 +149,41 @@ mod tests {
 
     #[test]
     fn command_trait_should_return_name_and_handle_events() {
-        let events = vec![ModelEvent::StatusMessageSet {
-            message: "Test message".to_string(),
-        }];
+        let events = vec![PostCommandAction::StatusBarUpdateRequired];
         let command = MockCommand::new("TestCommand", events.clone());
 
         assert_eq!(command.name(), "TestCommand");
 
         // Create minimal context for testing
-        let mut view_model = ViewModel::new();
+        let mut app_state = AppState::new();
         let mut services = crate::repl::services::Services::new();
         let mut context = ExecutionContext {
-            view_model: &mut view_model,
+            app_state: &mut app_state,
             services: &mut services,
         };
-        let result = command.handle(&mut context).unwrap();
+        let result = command
+            .execute(
+                KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+                &mut context,
+            )
+            .unwrap();
         assert_eq!(result, events);
     }
 
     #[test]
-    fn command_context_should_capture_view_model_state() {
-        let view_model = ViewModel::new();
-        let context = CommandContext::from_view_model(&view_model);
+    fn command_context_should_capture_app_state() {
+        let app_state = AppState::new();
+        let context = CommandContext::from_app_state(&app_state);
 
         // Verify context captures current state
         assert_eq!(
             context.current_mode,
-            crate::repl::events::EditorMode::Normal
+            crate::repl::models::pane_state::EditorMode::Normal
         );
-        assert_eq!(context.current_pane, crate::repl::events::Pane::Request);
+        assert_eq!(
+            context.current_pane,
+            crate::repl::models::pane_state::Pane::Request
+        );
         assert!(!context.has_selection);
     }
 }

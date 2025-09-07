@@ -12,13 +12,13 @@ use blueline::{
     cmd_args::CommandLineArgs,
     config::AppConfig,
     repl::{
-        controllers::app_controller::AppController,
         io::{
             test_bridge::{
                 BridgedEventStream, BridgedRenderStream, EventStreamController, RenderStreamMonitor,
             },
             VteRenderStream,
         },
+        view_models::AppViewModel,
     },
 };
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
@@ -31,6 +31,14 @@ use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, error, info, trace, warn};
 
 use super::terminal_state::TerminalState;
+
+/// Snapshot of cursor position for test validation
+#[derive(Debug, Clone)]
+pub struct CursorSnapshot {
+    pub position: (u16, u16),
+    pub timestamp: std::time::Instant,
+    pub trigger: String,
+}
 
 /// Application mode following Vim conventions
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,13 +110,19 @@ pub struct BluelineWorld {
 
     /// Track if yank buffer contains a line (true) or character (false) yank
     yank_is_line: bool,
+
+    /// Cursor tracking for test validation
+    cursor_history: Vec<CursorSnapshot>,
+
+    /// Most recent cursor position before an action
+    cursor_before_action: Option<(u16, u16)>,
 }
 
 impl std::fmt::Debug for BluelineWorld {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BluelineWorld")
             .field("terminal_size", &self.terminal_size)
-            .field("has_app", &"<AppController>")
+            .field("has_app", &"<AppViewModel>")
             .field("has_profile_path", &self.profile_path.is_some())
             .finish()
     }
@@ -144,6 +158,8 @@ impl Default for BluelineWorld {
             visual_start: None,
             yank_buffer: None,
             yank_is_line: false,
+            cursor_history: Vec::new(),
+            cursor_before_action: None,
         }
     }
 }
@@ -177,6 +193,8 @@ impl BluelineWorld {
         self.visual_start = None;
         self.yank_buffer = None;
         self.yank_is_line = false;
+        self.cursor_history.clear();
+        self.cursor_before_action = None;
 
         trace!(
             "World {} initialized with terminal size {:?}",
@@ -238,6 +256,8 @@ impl BluelineWorld {
         self.visual_start = None;
         self.yank_buffer = None;
         self.yank_is_line = false;
+        self.cursor_history.clear();
+        self.cursor_before_action = None;
 
         // Clean up temporary profile if created
         if let Some(path) = &self.profile_path {
@@ -293,13 +313,13 @@ impl BluelineWorld {
         let (shutdown_tx, _shutdown_rx) = mpsc::channel::<()>(1);
         self.shutdown_tx = Some(shutdown_tx);
 
-        debug!("Creating AppController with bridged streams");
+        debug!("Creating AppViewModel with bridged streams");
 
-        // Actually run the AppController in a spawned task
-        debug!("Creating and running AppController with event loop...");
+        // Actually run the AppViewModel in a spawned task
+        debug!("Creating and running AppViewModel with event loop...");
         let config = AppConfig::from_args(cmd_args);
-        let mut app = AppController::with_io_streams(config, event_stream, render_stream)?;
-        debug!("✅ AppController created successfully");
+        let mut app = AppViewModel::with_io_streams(config, event_stream, render_stream)?;
+        debug!("✅ AppViewModel created successfully");
 
         // Spawn the app.run() in a separate runtime to avoid deadlock with cucumber
         // This is necessary because cucumber-rs and tokio::spawn can deadlock
@@ -308,14 +328,14 @@ impl BluelineWorld {
             // Create a new runtime for the app
             let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
             rt.block_on(async move {
-                tracing::info!("🚀 Starting AppController event loop in separate runtime");
+                tracing::info!("🚀 Starting AppViewModel event loop in separate runtime");
                 match app.run().await {
                     Ok(()) => {
-                        tracing::info!("✅ AppController exited normally");
+                        tracing::info!("✅ AppViewModel exited normally");
                         Ok(())
                     }
                     Err(e) => {
-                        tracing::error!("❌ AppController error: {}", e);
+                        tracing::error!("❌ AppViewModel error: {}", e);
                         Err(e)
                     }
                 }
@@ -348,12 +368,29 @@ impl BluelineWorld {
             code, modifiers, self.current_mode
         );
 
+        // AUTOMATICALLY capture cursor position before EVERY key event for test validation
+        let state = self.get_terminal_state().await;
+        self.cursor_before_action = Some(state.cursor_position);
+        self.cursor_history.push(CursorSnapshot {
+            position: state.cursor_position,
+            timestamp: std::time::Instant::now(),
+            trigger: if modifiers.is_empty() {
+                format!("{code:?}")
+            } else {
+                format!("{code:?}+{modifiers:?}")
+            },
+        });
+        debug!(
+            "📍 Captured cursor position before action: {:?}",
+            state.cursor_position
+        );
+
         if let Some(controller) = &self.event_controller {
             let event = Event::Key(KeyEvent::new(code, modifiers));
             if let Err(e) = controller.send_event(event) {
                 error!("❌ Failed to send key event: {}", e);
             } else {
-                info!("✅ Key event {:?} sent successfully to AppController", code);
+                info!("✅ Key event {:?} sent successfully to AppViewModel", code);
                 // Give the app time to process the event
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
@@ -1590,6 +1627,28 @@ impl BluelineWorld {
     pub fn set_cursor_position(&mut self, line: usize, column: usize) {
         self.cursor_position = (line, column);
         debug!("Set cursor position to ({}, {})", line, column);
+    }
+
+    /// Get cursor position before the last action (VTE coordinates)
+    pub fn get_cursor_before_action(&self) -> Option<(u16, u16)> {
+        self.cursor_before_action
+    }
+
+    /// Get most recent cursor position from VTE
+    pub async fn get_current_cursor_position(&mut self) -> (u16, u16) {
+        let state = self.get_terminal_state().await;
+        state.cursor_position
+    }
+
+    /// Get cursor history for debugging
+    pub fn get_cursor_history(&self) -> &[CursorSnapshot] {
+        &self.cursor_history
+    }
+
+    /// Clear cursor history (useful for test isolation)
+    pub fn clear_cursor_history(&mut self) {
+        self.cursor_history.clear();
+        self.cursor_before_action = None;
     }
 
     /// Get terminal content from our test simulation
