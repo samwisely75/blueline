@@ -7,7 +7,6 @@ use crate::config::AppConfig;
 use crate::repl::{
     io::{EventStream, RenderStream},
     models::app_state::AppState,
-    models::events::SimpleEventBus,
     models::pane_state::Pane,
     models::LogicalPosition,
     services::{HttpResponseMessage, Services},
@@ -27,8 +26,6 @@ pub struct AppViewModel<ES: EventStream, RS: RenderStream> {
     services: Services,
     // New dynamic command system (checks first, falls back to old system)
     unified_command_registry: DynamicCommandRegistry,
-    #[allow(dead_code)]
-    event_bus: SimpleEventBus,
     event_stream: ES,
     should_quit: bool,
 }
@@ -53,7 +50,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         }
 
         let unified_command_registry = DynamicCommandRegistry::new();
-        let event_bus = SimpleEventBus::new();
 
         // Synchronize view model with actual terminal size
         let (width, height) = view_renderer.terminal_size();
@@ -68,7 +64,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
             view_renderer,
             services,
             unified_command_registry,
-            event_bus,
             event_stream,
             should_quit: false,
         };
@@ -118,9 +113,6 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         // HTTP client is now managed by the HttpService, not the ViewModel
         // Just store profile information for display
         app_state.set_profile_info(profile_name.to_string(), profile_path.to_string());
-
-        // Set up event bus in view model
-        app_state.set_event_bus(Box::new(SimpleEventBus::new()));
     }
 
     /// Apply initial ex commands from config file

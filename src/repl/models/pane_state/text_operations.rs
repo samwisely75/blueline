@@ -8,13 +8,12 @@
 
 use super::{EditorMode, PaneCapabilities};
 use crate::repl::models::coordinates::geometry::Position;
-use crate::repl::models::events::ModelEvent;
 use crate::repl::models::{LogicalPosition, LogicalRange};
 
 use super::PaneState;
 
 // Type alias for deletion operation results
-type DeletionResult = Option<(String, ModelEvent)>;
+type DeletionResult = Option<String>;
 
 impl PaneState {
     // Helper method to save last visual selection before clearing
@@ -186,7 +185,7 @@ impl PaneState {
         }
 
         // Insert character into buffer
-        let _event = self.buffer.insert_char(ch);
+        self.buffer.insert_char(ch);
 
         // Rebuild display cache to ensure rendering sees the updated content
         self.build_display_cache(content_width, wrap_enabled, tab_width);
@@ -385,7 +384,7 @@ impl PaneState {
 
                 // Perform deletion
                 let pane_type = self.buffer.pane();
-                if let Some(event) = self
+                if self
                     .buffer
                     .content_mut()
                     .delete_range(pane_type, delete_range)
@@ -398,7 +397,7 @@ impl PaneState {
                     self.visual_selection_start = None;
                     self.visual_selection_end = None;
 
-                    Some((selected_text, event))
+                    Some(selected_text)
                 } else {
                     None
                 }
@@ -451,14 +450,14 @@ impl PaneState {
         let delete_range = LogicalRange::new(delete_start, delete_end);
 
         let pane_type = self.buffer.pane();
-        let Some(_event) = self
+        if !self
             .buffer
             .content_mut()
             .delete_range(pane_type, delete_range)
-        else {
+        {
             tracing::warn!("✂️  Failed to delete character at cursor");
             return None;
-        };
+        }
 
         // After deletion, check if we need to adjust cursor position
         if let Some(line) = self.buffer.content().get_line(current_cursor.line) {
@@ -564,14 +563,14 @@ impl PaneState {
         let delete_range = LogicalRange::new(delete_start, delete_end);
 
         let pane_type = self.buffer.pane();
-        let Some(_event) = self
+        if !self
             .buffer
             .content_mut()
             .delete_range(pane_type, delete_range)
-        else {
+        {
             tracing::warn!("✂️  Failed to cut text to end of line");
             return None;
-        };
+        }
 
         // Cursor stays at current position (no movement after cutting to end of line)
         tracing::debug!(
@@ -677,14 +676,14 @@ impl PaneState {
         let delete_range = LogicalRange::new(delete_start, delete_end);
         let pane_type = self.buffer.pane();
 
-        let Some(_event) = self
+        if !self
             .buffer
             .content_mut()
             .delete_range(pane_type, delete_range)
-        else {
+        {
             tracing::warn!("✂️  Failed to cut current line");
             return None;
-        };
+        }
 
         // Position cursor after line deletion
         let new_total_lines = self.buffer.content().line_count();
@@ -756,13 +755,13 @@ impl PaneState {
 
         // Attempt deletion
         let pane_type = self.buffer.pane();
-        let Some(_event) = self
+        if !self
             .buffer
             .content_mut()
             .delete_range(pane_type, delete_range)
-        else {
+        {
             return;
-        };
+        }
 
         // Move cursor left after successful deletion
         let new_cursor = LogicalPosition::new(current_cursor.line, current_cursor.column - 1);
@@ -793,13 +792,13 @@ impl PaneState {
 
         // Attempt deletion
         let pane_type = self.buffer.pane();
-        let Some(_event) = self
+        if !self
             .buffer
             .content_mut()
             .delete_range(pane_type, delete_range)
-        else {
+        {
             return;
-        };
+        }
 
         // Cursor stays at same position after forward deletion
         tracing::debug!(
@@ -841,13 +840,13 @@ impl PaneState {
 
         // Attempt deletion
         let pane_type = self.buffer.pane();
-        let Some(_event) = self
+        if !self
             .buffer
             .content_mut()
             .delete_range(pane_type, delete_range)
-        else {
+        {
             return;
-        };
+        }
 
         // Position cursor at end of previous line (where lines joined)
         let new_cursor = LogicalPosition::new(current_cursor.line - 1, prev_line_length);
@@ -876,13 +875,13 @@ impl PaneState {
 
         // Attempt deletion
         let pane_type = self.buffer.pane();
-        let Some(_event) = self
+        if !self
             .buffer
             .content_mut()
             .delete_range(pane_type, delete_range)
-        else {
+        {
             return;
-        };
+        }
 
         // Cursor stays at same position
         tracing::debug!("🗑️  Joined lines, cursor remains at: {:?}", current_cursor);
@@ -960,7 +959,6 @@ impl PaneState {
                         .buffer
                         .content_mut()
                         .delete_range(pane_type, delete_range)
-                        .is_some()
                     {
                         any_deletion = true;
                     }
@@ -978,16 +976,7 @@ impl PaneState {
             self.visual_selection_start = None;
             self.visual_selection_end = None;
 
-            // Create a synthetic event for the block deletion
-            let event = ModelEvent::TextDeleted {
-                pane: pane_type,
-                range: LogicalRange::new(
-                    LogicalPosition::new(top_line, left_col),
-                    LogicalPosition::new(bottom_line, right_col + 1),
-                ),
-            };
-
-            Some((selected_text, event))
+            Some(selected_text)
         } else {
             None
         }
@@ -1028,7 +1017,7 @@ impl PaneState {
 
         // Perform deletion
         let pane_type = self.buffer.pane();
-        if let Some(event) = self
+        if self
             .buffer
             .content_mut()
             .delete_range(pane_type, delete_range)
@@ -1041,7 +1030,7 @@ impl PaneState {
             self.visual_selection_start = None;
             self.visual_selection_end = None;
 
-            Some((selected_text, event))
+            Some(selected_text)
         } else {
             None
         }

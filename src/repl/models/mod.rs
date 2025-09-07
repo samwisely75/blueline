@@ -9,7 +9,6 @@ pub mod app_state;
 pub mod buffer;
 pub mod coordinates;
 pub mod display;
-pub mod events;
 pub mod pane_state;
 pub mod settings;
 

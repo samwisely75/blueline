@@ -8,15 +8,11 @@
 //! - Views depend only on AppState for rendering
 
 use super::PaneManager;
-use crate::repl::models::events::{EventBus, ModelEvent};
 use crate::repl::models::pane_state::{EditorMode, Pane};
 use crate::repl::models::{
     ClipboardYankBuffer, LogicalPosition, MemoryYankBuffer, ResponseModel, StatusLine, YankBuffer,
 };
 use std::collections::HashMap;
-
-/// Type alias for event bus option to reduce complexity
-type EventBusOption = Option<Box<dyn EventBus>>;
 
 /// Type alias for display line rendering data: (content, line_number, is_continuation, logical_start_col, logical_line)
 pub type DisplayLineData = (String, Option<usize>, bool, usize, usize);
@@ -37,10 +33,6 @@ pub struct AppState {
 
     // HTTP session configuration
     pub(crate) http_session_headers: HashMap<String, String>,
-
-    // Event management
-    pub(crate) event_bus: EventBusOption,
-    pub(crate) pending_model_events: Vec<ModelEvent>,
 
     // Yank buffer for copy/paste operations
     pub(crate) yank_buffer: Box<dyn YankBuffer>,
@@ -70,18 +62,10 @@ impl AppState {
             pane_manager: PaneManager::new(terminal_dimensions),
             status_line: StatusLine::new(),
             http_session_headers: HashMap::new(),
-            event_bus: None,
-            pending_model_events: Vec::new(),
             yank_buffer: Box::new(MemoryYankBuffer::new()),
             clipboard_enabled: false,
             dcut_enabled: true, // Default to true for cut behavior
         }
-    }
-
-    /// Set the event bus for this AppState
-    pub fn set_event_bus(&mut self, event_bus: Box<dyn EventBus>) {
-        self.event_bus = Some(event_bus);
-        tracing::debug!("Event bus set for AppState");
     }
 
     // Visual Block Insert cursor methods are now delegated to PaneManager
@@ -265,14 +249,14 @@ impl AppState {
         self.pane_manager.get_current_pane_mode()
     }
 
-    /// Set editor mode for the active pane, returning event if changed
-    pub fn set_mode(&mut self, new_mode: EditorMode) -> Option<ModelEvent> {
+    /// Set editor mode for the active pane
+    pub fn set_mode(&mut self, new_mode: EditorMode) -> bool {
         let old_mode = self.pane_manager.get_current_pane_mode();
         if old_mode != new_mode {
             self.pane_manager.set_current_pane_mode(new_mode);
-            Some(ModelEvent::ModeChanged { old_mode, new_mode })
+            true
         } else {
-            None
+            false
         }
     }
 

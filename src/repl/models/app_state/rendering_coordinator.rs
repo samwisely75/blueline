@@ -1,18 +1,10 @@
 //! # Rendering Coordination
 //!
-//! Handles rendering orchestration and event collection using semantic operations.
+//! Handles rendering orchestration using semantic operations.
 
 use super::AppState;
-use crate::repl::models::events::ModelEvent;
 
 impl AppState {
-    /// Collect and clear pending model events
-    pub fn collect_pending_model_events(&mut self) -> Vec<ModelEvent> {
-        let events = self.pending_model_events.clone();
-        self.pending_model_events.clear();
-        events
-    }
-
     /// Handle horizontal scrolling in current area
     pub fn scroll_horizontally(
         &mut self,

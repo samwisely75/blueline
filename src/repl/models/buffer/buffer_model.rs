@@ -4,7 +4,6 @@
 //! Handles text storage, cursor management, and basic editing operations.
 
 use super::buffer_char::CharacterBuffer;
-use crate::repl::models::events::ModelEvent;
 use crate::repl::models::pane_state::Pane;
 use crate::repl::models::{LogicalPosition, LogicalRange};
 
@@ -83,8 +82,8 @@ impl BufferContent {
         }
     }
 
-    /// Insert text at position, returning event
-    pub fn insert_text(&mut self, pane: Pane, position: LogicalPosition, text: &str) -> ModelEvent {
+    /// Insert text at position
+    pub fn insert_text(&mut self, _pane: Pane, position: LogicalPosition, text: &str) {
         // Use CharacterBuffer's character-aware insertion
         let mut current_line = position.line;
         let mut current_col = position.column;
@@ -98,24 +97,18 @@ impl BufferContent {
                 current_col += 1;
             }
         }
-
-        ModelEvent::TextInserted {
-            pane,
-            position,
-            text: text.to_string(),
-        }
     }
 
-    /// Delete text in range, returning event if successful
-    pub fn delete_range(&mut self, pane: Pane, range: LogicalRange) -> Option<ModelEvent> {
+    /// Delete text in range
+    pub fn delete_range(&mut self, _pane: Pane, range: LogicalRange) -> bool {
         if range.start.line >= self.buffer.line_count()
             || range.end.line >= self.buffer.line_count()
         {
-            return None;
+            return false;
         }
 
         if range.start == range.end {
-            return None; // Nothing to delete
+            return false; // Nothing to delete
         }
 
         // Use CharacterBuffer's character-aware deletion
@@ -155,7 +148,7 @@ impl BufferContent {
             }
         }
 
-        Some(ModelEvent::TextDeleted { pane, range })
+        true
     }
 
     /// Check if position is valid within this buffer
@@ -254,19 +247,15 @@ impl BufferModel {
     }
 
     /// Set cursor position (clamped to valid bounds)
-    pub fn set_cursor(&mut self, position: LogicalPosition) -> Option<ModelEvent> {
+    pub fn set_cursor(&mut self, position: LogicalPosition) -> bool {
         let old_pos = self.cursor;
         let new_pos = self.content.clamp_position(position);
 
         if old_pos != new_pos {
             self.cursor = new_pos;
-            Some(ModelEvent::CursorMoved {
-                pane: self.pane,
-                old_pos,
-                new_pos,
-            })
+            true
         } else {
-            None
+            false
         }
     }
 
@@ -280,8 +269,8 @@ impl BufferModel {
         self.scroll_offset = offset;
     }
 
-    /// Move cursor left, returning new position and event
-    pub fn move_cursor_left(&mut self) -> Option<ModelEvent> {
+    /// Move cursor left
+    pub fn move_cursor_left(&mut self) -> bool {
         let current = self.cursor;
 
         if current.column > 0 {
@@ -293,12 +282,12 @@ impl BufferModel {
             let line_length = self.content.line_length(prev_line);
             self.set_cursor(LogicalPosition::new(prev_line, line_length))
         } else {
-            None // Already at start of buffer
+            false // Already at start of buffer
         }
     }
 
-    /// Move cursor right, returning new position and event
-    pub fn move_cursor_right(&mut self) -> Option<ModelEvent> {
+    /// Move cursor right
+    pub fn move_cursor_right(&mut self) -> bool {
         let current = self.cursor;
         let line_length = self.content.line_length(current.line);
 
@@ -309,14 +298,13 @@ impl BufferModel {
             // Move to start of next line
             self.set_cursor(LogicalPosition::new(current.line + 1, 0))
         } else {
-            None // Already at end of buffer
+            false // Already at end of buffer
         }
     }
 
-    /// Insert character at cursor, returning event
-    pub fn insert_char(&mut self, ch: char) -> ModelEvent {
-        let event = self
-            .content
+    /// Insert character at cursor
+    pub fn insert_char(&mut self, ch: char) {
+        self.content
             .insert_text(self.pane, self.cursor, &ch.to_string());
 
         // Move cursor forward - handle newlines properly
@@ -325,13 +313,11 @@ impl BufferModel {
         } else {
             self.cursor = LogicalPosition::new(self.cursor.line, self.cursor.column + 1);
         }
-
-        event
     }
 
-    /// Insert text at cursor, returning event
-    pub fn insert_text(&mut self, text: &str) -> ModelEvent {
-        let event = self.content.insert_text(self.pane, self.cursor, text);
+    /// Insert text at cursor
+    pub fn insert_text(&mut self, text: &str) {
+        self.content.insert_text(self.pane, self.cursor, text);
 
         // Update cursor position based on inserted text (character-aware)
         if text.contains('\n') {
@@ -347,12 +333,10 @@ impl BufferModel {
             self.cursor =
                 LogicalPosition::new(self.cursor.line, self.cursor.column + text.chars().count());
         }
-
-        event
     }
 
-    /// Move cursor to next word boundary, returning new position and event
-    pub fn move_cursor_to_next_word(&mut self) -> Option<ModelEvent> {
+    /// Move cursor to next word boundary
+    pub fn move_cursor_to_next_word(&mut self) -> bool {
         let current = self.cursor;
 
         if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
@@ -365,12 +349,12 @@ impl BufferModel {
         if current.line + 1 < self.content.line_count() {
             self.set_cursor(LogicalPosition::new(current.line + 1, 0))
         } else {
-            None
+            false
         }
     }
 
-    /// Move cursor to previous word boundary, returning new position and event
-    pub fn move_cursor_to_previous_word(&mut self) -> Option<ModelEvent> {
+    /// Move cursor to previous word boundary
+    pub fn move_cursor_to_previous_word(&mut self) -> bool {
         let current = self.cursor;
 
         if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
@@ -385,12 +369,12 @@ impl BufferModel {
             let line_length = self.content.line_length(prev_line);
             self.set_cursor(LogicalPosition::new(prev_line, line_length))
         } else {
-            None
+            false
         }
     }
 
-    /// Move cursor to end of current or next word, returning new position and event
-    pub fn move_cursor_to_end_of_word(&mut self) -> Option<ModelEvent> {
+    /// Move cursor to end of current or next word
+    pub fn move_cursor_to_end_of_word(&mut self) -> bool {
         let current = self.cursor;
 
         if let Some(buffer_line) = self.content.character_buffer().get_line(current.line) {
@@ -399,7 +383,7 @@ impl BufferModel {
             }
         }
 
-        None // If no end of word found, stay at current position
+        false // If no end of word found, stay at current position
     }
 
     /// Get word boundaries for a specific line (calculates if not cached)
@@ -457,7 +441,7 @@ mod tests {
 
         let event = buffer.move_cursor_left();
 
-        assert!(event.is_some());
+        assert!(event);
         assert_eq!(buffer.cursor(), LogicalPosition::new(0, 4));
     }
 
@@ -469,7 +453,7 @@ mod tests {
 
         let event = buffer.move_cursor_right();
 
-        assert!(event.is_some());
+        assert!(event);
         assert_eq!(buffer.cursor(), LogicalPosition::new(0, 3));
     }
 
@@ -533,15 +517,10 @@ mod tests {
     fn buffer_model_should_insert_japanese_character() {
         let mut buffer = BufferModel::new(Pane::Request);
 
-        let event = buffer.insert_char('あ');
+        buffer.insert_char('あ');
 
         assert_eq!(buffer.content().get_text(), "あ");
         assert_eq!(buffer.cursor(), LogicalPosition::new(0, 1));
-        if let ModelEvent::TextInserted { text, .. } = event {
-            assert_eq!(text, "あ");
-        } else {
-            panic!("Expected TextInserted event");
-        }
     }
 
     #[test]
@@ -591,12 +570,12 @@ mod tests {
 
         // Test moving right from Japanese characters
         let event = buffer.move_cursor_right();
-        assert!(event.is_some());
+        assert!(event);
         assert_eq!(buffer.cursor(), LogicalPosition::new(1, 6));
 
         // Test moving left from Japanese characters
         let event = buffer.move_cursor_left();
-        assert!(event.is_some());
+        assert!(event);
         assert_eq!(buffer.cursor(), LogicalPosition::new(1, 5));
     }
 
@@ -751,17 +730,17 @@ mod tests {
 
         // Move to next word (should go to "こんにちは" at position 6)
         let event = buffer.move_cursor_to_next_word();
-        assert!(event.is_some());
+        assert!(event);
         assert_eq!(buffer.cursor(), LogicalPosition::new(0, 6));
 
         // Move to next word (should go to "world" at position 12)
         let event = buffer.move_cursor_to_next_word();
-        assert!(event.is_some());
+        assert!(event);
         assert_eq!(buffer.cursor(), LogicalPosition::new(0, 12));
 
         // Move to previous word (should go back to "こんにちは" at position 6)
         let event = buffer.move_cursor_to_previous_word();
-        assert!(event.is_some());
+        assert!(event);
         assert_eq!(buffer.cursor(), LogicalPosition::new(0, 6));
     }
 
@@ -773,13 +752,13 @@ mod tests {
 
         // Move to end of "hello" (should go to position 4)
         let event = buffer.move_cursor_to_end_of_word();
-        assert!(event.is_some());
+        assert!(event);
         assert_eq!(buffer.cursor(), LogicalPosition::new(0, 4));
 
         // Move cursor to start of Japanese word and find its end
         buffer.set_cursor(LogicalPosition::new(0, 6));
         let event = buffer.move_cursor_to_end_of_word();
-        assert!(event.is_some());
+        assert!(event);
         assert_eq!(buffer.cursor(), LogicalPosition::new(0, 10)); // End of "こんにちは"
     }
 
