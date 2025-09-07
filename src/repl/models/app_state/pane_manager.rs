@@ -222,9 +222,7 @@ impl PaneManager {
     /// Delete selected text from the current pane
     /// Returns deleted_text if successful
     pub fn delete_selected_text(&mut self) -> DeleteResult {
-        if let Some((deleted_text, _model_event)) =
-            self.panes[self.current_pane].delete_selected_text()
-        {
+        if let Some(deleted_text) = self.panes[self.current_pane].delete_selected_text() {
             // Rebuild display cache for the affected pane
             self.rebuild_display_caches_and_sync();
             Some(deleted_text)
