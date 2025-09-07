@@ -140,10 +140,10 @@ impl CommandRegistry {
             // CutCharacterCommand migrated to unified_commands/cut_character.rs
             // CutToEndOfLineCommand migrated to unified_commands/cut_to_end_of_line.rs
             // CutCurrentLineCommand migrated to unified_commands/cut_current_line.rs
-            Box::new(EnterDPrefixCommand),
-            Box::new(EnterYPrefixCommand),
-            Box::new(YankCurrentLineCommand),
-            Box::new(CancelPrefixModeCommand),
+            // Box::new(EnterDPrefixCommand), // Migrated to unified_commands/mode/enter_d_prefix.rs
+            // Box::new(EnterYPrefixCommand), // Migrated to unified_commands/mode/enter_y_prefix.rs
+            // Box::new(YankCurrentLineCommand), // Migrated to unified_commands/mode/yank_current_line.rs
+            // Box::new(CancelPrefixModeCommand), // Migrated to unified_commands/mode/cancel_prefix_mode.rs
             // Box::new(ChangeSelectionCommand), // Migrated to unified_commands/visual/visual_block_change.rs
             Box::new(PasteAfterCommand),
             // Box::new(PasteAtCursorCommand), // Migrated to unified_commands (PasteBeforeCommand)
@@ -268,13 +268,11 @@ mod tests {
         let registry = CommandRegistry::new();
         assert!(!registry.commands.is_empty());
         // Most commands have been migrated to unified_commands
-        // Only 6 legacy commands remain: DeleteCharAtCursorCommand,
-        // EnterDPrefixCommand, EnterYPrefixCommand, YankCurrentLineCommand,
-        // CancelPrefixModeCommand, PasteAfterCommand
+        // Only 2 legacy commands remain: DeleteCharAtCursorCommand, PasteAfterCommand
         assert_eq!(
             registry.commands.len(),
-            6,
-            "Should have exactly 6 remaining legacy commands"
+            2,
+            "Should have exactly 2 remaining legacy commands"
         );
     }
 
@@ -463,21 +461,15 @@ mod tests {
     // }
 
     #[test]
-    fn registry_should_handle_regular_d_as_enter_d_prefix() {
+    fn registry_should_not_handle_regular_d_after_migration() {
         let registry = CommandRegistry::new();
         let context = create_test_context();
 
         let event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::empty());
         let events = registry.process_event(event, &context).unwrap();
 
-        // Should produce a mode change event to DPrefix mode (for dd command)
-        assert_eq!(events.len(), 1);
-        assert!(matches!(
-            events[0],
-            CommandEvent::ModeChangeRequested {
-                new_mode: EditorMode::DPrefix
-            }
-        ));
+        // Should not produce any events as EnterDPrefixCommand has been migrated to unified_commands
+        assert_eq!(events.len(), 0);
     }
 
     #[test]
