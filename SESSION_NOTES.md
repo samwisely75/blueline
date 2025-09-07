@@ -1,5 +1,66 @@
 # Session Notes
 
+## [2025-09-07] PostCommandAction Refactoring Session - Issue #369 Complete
+
+### User Request Summary
+- Work on issue #369: Remove AppState's dependency on PostCommandAction to fix MVVM architecture violation
+- Remove the event bus system in models completely
+- Ensure PostCommandAction only comes from commands, never from models
+
+### What We Tried and Found
+- Initially misunderstood the requirement and tried to keep some event system
+- User firmly rejected this - "we just killed the event system after a long refactoring work"
+- Key insight: This is a terminal app, not a web app with data-binding
+- PostCommandAction should only come from commands, never from models
+
+### Architecture Understanding
+The correct MVVM flow should be:
+1. Commands execute and call model methods
+2. Models only perform state changes (no event emission)
+3. Commands generate PostCommandActions based on what they did
+4. AppViewModel's process_view_events handles rendering based on those actions
+
+### Implementation Approach
+1. Removed all PostCommandAction references from models layer
+2. Changed all model methods to return `()` instead of `Vec<PostCommandAction>`
+3. Updated ~100+ command files to generate their own PostCommandActions
+4. Fixed compilation errors systematically (114 → 48 → 40 → 13 → 7 → 0)
+
+### Key Files Changed
+- **Models Layer** (removed PostCommandAction dependency):
+  - `src/repl/models/app_state/core.rs`
+  - `src/repl/models/app_state/pane_manager.rs`
+  - `src/repl/models/pane_state/*.rs`
+  
+- **Commands Layer** (updated to generate own events):
+  - All files in `src/repl/view_models/commands/`
+  - Commands now decide what view updates are needed
+
+### Critical Correction
+Initially tried to remove `process_view_events` from AppViewModel thinking it was no longer needed. User corrected: "This is needed to perform the rendering based on the PostCommandActions". This method is essential for the proper MVVM flow.
+
+### Decisions Made
+- Models should NEVER emit events or return PostCommandActions
+- Commands are responsible for determining what view updates are needed
+- AppViewModel's process_view_events is the correct place to handle PostCommandActions
+- No upward dependencies from Models → ViewModels
+
+### Final Status
+- ✅ Clean compilation with no errors or warnings
+- ✅ All 1018 tests passing
+- ✅ Clippy checks pass
+- ✅ MVVM architecture violation resolved
+- ✅ Committed to branch: `refactor/remove-postcmdaction-from-models`
+
+### Next Steps / TODO
+- Create PR for this refactoring
+- Move Kanban item to "In Review" status
+- Consider cleaning up any remaining event infrastructure (EventBus, ModelEvent) if they exist
+
+---
+
+# Session Notes
+
 ## [2025-09-06] InsertTabCommand Migration Complete
 
 ### User Request Summary

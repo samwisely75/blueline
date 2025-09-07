@@ -8,6 +8,7 @@
 
 // Auto-discover system command modules - add new ones alphabetically
 pub mod app_terminate;
+pub mod ex_fallback;
 pub mod ex_quit;
 pub mod ex_quit_test;
 pub mod ex_set_clipboard;
@@ -22,6 +23,7 @@ pub mod setting_change;
 
 // Re-export all command types using wildcards - no merge conflicts!
 pub use app_terminate::*;
+pub use ex_fallback::*;
 pub use ex_quit::*;
 pub use ex_set_clipboard::*;
 pub use ex_set_dcut::*;
