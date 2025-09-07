@@ -8,6 +8,7 @@ use super::AppState;
 use crate::repl::models::coordinates::geometry::Position;
 use crate::repl::models::pane_state::Pane;
 use crate::repl::models::DisplayCache;
+use anyhow::Result;
 
 impl AppState {
     /// Get display cache for a specific pane
@@ -170,7 +171,7 @@ impl AppState {
     // get_content_width method moved to core.rs to avoid duplication
 
     /// Set word wrap enabled/disabled and rebuild display caches
-    pub fn set_wrap_enabled(&mut self, enabled: bool) -> Result<(), anyhow::Error> {
+    pub fn set_wrap_enabled(&mut self, enabled: bool) -> Result<()> {
         if self.pane_manager.is_wrap_enabled() != enabled {
             self.pane_manager.set_wrap_enabled(enabled);
             // self.pane_manager.rebuild_display_caches_and_sync();

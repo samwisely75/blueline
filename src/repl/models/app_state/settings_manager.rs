@@ -4,7 +4,6 @@
 
 use super::AppState;
 use crate::repl::models::settings::{Setting, SettingValue};
-
 use anyhow::Result;
 
 impl AppState {
