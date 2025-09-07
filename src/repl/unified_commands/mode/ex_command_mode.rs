@@ -37,10 +37,11 @@ impl Command for ExCommandModeCommand {
     ) -> bool {
         // Only relevant in Command mode for specific keys
         // Do NOT handle Enter - that should be handled by specific ex commands
-        mode == EditorMode::Command && matches!(
-            key_event.code,
-            KeyCode::Char(_) | KeyCode::Backspace | KeyCode::Esc
-        )
+        mode == EditorMode::Command
+            && matches!(
+                key_event.code,
+                KeyCode::Char(_) | KeyCode::Backspace | KeyCode::Esc
+            )
     }
 
     fn execute(
@@ -181,7 +182,7 @@ mod tests {
                 "Should be relevant for key {key_code:?}"
             );
         }
-        
+
         // Enter should NOT be handled by this command
         let enter_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
         assert!(
