@@ -29,7 +29,7 @@ impl Command for HttpCancelCommand {
         &self,
         key_event: KeyEvent,
         _mode: EditorMode,
-        _context: &CommandContext,
+        _: &CommandContext,
     ) -> bool {
         // Only relevant for Ctrl+C
         if key_event.code != KeyCode::Char('c')
