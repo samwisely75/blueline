@@ -57,38 +57,14 @@ impl PaneState {
         let character_buffer = self.buffer.content_mut().character_buffer_mut();
         let line_count = character_buffer.line_count();
 
-        tracing::debug!("Pre-calculating word boundaries for {} lines", line_count);
+        tracing::debug!(
+            "Building display cache for {} lines (word boundaries calculated lazily)",
+            line_count
+        );
 
-        // Pre-calculate word boundaries for all lines
-        for line_idx in 0..line_count {
-            character_buffer.get_line_word_boundaries(line_idx);
-            if let Some(line) = character_buffer.get_line(line_idx) {
-                let word_starts = line
-                    .chars()
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, c)| c.is_word_start)
-                    .map(|(i, _)| i)
-                    .collect::<Vec<_>>();
-                let word_ends = line
-                    .chars()
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, c)| c.is_word_end)
-                    .map(|(i, _)| i)
-                    .collect::<Vec<_>>();
-
-                if !word_starts.is_empty() || !word_ends.is_empty() {
-                    tracing::debug!(
-                        "Line {}: '{}' -> word_starts={:?}, word_ends={:?}",
-                        line_idx,
-                        line.to_string().chars().take(50).collect::<String>(), // First 50 chars
-                        word_starts,
-                        word_ends
-                    );
-                }
-            }
-        }
+        // Skip aggressive pre-calculation of word boundaries for all lines
+        // Word boundaries will be calculated lazily when lines are actually accessed
+        // This prevents performance issues with large responses containing very long lines
         let mut display_lines = Vec::new();
         let mut logical_to_display = HashMap::new();
 

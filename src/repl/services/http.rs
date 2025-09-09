@@ -24,6 +24,8 @@ pub enum HttpResponseMessage {
     },
     /// Error during request execution
     Error { message: String },
+    /// Request was cancelled by user
+    Cancelled { message: String },
 }
 
 /// HTTP request arguments parsed from the request buffer
@@ -68,6 +70,8 @@ pub struct HttpService {
     response_receiver: mpsc::Receiver<HttpResponseMessage>,
     /// Channel sender for async tasks to send responses
     response_sender: mpsc::Sender<HttpResponseMessage>,
+    /// Handle to the current HTTP request task for cancellation
+    current_task: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl HttpService {
@@ -86,6 +90,7 @@ impl HttpService {
             session_headers: HashMap::new(),
             response_receiver,
             response_sender,
+            current_task: None,
         })
     }
 
@@ -254,14 +259,54 @@ impl HttpService {
 
     /// Check if there are any pending HTTP responses (non-blocking)
     pub fn poll_response(&mut self) -> Option<HttpResponseMessage> {
+        // Check if current task is finished
+        if let Some(ref task_handle) = self.current_task {
+            if task_handle.is_finished() {
+                tracing::debug!("HTTP task completed, clearing handle");
+                self.current_task = None;
+            }
+        }
+
         self.response_receiver.try_recv().ok()
+    }
+
+    /// Cancel the current HTTP request if one is running
+    pub fn cancel_request(&mut self) {
+        if let Some(task_handle) = self.current_task.take() {
+            tracing::info!("Cancelling HTTP request");
+            task_handle.abort();
+
+            // Send cancellation message through channel
+            let sender = self.response_sender.clone();
+            tokio::spawn(async move {
+                let _ = sender
+                    .send(HttpResponseMessage::Cancelled {
+                        message: "Request cancelled by user".to_string(),
+                    })
+                    .await;
+            });
+        } else {
+            tracing::debug!("No active HTTP request to cancel");
+        }
+    }
+
+    /// Check if there's an active HTTP request
+    pub fn has_active_request(&self) -> bool {
+        self.current_task.is_some()
     }
 
     /// Execute HTTP request asynchronously
     ///
     /// This spawns a tokio task that executes the request and sends the result
     /// back through the internal channel, allowing non-blocking operation.
+    /// Any existing request will be automatically cancelled.
     pub fn execute_async(&mut self, request_text: String) {
+        // Cancel any existing request first
+        if self.current_task.is_some() {
+            tracing::info!("Auto-cancelling previous HTTP request");
+            self.cancel_request();
+        }
+
         // Parse the request first (synchronously)
         // Clone session headers before parsing to avoid lifetime issues
         let session_headers = self.session_headers.clone();
@@ -294,8 +339,8 @@ impl HttpService {
 
                 // result_sender was already cloned above
 
-                // Spawn async task for HTTP execution
-                tokio::spawn(async move {
+                // Spawn async task for HTTP execution and store the handle
+                let task_handle = tokio::spawn(async move {
                     // Clone for the response since we'll move it for the request
                     let request_args_clone = request_args.clone();
 
@@ -323,6 +368,9 @@ impl HttpService {
                     // Ignore send errors (receiver might have been dropped)
                     let _ = result_sender.send(response_msg).await;
                 });
+
+                // Store the task handle for potential cancellation
+                self.current_task = Some(task_handle);
             }
             Err(e) => {
                 // Send error message through channel
@@ -378,6 +426,7 @@ mod tests {
                 session_headers: HashMap::new(),
                 response_receiver,
                 response_sender,
+                current_task: None,
             }
         })
     }

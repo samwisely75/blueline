@@ -188,8 +188,15 @@ impl DisplayLine {
         );
 
         // Search forward for next word start using unicode-segmentation flags
+        // Performance safeguard: limit search distance in very long lines
+        const MAX_WORD_SEARCH_DISTANCE: usize = 100;
+        let search_end = std::cmp::min(
+            char_positions.len(),
+            current_index + 1 + MAX_WORD_SEARCH_DISTANCE,
+        );
+
         #[allow(clippy::needless_range_loop)] // Index needed for position lookup
-        for i in (current_index + 1)..char_positions.len() {
+        for i in (current_index + 1)..search_end {
             let display_char = char_positions[i].1;
             tracing::debug!(
                 "find_next_word_start: checking char at index {} (display_col={}): '{}', is_word_start={}",
@@ -204,6 +211,57 @@ impl DisplayLine {
                 );
                 return Some(char_positions[i].0);
             }
+        }
+
+        // If we hit the search limit without finding a word boundary,
+        // look for whitespace or punctuation to find a meaningful word boundary
+        if search_end < char_positions.len() {
+            tracing::debug!(
+                "find_next_word_start: search limit reached, looking for next whitespace/punctuation boundary"
+            );
+
+            // Continue searching for whitespace/punctuation (meaningful word boundary)
+            let extended_search_end =
+                std::cmp::min(char_positions.len(), search_end + MAX_WORD_SEARCH_DISTANCE);
+
+            for i in search_end..extended_search_end {
+                let ch = char_positions[i].1.ch();
+                // Look for transitions from non-whitespace to whitespace (end of word)
+                // or significant punctuation that indicates word boundaries
+                if ch.is_whitespace()
+                    || ch == ','
+                    || ch == '.'
+                    || ch == ';'
+                    || ch == ':'
+                    || ch == '!'
+                    || ch == '?'
+                    || ch == ')'
+                    || ch == '}'
+                    || ch == ']'
+                {
+                    // Move to next non-whitespace character (start of next word)
+                    #[allow(clippy::needless_range_loop)]
+                    for j in (i + 1)..extended_search_end {
+                        let next_ch = char_positions[j].1.ch();
+                        if !next_ch.is_whitespace() {
+                            tracing::debug!(
+                                "find_next_word_start: found meaningful word boundary at display_col={}",
+                                char_positions[j].0
+                            );
+                            return Some(char_positions[j].0);
+                        }
+                    }
+                    // If no non-whitespace found, return end of line
+                    break;
+                }
+            }
+
+            // No meaningful boundary found - return end of line
+            tracing::debug!(
+                "find_next_word_start: no meaningful boundary found, returning end of line at display_col={}",
+                char_positions[char_positions.len() - 1].0
+            );
+            return Some(char_positions[char_positions.len() - 1].0);
         }
 
         tracing::debug!("find_next_word_start: no word start found, returning None");
@@ -241,9 +299,12 @@ impl DisplayLine {
 
         // Look backwards for previous word start using unicode-segmentation boundaries
         // Vim 'b' behavior: move to beginning of current or previous word
-        // Fix: Include all positions from current_index-1 down to 0 to reach first character
+        // Performance safeguard: limit search distance in very long lines
+        const MAX_WORD_SEARCH_DISTANCE: usize = 100;
         if current_index > 0 {
-            for i in (0..current_index).rev() {
+            let search_start = current_index.saturating_sub(MAX_WORD_SEARCH_DISTANCE);
+
+            for i in (search_start..current_index).rev() {
                 let display_char = char_positions[i].1;
                 if display_char.buffer_char.is_word_start {
                     // Skip whitespace-only word starts - we want actual word starts
@@ -257,6 +318,50 @@ impl DisplayLine {
                         return Some(char_positions[i].0);
                     }
                 }
+            }
+
+            // If we hit the search limit, look for meaningful word boundaries
+            if search_start > 0 {
+                tracing::debug!(
+                    "find_previous_word_start: search limit reached, looking for previous whitespace/punctuation boundary"
+                );
+
+                // Search backwards for whitespace/punctuation (meaningful word boundary)
+                let extended_search_start = search_start.saturating_sub(MAX_WORD_SEARCH_DISTANCE);
+
+                for i in (extended_search_start..search_start).rev() {
+                    let ch = char_positions[i].1.ch();
+                    if ch.is_whitespace()
+                        || ch == ','
+                        || ch == '.'
+                        || ch == ';'
+                        || ch == ':'
+                        || ch == '!'
+                        || ch == '?'
+                        || ch == '('
+                        || ch == '{'
+                        || ch == '['
+                    {
+                        // Found punctuation/whitespace, look for start of next word
+                        #[allow(clippy::needless_range_loop)]
+                        for j in (i + 1)..search_start {
+                            let next_ch = char_positions[j].1.ch();
+                            if !next_ch.is_whitespace() {
+                                tracing::debug!(
+                                    "find_previous_word_start: found meaningful word boundary at display_col={}",
+                                    char_positions[j].0
+                                );
+                                return Some(char_positions[j].0);
+                            }
+                        }
+                    }
+                }
+
+                // No meaningful boundary found - return start of line
+                tracing::debug!(
+                    "find_previous_word_start: no meaningful boundary found, returning start of line"
+                );
+                return Some(0);
             }
         }
 
@@ -321,8 +426,13 @@ impl DisplayLine {
             }
         }
 
+        // Performance safeguard: limit search distance in very long lines
+        const MAX_WORD_SEARCH_DISTANCE: usize = 100;
+        let search_end =
+            std::cmp::min(char_positions.len(), start_index + MAX_WORD_SEARCH_DISTANCE);
+
         #[allow(clippy::needless_range_loop)] // Index needed for position lookup
-        for i in start_index..char_positions.len() {
+        for i in start_index..search_end {
             let display_char = char_positions[i].1;
             if display_char.buffer_char.is_word_end {
                 // Skip whitespace/punctuation-only word ends - we want actual word ends
@@ -336,6 +446,49 @@ impl DisplayLine {
                     return Some(char_positions[i].0);
                 }
             }
+        }
+
+        // If we hit the search limit, look for meaningful word endings
+        if search_end < char_positions.len() {
+            tracing::debug!(
+                "find_next_word_end: search limit reached, looking for next meaningful word ending"
+            );
+
+            // Continue searching for whitespace/punctuation (meaningful word ending)
+            let extended_search_end =
+                std::cmp::min(char_positions.len(), search_end + MAX_WORD_SEARCH_DISTANCE);
+
+            for i in search_end..extended_search_end {
+                let ch = char_positions[i].1.ch();
+                // Look for whitespace or punctuation that indicates end of word
+                if ch.is_whitespace()
+                    || ch == ','
+                    || ch == '.'
+                    || ch == ';'
+                    || ch == ':'
+                    || ch == '!'
+                    || ch == '?'
+                    || ch == ')'
+                    || ch == '}'
+                    || ch == ']'
+                {
+                    // Return position just before the whitespace/punctuation
+                    if i > 0 {
+                        tracing::debug!(
+                            "find_next_word_end: found meaningful word end at display_col={}",
+                            char_positions[i - 1].0
+                        );
+                        return Some(char_positions[i - 1].0);
+                    }
+                }
+            }
+
+            // No meaningful boundary found - return end of line
+            tracing::debug!(
+                "find_next_word_end: no meaningful boundary found, returning end of line at display_col={}",
+                char_positions[char_positions.len() - 1].0
+            );
+            return Some(char_positions[char_positions.len() - 1].0);
         }
 
         tracing::debug!(
@@ -361,7 +514,8 @@ impl DisplayLine {
             if current_char.is_alphanumeric() || current_char.is_alphabetic() {
                 // We're on a word character - find end of current word first
                 let mut word_end_pos = pos;
-                while word_end_pos < char_positions.len() {
+                let max_search = pos + MAX_WORD_SEARCH_DISTANCE;
+                while word_end_pos < char_positions.len() && word_end_pos < max_search {
                     let ch = char_positions[word_end_pos].1.ch();
                     if !ch.is_alphanumeric() && !ch.is_alphabetic() {
                         break;
@@ -390,7 +544,8 @@ impl DisplayLine {
         }
 
         // Skip non-alphanumeric characters (whitespace and punctuation) to find next word
-        while pos < char_positions.len() {
+        let max_skip_search = pos + MAX_WORD_SEARCH_DISTANCE;
+        while pos < char_positions.len() && pos < max_skip_search {
             let ch = char_positions[pos].1.ch();
             if ch.is_alphanumeric() || ch.is_alphabetic() {
                 break;
@@ -401,7 +556,8 @@ impl DisplayLine {
         // Find end of next alphanumeric word
         if pos < char_positions.len() {
             // We've found the start of an alphanumeric word - find its end
-            while pos < char_positions.len() {
+            let max_word_search = pos + MAX_WORD_SEARCH_DISTANCE;
+            while pos < char_positions.len() && pos < max_word_search {
                 let ch = char_positions[pos].1.ch();
                 if !ch.is_alphanumeric() && !ch.is_alphabetic() {
                     break;

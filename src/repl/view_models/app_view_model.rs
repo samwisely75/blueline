@@ -326,6 +326,17 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 self.app_state
                     .set_status_message(format!("Request failed: {message}"));
             }
+            HttpResponseMessage::Cancelled { message } => {
+                // Clear response by setting empty content
+                self.app_state.set_response(0, "".to_string());
+                self.app_state.set_executing_request(false);
+
+                tracing::info!("HTTP request cancelled: {}", message);
+
+                // Set status message
+                self.app_state
+                    .set_status_message("Request cancelled".to_string());
+            }
         }
 
         // Switch to response pane to show results
