@@ -9,11 +9,15 @@
 //! - Providing complex business logic
 //! - Abstracting external resources
 
+pub mod async_word_segmenter;
 pub mod http;
 pub mod word_segmenter;
 pub mod yank;
 
 // Re-export service types
+pub use async_word_segmenter::{
+    AsyncWordSegmenter, SegmentationResult as AsyncSegmentationResult, SegmentationTask,
+};
 pub use http::{BufferRequestArgs, HttpExecutionResult, HttpResponseMessage, HttpService};
 pub use word_segmenter::{
     SegmentationResult, WordBoundaries, WordFlags, WordSegmenter, WordSegmenterService,
@@ -26,6 +30,8 @@ pub struct Services {
     pub http: Option<HttpService>,
     /// Service for word segmentation and boundary detection
     pub word_segmenter: std::sync::Arc<WordSegmenterService>,
+    /// Async word segmentation service for non-blocking operations
+    pub async_word_segmenter: AsyncWordSegmenter,
     /// Service for yank/paste operations
     pub yank: YankService,
 }
@@ -36,6 +42,7 @@ impl Services {
         Self {
             http: None,
             word_segmenter: WordSegmenterService::new(),
+            async_word_segmenter: AsyncWordSegmenter::new(),
             yank: YankService::new(),
         }
     }

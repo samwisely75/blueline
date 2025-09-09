@@ -892,6 +892,11 @@ impl PaneManager {
         Some(&self.panes[self.current_pane])
     }
 
+    /// Get mutable reference to the currently active pane state
+    pub fn get_current_pane_state_mut(&mut self) -> Option<&mut PaneState> {
+        Some(&mut self.panes[self.current_pane])
+    }
+
     // ===== Visual Block Insert Cursor Management =====
     // These methods delegate to the current pane's visual block insert state
 

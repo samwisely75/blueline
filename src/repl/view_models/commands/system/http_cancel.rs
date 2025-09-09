@@ -25,12 +25,7 @@ impl Command for HttpCancelCommand {
         "HttpCancelCommand"
     }
 
-    fn is_relevant(
-        &self,
-        key_event: KeyEvent,
-        _mode: EditorMode,
-        _: &CommandContext,
-    ) -> bool {
+    fn is_relevant(&self, key_event: KeyEvent, _mode: EditorMode, _: &CommandContext) -> bool {
         // Only relevant for Ctrl+C
         if key_event.code != KeyCode::Char('c')
             || !key_event.modifiers.contains(KeyModifiers::CONTROL)

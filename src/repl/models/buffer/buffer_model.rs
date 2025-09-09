@@ -191,12 +191,12 @@ impl BufferContent {
         &mut self.buffer
     }
 
-    /// Get word boundaries for a specific line (calculates if not cached)
-    pub fn get_line_word_boundaries(
+    /// Get mutable access to a line for segmentation updates
+    pub fn get_line_for_segmentation(
         &mut self,
         line_index: usize,
-    ) -> Option<&crate::repl::services::word_segmenter::WordBoundaries> {
-        self.buffer.get_line_word_boundaries(line_index)
+    ) -> Option<&mut crate::repl::models::buffer::buffer_char::BufferLine> {
+        self.buffer.get_line_for_segmentation(line_index)
     }
 }
 
@@ -386,12 +386,12 @@ impl BufferModel {
         false // If no end of word found, stay at current position
     }
 
-    /// Get word boundaries for a specific line (calculates if not cached)
-    pub fn get_line_word_boundaries(
+    /// Get mutable access to a line for segmentation updates
+    pub fn get_line_for_segmentation(
         &mut self,
         line_index: usize,
-    ) -> Option<&crate::repl::services::word_segmenter::WordBoundaries> {
-        self.content.get_line_word_boundaries(line_index)
+    ) -> Option<&mut crate::repl::models::buffer::buffer_char::BufferLine> {
+        self.content.get_line_for_segmentation(line_index)
     }
 
     /// Get mutable access to the underlying character buffer for word navigation

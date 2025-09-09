@@ -22,10 +22,21 @@
 //! - Implements character type classification for proper navigation behavior
 //! - Provides pluggable word segmentation for different languages and scripts
 
-use crate::repl::services::word_segmenter::{WordBoundaries, WordSegmenter, WordSegmenterService};
+use crate::repl::services::word_segmenter::WordSegmenterService;
 
 /// Type alias for word segmenter service to improve readability
 type WordSegmenterRef = Option<std::sync::Arc<WordSegmenterService>>;
+
+/// Tracks the segmentation state for a BufferLine
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SegmentationState {
+    /// Segmentation has not been requested for this line
+    NotRequested,
+    /// Segmentation is currently in progress
+    Pending,
+    /// Segmentation is complete, word flags are valid
+    Complete,
+}
 
 /// Check if a character is an ideographic character (CJK and similar scripts)
 pub fn is_ideographic_character(ch: char) -> bool {
@@ -154,9 +165,10 @@ impl BufferChar {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BufferLine {
     chars: Vec<BufferChar>,
-    /// Cached word boundaries relative to this line's start
-    /// None means boundaries need to be calculated
-    word_boundaries_cache: Option<WordBoundaries>,
+    /// Current segmentation state for this line
+    segmentation_state: SegmentationState,
+    /// Generation ID - increments on content change to invalidate stale results
+    generation_id: u64,
 }
 
 impl BufferLine {
@@ -164,7 +176,8 @@ impl BufferLine {
     pub fn new() -> Self {
         Self {
             chars: Vec::new(),
-            word_boundaries_cache: None,
+            segmentation_state: SegmentationState::NotRequested,
+            generation_id: 0,
         }
     }
 
@@ -181,7 +194,8 @@ impl BufferLine {
 
         Self {
             chars,
-            word_boundaries_cache: None, // Will be calculated when needed
+            segmentation_state: SegmentationState::NotRequested,
+            generation_id: 0,
         }
     }
 
@@ -227,8 +241,8 @@ impl BufferLine {
             buffer_char.byte_offset += new_char_byte_len;
         }
 
-        // Invalidate word boundaries cache since content changed
-        self.invalidate_word_boundaries_cache();
+        // Invalidate word boundaries since content changed
+        self.invalidate_word_boundaries();
     }
 
     /// Delete a character at a logical position
@@ -244,8 +258,8 @@ impl BufferLine {
             buffer_char.logical_index = i;
         }
 
-        // Invalidate word boundaries cache since content changed
-        self.invalidate_word_boundaries_cache();
+        // Invalidate word boundaries since content changed
+        self.invalidate_word_boundaries();
 
         Some(removed_char)
     }
@@ -276,81 +290,65 @@ impl BufferLine {
         (current_logical_index + 1).min(self.chars.len())
     }
 
-    /// Invalidate the cached word boundaries
-    pub fn invalidate_word_boundaries_cache(&mut self) {
+    /// Invalidate word boundaries and increment generation ID
+    pub fn invalidate_word_boundaries(&mut self) {
         tracing::debug!(
-            "Invalidating word boundary cache for line: '{}'",
+            "Invalidating word boundaries for line: '{}'",
             self.to_string().chars().take(50).collect::<String>()
         );
 
-        self.word_boundaries_cache = None;
-        // Also clear word flags from all characters since they're now invalid
+        // Increment generation ID to invalidate any pending async results
+        self.generation_id = self.generation_id.wrapping_add(1);
+        self.segmentation_state = SegmentationState::NotRequested;
+
+        // Clear word flags from all characters since they're now invalid
         for buffer_char in &mut self.chars {
             buffer_char.is_word_start = false;
             buffer_char.is_word_end = false;
         }
     }
 
-    /// Get or calculate word boundaries for this line
-    pub fn get_word_boundaries(&mut self, segmenter: &dyn WordSegmenter) -> &WordBoundaries {
-        if self.word_boundaries_cache.is_none() {
+    /// Apply word segmentation flags to this line (called by async segmenter)
+    pub fn apply_segmentation_flags(
+        &mut self,
+        flags: Vec<crate::repl::services::word_segmenter::WordFlags>,
+        generation_id: u64,
+    ) {
+        // Only apply if this matches the current generation (not stale)
+        if self.generation_id != generation_id {
             tracing::debug!(
-                "Word boundaries cache miss, calculating for line: '{}'",
-                self.to_string().chars().take(50).collect::<String>()
+                "Ignoring stale segmentation result (gen {} vs current {})",
+                generation_id,
+                self.generation_id
             );
-            self.refresh_word_boundaries(segmenter);
-        }
-
-        // Safe to unwrap since we just ensured it exists
-        self.word_boundaries_cache.as_ref().unwrap()
-    }
-
-    /// Refresh word boundaries cache for this line
-    pub fn refresh_word_boundaries(&mut self, segmenter: &dyn WordSegmenter) {
-        let text = self.to_string();
-        if text.is_empty() {
-            self.word_boundaries_cache = Some(WordBoundaries { positions: vec![0] });
             return;
         }
 
-        match segmenter.find_word_boundaries(&text) {
-            Ok(boundaries) => {
-                let flags = boundaries.to_word_flags(&text);
-
-                // Apply word flags to each character
-                for (i, flag) in flags.iter().enumerate() {
-                    if let Some(buffer_char) = self.chars.get_mut(i) {
-                        buffer_char.is_word_start = flag.is_word_start;
-                        buffer_char.is_word_end = flag.is_word_end;
-                    }
-                }
-
-                self.word_boundaries_cache = Some(boundaries);
-            }
-            Err(e) => {
-                tracing::warn!("Failed to segment line: {}", e);
-                // Fall back to empty boundaries
-                self.word_boundaries_cache = Some(WordBoundaries { positions: vec![0] });
+        // Apply word flags to each character
+        for (i, flag) in flags.iter().enumerate() {
+            if let Some(buffer_char) = self.chars.get_mut(i) {
+                buffer_char.is_word_start = flag.is_word_start;
+                buffer_char.is_word_end = flag.is_word_end;
             }
         }
+
+        self.segmentation_state = SegmentationState::Complete;
+        tracing::debug!("Applied segmentation flags to {} characters", flags.len());
     }
 
-    /// Get or calculate word boundaries for this line using WordSegmenterService
-    pub fn get_word_boundaries_with_service(
-        &mut self,
-        segmenter: &std::sync::Arc<WordSegmenterService>,
-    ) -> &WordBoundaries {
-        // Since WordSegmenterService implements WordSegmenter trait, we can use the existing method
-        self.get_word_boundaries(segmenter.as_ref())
+    /// Get current generation ID for this line
+    pub fn generation_id(&self) -> u64 {
+        self.generation_id
     }
 
-    /// Refresh word boundaries cache for this line using WordSegmenterService
-    pub fn refresh_word_boundaries_with_service(
-        &mut self,
-        segmenter: &std::sync::Arc<WordSegmenterService>,
-    ) {
-        // Since WordSegmenterService implements WordSegmenter trait, we can use the existing method
-        self.refresh_word_boundaries(segmenter.as_ref())
+    /// Get current segmentation state
+    pub fn segmentation_state(&self) -> SegmentationState {
+        self.segmentation_state
+    }
+
+    /// Mark segmentation as pending
+    pub fn mark_segmentation_pending(&mut self) {
+        self.segmentation_state = SegmentationState::Pending;
     }
 
     /// Find the next word start from the current logical position
@@ -599,24 +597,9 @@ impl CharacterBuffer {
         self.lines.iter().map(|line| line.to_string()).collect()
     }
 
-    /// Get word boundaries for a specific line (calculates if not cached)
-    pub fn get_line_word_boundaries(&mut self, line_index: usize) -> Option<&WordBoundaries> {
-        if let (Some(segmenter), Some(line)) =
-            (&self.word_segmenter, self.lines.get_mut(line_index))
-        {
-            Some(line.get_word_boundaries_with_service(segmenter))
-        } else {
-            None
-        }
-    }
-
-    /// Refresh word boundaries for a specific line
-    pub fn refresh_line_word_boundaries(&mut self, line_index: usize) {
-        if let (Some(segmenter), Some(line)) =
-            (&self.word_segmenter, self.lines.get_mut(line_index))
-        {
-            line.refresh_word_boundaries_with_service(segmenter);
-        }
+    /// Get line for applying async segmentation results
+    pub fn get_line_for_segmentation(&mut self, line_index: usize) -> Option<&mut BufferLine> {
+        self.lines.get_mut(line_index)
     }
 
     /// Join two lines by appending the second line to the first and removing the second
@@ -652,9 +635,7 @@ impl CharacterBuffer {
         self.lines.remove(line2);
 
         // Invalidate word boundaries for the modified line
-        if let Some(segmenter) = &self.word_segmenter {
-            self.lines[line1].refresh_word_boundaries_with_service(segmenter);
-        }
+        self.lines[line1].invalidate_word_boundaries();
 
         true
     }

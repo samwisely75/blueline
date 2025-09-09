@@ -12,6 +12,8 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use super::{PaneState, WrappedSegment, MIN_LINE_NUMBER_WIDTH};
+use crate::repl::models::buffer::buffer_char::SegmentationState;
+use crate::repl::services::AsyncWordSegmenter;
 
 impl PaneState {
     /// Build the display cache for text rendering with proper word boundaries
@@ -293,5 +295,146 @@ impl PaneState {
     /// Get current line number width for this pane
     pub fn get_line_number_width(&self) -> usize {
         self.line_number_width
+    }
+
+    // ========================================
+    // Async Word Segmentation Support
+    // ========================================
+
+    /// Request async segmentation for lines in the viewport
+    /// This should be called after build_display_cache to trigger segmentation for visible lines
+    pub fn request_viewport_segmentation(
+        &mut self,
+        async_segmenter: &AsyncWordSegmenter,
+        viewport_height: usize,
+    ) {
+        // Calculate which logical lines are potentially visible based on display cache
+        let visible_logical_lines = self.get_visible_logical_lines(viewport_height);
+
+        // Process each line
+        let character_buffer = self.buffer.content_mut().character_buffer_mut();
+        for logical_line_idx in visible_logical_lines {
+            if let Some(line) = character_buffer.get_line_mut(logical_line_idx) {
+                // Only request segmentation if not already done or in progress
+                match line.segmentation_state() {
+                    SegmentationState::NotRequested => {
+                        let text = line.to_string();
+                        let generation_id = line.generation_id();
+
+                        // Mark as pending to avoid duplicate requests
+                        line.mark_segmentation_pending();
+
+                        // Request async segmentation (non-blocking)
+                        if let Err(e) = async_segmenter.request_segmentation(
+                            logical_line_idx,
+                            text,
+                            generation_id,
+                        ) {
+                            tracing::warn!(
+                                "Failed to request segmentation for line {}: {}",
+                                logical_line_idx,
+                                e
+                            );
+                            // Reset state on failure
+                            line.invalidate_word_boundaries();
+                        } else {
+                            tracing::debug!(
+                                "Requested async segmentation for line {} (gen {})",
+                                logical_line_idx,
+                                generation_id
+                            );
+                        }
+                    }
+                    SegmentationState::Pending | SegmentationState::Complete => {
+                        // Already handled, skip
+                    }
+                }
+            }
+        }
+    }
+
+    /// Process completed async segmentation results
+    /// Returns true if any results were applied (indicating a redraw may be needed)
+    pub fn process_segmentation_results(&mut self, async_segmenter: &AsyncWordSegmenter) -> bool {
+        let results = async_segmenter.try_recv_results();
+        if results.is_empty() {
+            return false;
+        }
+
+        let mut any_applied = false;
+        let character_buffer = self.buffer.content_mut().character_buffer_mut();
+
+        for result in results {
+            if let Some(line) = character_buffer.get_line_mut(result.line_id) {
+                // Apply segmentation flags (includes generation validation)
+                line.apply_segmentation_flags(result.flags, result.generation_id);
+                any_applied = true;
+                tracing::debug!(
+                    "Applied segmentation result for line {} (gen {})",
+                    result.line_id,
+                    result.generation_id
+                );
+            }
+        }
+
+        any_applied
+    }
+
+    /// Get the range of logical lines that are potentially visible in the viewport
+    fn get_visible_logical_lines(&self, viewport_height: usize) -> Vec<usize> {
+        let mut visible_lines = Vec::new();
+
+        // Get the current scroll position
+        let scroll_start_display_line = self.scroll_offset.row;
+        let scroll_end_display_line = scroll_start_display_line + viewport_height;
+
+        // Map display lines back to logical lines
+        for display_line_idx in scroll_start_display_line
+            ..scroll_end_display_line.min(self.display_cache.total_display_lines)
+        {
+            if let Some(display_line) = self.display_cache.display_lines.get(display_line_idx) {
+                let logical_line_idx = display_line.logical_line;
+                if !visible_lines.contains(&logical_line_idx) {
+                    visible_lines.push(logical_line_idx);
+                }
+            }
+        }
+
+        // Also include a buffer around the viewport for smoother scrolling
+        let buffer_lines = 10; // Lines above and below viewport to pre-segment
+        let character_buffer = self.buffer.content().character_buffer();
+        let total_logical_lines = character_buffer.line_count();
+
+        if let (Some(&first_visible), Some(&last_visible)) =
+            (visible_lines.first(), visible_lines.last())
+        {
+            // Add lines before viewport
+            let start_with_buffer = first_visible.saturating_sub(buffer_lines);
+            for line_idx in start_with_buffer..first_visible {
+                visible_lines.push(line_idx);
+            }
+
+            // Add lines after viewport
+            let end_with_buffer = (last_visible + buffer_lines + 1).min(total_logical_lines);
+            for line_idx in (last_visible + 1)..end_with_buffer {
+                visible_lines.push(line_idx);
+            }
+        }
+
+        // Sort and deduplicate
+        visible_lines.sort_unstable();
+        visible_lines.dedup();
+
+        tracing::debug!(
+            "Viewport covers {} logical lines: {:?}",
+            visible_lines.len(),
+            if visible_lines.len() <= 10 {
+                format!("{visible_lines:?}")
+            } else {
+                format!("{:?}...", &visible_lines[0..5])
+            }
+        );
+
+        visible_lines
     }
 }

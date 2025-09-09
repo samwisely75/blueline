@@ -204,6 +204,9 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         self.view_renderer.initialize()?;
         self.view_renderer.render_full(&self.app_state)?;
 
+        // Request initial segmentation for viewport
+        self.request_viewport_segmentation();
+
         // MAIN EVENT LOOP: Handle user input and update display
         while !self.should_quit {
             self.process_next_event().await?;
@@ -224,6 +227,18 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 return Ok(());
             }
         }
+
+        // Process completed async word segmentation results (non-blocking)
+        if let Some(current_pane) = self.app_state.pane_manager.get_current_pane_state_mut() {
+            if current_pane.process_segmentation_results(&self.services.async_word_segmenter) {
+                // Some segmentation results were applied, trigger minimal redraw
+                self.view_renderer.render_full(&self.app_state)?;
+                return Ok(());
+            }
+        }
+
+        // Trigger async segmentation for viewport when needed
+        self.request_viewport_segmentation();
 
         // Poll for terminal events with 100ms timeout
         if !self.event_stream.poll(Duration::from_millis(100))? {
@@ -726,6 +741,19 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
     /// Check if the application should quit (for testing)
     pub fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    /// Request async segmentation for the current viewport
+    fn request_viewport_segmentation(&mut self) {
+        // Get viewport height first (before borrowing pane_manager mutably)
+        let viewport_height = self.app_state.terminal_size().1 as usize;
+
+        if let Some(current_pane) = self.app_state.pane_manager.get_current_pane_state_mut() {
+            current_pane.request_viewport_segmentation(
+                &self.services.async_word_segmenter,
+                viewport_height,
+            );
+        }
     }
 }
 
