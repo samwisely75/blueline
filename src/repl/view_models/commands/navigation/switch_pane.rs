@@ -1,6 +1,6 @@
 //! # Switch Pane Command
 //!
-//! Command to handle switching between request and response panes using Tab key.
+//! Command to handle switching between request and response panes using Tab key or Ctrl+W.
 //! This provides easy navigation between different areas of the application.
 
 use anyhow::Result;
@@ -13,7 +13,7 @@ use crate::repl::view_models::post_command_actions::PostCommandAction;
 
 /// Command to switch between request and response panes
 ///
-/// This command handles Tab key in Normal mode to toggle
+/// This command handles Tab key or Ctrl+W in Normal mode to toggle
 /// between panes, providing easy navigation between editor areas.
 pub struct SwitchPaneCommand;
 
@@ -37,10 +37,13 @@ impl Command for SwitchPaneCommand {
         mode: EditorMode,
         _context: &CommandContext,
     ) -> bool {
-        // Handle Tab key in Normal mode for pane switching
-        matches!(key_event.code, KeyCode::Tab)
-            && mode == EditorMode::Normal
-            && key_event.modifiers.is_empty()
+        mode == EditorMode::Normal
+            && (
+                // Handle Tab key for pane switching
+                (matches!(key_event.code, KeyCode::Tab) && key_event.modifiers.is_empty()) ||
+            // Handle Ctrl+W for pane switching
+            (matches!(key_event.code, KeyCode::Char('w')) && key_event.modifiers == crossterm::event::KeyModifiers::CONTROL)
+            )
     }
 
     fn execute(
@@ -106,12 +109,23 @@ mod tests {
     }
 
     #[test]
+    fn switch_pane_command_should_be_relevant_for_ctrl_w_in_normal_mode() {
+        let command = SwitchPaneCommand::new();
+        let context = create_test_context();
+        let key_event = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL);
+
+        assert!(command.is_relevant(key_event, EditorMode::Normal, &context));
+    }
+
+    #[test]
     fn switch_pane_command_should_not_be_relevant_in_insert_mode() {
         let command = SwitchPaneCommand::new();
         let context = create_test_context();
-        let key_event = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
+        let tab_key = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
+        let ctrl_w_key = KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL);
 
-        assert!(!command.is_relevant(key_event, EditorMode::Insert, &context));
+        assert!(!command.is_relevant(tab_key, EditorMode::Insert, &context));
+        assert!(!command.is_relevant(ctrl_w_key, EditorMode::Insert, &context));
     }
 
     #[test]
