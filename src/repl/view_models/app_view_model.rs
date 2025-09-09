@@ -329,7 +329,7 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
         }
 
         // Switch to response pane to show results
-        self.app_state.switch_to_response_pane();
+        // self.app_state.switch_to_response_pane();
 
         // Generate PostCommandActions for the response update
         let post_actions = vec![
