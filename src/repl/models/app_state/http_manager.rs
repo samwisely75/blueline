@@ -123,13 +123,17 @@ impl AppState {
     /// `true` if content-type indicates JSON, `false` otherwise
     pub fn is_json_content_type(&self, response: &bluenote::HttpResponse) -> bool {
         let headers = response.headers();
-        
+
         if let Some(content_type) = headers.get("content-type") {
             if let Ok(content_type_str) = content_type.to_str() {
                 let content_type_lower = content_type_str.to_lowercase();
                 let is_json = content_type_lower.contains("application/json")
                     || content_type_lower.contains("text/json");
-                tracing::debug!("Content-type check: '{}' -> is_json: {}", content_type_str, is_json);
+                tracing::debug!(
+                    "Content-type check: '{}' -> is_json: {}",
+                    content_type_str,
+                    is_json
+                );
                 return is_json;
             } else {
                 tracing::debug!("Content-type header exists but cannot be converted to string");

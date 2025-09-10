@@ -97,7 +97,11 @@ impl EditorContext {
     /// Enable or disable auto-format for JSON responses
     pub fn set_autoformat_enabled(&mut self, enabled: bool) {
         tracing::info!("=== SETTING AUTO-FORMAT ===");
-        tracing::info!("Previous state: {}, New state: {}", self.autoformat_enabled, enabled);
+        tracing::info!(
+            "Previous state: {}, New state: {}",
+            self.autoformat_enabled,
+            enabled
+        );
         self.autoformat_enabled = enabled;
         tracing::info!(
             "Auto-format mode set to: {}",

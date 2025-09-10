@@ -26,9 +26,15 @@ impl JsonFormatterService {
     ///
     /// Formatted JSON string if parsing is successful, otherwise the original content
     pub fn format_json(&self, content: &str) -> String {
-        tracing::debug!("JsonFormatterService::format_json called with content length: {}", content.len());
-        tracing::debug!("Content preview: {}", &content[..std::cmp::min(200, content.len())]);
-        
+        tracing::debug!(
+            "JsonFormatterService::format_json called with content length: {}",
+            content.len()
+        );
+        tracing::debug!(
+            "Content preview: {}",
+            &content[..std::cmp::min(200, content.len())]
+        );
+
         // Attempt to parse and reformat JSON
         match serde_json::from_str::<serde_json::Value>(content) {
             Ok(json_value) => {
@@ -36,7 +42,10 @@ impl JsonFormatterService {
                 match serde_json::to_string_pretty(&json_value) {
                     Ok(formatted) => {
                         tracing::info!("Successfully formatted JSON content - original: {} chars, formatted: {} chars", content.len(), formatted.len());
-                        tracing::debug!("Formatted preview: {}", &formatted[..std::cmp::min(200, formatted.len())]);
+                        tracing::debug!(
+                            "Formatted preview: {}",
+                            &formatted[..std::cmp::min(200, formatted.len())]
+                        );
                         formatted
                     }
                     Err(e) => {
@@ -44,7 +53,7 @@ impl JsonFormatterService {
                         content.to_string()
                     }
                 }
-            },
+            }
             Err(e) => {
                 tracing::debug!("Content is not valid JSON, returning original: {}", e);
                 content.to_string()
