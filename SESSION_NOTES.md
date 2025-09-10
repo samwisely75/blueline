@@ -1,5 +1,82 @@
 # Session Notes
 
+## [2025-09-10] Word Navigation Bug Investigation and Partial Fix
+
+### User Request Summary
+- User reported that word navigation (`w` and `b` keys) were "completely off" after async segmentation implementation
+- Asked me to check debug.log and create proper tests before claiming completion
+
+### What We Tried and Found
+
+#### Initial Problem Analysis
+- From debug.log: All characters had `is_word_start=false` - no word boundaries detected  
+- Text like `'  "timed_out" : false,'` showed no word start markers
+- `find_next_word_start: no word start found, returning None` repeatedly logged
+- Initial segmentation only happened once at startup, never triggered for new content
+
+#### Key Discovery: Display Cache Issue
+Created integration test `/Users/satoshi/Sources/samwisely75/rust/blueline/tests/word_navigation_integration.rs` that revealed:
+
+1. **Async segmentation WAS working correctly**:
+   - Background thread processed requests
+   - BufferChar word boundaries were set properly
+   - `Char 3: 't' is_word_start=true is_word_end=false` ✅
+
+2. **But DisplayCache wasn't updated**:
+   - DisplayChar showed `DisplayChar 3: 't' is_word_start=false is_word_end=false` ❌
+   - Word boundaries lost when converting BufferChar → DisplayChar
+
+3. **Root cause identified**: Display cache built BEFORE segmentation results applied
+   - Timeline: Insert content → build_display_cache → segmentation → apply results
+   - Display cache never rebuilt after word boundaries applied to BufferChars
+
+#### Successful Test Fix
+- Added display cache rebuild after processing segmentation results
+- Test now passes with word navigation working correctly
+- `Next word result: Some(Position { row: 0, col: 3 })` ✅
+
+### Decisions Made
+- Async segmentation architecture is correct - the issue was display cache synchronization
+- Integration test successfully reproduces and validates the fix
+- Need to fix the event loop to rebuild display cache when segmentation results are processed
+
+### Current Code State
+- ✅ Async segmentation implementation working (`AsyncWordSegmenter`)
+- ✅ Integration test created and passing with manual cache rebuild
+- ❌ Event loop not rebuilding display cache automatically
+- ❌ Word navigation still broken in actual binary
+
+### Critical Fix Needed
+The event loop in `app_view_model.rs` needs to rebuild display cache after this line:
+```rust
+if current_pane.process_segmentation_results(&self.services.async_word_segmenter) {
+    // MISSING: current_pane.build_display_cache(...) 
+    self.view_renderer.render_full(&self.app_state)?;
+    return Ok(());
+}
+```
+
+### Next Steps / TODO
+1. **CRITICAL**: Fix display cache rebuild in event loop (`src/repl/view_models/app_view_model.rs:233`)
+2. Test actual binary with word navigation commands
+3. Consider adding automatic display cache invalidation when BufferChar word boundaries change
+4. Add more comprehensive integration tests for different text patterns
+
+### Files Modified
+- `/Users/satoshi/Sources/samwisely75/rust/blueline/src/repl/services/async_word_segmenter.rs` - Created async segmentation service
+- `/Users/satoshi/Sources/samwisely75/rust/blueline/src/repl/view_models/app_view_model.rs` - Added segmentation processing to event loop
+- `/Users/satoshi/Sources/samwisely75/rust/blueline/src/repl/models/pane_state/display.rs` - Added segmentation methods
+- `/Users/satoshi/Sources/samwisely75/rust/blueline/tests/word_navigation_integration.rs` - Created reproducing test
+
+### Key Learning
+Never claim a fix is complete without:
+1. A reproducing test case that fails before the fix
+2. The same test passing after the fix  
+3. Testing the actual binary behavior
+As the user correctly pointed out: "the quality of product speaks better than words"
+
+---
+
 ## [2025-09-07] PostCommandAction Refactoring Session - Issue #369 Complete
 
 ### User Request Summary
