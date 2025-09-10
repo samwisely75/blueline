@@ -20,7 +20,6 @@ pub mod ex_set_wrap;
 pub mod ex_show_profile;
 pub mod http;
 pub mod http_cancel;
-pub mod setting_change;
 
 // Re-export all command types using wildcards - no merge conflicts!
 pub use app_terminate::*;
@@ -35,4 +34,3 @@ pub use ex_set_wrap::*;
 pub use ex_show_profile::*;
 pub use http::*;
 pub use http_cancel::*;
-pub use setting_change::*;
