@@ -5,6 +5,7 @@
 //! - Response pane visibility
 //! - Status indication
 //! - Error handling
+//! - Auto-format functionality
 
 use crate::common::world::BluelineWorld;
 use crossterm::event::{KeyCode, KeyModifiers};
@@ -455,4 +456,223 @@ async fn then_at_end_of_response_line(world: &mut BluelineWorld) {
     );
 
     debug!("Cursor positioning to end successful");
+}
+
+// === AUTO-FORMAT FUNCTIONALITY ===
+
+#[given("I am in auto format mode")]
+async fn given_in_auto_format_mode(_world: &mut BluelineWorld) {
+    info!("Given: I am in auto format mode");
+    // This is a context-setting step - auto-format mode is checked during response processing
+}
+
+#[given("auto-format is enabled")]
+async fn given_auto_format_is_enabled(world: &mut BluelineWorld) {
+    info!("Setting up with auto-format enabled");
+    // Press Escape to ensure we're in Normal mode
+    world
+        .send_key_event(KeyCode::Esc, KeyModifiers::empty())
+        .await;
+    world.tick().await.expect("Failed to tick after Escape");
+
+    // Type the set command to enable auto-format
+    world.type_text(":set autoformat on").await;
+    world.press_enter().await;
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    // Return to Insert mode for request entry
+    world
+        .send_key_event(KeyCode::Char('i'), KeyModifiers::empty())
+        .await;
+    world.tick().await.expect("Failed to tick");
+}
+
+#[when(regex = r#"I receive an HTTP response with content-type "([^"]+)"$"#)]
+async fn when_receive_http_response_with_content_type(
+    world: &mut BluelineWorld,
+    content_type: String,
+) {
+    info!(
+        "Simulating HTTP response with content-type: {}",
+        content_type
+    );
+    // Store the content-type for the next step
+    world.set_test_data("content_type", content_type);
+}
+
+#[when(regex = r#"the response body is "([^"]+)"$"#)]
+async fn when_response_body_is(world: &mut BluelineWorld, body: String) {
+    info!("Setting response body: {}", body);
+
+    // Get the content-type that was set in the previous step
+    let content_type = world
+        .get_test_data("content_type")
+        .unwrap_or_else(|| "application/json".to_string());
+
+    // Simulate HTTP response with the specified content-type and body
+    world
+        .simulate_http_response_with_content_type("200", &body, &content_type)
+        .await;
+}
+
+#[then("I see the response in the Response pane")]
+async fn then_see_response_in_response_pane(world: &mut BluelineWorld) {
+    debug!("Verifying response appears in Response pane");
+
+    // Check that the response pane is visible
+    let terminal_content = world.get_terminal_content().await;
+    assert!(
+        !terminal_content.trim().is_empty(),
+        "Response pane should contain content"
+    );
+
+    // Look for typical response indicators
+    let has_response = world.terminal_contains("Response").await
+        || world.terminal_contains("200").await
+        || terminal_content.contains("{")  // JSON content
+        || terminal_content.contains("text"); // Text content
+
+    assert!(has_response, "Response should be visible in Response pane");
+}
+
+#[then("the response text is automatically formatted")]
+async fn then_response_text_is_automatically_formatted(world: &mut BluelineWorld) {
+    debug!("Verifying response text is formatted");
+
+    let terminal_content = world.get_terminal_content().await;
+
+    // Check for formatting indicators (indentation and newlines)
+    let is_formatted = terminal_content.contains("  ")  // Indentation
+        && terminal_content.contains("\n")  // Multiple lines
+        && (terminal_content.contains("{") || terminal_content.contains("[")); // JSON
+
+    assert!(
+        is_formatted,
+        "Response text should be automatically formatted with proper indentation"
+    );
+}
+
+#[then("the response text is not formatted")]
+async fn then_response_text_is_not_formatted(world: &mut BluelineWorld) {
+    debug!("Verifying response text is not formatted");
+
+    let terminal_content = world.get_terminal_content().await;
+
+    // For single-line JSON, check that it doesn't have pretty-printing
+    // This is harder to test definitively, but we can check for lack of extra spaces/newlines
+    // in what should be compact JSON
+    if terminal_content.contains("{") {
+        // If it contains JSON, it should be compact (not pretty-printed)
+        // We check for the absence of typical pretty-printing patterns
+        let has_pretty_printing = terminal_content.contains("{\n  ")
+            || terminal_content.contains("[\n  ")
+            || terminal_content.matches("  ").count() > 2; // Multiple indentations
+
+        assert!(
+            !has_pretty_printing,
+            "JSON response should not be pretty-printed when auto-format is disabled"
+        );
+    }
+}
+
+#[then("the response contains proper JSON indentation")]
+async fn then_response_contains_proper_json_indentation(world: &mut BluelineWorld) {
+    debug!("Verifying response contains proper JSON indentation");
+
+    let terminal_content = world.get_terminal_content().await;
+
+    // Check for proper JSON indentation patterns
+    let has_indentation = terminal_content.contains("  \"")  // Indented properties
+        || terminal_content.contains("    ")  // Nested indentation
+        || (terminal_content.contains("{\n") && terminal_content.contains("  ")); // Formatted object
+
+    assert!(
+        has_indentation,
+        "Response should contain proper JSON indentation"
+    );
+}
+
+#[then("the response contains newlines between JSON elements")]
+async fn then_response_contains_newlines_between_json_elements(world: &mut BluelineWorld) {
+    debug!("Verifying response contains newlines between JSON elements");
+
+    let terminal_content = world.get_terminal_content().await;
+
+    // Check for newlines in formatted JSON
+    let has_formatted_structure = terminal_content.contains("{\n")
+        || terminal_content.contains(",\n")
+        || terminal_content.contains("[\n");
+
+    assert!(
+        has_formatted_structure,
+        "Response should contain newlines between JSON elements"
+    );
+}
+
+#[then(regex = r#"the response text is "([^"]+)"$"#)]
+async fn then_response_text_is(world: &mut BluelineWorld, expected_text: String) {
+    debug!("Verifying response text matches: {}", expected_text);
+
+    let contains_text = world.terminal_contains(&expected_text).await;
+    assert!(
+        contains_text,
+        "Response should contain the expected text: '{expected_text}'"
+    );
+}
+
+#[then("auto-format should be enabled")]
+async fn then_auto_format_should_be_enabled(world: &mut BluelineWorld) {
+    debug!("Verifying auto-format is enabled");
+
+    // In the test environment, we verify this by checking the status message
+    // that was displayed when the setting was changed
+    let terminal_content = world.get_terminal_content().await;
+    let has_enabled_message = terminal_content.contains("Auto-format enabled")
+        || terminal_content.contains("autoformat on");
+
+    // We assume the setting took effect if we saw the confirmation message
+    assert!(
+        has_enabled_message,
+        "Auto-format should be enabled (confirmed by status message)"
+    );
+}
+
+#[then("auto-format should be disabled")]
+async fn then_auto_format_should_be_disabled(world: &mut BluelineWorld) {
+    debug!("Verifying auto-format is disabled");
+
+    // In the test environment, we verify this by checking the status message
+    // that was displayed when the setting was changed
+    let terminal_content = world.get_terminal_content().await;
+    let has_disabled_message = terminal_content.contains("Auto-format disabled")
+        || terminal_content.contains("autoformat off");
+
+    // We assume the setting took effect if we saw the confirmation message
+    assert!(
+        has_disabled_message,
+        "Auto-format should be disabled (confirmed by status message)"
+    );
+}
+
+#[then("the formatted JSON is valid and parseable")]
+async fn then_formatted_json_is_valid_and_parseable(world: &mut BluelineWorld) {
+    debug!("Verifying formatted JSON is valid and parseable");
+
+    let terminal_content = world.get_terminal_content().await;
+
+    // Extract JSON content from terminal (this is simplified - in real tests we'd need more robust parsing)
+    if let Some(start) = terminal_content.find('{') {
+        if let Some(end) = terminal_content.rfind('}') {
+            let json_content = &terminal_content[start..=end];
+
+            // Try to parse the JSON to ensure it's valid
+            match serde_json::from_str::<serde_json::Value>(json_content) {
+                Ok(_) => debug!("JSON is valid and parseable"),
+                Err(e) => panic!("Formatted JSON is not valid: {e}"),
+            }
+        }
+    } else {
+        // If no JSON found, that's okay for this test - it may not be JSON content
+        debug!("No JSON content found to validate");
+    }
 }

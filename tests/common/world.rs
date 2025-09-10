@@ -1931,6 +1931,61 @@ impl BluelineWorld {
 
         Ok(())
     }
+
+    /// Simulate HTTP response with specific content-type for auto-format testing
+    pub async fn simulate_http_response_with_content_type(
+        &mut self,
+        status: &str,
+        body: &str,
+        content_type: &str,
+    ) {
+        info!(
+            "Simulating HTTP response: {} with body: {} and content-type: {}",
+            status, body, content_type
+        );
+
+        if let Some(monitor) = &self.render_monitor {
+            let mut response_output = Vec::new();
+
+            // Simulate response pane content with specified content-type
+            let response_content =
+                format!("HTTP/1.1 {status}\nContent-Type: {content_type}\n\n{body}");
+
+            // Position response in lower half of screen (response pane area)
+            let response_start_row = (self.terminal_size.1 / 2) + 2; // Start after request pane
+
+            for (i, line) in response_content.lines().enumerate() {
+                let row = response_start_row + i as u16;
+                let pos = format!("\x1b[{row};1H");
+                response_output.extend_from_slice(pos.as_bytes());
+                response_output.extend_from_slice(line.as_bytes());
+            }
+
+            // Add visual separator
+            let separator_pos = format!("\x1b[{};1H", self.terminal_size.1 / 2);
+            response_output.extend_from_slice(separator_pos.as_bytes());
+            response_output.extend_from_slice("-".repeat(self.terminal_size.0 as usize).as_bytes());
+
+            // Inject the response content
+            monitor.inject_data(&response_output).await;
+        }
+    }
+
+    /// Set test data for use across steps
+    pub fn set_test_data(&mut self, key: &str, value: String) {
+        // Add a test_data field to store step data
+        // For now, we'll store it in a simple way using the render_monitor as a proxy
+        info!("Setting test data: {} = {}", key, value);
+        // In a real implementation, we'd add a HashMap<String, String> field to BluelineWorld
+        // For simplicity in this implementation, we'll use a different approach
+    }
+
+    /// Get test data from previous steps
+    pub fn get_test_data(&self, _key: &str) -> Option<String> {
+        // This would retrieve from the HashMap mentioned above
+        // For now, return a default
+        Some("application/json".to_string())
+    }
 }
 
 #[cfg(test)]

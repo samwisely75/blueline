@@ -12,17 +12,6 @@ impl AppState {
         self.status_line.is_executing()
     }
 
-    /// Set request execution status and update status bar
-    pub fn set_executing_request(&mut self, executing: bool) {
-        self.status_line.set_executing(executing);
-        if executing {
-            tracing::debug!("Request execution started");
-        } else {
-            tracing::debug!("Request execution finished");
-        }
-        // Status bar update will be handled by command
-    }
-
     /// Get session headers
     pub fn session_headers(&self) -> &HashMap<String, String> {
         // Delegate to HTTP context for better domain separation
@@ -35,7 +24,12 @@ impl AppState {
     }
 
     /// Set response from HTTP response
-    pub fn set_response_from_http(&mut self, response: &bluenote::HttpResponse) {
+    /// Note: JSON formatting is now handled at the view model layer
+    pub fn set_response_from_http(
+        &mut self,
+        response: &bluenote::HttpResponse,
+        formatted_body: String,
+    ) {
         let status_code = response.status().as_u16();
         let status_message = response
             .status()
@@ -43,19 +37,18 @@ impl AppState {
             .unwrap_or("")
             .to_string();
         let duration_ms = response.duration_ms();
-        let body = response.body().to_string();
 
         self.response.set_status_code(status_code);
         self.response.set_status_message(status_message.clone());
         self.response.set_duration_ms(duration_ms);
-        self.response.set_body(body.clone());
+        self.response.set_body(formatted_body.clone());
 
         // Update status line with HTTP status
         self.status_line
             .set_http_status(status_code, status_message, duration_ms);
 
         // Update response buffer content using semantic operation
-        self.pane_manager.set_response_content(&body);
+        self.pane_manager.set_response_content(&formatted_body);
 
         // Response content setting already resets cursor and scroll positions
 
@@ -114,5 +107,36 @@ impl AppState {
     /// Get response text content
     pub fn get_response_text(&self) -> String {
         self.pane_manager.get_response_text()
+    }
+
+    /// Check if the HTTP response content-type indicates JSON content
+    ///
+    /// Checks for both "application/json" and "text/json" content types as commonly
+    /// used by REST APIs and web services.
+    ///
+    /// # Arguments
+    ///
+    /// * `response` - The HTTP response containing headers
+    ///
+    /// # Returns
+    ///
+    /// `true` if content-type indicates JSON, `false` otherwise
+    pub fn is_json_content_type(&self, response: &bluenote::HttpResponse) -> bool {
+        let headers = response.headers();
+        
+        if let Some(content_type) = headers.get("content-type") {
+            if let Ok(content_type_str) = content_type.to_str() {
+                let content_type_lower = content_type_str.to_lowercase();
+                let is_json = content_type_lower.contains("application/json")
+                    || content_type_lower.contains("text/json");
+                tracing::debug!("Content-type check: '{}' -> is_json: {}", content_type_str, is_json);
+                return is_json;
+            } else {
+                tracing::debug!("Content-type header exists but cannot be converted to string");
+            }
+        } else {
+            tracing::debug!("No content-type header found");
+        }
+        false
     }
 }

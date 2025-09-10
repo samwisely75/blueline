@@ -23,6 +23,9 @@ pub struct EditorContext {
 
     /// Whether d/dd/D commands should cut (yank) instead of just delete
     dcut_enabled: bool,
+
+    /// Whether auto-format is enabled for JSON responses
+    autoformat_enabled: bool,
 }
 
 impl EditorContext {
@@ -31,7 +34,8 @@ impl EditorContext {
         Self {
             yank_buffer: Box::new(MemoryYankBuffer::new()),
             clipboard_enabled: false,
-            dcut_enabled: true, // Default to true for cut behavior
+            dcut_enabled: true,        // Default to true for cut behavior
+            autoformat_enabled: false, // Default to false for auto-format
         }
     }
 
@@ -90,6 +94,22 @@ impl EditorContext {
         self.dcut_enabled
     }
 
+    /// Enable or disable auto-format for JSON responses
+    pub fn set_autoformat_enabled(&mut self, enabled: bool) {
+        tracing::info!("=== SETTING AUTO-FORMAT ===");
+        tracing::info!("Previous state: {}, New state: {}", self.autoformat_enabled, enabled);
+        self.autoformat_enabled = enabled;
+        tracing::info!(
+            "Auto-format mode set to: {}",
+            if enabled { "ON" } else { "OFF" }
+        );
+    }
+
+    /// Get whether auto-format is enabled for JSON responses
+    pub fn is_autoformat_enabled(&self) -> bool {
+        self.autoformat_enabled
+    }
+
     /// Get reference to the yank buffer
     #[allow(dead_code)]
     pub fn yank_buffer(&self) -> &dyn YankBuffer {
@@ -113,6 +133,7 @@ impl std::fmt::Debug for EditorContext {
         f.debug_struct("EditorContext")
             .field("clipboard_enabled", &self.clipboard_enabled)
             .field("dcut_enabled", &self.dcut_enabled)
+            .field("autoformat_enabled", &self.autoformat_enabled)
             .field("yank_buffer", &"<dyn YankBuffer>")
             .finish()
     }

@@ -291,8 +291,32 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                 response,
                 url,
             } => {
-                // Update response pane with the response
-                self.app_state.set_response_from_http(&response);
+                // Get the raw body content
+                let raw_body = response.body();
+                
+                // Debug logging for auto-format
+                let autoformat_enabled = self.app_state.is_autoformat_enabled();
+                let is_json_content = self.app_state.is_json_content_type(&response);
+                tracing::info!("=== AUTO-FORMAT DEBUG ===");
+                tracing::info!("Auto-format enabled: {}", autoformat_enabled);
+                tracing::info!("Is JSON content: {}", is_json_content);
+                tracing::info!("Response content-type: {:?}", response.headers().get("content-type"));
+                tracing::info!("Raw body (first 200 chars): {}", &raw_body[..std::cmp::min(200, raw_body.len())]);
+
+                // Apply JSON formatting if auto-format is enabled and content-type indicates JSON
+                let formatted_body = if autoformat_enabled && is_json_content {
+                    tracing::info!("✓ APPLYING JSON formatting...");
+                    let formatted = self.services.json_formatter.format_json(raw_body);
+                    tracing::info!("✓ Formatted body (first 200 chars): {}", &formatted[..std::cmp::min(200, formatted.len())]);
+                    formatted
+                } else {
+                    tracing::info!("✗ NOT applying JSON formatting - autoformat: {}, is_json: {}", autoformat_enabled, is_json_content);
+                    raw_body.to_string()
+                };
+
+                // Update response pane with the formatted response
+                self.app_state
+                    .set_response_from_http(&response, formatted_body);
                 self.app_state.set_executing_request(false);
 
                 let status = response.status().as_u16();

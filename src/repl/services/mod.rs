@@ -10,11 +10,13 @@
 //! - Abstracting external resources
 
 pub mod http;
+pub mod json_formatter;
 pub mod word_segmenter;
 pub mod yank;
 
 // Re-export service types
 pub use http::{BufferRequestArgs, HttpExecutionResult, HttpResponseMessage, HttpService};
+pub use json_formatter::JsonFormatterService;
 pub use word_segmenter::{
     SegmentationResult, WordBoundaries, WordFlags, WordSegmenter, WordSegmenterService,
 };
@@ -24,6 +26,8 @@ pub use yank::YankService;
 pub struct Services {
     /// Service for HTTP request operations (optional until configured)
     pub http: Option<HttpService>,
+    /// Service for JSON formatting
+    pub json_formatter: JsonFormatterService,
     /// Service for word segmentation and boundary detection
     pub word_segmenter: std::sync::Arc<WordSegmenterService>,
     /// Service for yank/paste operations
@@ -35,6 +39,7 @@ impl Services {
     pub fn new() -> Self {
         Self {
             http: None,
+            json_formatter: JsonFormatterService::new(),
             word_segmenter: WordSegmenterService::new(),
             yank: YankService::new(),
         }

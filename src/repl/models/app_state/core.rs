@@ -230,6 +230,27 @@ impl AppState {
         self.editor_context.is_dcut_enabled()
     }
 
+    /// Enable or disable auto-format for JSON responses
+    pub fn set_autoformat_enabled(&mut self, enabled: bool) {
+        self.editor_context.set_autoformat_enabled(enabled);
+    }
+
+    /// Get whether auto-format is enabled for JSON responses
+    pub fn is_autoformat_enabled(&self) -> bool {
+        self.editor_context.is_autoformat_enabled()
+    }
+
+    /// Set request execution status and update status bar
+    pub fn set_executing_request(&mut self, executing: bool) {
+        self.status_line.set_executing(executing);
+        if executing {
+            tracing::debug!("Request execution started");
+        } else {
+            tracing::debug!("Request execution finished");
+        }
+        // Status bar update will be handled by command
+    }
+
     /// Update terminal size and resize screen buffers
     ///
     /// Ensures all rendering components stay synchronized with terminal dimensions:

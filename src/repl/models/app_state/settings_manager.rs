@@ -54,6 +54,14 @@ impl AppState {
                 self.set_dcut_enabled(enable);
                 Ok(())
             }
+            Setting::AutoFormat => {
+                let enable = value == SettingValue::On;
+                tracing::info!("=== SETTINGS MANAGER: AutoFormat ===");
+                tracing::info!("Value received: {:?}, Enabling: {}", value, enable);
+                self.set_autoformat_enabled(enable);
+                tracing::info!("AutoFormat setting applied successfully");
+                Ok(())
+            }
         }
     }
 }

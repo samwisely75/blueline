@@ -17,6 +17,8 @@ pub enum Setting {
     ExpandTab,
     /// Cut mode for d/dd/D commands (yank to clipboard)
     DCut,
+    /// Auto-format JSON responses
+    AutoFormat,
 }
 
 /// Values for settings

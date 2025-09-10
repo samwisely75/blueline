@@ -66,7 +66,10 @@ impl Command for SettingChangeCommand {
             Ok(vec![PostCommandAction::StatusBarUpdateRequired])
         } else {
             // Other settings go through AppState
+            tracing::info!("=== APPLYING SETTING ===");
+            tracing::info!("Setting: {:?}, Value: {:?}", self.setting, self.value);
             context.app_state.apply_setting(self.setting, self.value)?;
+            tracing::info!("Setting applied successfully");
 
             // Generate status message based on setting type
             let message = match (&self.setting, &self.value) {
@@ -88,6 +91,12 @@ impl Command for SettingChangeCommand {
                         PostCommandAction::CurrentAreaRedrawRequired,
                         PostCommandAction::StatusBarUpdateRequired,
                     ]);
+                }
+                (Setting::AutoFormat, SettingValue::On) => {
+                    "Auto-format enabled (JSON responses will be formatted)"
+                }
+                (Setting::AutoFormat, SettingValue::Off) => {
+                    "Auto-format disabled (JSON responses will not be formatted)"
                 }
                 _ => {
                     context.app_state.set_status_message(format!(
@@ -233,5 +242,78 @@ mod tests {
             events[1],
             PostCommandAction::StatusBarUpdateRequired
         ));
+    }
+
+    #[test]
+    fn setting_change_command_should_handle_autoformat_setting_on() {
+        let command = SettingChangeCommand::new(Setting::AutoFormat, SettingValue::On);
+        let mut app_state = AppState::new();
+        let mut services = Services::new();
+
+        // Initially autoformat should be disabled
+        assert!(!app_state.is_autoformat_enabled());
+
+        let mut context = ExecutionContext {
+            app_state: &mut app_state,
+            services: &mut services,
+        };
+
+        // Execute the command
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
+
+        assert!(result.is_ok());
+        let events = result.unwrap();
+        assert_eq!(events.len(), 2);
+        assert!(matches!(
+            events[0],
+            PostCommandAction::CurrentAreaRedrawRequired
+        ));
+        assert!(matches!(
+            events[1],
+            PostCommandAction::StatusBarUpdateRequired
+        ));
+
+        // Verify autoformat is now enabled
+        assert!(context.app_state.is_autoformat_enabled());
+    }
+
+    #[test]
+    fn setting_change_command_should_handle_autoformat_setting_off() {
+        let command = SettingChangeCommand::new(Setting::AutoFormat, SettingValue::Off);
+        let mut app_state = AppState::new();
+
+        // Enable autoformat first
+        app_state.set_autoformat_enabled(true);
+        assert!(app_state.is_autoformat_enabled());
+
+        let mut services = Services::new();
+        let mut context = ExecutionContext {
+            app_state: &mut app_state,
+            services: &mut services,
+        };
+
+        // Execute the command to disable it
+        let result = command.execute(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::empty()),
+            &mut context,
+        );
+
+        assert!(result.is_ok());
+        let events = result.unwrap();
+        assert_eq!(events.len(), 2);
+        assert!(matches!(
+            events[0],
+            PostCommandAction::CurrentAreaRedrawRequired
+        ));
+        assert!(matches!(
+            events[1],
+            PostCommandAction::StatusBarUpdateRequired
+        ));
+
+        // Verify autoformat is now disabled
+        assert!(!context.app_state.is_autoformat_enabled());
     }
 }
