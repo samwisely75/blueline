@@ -1126,8 +1126,13 @@ impl<RS: RenderStream> ViewRenderer for TerminalRenderer<RS> {
                     let current_pane = app_state.get_current_pane();
                     self.render_pane(app_state, current_pane)?;
                 } else {
-                    // Always redraw response pane when content changes
-                    self.render_pane(app_state, crate::repl::models::pane_state::Pane::Response)?;
+                    // Only redraw response pane if it actually has content to display
+                    if app_state.get_response_status_code().is_some() {
+                        self.render_pane(
+                            app_state,
+                            crate::repl::models::pane_state::Pane::Response,
+                        )?;
+                    }
                 }
             }
             PostCommandAction::AllContentAreasRedrawRequired => {

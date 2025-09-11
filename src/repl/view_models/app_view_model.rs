@@ -464,12 +464,11 @@ impl<ES: EventStream, RS: RenderStream> AppViewModel<ES, RS> {
                     needs_status_bar = true;
                 }
                 PostCommandAction::RequestContentChanged => {
-                    // Request content changed - redraw current area if we're in request pane
+                    // Request content changed - only redraw request pane, never response pane
                     if self.app_state.is_in_request_pane() {
                         needs_current_area_redraw = true;
-                    } else {
-                        needs_secondary_area_redraw = true;
                     }
+                    // Removed else clause that caused unnecessary response pane redraws when typing in request pane
                 }
                 PostCommandAction::ResponseContentChanged => {
                     // Response content changed - redraw current area if we're in response pane
